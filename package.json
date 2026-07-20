@@ -5,12 +5,14 @@
   "description": "Compliance CRM for French training organizations (OFP) — Phase 1 scaffold",
   "scripts": {
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed:reference": "tsx prisma/seed-reference-data.ts",
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
