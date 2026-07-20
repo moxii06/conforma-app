@@ -158,6 +158,37 @@ for what that means in practice for each one.
   demo data standing in for a real inbox. Auto-purge after ~30 days (spec
   §5.11 point 5) isn't implemented — needs a scheduled job runner, which this
   scaffold doesn't have.
+- **Mail workflow — assignment, replies, client-record sends, follow-ups**
+  (built on top of the inbox triage above) — team assignment of any email
+  (`EmailMessage.assignedToUserId`, a select on both `/inbox` and the
+  dossier's Emails tab); replying to a message (`EmailReplyComposer`) records
+  a real threaded `EmailMessage` (`direction: "out"`, `inReplyToId`) with its
+  full body, not just a snippet — no real delivery, same constraint as
+  everywhere else; an "Assister avec l'IA" button calls
+  `/api/inbox/messages/[id]/ai-draft`, which returns a clear 501 pointing at
+  `/integrations` rather than faking a completion (needs a real LLM API key
+  — Claude/Mistral/OpenAI — none configured). From a Dossier's Info tab,
+  "Communications" now covers the three send actions spec'd beyond the
+  positioning test (which already had its own flow via
+  `NeedsAssessmentRequest`): **Contrat** generates a real merged `Document`
+  from the org's `convention` template and tracks it via the new
+  `ClientOutreach` model, with a "Marquer signé" action that flips
+  `Dossier.contractSigned`; **Convocation** reuses the exact same
+  `createSessionInvitation()` logic as `/planning` (factored into
+  `src/lib/sessionInvitations.ts` so the two entry points can't drift) rather
+  than duplicating it; **Accès plateforme** creates/links a real `LEARNER`
+  `User` (or detects one already exists/is active) and issues a genuine
+  activation link. The dashboard's new "Relances à faire" widget
+  (`src/lib/followUps.ts`) aggregates everything still waiting — positioning
+  tests, contracts, platform access — past a 5-day threshold, plus dossiers
+  with a session starting soon that still have no convocation sent, scoped
+  by the same SALES/TRAINER ownership rules as the rest of the app.
+- **Account activation** (`/activation/[token]`) — the missing half of the
+  Team invite flow: an invited member (or a learner granted platform access)
+  sets their own password via a token-gated public page, same pattern as
+  `/formulaire/[token]`, and is signed in automatically afterward. This also
+  retroactively fixes Team invites, which previously created `status:
+  "invited"` accounts with no way to ever actually activate them.
 - **Document merge-field engine** (`src/lib/mergeTemplate.ts`) — the piece
   the first pass's document library explicitly deferred. A template's
   `{{contact.firstName}}`-style placeholders (listed on `/documents`) get
@@ -209,10 +240,18 @@ action in this app produces a real link, record, or file that a human
 delivers manually, not an actual delivery:
 
 - No email is ever sent (Team invites, session invitations, needs-assessment
-  requests) — Brevo isn't wired in, regardless of what's saved on
-  `/integrations`.
+  requests, replies, contract/convocation/platform-access sends) — Brevo
+  isn't wired in, regardless of what's saved on `/integrations`. Every one of
+  these produces a real link or record that a human relays manually
+  (activation link, generated document, meeting link).
 - No mailbox is ever synced — `/inbox` runs on seeded demo `EmailMessage`
-  rows, not a live Gmail/Outlook connection.
+  rows, not a live Gmail/Outlook connection. Connecting one for real needs a
+  registered Google/Microsoft OAuth app — Google's verification for the
+  scopes this would need can take weeks, per spec's own note.
+- No AI drafts replies — `/api/inbox/messages/[id]/ai-draft` needs a real
+  LLM API key (Claude/Mistral/OpenAI) configured on `/integrations` and a
+  provider actually wired up to call it; right now it always returns a 501
+  explaining why, never a fake completion.
 - No e-invoice is ever transmitted — every invoice records
   `einvoicingProvider: "ppf"` as an intent, not an actual PPF/Pennylane/
   Sellsy API call.

@@ -11,6 +11,7 @@ const schema = z.discriminatedUnion("action", [
     lastName: z.string().min(1),
   }),
   z.object({ action: z.literal("discard") }),
+  z.object({ action: z.literal("assign"), userId: z.string().min(1).nullable() }),
 ]);
 
 // Manual triage actions on one unsorted inbox message — spec §5.11 point 4:
@@ -38,6 +39,25 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (parsed.data.action === "discard") {
     await prisma.emailMessage.delete({ where: { id: message.id } });
     return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "assign") {
+    if (parsed.data.userId === null) {
+      const updated = await prisma.emailMessage.update({
+        where: { id: message.id },
+        data: { assignedToUserId: null, assignedToName: null },
+      });
+      return NextResponse.json(updated);
+    }
+    const member = await prisma.user.findFirst({
+      where: { id: parsed.data.userId, organizationId: session.organizationId },
+    });
+    if (!member) return NextResponse.json({ error: "Membre introuvable." }, { status: 404 });
+    const updated = await prisma.emailMessage.update({
+      where: { id: message.id },
+      data: { assignedToUserId: member.id, assignedToName: member.name },
+    });
+    return NextResponse.json(updated);
   }
 
   let contactId: string;

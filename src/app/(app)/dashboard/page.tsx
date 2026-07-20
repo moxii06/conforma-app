@@ -2,10 +2,18 @@ import { prisma } from "@/lib/prisma";
 import { MetricCard, PageHeader } from "@/components/ui";
 import { requireSessionContext } from "@/lib/tenant";
 import { BarChart } from "@/components/charts/BarChart";
+import { getFollowUpsDue } from "@/lib/followUps";
 import { PipelineStage, Role } from "@prisma/client";
 import { addWeeks, startOfWeek, format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
+
+const FOLLOW_UP_KIND_LABELS: Record<string, string> = {
+  needs_assessment: "Test de positionnement",
+  contract: "Contrat",
+  platform_access: "Accès plateforme",
+  convocation: "Convocation",
+};
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   PROSPECT: "Prospect",
@@ -16,12 +24,14 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 };
 
 export default async function DashboardPage() {
-  const { organizationId, role } = await requireSessionContext();
+  const { organizationId, role, userId } = await requireSessionContext();
 
   const subscription =
     role === Role.ADMIN_OF
       ? await prisma.subscription.findUnique({ where: { organizationId } })
       : null;
+
+  const followUps = await getFollowUpsDue(organizationId, role, userId);
 
   const [
     sessionsInProgress,
@@ -88,6 +98,8 @@ export default async function DashboardPage() {
           <TrialBanner plan={subscription.plan} trialEndsAt={subscription.trialEndsAt} />
         )}
 
+        {followUps.length > 0 && <FollowUpsWidget followUps={followUps} />}
+
         <div className="flex gap-3.5">
           <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} />
           <MetricCard label="Factures en retard" value={String(overdueInvoices)} />
@@ -113,6 +125,36 @@ export default async function DashboardPage() {
         </div>
       </div>
     </>
+  );
+}
+
+function FollowUpsWidget({ followUps }: { followUps: Awaited<ReturnType<typeof getFollowUpsDue>> }) {
+  return (
+    <div className="bg-white border border-line rounded-card p-4">
+      <div className="text-[12.5px] text-slate mb-3">
+        Relances à faire ({followUps.length})
+      </div>
+      <div className="flex flex-col">
+        {followUps.slice(0, 8).map((f) => (
+          <Link
+            key={`${f.kind}-${f.id}`}
+            href={f.href}
+            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#FAF8F2] -mx-1 px-1 rounded"
+          >
+            <div>
+              <span className="text-[12.5px] text-ink font-medium">{f.contactName}</span>
+              <span className="text-[12.5px] text-slate"> — {f.label}</span>
+            </div>
+            <span className="text-[11px] text-slate shrink-0">{FOLLOW_UP_KIND_LABELS[f.kind]}</span>
+          </Link>
+        ))}
+      </div>
+      {followUps.length > 8 && (
+        <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
+          + {followUps.length - 8} autre{followUps.length - 8 > 1 ? "s" : ""}
+        </div>
+      )}
+    </div>
   );
 }
 

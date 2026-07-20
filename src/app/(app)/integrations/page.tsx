@@ -12,6 +12,7 @@ const PROVIDERS: { key: string; label: string; description: string; kind: "apiKe
   { key: "sellsy", label: "Sellsy", description: "Connecteur e-facturation alternatif (spec §5.3 / §7.2).", kind: "apiKey" },
   { key: "google_oauth", label: "Google (Gmail)", description: "Connexion de boîte mail pour le triage (spec §5.11).", kind: "oauth" },
   { key: "microsoft_oauth", label: "Microsoft (Outlook)", description: "Connexion de boîte mail pour le triage (spec §5.11).", kind: "oauth" },
+  { key: "ai_provider", label: "IA (Claude, Mistral, OpenAI...)", description: "Rédaction assistée des réponses dans la boîte mail — active le bouton « Assister avec l'IA » une fois une clé API configurée.", kind: "apiKey" },
 ];
 
 export default async function IntegrationsPage() {
@@ -28,8 +29,9 @@ export default async function IntegrationsPage() {
         <div className="text-[11.5px] text-slate">
           Ces identifiants sont stockés mais aucune fonctionnalité de l&apos;application ne les utilise encore — le
           branchement réel (envoi d&apos;emails via Brevo, signature via Yousign, transmission via Pennylane/Sellsy,
-          connexion de boîte mail via Google/Microsoft) reste à faire. Le stockage n&apos;est pas non plus chiffré au
-          repos pour l&apos;instant — à corriger avant d&apos;y mettre de vraies clés de production (spec §7.1).
+          connexion de boîte mail via Google/Microsoft, rédaction assistée par IA) reste à faire. Le stockage
+          n&apos;est pas non plus chiffré au repos pour l&apos;instant — à corriger avant d&apos;y mettre de vraies
+          clés de production (spec §7.1).
         </div>
         {PROVIDERS.map((p) => {
           const cred = byProvider.get(p.key);

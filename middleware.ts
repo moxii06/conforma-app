@@ -15,13 +15,18 @@ export default withAuth({
 // submission API — deliberately reached without a Conforma account, the
 // token itself is the access control); the trial signup page (/essai) and
 // its account-creation API (/api/signup — no session exists yet, that's
-// the whole point of a signup endpoint); and the marketing/pricing page at
-// the site root. Static assets (_next, favicon) are excluded so the app
-// shell can still load its CSS/JS while an unauthenticated user is bounced
-// to /login.
+// the whole point of a signup endpoint); the account-activation page
+// (/activation/[token], reached by invited team members and learners
+// granted platform access — no session exists yet either, the token is
+// the access control, same pattern as /formulaire); and the marketing/
+// pricing page at the site root. Static assets (_next, favicon) are
+// excluded so the app shell can still load its CSS/JS while an
+// unauthenticated user is bounced to /login.
 // The trailing `|$` is what excludes the *exact* root "/" — everything
 // else keeps going through auth (e.g. "/dashboard" still matches, since
 // its remainder isn't empty).
 export const config = {
-  matcher: ["/((?!login|formulaire|essai|api/auth|api/public|api/signup|_next/static|_next/image|favicon.ico|$).*)"],
+  matcher: [
+    "/((?!login|formulaire|essai|activation|api/auth|api/public|api/signup|_next/static|_next/image|favicon.ico|$).*)",
+  ],
 };

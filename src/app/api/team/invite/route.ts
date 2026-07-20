@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { z } from "zod";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -10,12 +11,13 @@ const inviteSchema = z.object({
   role: z.nativeEnum(Role),
 });
 
-// Creates a pending team member (status "invited", no password set yet).
-// There's no email-delivery step here — spec §3 pencils in Brevo for
-// transactional email, which isn't wired into this scaffold, so an invited
-// member currently needs another way to get a password set before they
-// can sign in. Wiring that up is the natural next step once Brevo (or
-// another provider) is configured.
+// Creates a pending team member (status "invited", no password set yet) and
+// an activation token for /activation/[token], where they set their own
+// password. There's no email-delivery step here — spec §3 pencils in Brevo
+// for transactional email, which isn't wired into this scaffold — so the
+// activation link needs to be relayed to the invitee some other way for
+// now (shown to the admin who sent the invite, same pattern as every other
+// "no real delivery yet" flow in this app).
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
@@ -34,6 +36,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Un compte existe déjà avec cet email." }, { status: 409 });
   }
 
+  const activationToken = randomBytes(20).toString("hex");
   const member = await prisma.user.create({
     data: {
       organizationId: session.organizationId,
@@ -41,8 +44,10 @@ export async function POST(request: Request) {
       email: parsed.data.email.toLowerCase().trim(),
       role: parsed.data.role,
       status: "invited",
+      activationToken,
     },
   });
 
-  return NextResponse.json({ id: member.id, email: member.email, status: member.status }, { status: 201 });
+  const activationUrl = `${new URL(request.url).origin}/activation/${activationToken}`;
+  return NextResponse.json({ id: member.id, email: member.email, status: member.status, activationUrl }, { status: 201 });
 }

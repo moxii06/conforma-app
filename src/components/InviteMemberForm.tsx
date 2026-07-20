@@ -14,11 +14,13 @@ export function InviteMemberForm() {
   const [role, setRole] = useState<Role>(Role.SALES);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activationUrl, setActivationUrl] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setActivationUrl(null);
 
     const res = await fetch("/api/team/invite", {
       method: "POST",
@@ -26,13 +28,14 @@ export function InviteMemberForm() {
       body: JSON.stringify({ name, email, role }),
     });
 
+    const body = await res.json().catch(() => ({}));
     setLoading(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
       setError(body.error ?? "Erreur lors de l'invitation.");
       return;
     }
 
+    setActivationUrl(body.activationUrl ?? null);
     setName("");
     setEmail("");
     setRole(Role.SALES);
@@ -82,6 +85,14 @@ export function InviteMemberForm() {
         {loading ? "Envoi…" : "Inviter"}
       </button>
       {error && <div className="text-[12px] text-rust w-full">{error}</div>}
+      {activationUrl && (
+        <div className="text-[12px] text-sage w-full">
+          Invitation créée — lien d&apos;activation à transmettre :{" "}
+          <a href={activationUrl} target="_blank" rel="noreferrer" className="underline">
+            {activationUrl}
+          </a>
+        </div>
+      )}
     </form>
   );
 }

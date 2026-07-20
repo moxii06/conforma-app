@@ -48,6 +48,7 @@ model Organization {
   emailMessages       EmailMessage[]
   mailboxConnections  MailboxConnection[]
   integrationCredentials IntegrationCredential[]
+  clientOutreaches    ClientOutreach[]
   subscription        Subscription?
 }
 
@@ -90,6 +91,7 @@ model User {
   role           Role
   status         String       @default("active") // active | invited | disabled
   passwordHash   String? // null while status = "invited" — set once the member activates their account
+  activationToken String?     @unique // set alongside status="invited"; consumed by /activation/[token]
   createdAt      DateTime     @default(now())
 
   trainerSessions Session[]      @relation("SessionTrainer")
@@ -135,6 +137,7 @@ model Contact {
   invoices      Invoice[]
   opportunities Opportunity[]
   needsAssessmentRequests NeedsAssessmentRequest[]
+  clientOutreaches ClientOutreach[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -174,6 +177,7 @@ model Dossier {
   invitations        SessionInvitation[]
   quotes             Quote[]
   invoices           Invoice[]
+  clientOutreaches   ClientOutreach[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -587,11 +591,55 @@ model EmailMessage {
   fromAddress    String
   subject        String
   snippet        String
+  body           String?      // full content — snippet stays a short preview for list views
   receivedAt     DateTime
   direction      String       // "in" | "out"
 
+  // Team triage: who on the team is handling this message. Denormalized
+  // name alongside the id so list views don't need an extra join, same
+  // pattern as sentByUserId/sentByName elsewhere in this schema.
+  assignedToUserId String?
+  assignedToName   String?
+
+  // Reply threading — a reply is its own "out" EmailMessage row pointing
+  // back at the message it answers. No real delivery happens (no mailbox
+  // is actually connected yet), so this just records the reply was
+  // composed and against which thread.
+  replyTo        EmailMessage?  @relation("EmailThread", fields: [inReplyToId], references: [id])
+  inReplyToId    String?
+  replies        EmailMessage[] @relation("EmailThread")
+
   @@index([organizationId])
   @@index([contactId])
+}
+
+// Tracks a client-record-initiated send of a document/step that isn't
+// already covered by a dedicated flow — NeedsAssessmentRequest handles the
+// positioning test (with its own public fill-in page), SessionInvitation
+// handles the convocation (with its meeting/map links). This is the same
+// "sent, waiting on the other side" bookkeeping for the two remaining
+// steps a staff member can trigger from a client record: the contract and
+// platform access. No real email delivery — same constraint as everywhere
+// else in this scaffold — but a real, queryable record of what was sent,
+// when, and whether it was ever acted on, which is what "relances" needs.
+model ClientOutreach {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  contact        Contact      @relation(fields: [contactId], references: [id])
+  contactId      String
+  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId      String?
+  type           String       // "contract" | "platform_access"
+  status         String       @default("sent") // sent | acknowledged
+  sentByUserId   String
+  sentByName     String
+  sentAt         DateTime     @default(now())
+  acknowledgedAt DateTime?
+
+  @@index([organizationId])
+  @@index([contactId])
+  @@index([dossierId])
 }
 
 // ---------------------------------------------------------------------------

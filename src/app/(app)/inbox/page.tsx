@@ -5,13 +5,15 @@ import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { InboxMessageActions } from "@/components/InboxMessageActions";
+import { AssignEmailSelect } from "@/components/AssignEmailSelect";
+import { Role } from "@prisma/client";
 
 export default async function InboxPage() {
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "inbox") === "none") redirect("/dashboard");
   const canWrite = can(role, "inbox") !== "none";
 
-  const [connections, unsorted, suggested, contacts] = await Promise.all([
+  const [connections, unsorted, suggested, contacts, members] = await Promise.all([
     prisma.mailboxConnection.findMany({ where: { organizationId } }),
     prisma.emailMessage.findMany({
       where: { organizationId, contactId: null },
@@ -26,6 +28,11 @@ export default async function InboxPage() {
       where: { organizationId },
       select: { id: true, firstName: true, lastName: true, email: true },
       orderBy: { lastName: "asc" },
+    }),
+    prisma.user.findMany({
+      where: { organizationId, status: "active", role: { not: Role.LEARNER } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -72,7 +79,12 @@ export default async function InboxPage() {
               </div>
               <div className="text-[12.5px] text-ink">{m.subject}</div>
               <div className="text-[12px] text-slate">{m.snippet}</div>
-              {canWrite && <InboxMessageActions messageId={m.id} contacts={contacts} />}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {canWrite && <InboxMessageActions messageId={m.id} contacts={contacts} />}
+                {canWrite && (
+                  <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
+                )}
+              </div>
             </div>
           ))}
           {unsorted.length === 0 && <div className="text-[12.5px] text-slate">Rien à trier.</div>}
@@ -81,14 +93,19 @@ export default async function InboxPage() {
         <div className="bg-white border border-line rounded-card p-4">
           <div className="text-[13px] font-semibold text-ink mb-3">Suggestions de rattachement à un dossier</div>
           {suggested.map((m) => (
-            <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex items-center justify-between gap-3">
+            <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <div className="text-[12.5px] text-ink font-medium">
                   {m.contact?.firstName} {m.contact?.lastName} — {m.subject}
                 </div>
                 <div className="text-[11.5px] text-slate mt-0.5">{format(m.receivedAt, "d MMM yyyy", { locale: fr })}</div>
               </div>
-              <Pill tone="neutral">{m.matchBasis === "thread" ? "Suggéré par fil de discussion" : "Suggéré par référence"}</Pill>
+              <div className="flex items-center gap-2.5">
+                <Pill tone="neutral">{m.matchBasis === "thread" ? "Suggéré par fil de discussion" : "Suggéré par référence"}</Pill>
+                {canWrite && (
+                  <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
+                )}
+              </div>
             </div>
           ))}
           {suggested.length === 0 && <div className="text-[12.5px] text-slate">Aucune suggestion en attente.</div>}
