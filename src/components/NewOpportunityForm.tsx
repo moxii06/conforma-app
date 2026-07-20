@@ -95,27 +95,30 @@ export function NewOpportunityForm({ contacts }: { contacts: Contact[] }) {
           ))}
         </select>
       ) : (
-        <div className="flex gap-2">
-          <input required placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
-          <input required placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
-          <input required type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
+        <div className="grid grid-cols-3 gap-2">
+          <input required placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+          <input required placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+          <input required type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
         </div>
       )}
 
-      <div className="flex gap-2">
+      {/* Shares the 3-column grid above so "Montant" lines up under "Email"
+          instead of drifting — two independent flex rows with different
+          item counts don't share column boundaries. */}
+      <div className="grid grid-cols-3 gap-2">
         <input
           required
           placeholder="Intitulé de l'opportunité"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
+          className="col-span-2 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
         />
         <input
           placeholder="Montant (€)"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           inputMode="decimal"
-          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28"
+          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
         />
       </div>
 

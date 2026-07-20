@@ -55,22 +55,25 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
 
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-line rounded-card p-4 flex flex-col gap-3 max-w-lg">
-      <div className="flex gap-2">
-        <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">
+      {/* Both rows share the same 2-column grid so "Montant" lines up under
+          "Sans dossier lié" instead of drifting — two independent flex rows
+          don't share column boundaries even with matching item counts. */}
+      <div className="grid grid-cols-[2fr_1fr] gap-2">
+        <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
           {contacts.map((c) => (
             <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
           ))}
         </select>
-        <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">
+        <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
           <option value="">Sans dossier lié</option>
           {dossiers.map((d) => (
             <option key={d.id} value={d.id}>{d.label}</option>
           ))}
         </select>
       </div>
-      <div className="flex gap-2">
-        <input required placeholder="Référence (DEV-2026-001)" value={reference} onChange={(e) => setReference(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
-        <input required placeholder="Montant (€)" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-32" />
+      <div className="grid grid-cols-[2fr_1fr] gap-2">
+        <input required placeholder="Référence (DEV-2026-001)" value={reference} onChange={(e) => setReference(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+        <input required placeholder="Montant (€)" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
       </div>
       <div className="flex items-center gap-2.5">
         <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
