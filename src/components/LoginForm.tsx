@@ -1,0 +1,78 @@
+"use client";
+
+import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { ShieldCheck } from "lucide-react";
+
+export function LoginForm() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const result = await signIn("credentials", { email, password, redirect: false });
+
+    setLoading(false);
+    if (result?.error) {
+      setError("Email ou mot de passe incorrect.");
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh();
+  }
+
+  return (
+    <div className="min-h-screen bg-paper flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="flex items-center gap-2.5 justify-center mb-8">
+          <div className="w-8 h-8 rounded-md bg-seal flex items-center justify-center">
+            <ShieldCheck size={18} className="text-ink" strokeWidth={2.4} />
+          </div>
+          <div className="font-display text-xl text-ink tracking-wide">Conforma</div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="bg-white border border-line rounded-card p-6 flex flex-col gap-4">
+          <div>
+            <label className="text-[12.5px] text-slate mb-1.5 block">Email</label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+              placeholder="marie@formations-nova.fr"
+            />
+          </div>
+          <div>
+            <label className="text-[12.5px] text-slate mb-1.5 block">Mot de passe</label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && <div className="text-[12.5px] text-rust">{error}</div>}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-ink text-white text-sm font-medium rounded-md py-2.5 mt-1 hover:bg-ink-soft disabled:opacity-60"
+          >
+            {loading ? "Connexion…" : "Se connecter"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}

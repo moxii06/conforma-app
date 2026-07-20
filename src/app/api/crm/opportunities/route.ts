@@ -1,0 +1,78 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { PipelineStage } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { getSessionContext, can } from "@/lib/tenant";
+
+const schema = z.discriminatedUnion("contactMode", [
+  z.object({
+    contactMode: z.literal("existing"),
+    contactId: z.string().min(1),
+    label: z.string().min(1),
+    amountCents: z.number().int().positive().optional(),
+  }),
+  z.object({
+    contactMode: z.literal("new"),
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+    email: z.string().email(),
+    phone: z.string().optional(),
+    label: z.string().min(1),
+    amountCents: z.number().int().positive().optional(),
+  }),
+]);
+
+export async function POST(request: Request) {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+  if (can(session.role, "crm") === "none") {
+    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
+  const data = parsed.data;
+
+  let contactId: string;
+  if (data.contactMode === "existing") {
+    const contact = await prisma.contact.findFirst({
+      where: { id: data.contactId, organizationId: session.organizationId },
+    });
+    if (!contact) return NextResponse.json({ error: "Contact introuvable." }, { status: 404 });
+    contactId = contact.id;
+  } else {
+    const email = data.email.toLowerCase().trim();
+    const existing = await prisma.contact.findFirst({
+      where: { organizationId: session.organizationId, email },
+    });
+    if (existing) {
+      contactId = existing.id;
+    } else {
+      const created = await prisma.contact.create({
+        data: {
+          organizationId: session.organizationId,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email,
+          phone: data.phone,
+        },
+      });
+      contactId = created.id;
+    }
+  }
+
+  const opportunity = await prisma.opportunity.create({
+    data: {
+      organizationId: session.organizationId,
+      contactId,
+      label: data.label,
+      amountCents: data.amountCents,
+      stage: PipelineStage.PROSPECT,
+      ownerId: session.userId,
+    },
+    include: { contact: true },
+  });
+
+  return NextResponse.json(opportunity, { status: 201 });
+}

@@ -1,0 +1,618 @@
+// Conforma — Phase 1 data model
+// Multi-tenancy strategy: shared schema, every tenant-scoped table carries
+// an `organizationId` foreign key + index. Enforce isolation at the query
+// layer (see src/lib/tenant.ts) until/unless Postgres RLS is added later —
+// that decision is flagged as open in the spec (§10) and should be
+// confirmed with the developer before this goes further.
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy, users, roles
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id            String    @id @default(cuid())
+  name          String
+  nextAuditDate DateTime?
+  createdAt     DateTime  @default(now())
+
+  users               User[]
+  contacts            Contact[]
+  companies           Company[]
+  dossiers            Dossier[]
+  opportunities       Opportunity[]
+  courses             Course[]
+  sessions            Session[]
+  quotes              Quote[]
+  invoices            Invoice[]
+  processingActivities ProcessingActivity[]
+  subProcessors       SubProcessor[]
+  qualiopiIndicators  QualiopiIndicatorEvidence[]
+  auditChecklistItems AuditChecklistItem[]
+  dpiaRecords         DPIARecord[]
+  sessionInvitations  SessionInvitation[]
+  nonConformities     NonConformity[]
+  rightsRequests      RightsRequest[]
+  documents           Document[]
+  documentTemplates   DocumentTemplate[]
+  needsAssessmentRequests NeedsAssessmentRequest[]
+  emailMessages       EmailMessage[]
+  mailboxConnections  MailboxConnection[]
+  integrationCredentials IntegrationCredential[]
+  subscription        Subscription?
+}
+
+// One row per organization, created at signup. Spec §8's "14-day trial, no
+// credit card required" means status starts at "trialing" with no Stripe
+// customer/subscription id yet — those two fields, and the "active"/
+// "past_due"/"canceled" statuses, only get populated once Stripe (or
+// another processor) is actually wired in via /integrations and its
+// webhook flips the status on payment events. Nothing in this codebase
+// calls Stripe yet; this table exists so that wiring is "update a row",
+// not "design a schema", when the time comes.
+model Subscription {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String       @unique
+  plan           String       // solo | team | growth
+  status         String       @default("trialing") // trialing | active | past_due | canceled
+  trialEndsAt    DateTime?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+enum Role {
+  ADMIN_OF
+  ADMIN_MANAGER
+  SALES
+  TRAINER
+  LEARNER
+  DPO_EXTERNAL
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  email          String       @unique
+  name           String
+  role           Role
+  status         String       @default("active") // active | invited | disabled
+  passwordHash   String? // null while status = "invited" — set once the member activates their account
+  createdAt      DateTime     @default(now())
+
+  trainerSessions Session[]      @relation("SessionTrainer")
+  learnerDossiers Dossier[]      @relation("DossierLearnerUser")
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// CRM: contacts, companies, dossiers
+// ---------------------------------------------------------------------------
+
+model Company {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  siret          String?
+
+  contacts Contact[]
+
+  @@index([organizationId])
+}
+
+// A Contact is a person (prospect, learner, HR contact, trainer contact...).
+// IMPORTANT: emails are matched and stored against a Contact, never directly
+// against a Dossier — see MailboxConnection / EmailMessage below and spec §5.11.
+model Contact {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  firstName      String
+  lastName       String
+  email          String
+  phone          String?
+  company        Company?     @relation(fields: [companyId], references: [id])
+  companyId      String?
+  createdAt      DateTime     @default(now())
+
+  dossiers      Dossier[]
+  emailMessages EmailMessage[]
+  quotes        Quote[]
+  invoices      Invoice[]
+  opportunities Opportunity[]
+  needsAssessmentRequests NeedsAssessmentRequest[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+// A specific training engagement for a Contact. A Contact can have many
+// Dossiers over time (repeat clients) — this is why email auto-linking
+// resolves to a Contact first, then suggests a Dossier (see spec §5.11).
+model Dossier {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  contact        Contact      @relation(fields: [contactId], references: [id])
+  contactId      String
+  session        Session      @relation(fields: [sessionId], references: [id])
+  sessionId      String
+  learnerUser    User?        @relation("DossierLearnerUser", fields: [learnerUserId], references: [id])
+  learnerUserId  String?      // set once the learner has portal access
+
+  needsAssessmentDone Boolean  @default(false)
+  contractSigned      Boolean  @default(false)
+  convocationSent     Boolean  @default(false)
+  evaluationHotDone   Boolean  @default(false)
+  evaluationColdDone  Boolean  @default(false)
+
+  legalBasis      String   @default("contract_performance")
+  retentionUntil  DateTime?
+
+  createdAt DateTime @default(now())
+
+  // BPF §5.13 groups learner hours by legal status category.
+  learnerCategory String? // employee | jobseeker | individual | apprentice
+
+  documents          Document[]
+  qualiopiEvidence   QualiopiIndicatorEvidence[]
+  elearningProgress  ElearningProgress[]
+  invitations        SessionInvitation[]
+  quotes             Quote[]
+  invoices           Invoice[]
+
+  @@index([organizationId])
+  @@index([contactId])
+}
+
+// ---------------------------------------------------------------------------
+// Training offer, sessions, planning
+// ---------------------------------------------------------------------------
+
+model Course {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  title          String
+  description    String?
+
+  sessions          Session[]
+  elearningModules  ElearningModule[]
+
+  @@index([organizationId])
+}
+
+enum SessionFormat {
+  IN_PERSON
+  REMOTE
+  HYBRID
+}
+
+model Session {
+  id             String        @id @default(cuid())
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
+  course         Course        @relation(fields: [courseId], references: [id])
+  courseId       String
+  trainer        User?         @relation("SessionTrainer", fields: [trainerId], references: [id])
+  trainerId      String?
+  startsAt       DateTime
+  endsAt         DateTime
+  format         SessionFormat
+  location       String?       // room name/address (IN_PERSON, HYBRID) or existing video link (REMOTE)
+  capacity       Int
+  // Auto-generated once, on first invitation send for a REMOTE/HYBRID
+  // session — see /api/planning/sessions/[id]/invitations. Uses a public
+  // Jitsi Meet room (no account/API key required) as the default video
+  // provider since the spec doesn't mandate one; swap for a real
+  // Zoom/Meet/Teams integration if the client picks a provider later.
+  meetingLink    String?
+
+  dossiers    Dossier[]
+  invitations SessionInvitation[]
+
+  @@index([organizationId])
+}
+
+// A session invitation is what gets sent to one enrolled learner (Dossier)
+// for a Session: a video link (REMOTE/HYBRID, auto-generated once per
+// session — see Session.meetingLink) and/or a venue map link derived from
+// Session.location (IN_PERSON/HYBRID, computed on the fly, not stored).
+// Sending one also flips Dossier.needsAssessmentDone's sibling
+// `convocationSent` — this *is* the "convocation" step from the dossier
+// journey checklist, not a separate concept.
+model SessionInvitation {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  session        Session      @relation(fields: [sessionId], references: [id])
+  sessionId      String
+  dossier        Dossier      @relation(fields: [dossierId], references: [id])
+  dossierId      String
+  // Denormalized snapshot rather than a User relation — this is an audit
+  // trail entry, not something that needs to stay live-joined to the user
+  // (and it should still read sensibly if that user is later deactivated).
+  sentByUserId   String
+  sentByName     String
+  sentAt         DateTime     @default(now())
+
+  documents SessionInvitationDocument[]
+
+  @@index([organizationId])
+  @@index([sessionId])
+  @@index([dossierId])
+}
+
+model SessionInvitationDocument {
+  id           String            @id @default(cuid())
+  invitation   SessionInvitation @relation(fields: [invitationId], references: [id])
+  invitationId String
+  document     Document          @relation(fields: [documentId], references: [id])
+  documentId   String
+
+  @@unique([invitationId, documentId])
+}
+
+// ---------------------------------------------------------------------------
+// Commercial: quotes, invoices
+// ---------------------------------------------------------------------------
+
+enum DocStatus {
+  DRAFT
+  SENT
+  SIGNED
+  PAID
+  OVERDUE
+}
+
+enum PipelineStage {
+  PROSPECT
+  QUOTE_SENT
+  CONTRACT_SIGNED
+  SESSION_SCHEDULED
+  INVOICED
+}
+
+model Opportunity {
+  id             String        @id @default(cuid())
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
+  contact        Contact       @relation(fields: [contactId], references: [id])
+  contactId      String
+  label          String
+  amountCents    Int?
+  stage          PipelineStage @default(PROSPECT)
+  createdAt      DateTime      @default(now())
+
+  needsAssessmentRequests NeedsAssessmentRequest[]
+  // Sales rep who created it — spec §2 scopes SALES to "their own prospects";
+  // null for opportunities created before this field existed or by non-Sales
+  // roles who don't need the restriction.
+  ownerId        String?
+
+  @@index([organizationId])
+  @@index([stage])
+}
+
+model Quote {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  contact        Contact      @relation(fields: [contactId], references: [id])
+  contactId      String
+  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId      String?
+  reference      String
+  amountCents    Int
+  status         DocStatus    @default(DRAFT)
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model Invoice {
+  id                  String       @id @default(cuid())
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  organizationId       String
+  contact              Contact      @relation(fields: [contactId], references: [id])
+  contactId            String
+  dossier              Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId            String?
+  reference            String
+  amountCents          Int
+  status               DocStatus    @default(DRAFT)
+  // The invoice is NOT itself the compliant e-invoice — transmission via an
+  // accredited platform is delegated per spec §5.3 / §7.2. This field just
+  // records which provider (if any) handled the compliant transmission.
+  einvoicingProvider   String?      // "pennylane" | "sellsy" | "ppf" | null
+  // BPF §5.13 needs revenue broken down by funding origin.
+  fundingOrigin        String?      // company | opco | public | individual
+  createdAt            DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Documents (generated or uploaded)
+// ---------------------------------------------------------------------------
+
+model Document {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId      String?
+  title          String
+  // Uploaded/linked documents carry a fileUrl. Documents generated by the
+  // toolkit's merge-field engine (see /api/documents/generate) carry
+  // bodyText instead — the merged text itself, since there's no file
+  // storage to put a real file into yet. One of the two is always set.
+  fileUrl        String?
+  bodyText       String?
+  templateOrigin String?      // which toolkit template this was generated from, if any
+  createdAt      DateTime     @default(now())
+
+  invitationLinks SessionInvitationDocument[]
+
+  @@index([organizationId])
+}
+
+// The reusable document library (spec §5.8's "legal document toolkit" —
+// scoped down here to a plain editable-text library, not the dynamic
+// merge-field personalization engine the full toolkit describes; that
+// remains a separate, bigger build). `organizationId: null` marks a
+// starter template Conforma ships to every org; an org "adapts" one by
+// creating its own copy (`forkedFromId` points back at the original) which
+// they can then freely edit — the starter stays untouched as a reference.
+model DocumentTemplate {
+  id             String        @id @default(cuid())
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
+  category       String        // needs_assessment | convention | convocation | eval_hot | eval_cold | cgv | internal_rules | other
+  title          String
+  bodyText       String
+  forkedFromId   String?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId])
+}
+
+// The "send the needs assessment to a prospect" tool from the CRM: a
+// snapshot of the template text at send time (so a later library edit
+// doesn't retroactively change a request already sent out) plus a token
+// for the unauthenticated public fill-in page. Deliberately scoped to just
+// this one document category rather than a generic "any template, any
+// recipient" engine — that's what was actually asked for; the library
+// itself (DocumentTemplate above) still covers every other document type
+// for internal use/download.
+model NeedsAssessmentRequest {
+  id             String        @id @default(cuid())
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
+  contact        Contact       @relation(fields: [contactId], references: [id])
+  contactId      String
+  opportunity    Opportunity?  @relation(fields: [opportunityId], references: [id])
+  opportunityId  String?
+  token          String        @unique
+  templateBody   String
+  responseText   String?
+  status         String        @default("sent") // sent | completed
+  sentByUserId   String
+  sentByName     String
+  sentAt         DateTime      @default(now())
+  completedAt    DateTime?
+
+  @@index([organizationId])
+  @@index([contactId])
+}
+
+// ---------------------------------------------------------------------------
+// GDPR module
+// ---------------------------------------------------------------------------
+
+model ProcessingActivity {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  legalBasis     String
+  retentionPeriod String
+  riskFlag       String       @default("ok") // ok | to_review
+  createdAt      DateTime     @default(now())
+
+  dpiaRecords DPIARecord[]
+
+  @@index([organizationId])
+}
+
+model SubProcessor {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  role           String
+  location       String
+  dpaStatus      String       @default("pending") // pending | signed
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model DPIARecord {
+  id                    String              @id @default(cuid())
+  organization          Organization        @relation(fields: [organizationId], references: [id])
+  organizationId        String
+  processingActivity    ProcessingActivity  @relation(fields: [processingActivityId], references: [id])
+  processingActivityId  String
+  subject               String
+  riskLevel             String              // low | moderate | high
+  status                String              @default("required") // required | in_progress | validated | not_required
+  createdAt             DateTime            @default(now())
+
+  @@index([organizationId])
+}
+
+model RightsRequest {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  requestType    String   // access | erasure | portability | rectification
+  personLabel    String
+  deadline       DateTime
+  status         String   @default("open")
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Qualiopi module
+// ---------------------------------------------------------------------------
+
+// Reference data for the Référentiel National Qualité — shared across every
+// organization (it's the same official 7 criteria / 32 indicators for
+// everyone), not tenant-scoped. Spec §7.3 asks that this be data-driven
+// rather than hardcoded in the UI so it can be updated as the RNQ changes;
+// this table is that. Labels here are working summaries for the scaffold —
+// verify wording against the official France Compétences referential text
+// before relying on them for an actual audit.
+model QualiopiIndicator {
+  id              String @id @default(cuid())
+  number          Int    @unique // 1–32
+  criterionNumber Int    // 1–7
+  label           String
+}
+
+model AuditChecklistItem {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  indicatorNumber Int
+  gathered       Boolean      @default(false)
+
+  @@unique([organizationId, indicatorNumber])
+  @@index([organizationId])
+}
+
+model QualiopiIndicatorEvidence {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId      String?
+  criterionNumber Int         // 1–7
+  indicatorNumber Int         // 1–32
+  evidenceNote    String?
+
+  @@index([organizationId])
+}
+
+model NonConformity {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  type           String       // complaint | non_conformity | suggestion
+  subject        String
+  origin         String
+  status         String       @default("open") // open | in_progress | resolved
+  dueDate        DateTime?
+
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// LMS
+// ---------------------------------------------------------------------------
+
+model ElearningModule {
+  id       String  @id @default(cuid())
+  course   Course  @relation(fields: [courseId], references: [id])
+  courseId String
+  title    String
+
+  progress ElearningProgress[]
+}
+
+model ElearningProgress {
+  id                 String          @id @default(cuid())
+  dossier            Dossier         @relation(fields: [dossierId], references: [id])
+  dossierId          String
+  module             ElearningModule @relation(fields: [moduleId], references: [id])
+  moduleId           String
+  percentComplete    Int             @default(0)
+  lastEventAt        DateTime?       // last tracked login/lesson/quiz event —
+                                       // feeds Qualiopi evidence, see spec §5.12
+}
+
+// ---------------------------------------------------------------------------
+// Mailbox integration & inbox triage (spec §5.11)
+// ---------------------------------------------------------------------------
+
+model MailboxConnection {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  provider       String       // "gmail" | "outlook"
+  accountEmail   String
+  // OAuth tokens must be encrypted at rest — do not store plaintext.
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String
+  connectedAt    DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+model EmailMessage {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  contact        Contact?     @relation(fields: [contactId], references: [id])
+  contactId      String?      // null = unmatched, goes to inbox triage
+  suggestedDossierId String?  // set only when a reliable signal was found (thread or reference match)
+  matchBasis     String?      // "thread" | "reference" | null
+  fromAddress    String
+  subject        String
+  snippet        String
+  receivedAt     DateTime
+  direction      String       // "in" | "out"
+
+  @@index([organizationId])
+  @@index([contactId])
+}
+
+// ---------------------------------------------------------------------------
+// Third-party integration credentials (spec §3)
+// ---------------------------------------------------------------------------
+
+// Storage only — no feature in this scaffold actually calls out to any of
+// these providers yet (see README). Plaintext here is NOT production-ready;
+// spec §7.1 requires encryption at rest for exactly this kind of secret —
+// same flag as MailboxConnection's token fields above. Wire real encryption
+// (or a proper secrets manager) before this holds a real API key.
+model IntegrationCredential {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  provider       String       // brevo | yousign | pennylane | sellsy | google_oauth | microsoft_oauth
+  apiKey         String?
+  clientId       String?
+  clientSecret   String?
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+}
