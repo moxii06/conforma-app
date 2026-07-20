@@ -290,8 +290,7 @@ OVHcloud before that changes.
 To redeploy or set up your own instance:
 
 ```bash
-npx prisma migrate deploy                 # DATABASE_URL env var pointed at the target DB
-npx tsx prisma/seed-reference-data.ts     # Qualiopi indicators + starter templates only — no demo org
+npx tsx prisma/seed-reference-data.ts     # Qualiopi indicators + starter templates only — no demo org (run once, locally, DATABASE_URL pointed at the target DB)
 npx vercel login                          # one-time device-code browser auth
 npx vercel link --yes                     # creates/links the Vercel project
 npx vercel env add DATABASE_URL production
@@ -299,6 +298,17 @@ npx vercel env add NEXTAUTH_SECRET production   # generate with: node -e "consol
 npx vercel env add NEXTAUTH_URL production      # the deployment's own https URL — set this AFTER the first deploy once you know it, then redeploy
 npx vercel --prod --yes
 ```
+
+`package.json`'s `build` script is `prisma migrate deploy && next build` —
+every deploy applies any pending migrations against the production database
+before building, so there's no separate manual migration step. This matters
+because `vercel env add` (or the CLI's non-interactive defaults) marks new
+variables **Sensitive** by default, meaning `vercel env pull` can no longer
+retrieve the real value locally once set — `prisma migrate deploy` couldn't
+be run from a local shell against production even if you wanted to. Running
+it inside the build step sidesteps that: Vercel injects the real value into
+the build process itself, it's only CLI/dashboard *retrieval* that's
+blocked.
 
 `package.json`'s `postinstall: "prisma generate"` is what makes this work at
 all — Vercel does a fresh `npm install` from git (`node_modules` isn't
