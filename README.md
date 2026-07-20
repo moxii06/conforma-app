@@ -238,6 +238,41 @@ The Qualiopi "one-click evidence export" (spec §5.6) is a text status report
 over the checklist, not a bundle of the underlying documents themselves
 (zip/PDF).
 
+## Deploying (Vercel + Neon)
+
+There's a live deployment for demo purposes: **https://conforma-app.vercel.app** —
+hosted on Vercel (project `conforma1/conforma-app`) against a Neon Postgres
+database. This is a real deployment, not a mock: `/essai` there creates a
+real account exactly like local dev does. Note this is **not** spec §7.1
+compliant hosting (Neon/Vercel aren't French/EU-guaranteed by default) —
+fine for a demo, not for real customer data; re-platform to Scaleway/
+OVHcloud before that changes.
+
+To redeploy or set up your own instance:
+
+```bash
+npx prisma migrate deploy                 # DATABASE_URL env var pointed at the target DB
+npx tsx prisma/seed-reference-data.ts     # Qualiopi indicators + starter templates only — no demo org
+npx vercel login                          # one-time device-code browser auth
+npx vercel link --yes                     # creates/links the Vercel project
+npx vercel env add DATABASE_URL production
+npx vercel env add NEXTAUTH_SECRET production   # generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+npx vercel env add NEXTAUTH_URL production      # the deployment's own https URL — set this AFTER the first deploy once you know it, then redeploy
+npx vercel --prod --yes
+```
+
+`package.json`'s `postinstall: "prisma generate"` is what makes this work at
+all — Vercel does a fresh `npm install` from git (`node_modules` isn't
+committed), so without it the Prisma Client generated on your own machine
+(with your own machine's binary target) would never get regenerated for
+Vercel's Linux runtime.
+
+Don't run `prisma:seed` (the full demo-data seed) against a real deployment
+— it's meant for local dev only and creates accounts with a
+publicly-documented password. Use `prisma:seed:reference` instead, which
+only loads the global Qualiopi/template reference data every org needs;
+real accounts come from people actually signing up via `/essai`.
+
 ## Running it locally
 
 ```bash
