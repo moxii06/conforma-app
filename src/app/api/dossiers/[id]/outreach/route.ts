@@ -6,14 +6,17 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
 import { mergeTemplate } from "@/lib/mergeTemplate";
 import { createSessionInvitation } from "@/lib/sessionInvitations";
+import { sendTransactionalEmail } from "@/lib/brevo";
 
 const schema = z.object({ type: z.enum(["contract", "convocation", "platform_access"]) });
 
 // Single entry point for the three "send from the client record" actions
 // the dossier's Info tab exposes (spec request: contract, convocation,
 // platform access — the positioning test already has its own dedicated
-// flow via NeedsAssessmentRequest/send-needs-assessment). No real email
-// delivery in any branch — same constraint as the rest of this scaffold.
+// flow via NeedsAssessmentRequest/send-needs-assessment). Convocation goes
+// through createSessionInvitation, which sends its own real email;
+// contract and platform_access send here directly (best-effort — a failed
+// send doesn't block the record/link from being created).
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
@@ -92,7 +95,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
       },
     });
 
-    return NextResponse.json({ outreach, document }, { status: 201 });
+    const documentUrl = `${origin}/api/documents/generated/${document.id}`;
+    let emailSent = false;
+    try {
+      await sendTransactionalEmail({
+        to: dossier.contact.email,
+        toName: `${dossier.contact.firstName} ${dossier.contact.lastName}`,
+        subject: `${organization.name} — votre convention de formation`,
+        text: `Bonjour ${dossier.contact.firstName},\n\nVeuillez trouver votre convention de formation via ce lien :\n${documentUrl}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
+        senderName: organization.name,
+        replyTo: auth.email,
+      });
+      emailSent = true;
+    } catch {
+      // Non-fatal — document and outreach record still exist.
+    }
+
+    return NextResponse.json({ outreach, document, emailSent }, { status: 201 });
   }
 
   // platform_access
@@ -149,5 +168,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
     },
   });
 
-  return NextResponse.json({ outreach, activationUrl, alreadyActive }, { status: 201 });
+  let emailSent = false;
+  if (activationUrl) {
+    const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
+    try {
+      await sendTransactionalEmail({
+        to: dossier.contact.email,
+        toName: `${dossier.contact.firstName} ${dossier.contact.lastName}`,
+        subject: `${organization.name} — accès à votre espace de formation`,
+        text: `Bonjour ${dossier.contact.firstName},\n\nVotre accès à l'espace apprenant est prêt. Activez-le en définissant votre mot de passe ici :\n${activationUrl}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
+        senderName: organization.name,
+        replyTo: auth.email,
+      });
+      emailSent = true;
+    } catch {
+      // Non-fatal — activationUrl is still returned for manual relay.
+    }
+  }
+
+  return NextResponse.json({ outreach, activationUrl, alreadyActive, emailSent }, { status: 201 });
 }

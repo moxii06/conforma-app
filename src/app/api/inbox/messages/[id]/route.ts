@@ -9,6 +9,8 @@ const schema = z.discriminatedUnion("action", [
     action: z.literal("link-new"),
     firstName: z.string().min(1),
     lastName: z.string().min(1),
+    phone: z.string().optional(),
+    companyName: z.string().optional(),
   }),
   z.object({ action: z.literal("discard") }),
   z.object({ action: z.literal("assign"), userId: z.string().min(1).nullable() }),
@@ -74,12 +76,22 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (existing) {
       contactId = existing.id;
     } else {
+      let companyId: string | undefined;
+      if (parsed.data.companyName?.trim()) {
+        const companyName = parsed.data.companyName.trim();
+        const company =
+          (await prisma.company.findFirst({ where: { organizationId: session.organizationId, name: companyName } })) ??
+          (await prisma.company.create({ data: { organizationId: session.organizationId, name: companyName } }));
+        companyId = company.id;
+      }
       const created = await prisma.contact.create({
         data: {
           organizationId: session.organizationId,
           firstName: parsed.data.firstName,
           lastName: parsed.data.lastName,
           email: message.fromAddress.toLowerCase(),
+          phone: parsed.data.phone?.trim() || undefined,
+          companyId,
         },
       });
       contactId = created.id;

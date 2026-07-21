@@ -33,7 +33,11 @@ export function SendOutreachButtons({ dossierId, showConvocation }: { dossierId:
       return;
     }
     if (type === "contract") {
-      setResult({ type, message: "Contrat généré.", link: `/api/documents/generated/${body.document.id}` });
+      setResult({
+        type,
+        message: body.emailSent ? "Contrat généré et envoyé par email." : "Contrat généré — email non envoyé, lien à transmettre :",
+        link: `/api/documents/generated/${body.document.id}`,
+      });
     } else if (type === "convocation") {
       setResult({ type, message: body.meetingLink ? `Convocation envoyée — lien : ${body.meetingLink}` : "Convocation envoyée." });
     } else {
@@ -41,8 +45,10 @@ export function SendOutreachButtons({ dossierId, showConvocation }: { dossierId:
         type,
         message: body.alreadyActive
           ? "Ce compte est déjà actif — accès déjà utilisable."
-          : "Accès créé — lien d'activation à transmettre à l'apprenant :",
-        link: body.activationUrl ?? undefined,
+          : body.emailSent
+            ? "Accès créé et lien d'activation envoyé par email."
+            : "Accès créé — email non envoyé, lien d'activation à transmettre :",
+        link: body.alreadyActive ? undefined : (body.activationUrl ?? undefined),
       });
     }
     router.refresh();

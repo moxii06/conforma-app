@@ -11,6 +11,7 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const [result, setResult] = useState<{ delivered: boolean; sendError: string | null } | null>(null);
 
   async function handleAiAssist() {
     setAiLoading(true);
@@ -18,13 +19,19 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
     const res = await fetch(`/api/inbox/messages/${messageId}/ai-draft`, { method: "POST" });
     setAiLoading(false);
     const body = await res.json().catch(() => ({}));
-    setAiNotice(body.error ?? "Erreur inattendue.");
+    if (!res.ok) {
+      setAiNotice(body.error ?? "Erreur inattendue.");
+      return;
+    }
+    setText(body.draft);
+    setAiNotice("Brouillon généré par l'IA — relisez avant d'envoyer.");
   }
 
   async function handleSend() {
     if (!text.trim()) return;
     setLoading(true);
     setError(null);
+    setResult(null);
     const res = await fetch(`/api/inbox/messages/${messageId}/reply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -36,8 +43,9 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
       setError(b.error ?? "Erreur lors de l'envoi.");
       return;
     }
+    const created = await res.json();
     setText("");
-    setOpen(false);
+    setResult({ delivered: created.delivered, sendError: created.sendError });
     router.refresh();
   }
 
@@ -46,6 +54,27 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
       <button onClick={() => setOpen(true)} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
         Répondre
       </button>
+    );
+  }
+
+  if (result) {
+    return (
+      <div className="flex flex-col gap-1.5 mt-1">
+        {result.delivered ? (
+          <div className="text-[11.5px] text-sage">Réponse envoyée via Gmail.</div>
+        ) : result.sendError ? (
+          <div className="text-[11.5px] text-rust">
+            Réponse enregistrée dans Conforma, mais l&apos;envoi via Gmail a échoué : {result.sendError}
+          </div>
+        ) : (
+          <div className="text-[11.5px] text-slate">
+            Réponse enregistrée dans Conforma — pas d&apos;envoi réel, aucune boîte mail n&apos;est connectée (voir /integrations).
+          </div>
+        )}
+        <button onClick={() => { setOpen(false); setResult(null); }} className="text-[12px] text-slate hover:text-ink self-start">
+          Fermer
+        </button>
+      </div>
     );
   }
 
@@ -71,9 +100,6 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
         </button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
-      <div className="text-[11px] text-slate">
-        Réponse enregistrée dans Conforma — pas d&apos;envoi réel tant qu&apos;aucune boîte mail n&apos;est connectée (voir /integrations).
-      </div>
     </div>
   );
 }

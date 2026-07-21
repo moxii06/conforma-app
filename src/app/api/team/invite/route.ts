@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { sendTransactionalEmail } from "@/lib/brevo";
 
 const inviteSchema = z.object({
   name: z.string().min(1),
@@ -13,11 +14,11 @@ const inviteSchema = z.object({
 
 // Creates a pending team member (status "invited", no password set yet) and
 // an activation token for /activation/[token], where they set their own
-// password. There's no email-delivery step here — spec §3 pencils in Brevo
-// for transactional email, which isn't wired into this scaffold — so the
-// activation link needs to be relayed to the invitee some other way for
-// now (shown to the admin who sent the invite, same pattern as every other
-// "no real delivery yet" flow in this app).
+// password. Sends the activation link by real email via Brevo when
+// configured; either way the URL is also returned in the API response so
+// the admin can relay it manually as a fallback (Brevo not configured, or
+// the send failed) — same "try real delivery, always keep the manual path"
+// pattern as the Gmail/IMAP reply flow.
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
@@ -49,5 +50,25 @@ export async function POST(request: Request) {
   });
 
   const activationUrl = `${new URL(request.url).origin}/activation/${activationToken}`;
-  return NextResponse.json({ id: member.id, email: member.email, status: member.status, activationUrl }, { status: 201 });
+
+  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
+  let emailSent = false;
+  try {
+    await sendTransactionalEmail({
+      to: member.email,
+      toName: member.name,
+      subject: `Invitation à rejoindre ${organization.name} sur Conforma`,
+      text: `Bonjour ${member.name},\n\n${session.name || session.email} vous invite à rejoindre l'espace ${organization.name} sur Conforma.\n\nActivez votre compte ici : ${activationUrl}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
+      senderName: organization.name,
+      replyTo: session.email,
+    });
+    emailSent = true;
+  } catch {
+    // Fall through — activationUrl is still returned below for manual relay.
+  }
+
+  return NextResponse.json(
+    { id: member.id, email: member.email, status: member.status, activationUrl, emailSent },
+    { status: 201 }
+  );
 }

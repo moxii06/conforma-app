@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { InboxMessageActions } from "@/components/InboxMessageActions";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
+import { MailboxActions } from "@/components/MailboxActions";
 import { Role } from "@prisma/client";
 
 export default async function InboxPage() {
@@ -45,22 +46,26 @@ export default async function InboxPage() {
           {connections.length === 0 ? (
             <div className="flex items-center justify-between">
               <div className="text-[12.5px] text-slate">
-                Aucune boîte connectée — la connexion Gmail/Outlook (OAuth) n&apos;est pas encore branchée dans ce
-                scaffold. Les emails ci-dessous sont des données de démonstration.
+                Aucune boîte connectée — les emails ci-dessous sont des données de démonstration. Connecte une
+                messagerie depuis la page Intégrations pour trier de vrais emails.
               </div>
-              <button
-                disabled
-                title="Connexion OAuth non branchée"
-                className="text-[12px] text-slate border border-line rounded-md px-3 py-1.5 cursor-not-allowed shrink-0 ml-3"
+              <a
+                href="/integrations"
+                className="text-[12px] text-ink border border-line rounded-md px-3 py-1.5 hover:bg-[#F1EFE8] shrink-0 ml-3"
               >
-                Connecter une boîte
-              </button>
+                Aller aux Intégrations
+              </a>
             </div>
           ) : (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               {connections.map((c) => (
-                <div key={c.id} className="text-[12.5px] text-ink">
-                  {c.provider} — {c.accountEmail}
+                <div key={c.id} className="flex items-center justify-between gap-3">
+                  <div className="text-[12.5px] text-ink">
+                    {c.provider} — {c.accountEmail}
+                  </div>
+                  {(c.provider === "gmail" || c.provider === "imap") && canWrite && (
+                    <MailboxActions provider={c.provider} />
+                  )}
                 </div>
               ))}
             </div>
@@ -74,13 +79,15 @@ export default async function InboxPage() {
           {unsorted.map((m) => (
             <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-[12.5px] text-ink font-medium">{m.fromAddress}</div>
+                <div className="text-[12.5px] text-ink font-medium">
+                  {m.fromName ? `${m.fromName} — ${m.fromAddress}` : m.fromAddress}
+                </div>
                 <div className="text-[11px] text-slate shrink-0">{format(m.receivedAt, "d MMM yyyy HH:mm", { locale: fr })}</div>
               </div>
               <div className="text-[12.5px] text-ink">{m.subject}</div>
               <div className="text-[12px] text-slate">{m.snippet}</div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                {canWrite && <InboxMessageActions messageId={m.id} contacts={contacts} />}
+                {canWrite && <InboxMessageActions messageId={m.id} contacts={contacts} fromName={m.fromName} />}
                 {canWrite && (
                   <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
                 )}

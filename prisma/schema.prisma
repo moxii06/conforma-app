@@ -25,6 +25,17 @@ model Organization {
   nextAuditDate DateTime?
   createdAt     DateTime  @default(now())
 
+  // Billing identity for the ORGANIZATION'S OWN Conforma subscription —
+  // the org is the paying customer, so this is what a real invoice from
+  // Conforma to them would need (Stripe customer creation, French invoice
+  // legal-mention requirements). Collected at signup (see /essai). Not to
+  // be confused with the org's own Company/Contact records, which are
+  // their end customers, a separate concern.
+  siret               String?
+  billingAddress      String?
+  billingPostalCode   String?
+  billingCity         String?
+
   users               User[]
   contacts            Contact[]
   companies           Company[]
@@ -570,13 +581,27 @@ model MailboxConnection {
   id             String       @id @default(cuid())
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
-  provider       String       // "gmail" | "outlook"
+  provider       String       // "gmail" | "outlook" | "imap"
   accountEmail   String
-  // OAuth tokens must be encrypted at rest — do not store plaintext.
-  accessTokenEncrypted  String
-  refreshTokenEncrypted String
+  // OAuth tokens (gmail/outlook) encrypted at rest via src/lib/crypto.ts
+  // (AES-256-GCM) — see TOKEN_ENCRYPTION_KEY. accessToken is refreshed on
+  // every sync/send call rather than tracked for expiry, so its stored
+  // value is mostly for debugging; refreshToken is what actually matters
+  // long-term. Both are null for provider="imap".
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  // IMAP/SMTP (any other provider — OVH, Ionos, Zoho...) — same encryption,
+  // a single password used for both since most hosts share credentials
+  // across the two protocols. All null for gmail/outlook.
+  passwordEncrypted String?
+  imapHost          String?
+  imapPort           Int?
+  smtpHost          String?
+  smtpPort           Int?
   connectedAt    DateTime     @default(now())
+  lastSyncedAt   DateTime?
 
+  @@unique([organizationId, provider])
   @@index([organizationId])
 }
 
@@ -589,9 +614,12 @@ model EmailMessage {
   suggestedDossierId String?  // set only when a reliable signal was found (thread or reference match)
   matchBasis     String?      // "thread" | "reference" | null
   fromAddress    String
+  fromName       String?      // display name from the "From" header, when present — feeds the "Nouveau prospect" pre-fill, not an AI guess
   subject        String
   snippet        String
   body           String?      // full content — snippet stays a short preview for list views
+  externalId     String?      @unique // provider message id (e.g. Gmail's id) — dedupes repeated syncs; null for locally-composed replies and seed/demo rows
+  externalThreadId String?    // Gmail threadId — lets a real reply land in the same Gmail conversation instead of starting a new one
   receivedAt     DateTime
   direction      String       // "in" | "out"
 

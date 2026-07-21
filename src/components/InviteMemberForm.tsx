@@ -15,6 +15,7 @@ export function InviteMemberForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activationUrl, setActivationUrl] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,6 +37,7 @@ export function InviteMemberForm() {
     }
 
     setActivationUrl(body.activationUrl ?? null);
+    setEmailSent(Boolean(body.emailSent));
     setName("");
     setEmail("");
     setRole(Role.SALES);
@@ -87,7 +89,14 @@ export function InviteMemberForm() {
       {error && <div className="text-[12px] text-rust w-full">{error}</div>}
       {activationUrl && (
         <div className="text-[12px] text-sage w-full">
-          Invitation créée — lien d&apos;activation à transmettre :{" "}
+          {emailSent ? (
+            "Invitation créée et envoyée par email."
+          ) : (
+            <>
+              Invitation créée, mais l&apos;email n&apos;a pas pu être envoyé — lien d&apos;activation à transmettre
+              manuellement :
+            </>
+          )}{" "}
           <a href={activationUrl} target="_blank" rel="noreferrer" className="underline">
             {activationUrl}
           </a>

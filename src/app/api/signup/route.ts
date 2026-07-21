@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
   organizationName: z.string().min(1),
+  siret: z.string().min(14, "Le SIRET doit contenir 14 chiffres.").max(14, "Le SIRET doit contenir 14 chiffres.").regex(/^\d{14}$/, "Le SIRET ne doit contenir que des chiffres."),
+  billingAddress: z.string().min(1),
+  billingPostalCode: z.string().min(1),
+  billingCity: z.string().min(1),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email(),
@@ -43,7 +47,13 @@ export async function POST(request: Request) {
 
   await prisma.$transaction(async (tx) => {
     const org = await tx.organization.create({
-      data: { name: data.organizationName },
+      data: {
+        name: data.organizationName,
+        siret: data.siret,
+        billingAddress: data.billingAddress,
+        billingPostalCode: data.billingPostalCode,
+        billingCity: data.billingCity,
+      },
     });
     await tx.user.create({
       data: {

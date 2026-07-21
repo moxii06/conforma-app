@@ -7,6 +7,7 @@ export function SendNeedsAssessmentButton({ opportunityId, alreadySent }: { oppo
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [link, setLink] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSend(e: React.MouseEvent) {
@@ -22,6 +23,7 @@ export function SendNeedsAssessmentButton({ opportunityId, alreadySent }: { oppo
     }
     const body = await res.json();
     setLink(body.formUrl);
+    setEmailSent(Boolean(body.emailSent));
     router.refresh();
   }
 
@@ -36,7 +38,8 @@ export function SendNeedsAssessmentButton({ opportunityId, alreadySent }: { oppo
       </button>
       {link && (
         <div className="text-[10.5px] text-slate break-all">
-          Lien (aucun email envoyé — spec §3) : <a href={link} target="_blank" rel="noreferrer" className="underline">{link}</a>
+          {emailSent ? "Email envoyé." : "Email non envoyé — lien à transmettre manuellement :"}{" "}
+          <a href={link} target="_blank" rel="noreferrer" className="underline">{link}</a>
         </div>
       )}
       {error && <div className="text-[10.5px] text-rust">{error}</div>}

@@ -63,12 +63,20 @@ export default function MarketingPage() {
             <a href="#conformite" className="hover:text-ink">Conformité</a>
             <a href="#tarifs" className="hover:text-ink">Tarifs</a>
           </nav>
-          <Link
-            href="/login"
-            className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft"
-          >
-            Se connecter
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/essai"
+              className="text-ink text-[13.5px] font-medium rounded-md px-4 py-2 border border-line hover:border-ink-soft"
+            >
+              M&apos;inscrire
+            </Link>
+            <Link
+              href="/login"
+              className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft"
+            >
+              Se connecter
+            </Link>
+          </div>
         </div>
       </header>
 

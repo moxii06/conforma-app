@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can, canManageOpportunity } from "@/lib/tenant";
+import { sendTransactionalEmail } from "@/lib/brevo";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionContext();
@@ -12,6 +13,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const opportunity = await prisma.opportunity.findFirst({
     where: { id: params.id, organizationId: session.organizationId },
+    include: { contact: true },
   });
   if (!opportunity) return NextResponse.json({ error: "Opportunité introuvable." }, { status: 404 });
   if (!canManageOpportunity(session.role, session.userId, opportunity)) {
@@ -48,5 +50,22 @@ export async function POST(request: Request, { params }: { params: { id: string 
   });
 
   const formUrl = `${new URL(request.url).origin}/formulaire/${token}`;
-  return NextResponse.json({ formUrl }, { status: 201 });
+
+  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
+  let emailSent = false;
+  try {
+    await sendTransactionalEmail({
+      to: opportunity.contact.email,
+      toName: `${opportunity.contact.firstName} ${opportunity.contact.lastName}`,
+      subject: `${organization.name} — test de positionnement`,
+      text: `Bonjour ${opportunity.contact.firstName},\n\nMerci de compléter le test de positionnement pour votre formation en suivant ce lien :\n${formUrl}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
+      senderName: organization.name,
+      replyTo: session.email,
+    });
+    emailSent = true;
+  } catch {
+    // Non-fatal — formUrl is still returned for manual relay.
+  }
+
+  return NextResponse.json({ formUrl, emailSent }, { status: 201 });
 }

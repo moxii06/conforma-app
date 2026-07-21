@@ -3,23 +3,42 @@ import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { IntegrationCredentialForm } from "@/components/IntegrationCredentialForm";
+import { MailboxActions } from "@/components/MailboxActions";
+import { ImapMailboxForm } from "@/components/ImapMailboxForm";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 const PROVIDERS: { key: string; label: string; description: string; kind: "apiKey" | "oauth" }[] = [
   { key: "stripe", label: "Stripe", description: "Paiement des abonnements — active un essai (Subscription.status) une fois la clé secrète configurée et le webhook branché.", kind: "apiKey" },
-  { key: "brevo", label: "Brevo", description: "Emailing transactionnel — relances automatiques, envoi d'invitations (spec §3).", kind: "apiKey" },
-  { key: "yousign", label: "Yousign", description: "Signature électronique des conventions et contrats (spec §3).", kind: "apiKey" },
+  { key: "yousign", label: "Yousign", description: "Signature électronique des conventions et contrats — génère un document mais n'envoie pas encore de demande de signature réelle (aucun moteur de génération de PDF dans ce scaffold, voir README).", kind: "apiKey" },
   { key: "pennylane", label: "Pennylane", description: "Connecteur e-facturation (spec §5.3 / §7.2).", kind: "apiKey" },
   { key: "sellsy", label: "Sellsy", description: "Connecteur e-facturation alternatif (spec §5.3 / §7.2).", kind: "apiKey" },
-  { key: "google_oauth", label: "Google (Gmail)", description: "Connexion de boîte mail pour le triage (spec §5.11).", kind: "oauth" },
   { key: "microsoft_oauth", label: "Microsoft (Outlook)", description: "Connexion de boîte mail pour le triage (spec §5.11).", kind: "oauth" },
-  { key: "ai_provider", label: "IA (Claude, Mistral, OpenAI...)", description: "Rédaction assistée des réponses dans la boîte mail — active le bouton « Assister avec l'IA » une fois une clé API configurée.", kind: "apiKey" },
 ];
 
-export default async function IntegrationsPage() {
+const GOOGLE_ERROR_LABELS: Record<string, string> = {
+  forbidden: "Action non autorisée pour ce rôle.",
+  not_configured: "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET ne sont pas configurés côté serveur.",
+  denied: "Connexion annulée.",
+  invalid_state: "La demande de connexion a expiré ou est invalide — réessayez.",
+  token_exchange: "Échec de l'échange du code d'autorisation avec Google.",
+  no_refresh_token: "Google n'a pas fourni de jeton de rafraîchissement — réessayez la connexion.",
+  userinfo: "Impossible de récupérer l'adresse du compte Google connecté.",
+};
+
+export default async function IntegrationsPage({
+  searchParams,
+}: {
+  searchParams: { google_error?: string; google_connected?: string };
+}) {
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "integrations") === "none") redirect("/dashboard");
 
-  const credentials = await prisma.integrationCredential.findMany({ where: { organizationId } });
+  const [credentials, googleConnection, imapConnection] = await Promise.all([
+    prisma.integrationCredential.findMany({ where: { organizationId } }),
+    prisma.mailboxConnection.findUnique({ where: { organizationId_provider: { organizationId, provider: "gmail" } } }),
+    prisma.mailboxConnection.findUnique({ where: { organizationId_provider: { organizationId, provider: "imap" } } }),
+  ]);
   const byProvider = new Map(credentials.map((c) => [c.provider, c]));
 
   return (
@@ -27,12 +46,116 @@ export default async function IntegrationsPage() {
       <PageHeader title="Intégrations" subtitle="Clés et connexions pour les services tiers" />
       <div className="p-8 flex flex-col gap-4 max-w-2xl">
         <div className="text-[11.5px] text-slate">
-          Ces identifiants sont stockés mais aucune fonctionnalité de l&apos;application ne les utilise encore — le
-          branchement réel (envoi d&apos;emails via Brevo, signature via Yousign, transmission via Pennylane/Sellsy,
-          connexion de boîte mail via Google/Microsoft, rédaction assistée par IA) reste à faire. Le stockage
-          n&apos;est pas non plus chiffré au repos pour l&apos;instant — à corriger avant d&apos;y mettre de vraies
-          clés de production (spec §7.1).
+          Ces identifiants sont chiffrés en base (jamais réaffichés en clair — laisser un champ vide en
+          enregistrant ne l&apos;efface pas). La plupart des fonctionnalités ne les utilisent pas encore — le
+          branchement réel (signature via Yousign, transmission via Pennylane/Sellsy, connexion Outlook) reste à
+          faire. Les connexions de boîte mail (Google, IMAP/SMTP) sont en revanche réelles : synchronisation et
+          réponses passent par de vrais appels aux API concernées. L&apos;IA et l&apos;envoi d&apos;emails
+          (ci-dessous) sont des fonctionnalités intégrées à la plateforme — rien à configurer de votre côté.
         </div>
+
+        {searchParams.google_error && (
+          <div className="bg-white border border-rust/40 rounded-card p-3 text-[12.5px] text-rust">
+            {GOOGLE_ERROR_LABELS[searchParams.google_error] ?? "Erreur lors de la connexion Google."}
+          </div>
+        )}
+        {searchParams.google_connected && (
+          <div className="bg-white border border-line rounded-card p-3 text-[12.5px] text-sage">
+            Boîte Gmail connectée avec succès.
+          </div>
+        )}
+
+        <div className="bg-white border border-line rounded-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-[13px] font-semibold text-ink">Google (Gmail)</div>
+            <Pill tone={googleConnection ? "good" : "neutral"}>{googleConnection ? "Connecté" : "Non connecté"}</Pill>
+          </div>
+          <div className="text-[12px] text-slate mb-3">
+            Connexion de boîte mail pour le triage et les réponses (spec §5.11) — réel, pas une simulation.
+          </div>
+          {googleConnection ? (
+            <div className="flex flex-col gap-2">
+              <div className="text-[12.5px] text-ink">
+                {googleConnection.accountEmail}
+                <span className="text-slate">
+                  {" — connecté le "}
+                  {format(googleConnection.connectedAt, "d MMM yyyy", { locale: fr })}
+                  {googleConnection.lastSyncedAt &&
+                    `, dernière synchro le ${format(googleConnection.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
+                </span>
+              </div>
+              <MailboxActions provider="gmail" />
+            </div>
+          ) : (
+            <a
+              href="/api/integrations/google/connect"
+              className="inline-block bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft"
+            >
+              Connecter Google
+            </a>
+          )}
+        </div>
+
+        <div className="bg-white border border-line rounded-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-[13px] font-semibold text-ink">Autre messagerie (IMAP/SMTP)</div>
+            <Pill tone={imapConnection ? "good" : "neutral"}>{imapConnection ? "Connecté" : "Non connecté"}</Pill>
+          </div>
+          <div className="text-[12px] text-slate mb-3">
+            Pour toute messagerie hors Gmail — OVH, Ionos, Zoho, la plupart des hébergeurs — via IMAP/SMTP standard.
+            Contrepartie par rapport à Google : le mot de passe du compte est stocké (chiffré) plutôt qu&apos;un
+            jeton OAuth révocable.
+          </div>
+          {imapConnection ? (
+            <div className="flex flex-col gap-2">
+              <div className="text-[12.5px] text-ink">
+                {imapConnection.accountEmail}
+                <span className="text-slate">
+                  {" — connecté le "}
+                  {format(imapConnection.connectedAt, "d MMM yyyy", { locale: fr })}
+                  {imapConnection.lastSyncedAt &&
+                    `, dernière synchro le ${format(imapConnection.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
+                </span>
+              </div>
+              <MailboxActions provider="imap" />
+            </div>
+          ) : (
+            <ImapMailboxForm />
+          )}
+        </div>
+
+        <div className="bg-white border border-line rounded-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-[13px] font-semibold text-ink">Envoi d&apos;emails (Brevo)</div>
+            <Pill tone={process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL ? "good" : "neutral"}>
+              {process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL ? "Actif" : "Indisponible"}
+            </Pill>
+          </div>
+          <div className="text-[12px] text-slate">
+            Invitations d&apos;équipe, convocations, test de positionnement, contrat et accès plateforme — envoyés
+            par email réel. Fonctionnalité intégrée à la plateforme Conforma, incluse dans votre abonnement.
+            Aucune clé à fournir de votre côté ; en cas d&apos;échec d&apos;envoi, un lien reste toujours affiché
+            pour relayer manuellement.
+            {!(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL) &&
+              " (Non disponible pour le moment — clé non configurée côté serveur.)"}
+          </div>
+        </div>
+
+        <div className="bg-white border border-line rounded-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-[13px] font-semibold text-ink">IA (rédaction assistée)</div>
+            <Pill tone={process.env.OPENAI_API_KEY ? "good" : "neutral"}>
+              {process.env.OPENAI_API_KEY ? "Active" : "Indisponible"}
+            </Pill>
+          </div>
+          <div className="text-[12px] text-slate">
+            Rédaction assistée des réponses email et extraction des informations d&apos;un nouveau prospect —
+            fonctionnalité intégrée à la plateforme Conforma, incluse dans votre abonnement. Aucune clé à
+            fournir de votre côté.
+            {!process.env.OPENAI_API_KEY && " (Non disponible pour le moment — clé non configurée côté serveur.)"}
+          </div>
+        </div>
+
         {PROVIDERS.map((p) => {
           const cred = byProvider.get(p.key);
           return (
@@ -45,8 +168,9 @@ export default async function IntegrationsPage() {
               <IntegrationCredentialForm
                 provider={p.key}
                 kind={p.kind}
-                initialApiKey={cred?.apiKey ?? ""}
+                hasApiKey={Boolean(cred?.apiKey)}
                 initialClientId={cred?.clientId ?? ""}
+                hasClientSecret={Boolean(cred?.clientSecret)}
               />
             </div>
           );

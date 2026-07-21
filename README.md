@@ -154,20 +154,59 @@ for what that means in practice for each one.
   (Contact-level matching, thread/reference-based Dossier suggestions,
   "emails to sort" for unmatched senders) runs against real `EmailMessage`
   rows; staff can create a prospect, link to an existing contact, or discard.
-  No live Gmail/Outlook sync populates those rows — the ones in the seed are
-  demo data standing in for a real inbox. Auto-purge after ~30 days (spec
+  Rows come either from the seed (demo data, until a mailbox is connected)
+  or from a real Gmail sync — see below. Auto-purge after ~30 days (spec
   §5.11 point 5) isn't implemented — needs a scheduled job runner, which this
   scaffold doesn't have.
+- **Real Gmail connection** (`/integrations`, spec §5.11) — a genuine OAuth
+  flow, not a stub: `/api/integrations/google/connect` redirects to Google's
+  real consent screen (`access_type=offline`, `prompt=consent` to guarantee
+  a refresh token, a `state` cookie for CSRF protection); the callback at
+  `/api/auth/callback/google` (named to match the redirect URI registered on
+  the Google Cloud OAuth client, not a NextAuth route) exchanges the code,
+  resolves the connected account's email, and stores the tokens **encrypted
+  at rest** (`src/lib/crypto.ts`, AES-256-GCM, `TOKEN_ENCRYPTION_KEY`) in
+  `MailboxConnection`. "Synchroniser maintenant" on `/inbox` or
+  `/integrations` calls `/api/integrations/google/sync`
+  (`src/lib/gmailSync.ts`): refreshes the access token, lists recent INBOX
+  messages via the real Gmail API, parses the MIME body, matches the sender
+  against an existing `Contact` by email, and dedupes against
+  `EmailMessage.externalId` so repeat syncs don't reimport. Replying (the
+  composer in the dossier's Emails tab) now actually sends through Gmail
+  when a mailbox is connected (`sendGmailReply()`, using `externalThreadId`
+  to keep the reply in the same Gmail conversation) — falling back to
+  record-only if no mailbox is connected, same as before. What's still
+  manual: syncing only happens on demand (no scheduled job runner, same
+  constraint as the auto-purge above — no push notifications via Google
+  Pub/Sub either).
+- **Real IMAP/SMTP mailbox connection** (`/integrations`) — covers any
+  provider Gmail doesn't (OVH, Ionos, Zoho, most small hosts — no OAuth app
+  or Google-style verification needed). `/api/integrations/imap/connect`
+  tests both protocols live (`imapflow` for IMAP, `nodemailer` for SMTP)
+  before saving anything, so a wrong host/port/password fails immediately
+  with a clear error instead of breaking silently at the next sync. The
+  account password is encrypted at rest the same way as Gmail's tokens —
+  the real tradeoff versus OAuth is that a password is stored at all
+  (revoking access means changing the password, not clicking "disconnect"
+  on Google's side). `src/lib/imapSync.ts` mirrors `gmailSync.ts`: dedupes
+  by `` `imap-${uidValidity}-${uid}` ``, parses MIME via `mailparser`, and
+  sends real replies over SMTP (`sendImapReply()`, using `inReplyTo`/
+  `references` headers for threading — the generic-SMTP equivalent of
+  Gmail's `threadId`). The contact/dossier-matching logic itself
+  (`src/lib/mailboxMatching.ts`) is shared between the Gmail and IMAP sync
+  paths rather than duplicated. Outlook/Microsoft 365 OAuth specifically
+  still isn't wired up — for tenants with IMAP/basic-auth disabled (common
+  on business Microsoft 365), this generic connector won't work and OAuth
+  would be the only option.
 - **Mail workflow — assignment, replies, client-record sends, follow-ups**
   (built on top of the inbox triage above) — team assignment of any email
   (`EmailMessage.assignedToUserId`, a select on both `/inbox` and the
   dossier's Emails tab); replying to a message (`EmailReplyComposer`) records
   a real threaded `EmailMessage` (`direction: "out"`, `inReplyToId`) with its
-  full body, not just a snippet — no real delivery, same constraint as
-  everywhere else; an "Assister avec l'IA" button calls
-  `/api/inbox/messages/[id]/ai-draft`, which returns a clear 501 pointing at
-  `/integrations` rather than faking a completion (needs a real LLM API key
-  — Claude/Mistral/OpenAI — none configured). From a Dossier's Info tab,
+  full body, and actually sends it through Gmail/IMAP when a mailbox is
+  connected (see above), falling back to record-only otherwise. The
+  "Assister avec l'IA" button on that composer is real too — see "Real AI"
+  below. From a Dossier's Info tab,
   "Communications" now covers the three send actions spec'd beyond the
   positioning test (which already had its own flow via
   `NeedsAssessmentRequest`): **Contrat** generates a real merged `Document`
@@ -189,6 +228,101 @@ for what that means in practice for each one.
   `/formulaire/[token]`, and is signed in automatically afterward. This also
   retroactively fixes Team invites, which previously created `status:
   "invited"` accounts with no way to ever actually activate them.
+- **Real AI (OpenAI)** (`src/lib/ai.ts`) — two features, both real chat-
+  completion calls (`gpt-4o-mini`), not canned text: **reply drafting**
+  (`draftEmailReply()`, called from `/api/inbox/messages/[id]/ai-draft`) —
+  "Assister avec l'IA" on the reply composer fills the textarea with a
+  generated draft the user still reviews and sends themselves; **prospect
+  extraction** (`extractProspectInfo()`, called from
+  `/api/inbox/messages/[id]/ai-extract`) — "Extraire avec l'IA" on an
+  unmatched inbox message's "Nouveau prospect" form reads the email body
+  for a phone number and company name (things the non-AI header-parsing
+  pre-fill, `InboxMessageActions`' `splitName()`, can never get since it
+  only has a display name to work with) — the "link-new" contact-creation
+  action was extended to accept and store both (find-or-create `Company`
+  by name). Both fail loudly with OpenAI's own error message (wrong key,
+  no credit, etc.) rather than a fake completion if something's wrong —
+  verified end-to-end with a deliberately invalid key, which produced a
+  real "Incorrect API key provided" response from OpenAI surfaced straight
+  through to the UI. **Platform-level, not per-organization**: a single
+  `OPENAI_API_KEY` env var (billed to Conforma, same pattern as the Gmail
+  OAuth client's `GOOGLE_CLIENT_ID`/`SECRET`) powers AI for every tenant —
+  no customer ever enters their own key, `/integrations` just shows an
+  "Active"/"Indisponible" status pill with no input. This started out
+  per-organization (an `ai_provider` `IntegrationCredential` row like
+  Stripe/Brevo/etc.) and was deliberately moved to platform-level — see
+  the "Other providers that could move platform-level" note below for
+  which of the *other* `/integrations` rows are similarly better suited
+  to a shared Conforma-owned credential than a per-tenant one. No usage
+  quota or rate limiting per organization yet — worth adding before this
+  is exposed to real paying customers at any scale, since every tenant
+  currently draws on the same OpenAI billing.
+  Every other `IntegrationCredential` secret (Stripe, Brevo, Yousign,
+  Pennylane, Sellsy, Microsoft) is now encrypted at rest and never echoed
+  back to the browser — leaving a field blank on save keeps the existing
+  value rather than clearing it, standard secret-field convention.
+
+  **Other providers that could move platform-level too** (same reasoning
+  as AI — Conforma owns the account, tenants just use the feature):
+  - **Brevo** — one Conforma-operated transactional-email account could
+    send for every tenant, which would unlock *real delivery* for every
+    currently-stubbed "no email is ever sent" flow at once (Team invites,
+    session invitations, needs-assessment requests, contract/convocation/
+    platform-access outreach) — the single highest-leverage integration
+    to centralize next, not yet done.
+  - **Stripe** — arguably a design bug as currently modeled: it's Conforma
+    billing *its own* customers for their subscription, so it should
+    already be a Conforma-owned key (env var), not a per-organization
+    `IntegrationCredential` row asking each OFP to bring their own Stripe
+    account. Not yet corrected.
+  - **Microsoft OAuth** — same pattern as the Gmail OAuth client; would
+    need its own Azure/Entra app registration (env vars), still not built
+    at all (the IMAP/SMTP connector is the current workaround for
+    Outlook/Microsoft 365 mailboxes with basic auth enabled).
+  - **Yousign** has a partner/reseller (ISV) API program for platforms
+    like this one, but it requires a commercial agreement with Yousign,
+    not just a code change — a bigger step than the others.
+  - **Pennylane/Sellsy and IMAP/SMTP** stay inherently per-organization —
+    each connects to a distinct external account (the OFP's own
+    accounting tool, or a specific mailbox) that can't be shared.
+- **Real transactional email (Brevo)** (`src/lib/brevo.ts`) — the
+  centralization described above, actually done: one Conforma-operated
+  Brevo account (`BREVO_API_KEY` + `BREVO_SENDER_EMAIL`, platform-level,
+  same pattern as `OPENAI_API_KEY`) sends for every tenant. The recipient
+  sees the organization's own name as the sender (`senderName`), not
+  "Conforma" — `BREVO_SENDER_EMAIL` is a fixed, Brevo-verified address
+  under the hood, but the display name carries the OFP's identity, and
+  `replyTo` is set to the staff member who triggered the send where that
+  makes sense (invites, positioning test) so a reply still reaches a
+  human. Wired into every flow that previously only produced a
+  link-to-relay-manually: Team invites, session convocations (via
+  `createSessionInvitation()`, which now also emails the contact), the
+  positioning-test send, and the dossier's contract/platform-access
+  outreach. **None of these sends are made mandatory** — every one is
+  try/catch-wrapped and still returns its link/token in the API response
+  (`emailSent: false` when Brevo isn't configured or the call fails), so
+  the existing "copy this link and relay it" fallback keeps working
+  exactly as before; the UI just shows which one happened. Same
+  usage-scaling caveat as AI: no per-tenant sending quota yet.
+- **Yousign (prepared, not wired)** (`src/lib/yousign.ts`) — a real client
+  for Yousign's v3 API (create a signature request, attach a document,
+  add a signer, activate it), ready to call. **Deliberately not hooked up
+  to the "Envoyer le contrat" button**, because doing so would mean
+  either faking success or shipping something broken: Yousign needs an
+  actual PDF file, and this scaffold has no PDF-rendering step anywhere —
+  `Document.bodyText` is merged plain text (see the merge-field engine
+  below), never rendered to a file. Wiring Yousign for real needs that
+  piece built first (e.g. `@react-pdf/renderer` or `pdf-lib` rendering a
+  `Document` to PDF) before `createSignatureRequest()` has anything valid
+  to send. Also, unlike Brevo/AI, this stays a **per-organization**
+  credential (already the case — `/integrations`'s "Yousign" row) rather
+  than moving platform-level: the signature request has to reflect the
+  actual OFP as the contracting party for the document to make legal
+  sense to the person signing it. Yousign does offer a partner/reseller
+  (ISV) program for platforms that want to manage many customers'
+  signature accounts from one integration, which would remove that
+  per-organization friction — but that requires a commercial agreement
+  with Yousign, not just more code.
 - **Document merge-field engine** (`src/lib/mergeTemplate.ts`) — the piece
   the first pass's document library explicitly deferred. A template's
   `{{contact.firstName}}`-style placeholders (listed on `/documents`) get
@@ -239,19 +373,14 @@ None of these actually call an external service — every "send" or "connect"
 action in this app produces a real link, record, or file that a human
 delivers manually, not an actual delivery:
 
-- No email is ever sent (Team invites, session invitations, needs-assessment
-  requests, replies, contract/convocation/platform-access sends) — Brevo
-  isn't wired in, regardless of what's saved on `/integrations`. Every one of
-  these produces a real link or record that a human relays manually
-  (activation link, generated document, meeting link).
-- No mailbox is ever synced — `/inbox` runs on seeded demo `EmailMessage`
-  rows, not a live Gmail/Outlook connection. Connecting one for real needs a
-  registered Google/Microsoft OAuth app — Google's verification for the
-  scopes this would need can take weeks, per spec's own note.
-- No AI drafts replies — `/api/inbox/messages/[id]/ai-draft` needs a real
-  LLM API key (Claude/Mistral/OpenAI) configured on `/integrations` and a
-  provider actually wired up to call it; right now it always returns a 501
-  explaining why, never a fake completion.
+- Outlook (Microsoft) mailbox connection isn't wired in — `microsoft_oauth`
+  on `/integrations` still just stores a client ID/secret with nothing using
+  it, same as the other unimplemented providers.
+- AI and transactional email (Brevo) are both real — see the sections
+  below. Nothing is faked: a missing/invalid key surfaces the provider's
+  own error message, not a canned response or fake success.
+- Yousign is *prepared*, not wired — see "Yousign (prepared, not wired)"
+  below for exactly what that means and why.
 - No e-invoice is ever transmitted — every invoice records
   `einvoicingProvider: "ppf"` as an intent, not an actual PPF/Pennylane/
   Sellsy API call.
@@ -296,8 +425,19 @@ npx vercel link --yes                     # creates/links the Vercel project
 npx vercel env add DATABASE_URL production
 npx vercel env add NEXTAUTH_SECRET production   # generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 npx vercel env add NEXTAUTH_URL production      # the deployment's own https URL — set this AFTER the first deploy once you know it, then redeploy
+npx vercel env add TOKEN_ENCRYPTION_KEY production   # generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+npx vercel env add GOOGLE_CLIENT_ID production        # only if you want the real Gmail connection to work on this deployment
+npx vercel env add GOOGLE_CLIENT_SECRET production
+npx vercel env add OPENAI_API_KEY production          # only if you want AI (reply drafting / prospect extraction) active — platform-level, one key for every tenant
+npx vercel env add BREVO_API_KEY production           # only if you want real email delivery active — platform-level, one account for every tenant
+npx vercel env add BREVO_SENDER_EMAIL production      # must be a domain verified in the Brevo account
 npx vercel --prod --yes
 ```
+
+If you set up `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, add this deployment's
+callback URL as an authorized redirect URI on the Google Cloud OAuth client
+too: `{your-deployment-url}/api/auth/callback/google` (alongside the
+`localhost:3000` one for local dev — a single OAuth client can have both).
 
 `package.json`'s `build` script is `prisma migrate deploy && next build` —
 every deploy applies any pending migrations against the production database

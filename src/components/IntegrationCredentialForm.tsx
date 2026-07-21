@@ -6,17 +6,19 @@ import { useRouter } from "next/navigation";
 export function IntegrationCredentialForm({
   provider,
   kind,
-  initialApiKey,
+  hasApiKey,
   initialClientId,
+  hasClientSecret,
 }: {
   provider: string;
   kind: "apiKey" | "oauth";
-  initialApiKey: string;
-  initialClientId: string;
+  hasApiKey?: boolean;
+  initialClientId?: string;
+  hasClientSecret?: boolean;
 }) {
   const router = useRouter();
-  const [apiKey, setApiKey] = useState(initialApiKey);
-  const [clientId, setClientId] = useState(initialClientId);
+  const [apiKey, setApiKey] = useState("");
+  const [clientId, setClientId] = useState(initialClientId ?? "");
   const [clientSecret, setClientSecret] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -28,11 +30,15 @@ export function IntegrationCredentialForm({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
-        kind === "apiKey" ? { provider, apiKey } : { provider, clientId, clientSecret: clientSecret || undefined }
+        kind === "apiKey"
+          ? { provider, apiKey: apiKey || undefined }
+          : { provider, clientId, clientSecret: clientSecret || undefined }
       ),
     });
     setSaving(false);
     setSaved(true);
+    setApiKey("");
+    setClientSecret("");
     router.refresh();
   }
 
@@ -41,7 +47,7 @@ export function IntegrationCredentialForm({
       <div className="flex items-center gap-2">
         <input
           type="password"
-          placeholder="Clé API"
+          placeholder={hasApiKey ? "•••••••• (laisser vide pour ne pas changer)" : "Clé API"}
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
@@ -64,7 +70,7 @@ export function IntegrationCredentialForm({
       />
       <input
         type="password"
-        placeholder="Client Secret"
+        placeholder={hasClientSecret ? "•••••••• (laisser vide pour ne pas changer)" : "Client Secret"}
         value={clientSecret}
         onChange={(e) => setClientSecret(e.target.value)}
         className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"

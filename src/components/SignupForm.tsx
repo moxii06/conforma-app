@@ -14,6 +14,10 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
   const router = useRouter();
   const [plan, setPlan] = useState(initialPlan);
   const [organizationName, setOrganizationName] = useState("");
+  const [siret, setSiret] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [billingPostalCode, setBillingPostalCode] = useState("");
+  const [billingCity, setBillingCity] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -29,7 +33,18 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
     const res = await fetch("/api/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ organizationName, firstName, lastName, email, password, plan }),
+      body: JSON.stringify({
+        organizationName,
+        siret,
+        billingAddress,
+        billingPostalCode,
+        billingCity,
+        firstName,
+        lastName,
+        email,
+        password,
+        plan,
+      }),
     });
 
     if (!res.ok) {
@@ -76,6 +91,50 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
           placeholder="Formations Nova"
           className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
         />
+      </div>
+
+      <div>
+        <label className="text-[12.5px] text-slate mb-1.5 block">
+          SIRET <span className="text-slate/70 font-normal">(14 chiffres)</span>
+        </label>
+        <input
+          required
+          value={siret}
+          onChange={(e) => setSiret(e.target.value.replace(/\D/g, "").slice(0, 14))}
+          inputMode="numeric"
+          placeholder="12345678900012"
+          className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+        />
+        <div className="text-[11px] text-slate mt-1">
+          Nécessaire pour établir vos factures d&apos;abonnement Conforma une fois l&apos;essai terminé.
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[12.5px] text-slate mb-1.5 block">Adresse de facturation</label>
+        <input
+          required
+          value={billingAddress}
+          onChange={(e) => setBillingAddress(e.target.value)}
+          placeholder="12 rue de la Paix"
+          className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal mb-2"
+        />
+        <div className="flex gap-3">
+          <input
+            required
+            value={billingPostalCode}
+            onChange={(e) => setBillingPostalCode(e.target.value)}
+            placeholder="75002"
+            className="w-28 border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+          />
+          <input
+            required
+            value={billingCity}
+            onChange={(e) => setBillingCity(e.target.value)}
+            placeholder="Paris"
+            className="flex-1 border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+          />
+        </div>
       </div>
 
       <div className="flex gap-3">
