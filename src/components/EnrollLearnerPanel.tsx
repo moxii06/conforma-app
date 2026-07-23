@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { PersonPicker, type LearnerInput } from "@/components/PersonPicker";
+import { SuggestedLearners } from "@/components/SuggestedLearners";
 import { Plus } from "lucide-react";
 
 type SessionOption = { id: string; mode: "FIXED_DATE" | "ROLLING"; startsAt: string; endsAt: string; format: string; spotsLeft: number };
@@ -107,6 +108,7 @@ export function EnrollLearnerPanel({ courseId }: { courseId: string }) {
           className="w-20 bg-white border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none focus:border-ink-soft"
         />
       </label>
+      <SuggestedLearners courseId={courseId} onAdd={(contactId) => enroll({ contactId })} />
       <PersonPicker onSelect={(input) => enroll(input)} />
       <button type="button" onClick={() => setOpen(false)} className="self-start text-[11.5px] text-slate hover:text-ink">
         Fermer

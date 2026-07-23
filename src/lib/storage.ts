@@ -36,6 +36,29 @@ export async function uploadModuleFile(params: {
   return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
 }
 
+// Same real Blob storage as uploadModuleFile, for the "envoyer un document"
+// dialog's local-file path (dossier records, not LMS module content) —
+// separate pathname namespace, same upload mechanics.
+export async function uploadDossierDocument(params: {
+  organizationId: string;
+  dossierId: string;
+  file: File;
+}): Promise<{ url: string; fileName: string; sizeBytes: number }> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
+  if (params.file.size > MAX_FILE_SIZE_BYTES) {
+    throw new Error("Fichier trop volumineux (limite 500 Mo).");
+  }
+
+  const pathname = `dossiers/${params.organizationId}/${params.dossierId}/${params.file.name}`;
+  const blob = await put(pathname, params.file, {
+    access: "public",
+    addRandomSuffix: true,
+    contentType: params.file.type || undefined,
+  });
+
+  return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
+}
+
 export async function deleteModuleFile(url: string): Promise<void> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return;
   await del(url).catch(() => {

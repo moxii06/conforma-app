@@ -5,13 +5,22 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
 import { SearchInput } from "@/components/SearchInput";
+import { DossierStatusFilter } from "@/components/DossierStatusFilter";
 import { Pagination } from "@/components/Pagination";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 const PAGE_SIZE = 30;
 
-export default async function DossiersPage({ searchParams }: { searchParams: { q?: string; page?: string } }) {
+const STATUS_FILTER_WHERE: Record<string, Prisma.DossierWhereInput> = {
+  needs_assessment_missing: { needsAssessmentDone: false },
+  contract_missing: { contractSigned: false },
+  convocation_missing: { convocationSent: false },
+  eval_hot_missing: { evaluationHotDone: false },
+  eval_cold_missing: { evaluationColdDone: false },
+};
+
+export default async function DossiersPage({ searchParams }: { searchParams: { q?: string; page?: string; status?: string } }) {
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "dossiers") === "none") redirect("/dashboard");
   // Spec §2: "Trainer: their own sessions" extends to the dossiers enrolled
@@ -20,10 +29,12 @@ export default async function DossiersPage({ searchParams }: { searchParams: { q
   const ownerFilter: Prisma.DossierWhereInput = role === Role.TRAINER ? { session: { trainerId: userId } } : {};
   const q = searchParams.q?.trim();
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
+  const statusFilter = searchParams.status && STATUS_FILTER_WHERE[searchParams.status] ? STATUS_FILTER_WHERE[searchParams.status] : {};
 
   const where: Prisma.DossierWhereInput = {
     organizationId,
     ...ownerFilter,
+    ...statusFilter,
     ...(q
       ? {
           contact: {
@@ -55,6 +66,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: { q
       <div className="p-8 flex flex-col gap-3">
         <div className="flex items-center gap-2.5 flex-wrap">
           <SearchInput placeholder="Rechercher un apprenant (nom, email)…" />
+          <DossierStatusFilter />
           <div className="text-[12px] text-slate">{total} dossier{total > 1 ? "s" : ""}</div>
         </div>
         <div className="flex flex-col gap-2">
@@ -86,7 +98,7 @@ export default async function DossiersPage({ searchParams }: { searchParams: { q
             </div>
           )}
         </div>
-        <Pagination basePath="/dossiers" searchParams={{ q, page: searchParams.page }} page={page} totalPages={totalPages} />
+        <Pagination basePath="/dossiers" searchParams={{ q, status: searchParams.status, page: searchParams.page }} page={page} totalPages={totalPages} />
       </div>
     </>
   );

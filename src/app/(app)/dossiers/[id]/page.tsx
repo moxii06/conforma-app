@@ -7,7 +7,10 @@ import { Role } from "@prisma/client";
 import { Tabs } from "@/components/Tabs";
 import { DossierCategorySelect } from "@/components/DossierCategorySelect";
 import { AddDossierDocumentForm } from "@/components/AddDossierDocumentForm";
+import { SendDocumentDialog } from "@/components/SendDocumentDialog";
 import { CreateRightsRequestButton } from "@/components/CreateRightsRequestButton";
+import { PlanRetentionForm } from "@/components/PlanRetentionForm";
+import { ParcoursStepToggle } from "@/components/ParcoursStepToggle";
 import { EmailReplyComposer } from "@/components/EmailReplyComposer";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { SendOutreachButtons } from "@/components/SendOutreachButtons";
@@ -71,7 +74,7 @@ export default async function DossierPage({ params, searchParams }: { params: { 
         {activeTab === "emails" ? (
           <EmailsTab contactId={dossier.contactId} canManageEmail={canManageEmail} members={members} />
         ) : activeTab === "documents" ? (
-          <DocumentsTab dossierId={dossier.id} canWrite={can(role, "dossiers") !== "none"} />
+          <DocumentsTab dossierId={dossier.id} organizationId={organizationId} canWrite={can(role, "dossiers") !== "none"} />
         ) : activeTab === "donnees-personnelles" ? (
           <PersonalDataTab dossier={dossier} canWrite={canWriteRgpd(role)} />
         ) : activeTab === "preuves-qualiopi" ? (
@@ -81,6 +84,7 @@ export default async function DossierPage({ params, searchParams }: { params: { 
         ) : (
           <InfoTab
             dossier={dossier}
+            organizationId={organizationId}
             canEditCategory={canEditCategory}
             canManageOutreach={can(role, "dossiers") !== "none"}
             canConvocation={canConvocation}
@@ -92,42 +96,58 @@ export default async function DossierPage({ params, searchParams }: { params: { 
   );
 }
 
-function InfoTab({
+async function InfoTab({
   dossier,
+  organizationId,
   canEditCategory,
   canManageOutreach,
   canConvocation,
   outreaches,
 }: {
   dossier: { id: string; needsAssessmentDone: boolean; contractSigned: boolean; convocationSent: boolean; evaluationHotDone: boolean; evaluationColdDone: boolean; learnerCategory: string | null };
+  organizationId: string;
   canEditCategory: boolean;
   canManageOutreach: boolean;
   canConvocation: boolean;
   outreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
 }) {
-  const steps = [
-    { label: "Recueil des besoins", done: dossier.needsAssessmentDone },
-    { label: "Convention signée", done: dossier.contractSigned },
-    { label: "Convocation envoyée", done: dossier.convocationSent },
-    { label: "Évaluation à chaud", done: dossier.evaluationHotDone },
-    { label: "Évaluation à froid", done: dossier.evaluationColdDone },
+  const templates = canManageOutreach
+    ? await prisma.documentTemplate.findMany({
+        where: { OR: [{ organizationId }, { organizationId: null }] },
+        select: { id: true, title: true, category: true },
+        orderBy: { title: "asc" },
+      })
+    : [];
+  const steps: { key: "needs_assessment" | "contract" | "convocation" | "eval_hot" | "eval_cold"; label: string; done: boolean }[] = [
+    { key: "needs_assessment", label: "Recueil des besoins", done: dossier.needsAssessmentDone },
+    { key: "contract", label: "Convention signée", done: dossier.contractSigned },
+    { key: "convocation", label: "Convocation envoyée", done: dossier.convocationSent },
+    { key: "eval_hot", label: "Évaluation à chaud", done: dossier.evaluationHotDone },
+    { key: "eval_cold", label: "Évaluation à froid", done: dossier.evaluationColdDone },
   ];
 
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-white border border-line rounded-card p-5">
         <div className="text-[13.5px] font-semibold text-ink mb-3">Parcours de formation</div>
-        {steps.map((s, i) => (
-          <div key={i} className="flex items-center gap-2.5 py-2 border-t border-line first:border-t-0">
-            {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#B9B6AA]" />}
-            <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
-          </div>
-        ))}
+        {steps.map((s) =>
+          canManageOutreach ? (
+            <ParcoursStepToggle key={s.key} dossierId={dossier.id} stepKey={s.key} label={s.label} done={s.done} />
+          ) : (
+            <div key={s.key} className="flex items-center gap-2.5 py-2 border-t border-line first:border-t-0">
+              {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#B9B6AA]" />}
+              <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
+            </div>
+          )
+        )}
       </div>
       {(canManageOutreach || canConvocation) && (
         <div className="bg-white border border-line rounded-card p-5">
           <div className="text-[13.5px] font-semibold text-ink mb-3">Communications</div>
-          <SendOutreachButtons dossierId={dossier.id} showConvocation={canConvocation} />
+          <div className="flex items-center gap-2.5 flex-wrap mb-2.5">
+            <SendOutreachButtons dossierId={dossier.id} showConvocation={canConvocation} />
+            {canManageOutreach && <SendDocumentDialog dossierId={dossier.id} templates={templates} />}
+          </div>
           {outreaches.length > 0 && (
             <div className="mt-3.5 pt-3.5 border-t border-line flex flex-col gap-2">
               {outreaches.map((o) => (
@@ -196,12 +216,24 @@ async function EmailsTab({
   );
 }
 
-async function DocumentsTab({ dossierId, canWrite }: { dossierId: string; canWrite: boolean }) {
-  const documents = await prisma.document.findMany({ where: { dossierId }, orderBy: { createdAt: "desc" } });
+async function DocumentsTab({ dossierId, organizationId, canWrite }: { dossierId: string; organizationId: string; canWrite: boolean }) {
+  const [documents, templates] = await Promise.all([
+    prisma.document.findMany({ where: { dossierId }, orderBy: { createdAt: "desc" } }),
+    canWrite
+      ? prisma.documentTemplate.findMany({
+          where: { OR: [{ organizationId }, { organizationId: null }] },
+          select: { id: true, title: true, category: true },
+          orderBy: { title: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="bg-white border border-line rounded-card p-5">
-      <div className="text-[13.5px] font-semibold text-ink mb-3.5">Documents</div>
+      <div className="flex items-center justify-between mb-3.5">
+        <div className="text-[13.5px] font-semibold text-ink">Documents</div>
+        {canWrite && <SendDocumentDialog dossierId={dossierId} templates={templates} />}
+      </div>
       {documents.map((d) => (
         <div key={d.id} className="flex items-center justify-between gap-3 py-2.5 border-t border-line first:border-t-0">
           <a
@@ -218,6 +250,7 @@ async function DocumentsTab({ dossierId, canWrite }: { dossierId: string; canWri
       {documents.length === 0 && <div className="text-[12.5px] text-slate py-2">Aucun document.</div>}
       {canWrite && (
         <div className="mt-3.5 pt-3.5 border-t border-line">
+          <div className="text-[11px] text-slate uppercase tracking-wide mb-1.5">Ou rattacher un lien existant</div>
           <AddDossierDocumentForm dossierId={dossierId} />
         </div>
       )}
@@ -240,9 +273,10 @@ function PersonalDataTab({
       </div>
       <div>
         <div className="text-[12.5px] text-slate mb-1">Purge prévue</div>
-        <div className="text-[13px] text-ink">
+        <div className="text-[13px] text-ink mb-2">
           {dossier.retentionUntil ? format(dossier.retentionUntil, "d MMMM yyyy", { locale: fr }) : "Non planifiée"}
         </div>
+        {canWrite && <PlanRetentionForm dossierId={dossier.id} retentionUntil={dossier.retentionUntil} />}
       </div>
       {canWrite && (
         <div className="pt-2 border-t border-line">

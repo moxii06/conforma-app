@@ -45,13 +45,21 @@ export function ModuleReorderList({ courseId, items }: { courseId: string; items
       {order.map((id) => (
         <div
           key={id}
-          draggable
-          onDragStart={() => setDragId(id)}
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => handleDrop(id)}
           className={`flex items-start gap-2 ${dragId === id ? "opacity-50" : ""}`}
         >
-          <div className="pt-3.5 cursor-grab text-slate shrink-0" title="Glisser pour réordonner">
+          {/* draggable lives on the handle alone, not the whole row — client
+              feedback: with it on the row, clicking into a nested input or
+              button (e.g. inside the quiz editor) could hijack that click as
+              a native HTML5 drag start, showing a greyed drag-ghost the user
+              never asked for ("pourquoi ça se met en sous-brillance ?"). */}
+          <div
+            draggable
+            onDragStart={() => setDragId(id)}
+            className="pt-3.5 cursor-grab text-slate shrink-0"
+            title="Glisser pour réordonner"
+          >
             <GripVertical size={14} />
           </div>
           <div className="flex-1 min-w-0">{byId.get(id)}</div>

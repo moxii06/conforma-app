@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PersonPicker, type LearnerInput } from "@/components/PersonPicker";
+import { SuggestedLearners } from "@/components/SuggestedLearners";
 import { X } from "lucide-react";
 
 type Member = { id: string; name: string };
@@ -131,6 +132,11 @@ export function CreateCourseForm({ members }: { members: Member[] }) {
             className="w-20 bg-white border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none focus:border-ink-soft"
           />
         </label>
+        <SuggestedLearners
+          titleQuery={title}
+          excludeIds={new Set(learners.map((l) => l.key))}
+          onAdd={(contactId, label) => addLearner({ contactId }, label)}
+        />
         <PersonPicker onSelect={addLearner} />
       </div>
       <div className="flex items-center gap-2.5">

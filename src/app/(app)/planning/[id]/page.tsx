@@ -111,7 +111,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                     capacity: session.capacity,
                   }}
                 />
-                {!isValidated && <ValidateSessionButton sessionId={session.id} />}
+                <ValidateSessionButton sessionId={session.id} isValidated={isValidated} />
               </div>
             )}
           </div>

@@ -4,10 +4,12 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
+import { getCourseCompletion } from "@/lib/lms";
 import { PipelineStage, Role } from "@prisma/client";
 import { addWeeks, startOfWeek, format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
+import { RefreshButton } from "@/components/RefreshButton";
 
 const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "Test de positionnement",
@@ -57,12 +59,7 @@ export default async function DashboardPage() {
     amountsByStage,
     overdueInvoiceTotal,
     upcomingSessions,
-    needsAssessmentDone,
-    contractSigned,
-    convocationSent,
-    evaluationHotDone,
-    evaluationColdDone,
-    totalDossiers,
+    elearningDossiers,
   ] = await Promise.all([
     prisma.session.count({
       // ROLLING (bande passante) sessions have no real start/end — their
@@ -82,12 +79,18 @@ export default async function DashboardPage() {
       where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date(), lte: addWeeks(new Date(), 6) } },
       select: { startsAt: true },
     }),
-    prisma.dossier.count({ where: { organizationId, needsAssessmentDone: true } }),
-    prisma.dossier.count({ where: { organizationId, contractSigned: true } }),
-    prisma.dossier.count({ where: { organizationId, convocationSent: true } }),
-    prisma.dossier.count({ where: { organizationId, evaluationHotDone: true } }),
-    prisma.dossier.count({ where: { organizationId, evaluationColdDone: true } }),
-    prisma.dossier.count({ where: { organizationId } }),
+    // Only dossiers whose course actually has e-learning content — a
+    // dossier for a purely in-person course has nothing to be "not
+    // started" on, so counting it there would just inflate that bucket.
+    prisma.dossier.findMany({
+      where: { organizationId, session: { course: { elearningModules: { some: {} } } } },
+      select: {
+        id: true,
+        elearningProgress: { select: { moduleId: true, percentComplete: true } },
+        quizAttempts: { select: { quizId: true, passed: true } },
+        session: { select: { course: { select: { elearningModules: { select: { id: true, type: true, quiz: { select: { id: true } } } } } } } },
+      },
+    }),
   ]);
 
   const stageCounts = new Map(opportunitiesByStage.map((g) => [g.stage, g._count]));
@@ -110,12 +113,23 @@ export default async function DashboardPage() {
     if (bucket) bucket.value += 1;
   }
 
-  const journeyData = [
-    { label: "Besoins", value: needsAssessmentDone },
-    { label: "Convention", value: contractSigned },
-    { label: "Convocation", value: convocationSent },
-    { label: "Éval. chaud", value: evaluationHotDone },
-    { label: "Éval. froid", value: evaluationColdDone },
+  let notStarted = 0;
+  let inProgress = 0;
+  let completed = 0;
+  for (const d of elearningDossiers) {
+    const { completedCount, allCompleted } = getCourseCompletion(
+      d.session.course.elearningModules,
+      d.elearningProgress,
+      d.quizAttempts
+    );
+    if (allCompleted) completed++;
+    else if (completedCount > 0 || d.elearningProgress.some((p) => p.percentComplete > 0)) inProgress++;
+    else notStarted++;
+  }
+  const elearningData = [
+    { label: "Pas commencé", value: notStarted },
+    { label: "En cours", value: inProgress },
+    { label: "Terminé", value: completed },
   ];
 
   const canSeeMoney = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
@@ -163,12 +177,14 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-line rounded-card p-4">
-          <div className="text-[12.5px] text-slate mb-3">
-            Avancement du parcours apprenant ({totalDossiers} dossier{totalDossiers > 1 ? "s" : ""} au total)
+        {elearningDossiers.length > 0 && (
+          <div className="bg-white border border-line rounded-card p-4">
+            <div className="text-[12.5px] text-slate mb-3">
+              Progression e-learning ({elearningDossiers.length} inscription{elearningDossiers.length > 1 ? "s" : ""} sur une formation avec contenu en ligne)
+            </div>
+            <BarChart data={elearningData} color="#1B2430" />
           </div>
-          <BarChart data={journeyData} color="#1B2430" />
-        </div>
+        )}
       </div>
     </>
   );
@@ -181,6 +197,8 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
       <div className="flex items-center gap-2 mb-3">
         <div className="text-[12.5px] text-slate">À faire ({tasks.length})</div>
         {overdueCount > 0 && <Pill tone="danger">{overdueCount} en retard</Pill>}
+        <div className="flex-1" />
+        <RefreshButton />
       </div>
       <div className="flex flex-col">
         {tasks.slice(0, 8).map((t) => (
@@ -222,7 +240,7 @@ function TrialBanner({ plan, trialEndsAt }: { plan: string; trialEndsAt: Date })
       <div className="text-[12.5px] text-seal-dark">
         Essai <strong>{PLAN_LABELS[plan] ?? plan}</strong> — {daysLeft > 0 ? `${daysLeft} jour${daysLeft > 1 ? "s" : ""} restant${daysLeft > 1 ? "s" : ""}` : "se termine aujourd'hui"}, sans carte bancaire.
       </div>
-      <Link href="/integrations" className="text-[12px] font-medium text-seal-dark underline decoration-[#D9C79E] hover:decoration-seal-dark shrink-0">
+      <Link href="/abonnement" className="text-[12px] font-medium text-seal-dark underline decoration-[#D9C79E] hover:decoration-seal-dark shrink-0">
         Gérer la facturation
       </Link>
     </div>
