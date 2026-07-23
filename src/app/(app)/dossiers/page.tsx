@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Pill } from "@/components/ui";
 import Link from "next/link";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
 import { SearchInput } from "@/components/SearchInput";
 import { Pagination } from "@/components/Pagination";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 const PAGE_SIZE = 30;
 
@@ -60,12 +62,22 @@ export default async function DossiersPage({ searchParams }: { searchParams: { q
             <Link
               key={d.id}
               href={`/dossiers/${d.id}`}
-              className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center gap-4 text-[13px] text-ink hover:border-ink-soft"
+              className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center justify-between gap-4 hover:border-ink-soft"
             >
-              <div className="flex-1">
-                {d.contact.firstName} {d.contact.lastName}
+              <div className="min-w-0">
+                <div className="text-[13.5px] font-semibold text-ink truncate">
+                  {d.contact.firstName} {d.contact.lastName}
+                </div>
+                <div className="text-[12px] text-slate mt-0.5 truncate">
+                  {d.session.course.title} ·{" "}
+                  {d.session.mode === "ROLLING" ? "en continu" : format(d.session.startsAt, "d MMM yyyy", { locale: fr })}
+                </div>
               </div>
-              <div className="text-slate">{d.session.course.title}</div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Pill tone={d.needsAssessmentDone ? "good" : "warn"}>Recueil</Pill>
+                <Pill tone={d.contractSigned ? "good" : "warn"}>Convention</Pill>
+                <Pill tone={d.convocationSent ? "good" : "neutral"}>Convocation</Pill>
+              </div>
             </Link>
           ))}
           {dossiers.length === 0 && (
