@@ -90,7 +90,11 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
 
   return (
     <>
-      <PageHeader title="Catalogue de formations" subtitle="Cours et modules e-learning associés" />
+      <PageHeader
+        title="Catalogue de formations"
+        subtitle="Cours et modules e-learning associés"
+        action={activeTab === "catalogue" && canManage ? <CreateCourseForm members={members} /> : undefined}
+      />
       <Tabs basePath="/formations" tabs={TABS} active={activeTab} />
       <div className="p-8 flex flex-col gap-4 max-w-2xl">
         {activeTab === "catalogue" ? (
@@ -99,35 +103,34 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
               <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} />
               <MetricCard label="Apprenants actifs" value={String(activeLearnerCount.length)} />
             </div>
-            {canManage && <CreateCourseForm members={members} />}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               {courses.map((course) => {
                 const { pillLabel, pillTone, secondary } = summarizeSessions(course.sessions);
                 return (
                   <Link
                     key={course.id}
                     href={`/formations/${course.id}`}
-                    className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center justify-between gap-4 hover:border-ink-soft"
+                    className="bg-white border border-line rounded-card px-5 py-4 flex items-center justify-between gap-5 hover:border-ink-soft"
                   >
                     <div className="text-[13.5px] font-semibold text-ink truncate">{course.title}</div>
-                    <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
                       {pillLabel && <Pill tone={pillTone}>{pillLabel}</Pill>}
                       <div className="text-[12px] text-slate w-16 text-right">{secondary}</div>
                     </div>
                   </Link>
                 );
               })}
-              {courses.length === 0 && <div className="text-[12.5px] text-slate">Aucun cours — créez-en un ci-dessus.</div>}
+              {courses.length === 0 && <div className="text-[12.5px] text-slate">Aucun cours — créez-en un avec le bouton en haut à droite.</div>}
             </div>
           </>
         ) : (
           <>
             <SearchInput placeholder="Rechercher une formation archivée…" />
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               {courses.map((course) => {
                 const learnerCount = course.sessions.reduce((sum, s) => sum + s._count.dossiers, 0);
                 return (
-                  <div key={course.id} className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center justify-between gap-3">
+                  <div key={course.id} className="bg-white border border-line rounded-card px-5 py-4 flex items-center justify-between gap-5">
                     <Link href={`/formations/${course.id}`} className="min-w-0 hover:underline">
                       <div className="text-[13.5px] font-semibold text-ink truncate">{course.title}</div>
                       <div className="text-[11px] text-slate mt-0.5">

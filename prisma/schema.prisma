@@ -54,6 +54,7 @@ model Organization {
   sessionInvitations  SessionInvitation[]
   nonConformities     NonConformity[]
   rightsRequests      RightsRequest[]
+  dataBreaches        DataBreach[]
   documents           Document[]
   documentTemplates   DocumentTemplate[]
   needsAssessmentRequests NeedsAssessmentRequest[]
@@ -325,6 +326,11 @@ model Contact {
   company        Company?     @relation(fields: [companyId], references: [id])
   companyId      String?
   createdAt      DateTime     @default(now())
+  // Set automatically when one of their opportunities reaches PAID (client
+  // feedback: a paid deal means the relationship is closed out, not still
+  // an active prospect to keep chasing) — hides them from the default CRM
+  // view the same way Course.archivedAt hides finished formations.
+  archivedAt     DateTime?
 
   dossiers      Dossier[]
   emailMessages EmailMessage[]
@@ -800,8 +806,41 @@ model RightsRequest {
   requestType    String   // access | erasure | portability | rectification
   personLabel    String
   deadline       DateTime
-  status         String   @default("open")
+  status         String   @default("open") // open | in_progress | closed
   createdAt      DateTime @default(now())
+  // Plain id + denormalized name, no formal relation — same pattern as
+  // EmailMessage.assignedToUserId/assignedToName elsewhere in this schema.
+  // Client feedback: a request just sat there with no owner; this is who's
+  // actually working it.
+  assignedToUserId String?
+  assignedToName   String?
+
+  @@index([organizationId])
+}
+
+// GDPR art. 33/34 — the register of security incidents/data breaches this
+// module was missing entirely: DPIA and the processing register cover
+// planned risk, this covers what actually happened. notifiedAuthorityAt /
+// notifiedSubjectsAt track the two distinct 72h-window obligations (CNIL,
+// then affected individuals if the breach is high-risk) separately, since
+// one can legitimately happen without the other (low-risk breaches don't
+// require notifying the people affected).
+model DataBreach {
+  id                  String       @id @default(cuid())
+  organization        Organization @relation(fields: [organizationId], references: [id])
+  organizationId      String
+  title               String
+  description         String
+  discoveredAt        DateTime
+  affectedDataTypes   String       // free text — which personal data categories were exposed
+  affectedPeopleCount Int?
+  severity            String       @default("moderate") // low | moderate | high
+  status              String       @default("investigating") // investigating | contained | closed
+  notifiedAuthorityAt DateTime?    // CNIL notification, due within 72h of discovery if required
+  notifiedSubjectsAt  DateTime?    // affected individuals, if high risk (art. 34)
+  remediation         String?
+  createdByName       String
+  createdAt           DateTime     @default(now())
 
   @@index([organizationId])
 }

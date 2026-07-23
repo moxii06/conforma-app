@@ -30,6 +30,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     data: { stage: parsed.data.stage },
   });
 
+  // Client feedback: reaching PAID means the deal is closed out — archive
+  // the contact so they drop out of the default CRM view instead of
+  // lingering as an apparently-still-active prospect.
+  if (parsed.data.stage === PipelineStage.PAID) {
+    await prisma.contact.updateMany({
+      where: { id: opportunity.contactId, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+  }
+
   return NextResponse.json(updated);
 }
 

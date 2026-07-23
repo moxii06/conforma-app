@@ -7,7 +7,10 @@ import { AddProcessingActivityForm } from "@/components/AddProcessingActivityFor
 import { AddDpiaForm } from "@/components/AddDpiaForm";
 import { AddSubProcessorForm } from "@/components/AddSubProcessorForm";
 import { AddRightsRequestForm } from "@/components/AddRightsRequestForm";
-import { format } from "date-fns";
+import { RightsRequestControls } from "@/components/RightsRequestControls";
+import { AddDataBreachDialog } from "@/components/AddDataBreachDialog";
+import { DataBreachControls } from "@/components/DataBreachControls";
+import { format, differenceInHours } from "date-fns";
 import { fr } from "date-fns/locale";
 
 const TABS = [
@@ -15,7 +18,11 @@ const TABS = [
   { key: "dpia", label: "DPIA / AIPD" },
   { key: "sous-traitants", label: "Sous-traitants & DPA" },
   { key: "droits", label: "Demandes de droits" },
+  { key: "violations", label: "Violations de données" },
 ];
+
+const BREACH_STATUS_LABELS: Record<string, string> = { investigating: "En cours d'analyse", contained: "Maîtrisée", closed: "Clôturée" };
+const BREACH_SEVERITY_LABELS: Record<string, string> = { low: "Faible", moderate: "Modérée", high: "Élevée" };
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
   access: "Accès",
@@ -24,6 +31,7 @@ const REQUEST_TYPE_LABELS: Record<string, string> = {
   rectification: "Rectification",
 };
 
+const STATUS_LABELS: Record<string, string> = { open: "Ouverte", in_progress: "En cours", closed: "Clôturée" };
 const RISK_LEVEL_LABELS: Record<string, string> = { low: "Faible", moderate: "Modéré", high: "Élevé" };
 const DPIA_STATUS_LABELS: Record<string, string> = {
   required: "Requise",
@@ -49,6 +57,8 @@ export default async function RgpdPage({ searchParams }: { searchParams: { tab?:
           <SubProcessorsTab organizationId={session.organizationId} canWrite={canWrite} />
         ) : activeTab === "droits" ? (
           <RightsRequestsTab organizationId={session.organizationId} canWrite={canWrite} />
+        ) : activeTab === "violations" ? (
+          <DataBreachesTab organizationId={session.organizationId} canWrite={canWrite} />
         ) : (
           <RegisterTab organizationId={session.organizationId} canWrite={canWrite} />
         )}
@@ -184,32 +194,48 @@ async function SubProcessorsTab({ organizationId, canWrite }: { organizationId: 
 }
 
 async function RightsRequestsTab({ organizationId, canWrite }: { organizationId: string; canWrite: boolean }) {
-  const requests = await prisma.rightsRequest.findMany({
-    where: { organizationId },
-    orderBy: { deadline: "asc" },
-  });
+  const [requests, members] = await Promise.all([
+    prisma.rightsRequest.findMany({
+      where: { organizationId },
+      orderBy: { deadline: "asc" },
+    }),
+    canWrite
+      ? prisma.user.findMany({
+          where: { organizationId, status: "active", role: { not: "LEARNER" } },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
   const now = new Date();
 
   return (
     <div className="bg-white border border-line rounded-card p-5">
       <div className="text-[13.5px] font-semibold text-ink mb-3.5">Demandes d&apos;exercice des droits</div>
-      <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
+      <div className="flex items-center text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
         <div className="flex-[1.2]">Type</div>
         <div className="flex-[1.6]">Personne</div>
         <div className="flex-1">Échéance</div>
-        <div className="flex-[0.8]">Statut</div>
+        <div className={canWrite ? "flex-[1.6]" : "flex-[0.8]"}>{canWrite ? "Assignation & statut" : "Statut"}</div>
       </div>
       {requests.map((r) => {
-        const overdue = r.status === "open" && r.deadline < now;
+        const overdue = r.status !== "closed" && r.deadline < now;
         return (
           <div key={r.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
             <div className="flex-[1.2]">{REQUEST_TYPE_LABELS[r.requestType] ?? r.requestType}</div>
             <div className="flex-[1.6] text-slate">{r.personLabel}</div>
             <div className="flex-1 text-slate">{format(r.deadline, "d MMM yyyy", { locale: fr })}</div>
-            <div className="flex-[0.8]">
-              <Pill tone={overdue ? "danger" : r.status === "closed" ? "good" : "neutral"}>
-                {overdue ? "En retard" : r.status === "closed" ? "Clôturée" : "Ouverte"}
-              </Pill>
+            <div className={canWrite ? "flex-[1.6]" : "flex-[0.8]"}>
+              {canWrite ? (
+                <div className="flex items-center gap-2">
+                  <RightsRequestControls requestId={r.id} status={r.status} assignedToUserId={r.assignedToUserId} members={members} />
+                  {overdue && <Pill tone="danger">En retard</Pill>}
+                </div>
+              ) : (
+                <Pill tone={overdue ? "danger" : r.status === "closed" ? "good" : "neutral"}>
+                  {overdue ? "En retard" : STATUS_LABELS[r.status] ?? r.status}
+                </Pill>
+              )}
             </div>
           </div>
         );
@@ -222,6 +248,55 @@ async function RightsRequestsTab({ organizationId, canWrite }: { organizationId:
           <AddRightsRequestForm />
         </div>
       )}
+    </div>
+  );
+}
+
+async function DataBreachesTab({ organizationId, canWrite }: { organizationId: string; canWrite: boolean }) {
+  const breaches = await prisma.dataBreach.findMany({
+    where: { organizationId },
+    orderBy: { discoveredAt: "desc" },
+  });
+  const now = new Date();
+
+  return (
+    <div className="bg-white border border-line rounded-card p-5">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[13.5px] font-semibold text-ink">Violations de données</div>
+        {canWrite && <AddDataBreachDialog />}
+      </div>
+      <div className="text-[11.5px] text-slate mb-3.5">
+        Registre des incidents de sécurité affectant des données personnelles (art. 33/34 RGPD) — distinct du registre
+        des traitements et des DPIA, qui couvrent le risque anticipé plutôt que ce qui s&apos;est réellement produit.
+      </div>
+      {breaches.map((b) => {
+        const hoursSinceDiscovery = differenceInHours(now, b.discoveredAt);
+        const notificationOverdue = !b.notifiedAuthorityAt && hoursSinceDiscovery > 72 && b.status !== "closed";
+        return (
+          <div key={b.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[13px] font-medium text-ink">{b.title}</div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {notificationOverdue && <Pill tone="danger">Notification CNIL en retard</Pill>}
+                <Pill tone={b.severity === "high" ? "danger" : b.severity === "moderate" ? "warn" : "neutral"}>
+                  {BREACH_SEVERITY_LABELS[b.severity] ?? b.severity}
+                </Pill>
+              </div>
+            </div>
+            <div className="text-[12px] text-slate">
+              Découverte le {format(b.discoveredAt, "d MMM yyyy 'à' HH:mm", { locale: fr })} · {b.affectedDataTypes}
+              {b.affectedPeopleCount !== null && ` · ~${b.affectedPeopleCount} personne${b.affectedPeopleCount > 1 ? "s" : ""} concernée${b.affectedPeopleCount > 1 ? "s" : ""}`}
+            </div>
+            <div className="text-[12.5px] text-ink">{b.description}</div>
+            {canWrite ? (
+              <DataBreachControls breachId={b.id} status={b.status} notifiedAuthorityAt={b.notifiedAuthorityAt} notifiedSubjectsAt={b.notifiedSubjectsAt} />
+            ) : (
+              <div className="text-[11.5px] text-slate">{BREACH_STATUS_LABELS[b.status] ?? b.status}</div>
+            )}
+          </div>
+        );
+      })}
+      {breaches.length === 0 && <div className="text-[12.5px] text-slate py-3">Aucun incident enregistré.</div>}
     </div>
   );
 }

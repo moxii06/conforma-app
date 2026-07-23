@@ -71,7 +71,7 @@ async function ListTab({ organizationId, ownerFilter }: { organizationId: string
         <Link
           key={s.id}
           href={`/planning/${s.id}`}
-          className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center gap-4 hover:border-ink-soft"
+          className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6 hover:border-ink-soft"
         >
           <div className="w-24 shrink-0">
             <div className="text-[12.5px] font-semibold text-ink">
@@ -81,17 +81,19 @@ async function ListTab({ organizationId, ownerFilter }: { organizationId: string
               {format(s.startsAt, "HH:mm")}–{format(s.endsAt, "HH:mm")}
             </div>
           </div>
-          <div className="flex-1">
-            <div className="text-[13.5px] font-semibold text-ink">{s.course.title}</div>
-            <div className="text-[11.5px] text-slate mt-0.5">
+          <div className="flex-1 min-w-0">
+            <div className="text-[13.5px] font-semibold text-ink truncate">{s.course.title}</div>
+            <div className="text-[11.5px] text-slate mt-0.5 truncate">
               {s.location} · {FORMAT_LABELS[s.format]}
             </div>
           </div>
-          <div className="text-[12.5px] text-ink">{s.trainer ? s.trainer.name : "À assigner"}</div>
-          <div className="text-[12.5px] text-slate w-20">
+          <div className="text-[12.5px] text-ink w-28 shrink-0 truncate">{s.trainer ? s.trainer.name : "À assigner"}</div>
+          <div className="text-[12.5px] text-slate w-14 shrink-0 text-right">
             {s.dossiers.length}/{s.capacity}
           </div>
-          <Pill tone={s.trainer ? "good" : "danger"}>{s.trainer ? "Confirmée" : "Formateur à confirmer"}</Pill>
+          <div className="shrink-0">
+            <Pill tone={s.trainer ? "good" : "danger"}>{s.trainer ? "Confirmée" : "Formateur à confirmer"}</Pill>
+          </div>
         </Link>
       ))}
       {sessions.length === 0 && <div className="text-[12.5px] text-slate">Aucune session à venir.</div>}

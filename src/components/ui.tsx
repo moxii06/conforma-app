@@ -39,13 +39,14 @@ export function Pill({ children, tone = "neutral" }: { children: React.ReactNode
   );
 }
 
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between px-8 pt-5 pb-4 border-b border-line">
       <div>
         <div className="font-display text-[22px] text-ink">{title}</div>
         {subtitle && <div className="text-[13px] text-slate mt-0.5">{subtitle}</div>}
       </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }

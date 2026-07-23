@@ -9,7 +9,7 @@ import { fr } from "date-fns/locale";
 import { NewOpportunityForm } from "@/components/NewOpportunityForm";
 import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
 import { OpportunityFilterBar } from "@/components/OpportunityFilterBar";
-import { SendNeedsAssessmentButton } from "@/components/SendNeedsAssessmentButton";
+import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
 import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
@@ -60,9 +60,19 @@ export default async function CrmPage({
   const stageFilter = searchParams.stage && searchParams.stage in PipelineStage ? (searchParams.stage as PipelineStage) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
 
-  const [opportunities, contacts, courses] = await Promise.all([
+  // A contact reaching PAID gets auto-archived (see the opportunities PATCH
+  // route) — hidden from the default view since the deal is closed out, but
+  // still reachable by explicitly filtering the table to the Payé stage.
+  const hideArchivedContacts = !(view === "table" && stageFilter === PipelineStage.PAID);
+
+  const [opportunities, contacts, courses, templates] = await Promise.all([
     prisma.opportunity.findMany({
-      where: { organizationId, ...ownerFilter, ...(view === "table" && stageFilter ? { stage: stageFilter } : {}) },
+      where: {
+        organizationId,
+        ...ownerFilter,
+        ...(view === "table" && stageFilter ? { stage: stageFilter } : {}),
+        ...(hideArchivedContacts ? { contact: { archivedAt: null } } : {}),
+      },
       include: { contact: true, needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 } },
       orderBy: view === "table" ? orderBy : { createdAt: "desc" },
     }),
@@ -72,6 +82,13 @@ export default async function CrmPage({
       orderBy: { lastName: "asc" },
     }),
     prisma.course.findMany({ where: { organizationId }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
+    canWrite
+      ? prisma.documentTemplate.findMany({
+          where: { OR: [{ organizationId }, { organizationId: null }] },
+          select: { id: true, title: true, category: true },
+          orderBy: { title: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   const byStage = Object.values(PipelineStage).map((stage) => ({
@@ -137,7 +154,7 @@ export default async function CrmPage({
                         {canWrite && (
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <SendNeedsAssessmentButton opportunityId={o.id} alreadySent={Boolean(lastRequest)} />
+                              <SendProspectDocumentDialog opportunityId={o.id} alreadySentNeedsAssessment={Boolean(lastRequest)} templates={templates} />
                               <DeleteOpportunityButton opportunityId={o.id} />
                             </div>
                           </td>
@@ -172,9 +189,10 @@ export default async function CrmPage({
                         {canWrite && (
                           <div className="flex flex-col gap-1.5">
                             <OpportunityStageSelect opportunityId={o.id} stage={o.stage} />
-                            <SendNeedsAssessmentButton
+                            <SendProspectDocumentDialog
                               opportunityId={o.id}
-                              alreadySent={Boolean(lastRequest)}
+                              alreadySentNeedsAssessment={Boolean(lastRequest)}
+                              templates={templates}
                             />
                             {lastRequest && (
                               <div className="text-[10.5px] text-slate">
