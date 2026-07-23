@@ -102,32 +102,26 @@ export default async function CrmPage({
         {view === "table" ? (
           <>
             <OpportunityFilterBar />
-            <div className="bg-white border border-line rounded-card p-5">
-              <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
-                <div className="flex-[1.4]">Contact</div>
-                <div className="flex-[1.4]">Libellé</div>
-                <div className="flex-1">Montant</div>
-                <div className="flex-1">Créé le</div>
-                <div className="flex-[1.2]">Étape</div>
-                {canWrite && <div className="flex-1">Actions</div>}
-              </div>
+            <div className="flex flex-col gap-2">
               {opportunities.map((o) => {
                 const lastRequest = o.needsAssessmentRequests[0];
                 return (
-                  <div key={o.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
-                    <div className="flex-[1.4]">
-                      <Link href={`/crm/contacts/${o.contactId}`} className="text-ink underline decoration-line hover:decoration-ink">
-                        {o.contact.firstName} {o.contact.lastName}
-                      </Link>
-                    </div>
-                    <div className="flex-[1.4] text-slate">{o.label}</div>
-                    <div className="flex-1">{formatAmount(o.amountCents)}</div>
-                    <div className="flex-1 text-slate">{format(o.createdAt, "d MMM yyyy", { locale: fr })}</div>
-                    <div className="flex-[1.2]">
-                      {canWrite ? <OpportunityStageSelect opportunityId={o.id} stage={o.stage} /> : <Pill tone="neutral">{STAGE_LABELS[o.stage]}</Pill>}
+                  <div key={o.id} className="bg-white border border-line rounded-card px-4.5 py-3.5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <Link href={`/crm/contacts/${o.contactId}`} className="text-[13.5px] font-semibold text-ink hover:underline">
+                          {o.contact.firstName} {o.contact.lastName}
+                        </Link>
+                        <div className="text-[12px] text-slate mt-0.5 truncate">
+                          {o.label} · {formatAmount(o.amountCents)} · {format(o.createdAt, "d MMM yyyy", { locale: fr })}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {canWrite ? <OpportunityStageSelect opportunityId={o.id} stage={o.stage} /> : <Pill tone="neutral">{STAGE_LABELS[o.stage]}</Pill>}
+                      </div>
                     </div>
                     {canWrite && (
-                      <div className="flex-1 flex items-center gap-2.5 flex-wrap">
+                      <div className="flex items-center gap-2.5 flex-wrap mt-2.5 pt-2.5 border-t border-line">
                         <SendNeedsAssessmentButton opportunityId={o.id} alreadySent={Boolean(lastRequest)} />
                         <DeleteOpportunityButton opportunityId={o.id} />
                       </div>
@@ -135,7 +129,7 @@ export default async function CrmPage({
                   </div>
                 );
               })}
-              {opportunities.length === 0 && <div className="text-[12.5px] text-slate py-3">Aucun prospect.</div>}
+              {opportunities.length === 0 && <div className="text-[12.5px] text-slate">Aucun prospect.</div>}
             </div>
           </>
         ) : (
@@ -150,12 +144,12 @@ export default async function CrmPage({
                   {items.map((o) => {
                     const lastRequest = o.needsAssessmentRequests[0];
                     return (
-                      <div key={o.id} className="bg-white border border-line rounded-md p-3 text-[12.5px] text-ink flex flex-col gap-2">
+                      <div key={o.id} className="bg-white border border-line rounded-md p-3 flex flex-col gap-2">
                         <div>
-                          <Link href={`/crm/contacts/${o.contactId}`} className="text-ink underline decoration-line hover:decoration-ink">
+                          <Link href={`/crm/contacts/${o.contactId}`} className="text-[13px] font-semibold text-ink hover:underline">
                             {o.contact.firstName} {o.contact.lastName}
                           </Link>
-                          {" — "}{o.label}
+                          <div className="text-[11.5px] text-slate mt-0.5">{o.label}</div>
                         </div>
                         {canWrite && (
                           <div className="flex flex-col gap-1.5">

@@ -109,26 +109,21 @@ async function QuotesTab({
   return (
     <div className="flex flex-col gap-4">
       {canWrite && <NewQuoteForm contacts={contacts} dossiers={dossierOptions} />}
-      <div className="bg-white border border-line rounded-card p-5">
-        <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
-          <div className="flex-1">Référence</div>
-          <div className="flex-[1.4]">Contact</div>
-          <div className="flex-1">Montant</div>
-          <div className="flex-1">Date</div>
-          <div className="flex-[0.8]">Statut</div>
-        </div>
+      <div className="flex flex-col gap-2">
         {quotes.map((q) => (
-          <div key={q.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
-            <div className="flex-1">{q.reference}</div>
-            <div className="flex-[1.4] text-slate">{q.contact.firstName} {q.contact.lastName}</div>
-            <div className="flex-1">{formatAmount(q.amountCents)}</div>
-            <div className="flex-1 text-slate">{format(q.createdAt, "d MMM yyyy", { locale: fr })}</div>
-            <div className="flex-[0.8]">
+          <div key={q.id} className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-[13.5px] font-semibold text-ink truncate">{q.contact.firstName} {q.contact.lastName}</div>
+              <div className="text-[12px] text-slate mt-0.5 truncate">
+                {q.reference} · {formatAmount(q.amountCents)} · {format(q.createdAt, "d MMM yyyy", { locale: fr })}
+              </div>
+            </div>
+            <div className="shrink-0">
               {canWrite ? <DocStatusSelect kind="quotes" id={q.id} status={q.status} /> : <Pill tone={STATUS_TONE[q.status]}>{q.status}</Pill>}
             </div>
           </div>
         ))}
-        {quotes.length === 0 && <div className="text-[12.5px] text-slate py-3">Aucun devis enregistré.</div>}
+        {quotes.length === 0 && <div className="text-[12.5px] text-slate">Aucun devis enregistré.</div>}
       </div>
     </div>
   );
@@ -161,29 +156,25 @@ async function InvoicesTab({
   return (
     <div className="flex flex-col gap-4">
       {canWrite && <NewInvoiceForm contacts={contacts} dossiers={dossierOptions} />}
-      <div className="bg-white border border-line rounded-card p-5">
-        <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
-          <div className="flex-1">Référence</div>
-          <div className="flex-[1.4]">Contact</div>
-          <div className="flex-1">Montant</div>
-          <div className="flex-1">Transmission</div>
-          <div className="flex-[0.8]">Statut</div>
-        </div>
+      <div className="flex flex-col gap-2">
         {invoices.map((inv) => {
           const totalPaidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
           return (
-            <div key={inv.id} className="py-2.5 border-b border-line last:border-b-0">
-              <div className="flex items-center text-[12.5px] text-ink">
-                <div className="flex-1">{inv.reference}</div>
-                <div className="flex-[1.4] text-slate">{inv.contact.firstName} {inv.contact.lastName}</div>
-                <div className="flex-1">{formatAmount(inv.amountCents)}</div>
-                <div className="flex-1 text-slate uppercase">{inv.einvoicingProvider ?? "—"}</div>
-                <div className="flex-[0.8]">
+            <div key={inv.id} className="bg-white border border-line rounded-card px-4.5 py-3.5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-[13.5px] font-semibold text-ink truncate">{inv.contact.firstName} {inv.contact.lastName}</div>
+                  <div className="text-[12px] text-slate mt-0.5 truncate">
+                    {inv.reference} · {formatAmount(inv.amountCents)}
+                    {inv.einvoicingProvider && ` · ${inv.einvoicingProvider.toUpperCase()}`}
+                  </div>
+                </div>
+                <div className="shrink-0">
                   {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{inv.status}</Pill>}
                 </div>
               </div>
               {canWrite && inv.status !== "DRAFT" && (
-                <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-4 flex-wrap mt-2.5 pt-2.5 border-t border-line">
                   <RecordPaymentForm invoiceId={inv.id} amountCents={inv.amountCents} totalPaidCents={totalPaidCents} />
                   {stripeConfigured && inv.status !== "PAID" && <CreatePaymentLinkButton invoiceId={inv.id} />}
                 </div>
@@ -191,7 +182,7 @@ async function InvoicesTab({
             </div>
           );
         })}
-        {invoices.length === 0 && <div className="text-[12.5px] text-slate py-3">Aucune facture enregistrée.</div>}
+        {invoices.length === 0 && <div className="text-[12.5px] text-slate">Aucune facture enregistrée.</div>}
       </div>
     </div>
   );
