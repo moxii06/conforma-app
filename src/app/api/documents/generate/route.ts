@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       title: `${template.title} — ${dossier.contact.firstName} ${dossier.contact.lastName}`,
       bodyText: merged,
       templateOrigin: template.title,
+      category: template.category,
     },
   });
 

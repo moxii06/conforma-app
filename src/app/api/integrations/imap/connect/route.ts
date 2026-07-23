@@ -65,10 +65,14 @@ export async function POST(request: Request) {
     );
   }
 
+  // Upsert by (org, provider, accountEmail) — an org can connect several
+  // IMAP accounts; reconnecting the SAME address updates its settings
+  // instead of creating a duplicate row.
   await prisma.mailboxConnection.upsert({
-    where: { organizationId_provider: { organizationId: session.organizationId, provider: "imap" } },
+    where: {
+      organizationId_provider_accountEmail: { organizationId: session.organizationId, provider: "imap", accountEmail: email },
+    },
     update: {
-      accountEmail: email,
       passwordEncrypted: encrypt(password),
       imapHost,
       imapPort,

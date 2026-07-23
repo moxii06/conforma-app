@@ -10,6 +10,7 @@ const schema = z.discriminatedUnion("contactMode", [
     contactId: z.string().min(1),
     label: z.string().min(1),
     amountCents: z.number().int().positive().optional(),
+    courseOfInterestId: z.string().optional(),
   }),
   z.object({
     contactMode: z.literal("new"),
@@ -19,6 +20,7 @@ const schema = z.discriminatedUnion("contactMode", [
     phone: z.string().optional(),
     label: z.string().min(1),
     amountCents: z.number().int().positive().optional(),
+    courseOfInterestId: z.string().optional(),
   }),
 ]);
 
@@ -62,6 +64,15 @@ export async function POST(request: Request) {
     }
   }
 
+  let courseOfInterestId: string | undefined;
+  if (data.courseOfInterestId) {
+    const course = await prisma.course.findFirst({
+      where: { id: data.courseOfInterestId, organizationId: session.organizationId },
+    });
+    if (!course) return NextResponse.json({ error: "Formation introuvable." }, { status: 404 });
+    courseOfInterestId = course.id;
+  }
+
   const opportunity = await prisma.opportunity.create({
     data: {
       organizationId: session.organizationId,
@@ -70,6 +81,7 @@ export async function POST(request: Request) {
       amountCents: data.amountCents,
       stage: PipelineStage.PROSPECT,
       ownerId: session.userId,
+      courseOfInterestId,
     },
     include: { contact: true },
   });

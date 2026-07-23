@@ -9,7 +9,9 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   QUOTE_SENT: "Devis envoyé",
   CONTRACT_SIGNED: "Convention signée",
   SESSION_SCHEDULED: "Session planifiée",
+  TO_INVOICE: "À facturer",
   INVOICED: "Facturé",
+  PAID: "Payé",
 };
 
 export function OpportunityStageSelect({ opportunityId, stage }: { opportunityId: string; stage: PipelineStage }) {

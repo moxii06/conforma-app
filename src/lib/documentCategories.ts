@@ -10,6 +10,11 @@ export const DOCUMENT_CATEGORIES = [
   "eval_cold",
   "cgv",
   "internal_rules",
+  "welcome_booklet",
+  "attendance_sheet",
+  "interim_report",
+  "final_report",
+  "results_summary",
   "other",
 ] as const;
 
@@ -23,5 +28,10 @@ export const CATEGORY_LABELS: Record<string, string> = {
   eval_cold: "Évaluation à froid",
   cgv: "Conditions générales de vente",
   internal_rules: "Règlement intérieur",
+  welcome_booklet: "Livret d'accueil",
+  attendance_sheet: "Feuille d'émargement",
+  interim_report: "Bilan intermédiaire",
+  final_report: "Bilan final",
+  results_summary: "Relevé de résultats",
   other: "Autre",
 };

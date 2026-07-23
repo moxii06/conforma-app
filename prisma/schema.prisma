@@ -45,6 +45,7 @@ model Organization {
   sessions            Session[]
   quotes              Quote[]
   invoices            Invoice[]
+  payments            Payment[]
   processingActivities ProcessingActivity[]
   subProcessors       SubProcessor[]
   qualiopiIndicators  QualiopiIndicatorEvidence[]
@@ -61,6 +62,187 @@ model Organization {
   integrationCredentials IntegrationCredential[]
   clientOutreaches    ClientOutreach[]
   subscription        Subscription?
+  qualityRisks        QualityRisk[]
+  resultIndicators    ResultIndicator[]
+
+  // Which version of the RNQ this org is currently auditing itself against
+  // (see QualiopiReferentielVersion) — nullable only until the backfill
+  // migration sets every existing org to the 2022 version; every org gets
+  // one from creation onward in practice.
+  activeReferentielVersion   QualiopiReferentielVersion? @relation("ActiveReferentiel", fields: [activeReferentielVersionId], references: [id])
+  activeReferentielVersionId String?
+
+  // The person designated as référent handicap (RNQ indicator 20) — not a
+  // separate Role, since in practice this is a specific person on an
+  // existing team (often a TRAINER or ADMIN_MANAGER) wearing an extra hat,
+  // not a distinct job function needing its own permission tier. Access to
+  // AccommodationRequest is gated on being this specific user (or an admin),
+  // not on role alone — see canAccessAccommodations in src/lib/tenant.ts.
+  referentHandicapUser   User?   @relation("ReferentHandicap", fields: [referentHandicapUserId], references: [id])
+  referentHandicapUserId String?
+
+  accommodationRequests AccommodationRequest[]
+  complaints            Complaint[]
+  secureReports         SecureReport[]
+  regulatoryWatchItems  RegulatoryWatch[]
+  subcontractors        Subcontractor[]
+}
+
+// Confidential — situation de handicap is sensitive personal data under
+// RGPD art. 9 (special category). description/requestedAccommodations are
+// never shown to anyone outside canAccessAccommodations() (admins + the
+// designated référent handicap), not even other staff with normal "dossiers"
+// access. See RNQ indicators 13/16/20.
+model AccommodationRequest {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  dossier        Dossier      @relation(fields: [dossierId], references: [id])
+  dossierId      String
+
+  description             String
+  requestedAccommodations String
+  status                  String    @default("pending") // pending | granted | declined
+  grantedAccommodations   String?
+  handledByUserId         String?
+  handledByName           String?
+  handledAt                DateTime?
+
+  createdByName String
+  createdAt     DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([dossierId])
+}
+
+// A learner (or staff) complaint about a training — separate from
+// EmailMessage/inbox (that's unstructured correspondence; this is a
+// tracked complaint with a status workflow) and separate from
+// NonConformity (which is Qualiopi reference data feeding the amélioration
+// continue register — a resolved Complaint can become a NonConformity/risk
+// input, but the two aren't the same record).
+model Complaint {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId      String?
+
+  subject         String
+  description     String
+  submittedByName String
+  status          String    @default("open") // open | investigating | resolved
+  resolutionNotes String?
+  resolvedAt      DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([dossierId])
+}
+
+// Deliberately separate from Complaint: a harassment/discrimination report
+// needs a much smaller circle of people able to read it (see
+// canAccessSecureReports in src/lib/tenant.ts — admins only, no "référent"
+// carve-out like accommodations has, since the report could be about
+// anyone including a référent). reporterName/reporterContact are optional
+// — an anonymous report is still a valid report. SecureReportAccessLog
+// gives the traceability the escalation procedure needs: every time an
+// admin actually views a report, that's logged and visible to every admin,
+// not hidden even from the viewer themselves.
+model SecureReport {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  reporterName    String?
+  reporterContact String?
+  description     String
+  status          String    @default("received") // received | under_review | escalated | closed
+  escalationNotes String?
+  escalatedAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  accessLog SecureReportAccessLog[]
+
+  @@index([organizationId])
+}
+
+model SecureReportAccessLog {
+  id             String       @id @default(cuid())
+  report         SecureReport @relation(fields: [reportId], references: [id])
+  reportId       String
+  viewedByUserId String
+  viewedByName   String
+  viewedAt       DateTime     @default(now())
+
+  @@index([reportId])
+}
+
+// RNQ indicators 22-25 ask for more than "we monitor X source" — an
+// auditor wants to see a watch item actually turn into a decision and a
+// concrete action, not sit as a logged link nobody acted on. status tracks
+// that progression explicitly (identified → decided → exploited) rather
+// than leaving it to be inferred from which optional fields are filled;
+// exploitedAt is the field that answers "was this actually put into
+// practice," which is the part a source-logging tool usually skips.
+model RegulatoryWatch {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  watchType String // legal | metiers_competences | pedagogique_technologique | reseaux_partenariats
+  source    String
+  watchDate DateTime
+  summary   String
+  ownerName String
+
+  decision     String?
+  actionTaken  String?
+  exploitedAt  DateTime?
+  evidenceNote String?
+  status       String @default("identified") // identified | decided | exploited
+
+  affectedCourses Course[]
+
+  createdByName String
+  createdAt     DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// A trainer/subcontractor delivering training on the org's behalf —
+// deliberately separate from User: they don't log into Conforma (no
+// account, no role, no permissions), they're a record the org keeps for
+// Qualiopi indicator 17 (qualification of external/internal staff) and
+// indicator 19 (coordination/supervision of intervenants). Documents
+// (contract, diploma, insurance...) reuse the existing Document model via
+// subcontractorId rather than a parallel table.
+model Subcontractor {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  name           String
+  type           String // formateur_externe | sous_traitant_pedagogique | prestataire_technique | autre
+  siret          String?
+  contactEmail   String?
+  contactPhone   String?
+  qualifications String? // free text: diplomas, certifications, specialties
+
+  contractStartDate       DateTime?
+  contractEndDate         DateTime?
+  qualificationExpiryDate DateTime? // e.g. a certification's expiry — distinct from the contract's own end date
+
+  status String  @default("active") // active | expired | terminated
+  notes  String?
+
+  documents Document[]
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
 }
 
 // One row per organization, created at signup. Spec §8's "14-day trial, no
@@ -107,6 +289,8 @@ model User {
 
   trainerSessions Session[]      @relation("SessionTrainer")
   learnerDossiers Dossier[]      @relation("DossierLearnerUser")
+  referentHandicapForOrganizations Organization[] @relation("ReferentHandicap")
+  responsibleForCourses Course[] @relation("CourseResponsibles")
 
   @@index([organizationId])
 }
@@ -177,6 +361,16 @@ model Dossier {
   legalBasis      String   @default("contract_performance")
   retentionUntil  DateTime?
 
+  // Only meaningful for a ROLLING (self-paced, no fixed date) session: how
+  // many days the learner has to finish once they start, and when they
+  // actually did start. accessDurationDays is captured at enrollment;
+  // firstAccessedAt is set the first time any LMS progress is recorded for
+  // this dossier (see markDossierAccessed in lib/lms.ts) — that's the
+  // "access" event the learner has no control over faking, unlike a
+  // login timestamp which could predate ever opening a module.
+  accessDurationDays Int?
+  firstAccessedAt    DateTime?
+
   createdAt DateTime @default(now())
 
   // BPF §5.13 groups learner hours by legal status category.
@@ -185,6 +379,10 @@ model Dossier {
   documents          Document[]
   qualiopiEvidence   QualiopiIndicatorEvidence[]
   elearningProgress  ElearningProgress[]
+  quizAttempts       QuizAttempt[]
+  virtualClassAttendances VirtualClassAttendance[]
+  accommodationRequests AccommodationRequest[]
+  complaints          Complaint[]
   invitations        SessionInvitation[]
   quotes             Quote[]
   invoices           Invoice[]
@@ -204,9 +402,25 @@ model Course {
   organizationId String
   title          String
   description    String?
+  // Archiving hides a course from the default catalog view without
+  // deleting its history (sessions/dossiers/documents/certificates all
+  // stay intact and queryable) — for offers no longer run but still
+  // needed for compliance/audit lookback.
+  archivedAt     DateTime?
 
   sessions          Session[]
   elearningModules  ElearningModule[]
+  opportunitiesOfInterest Opportunity[]
+  qualityRisks      QualityRisk[]
+  resultIndicators  ResultIndicator[]
+  regulatoryWatchItems RegulatoryWatch[]
+  // Who's accountable for this training — any team member, not just
+  // trainers (a course can have an admin/coordinator responsible for it
+  // without ever running a session themselves). Distinct from
+  // Session.trainerId, which is who actually delivers one specific
+  // session — a course can have several sessions with different trainers
+  // while keeping the same responsible person(s) throughout.
+  responsibleUsers  User[]            @relation("CourseResponsibles")
 
   @@index([organizationId])
 }
@@ -217,17 +431,43 @@ enum SessionFormat {
   HYBRID
 }
 
+// DRAFT sessions are still being put together (dates/trainer/roster can
+// change freely); VALIDATED is the point at which convocations should go
+// out. There's no separate "archived" status — a session is simply treated
+// as past/archived once `endsAt` is in the past (computed on read, see
+// /planning), no cron or manual action needed.
+enum SessionStatus {
+  DRAFT
+  VALIDATED
+}
+
+// Some OFPs run cohort training on a fixed calendar (FIXED_DATE — the
+// existing model: a real start/end, a room or meeting link, a capacity).
+// Others sell self-paced e-learning that's simply always available
+// (ROLLING) — a learner's clock starts the moment *they* first log in, not
+// on a shared date. Session.startsAt/endsAt stay non-null either way (kept
+// simple rather than making half the schema nullable) — for ROLLING
+// sessions they're set to a wide-open placeholder window at creation and
+// the UI just doesn't show them; what actually matters for a rolling
+// learner is Dossier.accessDurationDays/firstAccessedAt below.
+enum SessionMode {
+  FIXED_DATE
+  ROLLING
+}
+
 model Session {
   id             String        @id @default(cuid())
   organization   Organization  @relation(fields: [organizationId], references: [id])
   organizationId String
   course         Course        @relation(fields: [courseId], references: [id])
   courseId       String
+  mode           SessionMode   @default(FIXED_DATE)
   trainer        User?         @relation("SessionTrainer", fields: [trainerId], references: [id])
   trainerId      String?
   startsAt       DateTime
   endsAt         DateTime
   format         SessionFormat
+  status         SessionStatus @default(DRAFT)
   location       String?       // room name/address (IN_PERSON, HYBRID) or existing video link (REMOTE)
   capacity       Int
   // Auto-generated once, on first invitation send for a REMOTE/HYBRID
@@ -239,8 +479,35 @@ model Session {
 
   dossiers    Dossier[]
   invitations SessionInvitation[]
+  attendances VirtualClassAttendance[]
 
   @@index([organizationId])
+}
+
+// Electronic attendance for a REMOTE/HYBRID session, driven by the
+// learner's browser actually being on the Conforma-hosted meeting room page
+// (see /mon-espace/salle/[dossierId] and its heartbeat ping), not a staff
+// checkbox ticked from memory after the fact. durationSeconds accumulates
+// across reconnects — one row per (session, dossier) rather than one row
+// per connection interval, since "how long were they actually present in
+// total" is what an attendance certificate needs, not a raw connection log.
+// Known honesty limit: this measures browser-tab presence on the room page,
+// not camera/mic/audio-on state — there's no way to see that from an
+// embedded, cross-origin Jitsi iframe without a real conferencing API.
+model VirtualClassAttendance {
+  id              String    @id @default(cuid())
+  session         Session   @relation(fields: [sessionId], references: [id])
+  sessionId       String
+  dossier         Dossier   @relation(fields: [dossierId], references: [id])
+  dossierId       String
+  joinedAt        DateTime
+  lastPingAt      DateTime
+  leftAt          DateTime?
+  durationSeconds Int       @default(0)
+
+  @@unique([sessionId, dossierId])
+  @@index([sessionId])
+  @@index([dossierId])
 }
 
 // A session invitation is what gets sent to one enrolled learner (Dossier)
@@ -299,7 +566,9 @@ enum PipelineStage {
   QUOTE_SENT
   CONTRACT_SIGNED
   SESSION_SCHEDULED
+  TO_INVOICE
   INVOICED
+  PAID
 }
 
 model Opportunity {
@@ -318,6 +587,12 @@ model Opportunity {
   // null for opportunities created before this field existed or by non-Sales
   // roles who don't need the restriction.
   ownerId        String?
+  // Course the prospect is interested in — powers the Planning autosuggest
+  // (match a session's course against CONTRACT_SIGNED opportunities to
+  // propose who to enrol). Optional: pre-existing opportunities and ones
+  // created without picking a course just won't be suggested anywhere.
+  courseOfInterest   Course? @relation(fields: [courseOfInterestId], references: [id])
+  courseOfInterestId String?
 
   @@index([organizationId])
   @@index([stage])
@@ -358,7 +633,35 @@ model Invoice {
   fundingOrigin        String?      // company | opco | public | individual
   createdAt            DateTime     @default(now())
 
+  payments Payment[]
+
   @@index([organizationId])
+}
+
+// A single installment against an Invoice — an invoice can be settled in
+// several partial payments (spec request: "suivi des paiements en
+// plusieurs fois") rather than only ever being marked fully PAID at once.
+// Recording one that brings the running total to/past Invoice.amountCents
+// auto-flips the invoice to PAID (see /api/facturation/invoices/[id]/payments);
+// a partial one just shows up as progress toward the total, status
+// unchanged. `method` is free text (virement, carte, chèque, espèces,
+// Stripe...) rather than an enum since real payment methods vary more than
+// this scaffold needs to model rigidly.
+model Payment {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id])
+  invoiceId      String
+  amountCents    Int
+  paidAt         DateTime     @default(now())
+  method         String?
+  recordedByUserId String?
+  recordedByName   String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([invoiceId])
 }
 
 // ---------------------------------------------------------------------------
@@ -371,6 +674,8 @@ model Document {
   organizationId String
   dossier        Dossier?     @relation(fields: [dossierId], references: [id])
   dossierId      String?
+  subcontractor  Subcontractor? @relation(fields: [subcontractorId], references: [id])
+  subcontractorId String?
   title          String
   // Uploaded/linked documents carry a fileUrl. Documents generated by the
   // toolkit's merge-field engine (see /api/documents/generate) carry
@@ -379,6 +684,13 @@ model Document {
   fileUrl        String?
   bodyText       String?
   templateOrigin String?      // which toolkit template this was generated from, if any
+  // Denormalized from DocumentTemplate.category at generation/upload time —
+  // a Document needs its own copy since the source template can be edited
+  // or deleted later, and a manually-linked document (no template at all)
+  // still needs a category to show up correctly in "Mes documents"
+  // (src/app/(app)/documents/page.tsx). Defaults to "other" so existing
+  // rows and manual adds without a picked category still file predictably.
+  category       String       @default("other")
   createdAt      DateTime     @default(now())
 
   invitationLinks SessionInvitationDocument[]
@@ -498,18 +810,43 @@ model RightsRequest {
 // Qualiopi module
 // ---------------------------------------------------------------------------
 
-// Reference data for the Référentiel National Qualité — shared across every
-// organization (it's the same official 7 criteria / 32 indicators for
-// everyone), not tenant-scoped. Spec §7.3 asks that this be data-driven
-// rather than hardcoded in the UI so it can be updated as the RNQ changes;
-// this table is that. Labels here are working summaries for the scaffold —
-// verify wording against the official France Compétences referential text
-// before relying on them for an actual audit.
+// The RNQ isn't a single fixed list — it's republished by arrêté from time
+// to time (see the "réforme référentiel" article on /actualites), with a
+// status lifecycle (projet → publié → applicable → archivé) and its own
+// indicator set per version. Each organization tracks which version it's
+// currently auditing itself against (Organization.activeReferentielVersion)
+// so switching to a new version — or previewing a still-draft one ahead of
+// its application date — never silently rewrites another org's checklist.
+model QualiopiReferentielVersion {
+  id             String   @id @default(cuid())
+  label          String   // e.g. "RNQ 2022 (en vigueur)", "RNQ — Réforme 2026 (projet)"
+  status         String   @default("projet") // projet | publie | applicable | archive
+  publishedAt    DateTime?
+  applicableFrom DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  indicators    QualiopiIndicator[]
+  organizations Organization[] @relation("ActiveReferentiel")
+}
+
+// Reference data for a given RNQ version — shared across every organization
+// that has that version active (it's the same official criteria/indicators
+// for everyone on that version), not tenant-scoped. Spec §7.3 asks that
+// this be data-driven rather than hardcoded in the UI so it can be updated
+// as the RNQ changes; this table is that. Labels here are working summaries
+// for the scaffold — verify wording against the official France Compétences
+// referential text before relying on them for an actual audit.
 model QualiopiIndicator {
-  id              String @id @default(cuid())
-  number          Int    @unique // 1–32
+  id              String                     @id @default(cuid())
+  version         QualiopiReferentielVersion @relation(fields: [versionId], references: [id])
+  versionId       String
+  number          Int    // 1–32 within its version
   criterionNumber Int    // 1–7
   label           String
+
+  @@unique([versionId, number])
+  @@index([versionId])
 }
 
 model AuditChecklistItem {
@@ -518,6 +855,15 @@ model AuditChecklistItem {
   organizationId String
   indicatorNumber Int
   gathered       Boolean      @default(false)
+
+  // AI-generated, org-specific explanation of what this indicator actually
+  // requires and what evidence to gather — "voir mon résumé personnalisé"
+  // on the Préparation audit tab. Cached here (same per-org+indicator
+  // granularity this model already has) so it's generated once, not on
+  // every page load; personalizedSummaryAt lets the UI offer "Régénérer"
+  // without needing a separate flag for "has one ever been generated."
+  personalizedSummary   String?
+  personalizedSummaryAt DateTime?
 
   @@unique([organizationId, indicatorNumber])
   @@index([organizationId])
@@ -546,7 +892,82 @@ model NonConformity {
   status         String       @default("open") // open | in_progress | resolved
   dueDate        DateTime?
 
+  qualityRisks   QualityRisk[]
+
   @@index([organizationId])
+}
+
+// Qualiopi indicator 28 (dispositif d'amélioration continue) asks for more
+// than a complaint log — a real risk register with likelihood/severity,
+// an owner, and a preventive/corrective plan. Deliberately a separate model
+// from NonConformity rather than extending it: a complaint is a raw input
+// ("someone reported X"), a risk is an analysis of it ("here's what could
+// go wrong, how likely, how bad, what we're doing about it") — not every
+// complaint becomes a risk, and a risk can originate from more than a
+// complaint (a bad result, an audit finding, regulatory watch). The link is
+// optional and one-directional (sourceNonConformityId), so promoting a
+// complaint to a risk never mutates the original complaint record.
+model QualityRisk {
+  id             String        @id @default(cuid())
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  organizationId String
+  course         Course?       @relation(fields: [courseId], references: [id])
+  courseId       String?
+  sourceNonConformity   NonConformity? @relation(fields: [sourceNonConformityId], references: [id])
+  sourceNonConformityId String?
+
+  risk              String
+  origin            String   // reclamation | resultat | audit | veille | autre
+  probability       String   // faible | moyenne | elevee
+  severity          String   // faible | moyenne | elevee
+  ownerUserId       String?
+  ownerName         String?
+  preventiveMeasure String?
+  correctiveAction  String?
+  dueDate           DateTime?
+  evidenceNote      String?
+  status            String   @default("identifie") // identifie | en_cours | maitrise | clos
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([courseId])
+}
+
+// Qualiopi indicator 2 asks for published results indicators with an
+// explicit calculation method, not just a headline number — an auditor (or
+// a prospect) needs to see the definition, the formula, the period, and the
+// population it was computed over. "computedFrom" records which real query
+// produced computedValue (see src/lib/resultIndicators.ts) so a number is
+// never just typed in and passed off as measured; "manual" is the one
+// exception, for indicators this scaffold has no underlying data source
+// for yet (e.g. a real satisfaction survey), and is flagged as such in the
+// UI rather than presented the same way as a computed one.
+model ResultIndicator {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  course         Course?      @relation(fields: [courseId], references: [id])
+  courseId       String?
+
+  label          String
+  definition     String
+  formula        String
+  computedFrom   String   // elearning_completion | hot_evaluation_rate | manual
+  periodStart    DateTime
+  periodEnd      DateTime
+  totalPopulation Int
+  respondents     Int
+  exclusions      Int      @default(0)
+  computedValue   Float?   // percentage, 0–100
+
+  published  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([courseId])
 }
 
 // ---------------------------------------------------------------------------
@@ -554,12 +975,100 @@ model NonConformity {
 // ---------------------------------------------------------------------------
 
 model ElearningModule {
-  id       String  @id @default(cuid())
-  course   Course  @relation(fields: [courseId], references: [id])
-  courseId String
-  title    String
+  id          String  @id @default(cuid())
+  course      Course  @relation(fields: [courseId], references: [id])
+  courseId    String
+  title       String
+  description String?
+  // "video" | "document" | "quiz" — drives which player the learner portal
+  // renders and how progress is computed (playback position, a manual
+  // "marquer comme lu", or a graded attempt). Free-text rather than an enum:
+  // cheap to extend later (audio, scorm package, ...) without a migration.
+  type        String  @default("video")
+  // Real uploaded content (Vercel Blob — see src/lib/storage.ts), not a
+  // pasted external link like Document.fileUrl elsewhere in this app.
+  // Unused for type "quiz" — that content lives in the linked Quiz instead.
+  fileUrl      String?
+  fileName     String?
+  fileSizeBytes Int?
+  order       Int     @default(0)
+  createdAt   DateTime @default(now())
 
   progress ElearningProgress[]
+  quiz     Quiz?
+  versions ElearningModuleVersion[]
+}
+
+// A history entry for a module's *previous* file, written right before it
+// gets replaced (see POST /api/lms/modules/[id]/replace-file) — the current
+// file always lives on ElearningModule itself, this table only holds what
+// used to be there. Replacing a video a learner already has progress
+// against would silently invalidate that progress (their recorded percent
+// refers to a position in the old file, which may not even exist in the
+// new one) — the replace endpoint requires an explicit confirmation in
+// that case rather than swapping the file out from under them unannounced.
+model ElearningModuleVersion {
+  id            String          @id @default(cuid())
+  module        ElearningModule @relation(fields: [moduleId], references: [id])
+  moduleId      String
+  fileUrl       String?
+  fileName      String?
+  fileSizeBytes Int?
+  replacedAt     DateTime @default(now())
+  replacedByName String
+
+  @@index([moduleId])
+}
+
+// One quiz per module (type "quiz") — mirrors how a video/document module
+// has exactly one piece of content. Passing a quiz completes the module the
+// same way finishing a video does: ElearningProgress.percentComplete hits
+// 100 and the existing auto-unlock-next-module logic in
+// unlockNextModuleIfNeeded (src/lib/lms.ts) fires, same as any other module
+// type — a quiz isn't a special case downstream of "did they finish this."
+model Quiz {
+  id              String          @id @default(cuid())
+  module          ElearningModule @relation(fields: [moduleId], references: [id])
+  moduleId        String          @unique
+  minScorePercent Int             @default(70)
+  maxAttempts     Int?            // null = unlimited
+  questions       QuizQuestion[]
+  attempts        QuizAttempt[]
+  createdAt       DateTime        @default(now())
+}
+
+model QuizQuestion {
+  id       String @id @default(cuid())
+  quiz     Quiz   @relation(fields: [quizId], references: [id])
+  quizId   String
+  order    Int
+  // single_choice | multiple_choice | true_false | short_answer
+  type     String
+  prompt   String
+  // [{ id, text, correct }] for single_choice/multiple_choice/true_false —
+  // the correct flags live here, not just in the answer-checking code, so
+  // "what's the right answer" is inspectable/editable data, not logic.
+  options  Json?
+  // short_answer only — graded by exact match (trimmed, case-insensitive),
+  // not semantic comparison; a deliberate scaffold limitation, not hidden.
+  correctAnswerText String?
+
+  @@index([quizId])
+}
+
+model QuizAttempt {
+  id           String   @id @default(cuid())
+  quiz         Quiz     @relation(fields: [quizId], references: [id])
+  quizId       String
+  dossier      Dossier  @relation(fields: [dossierId], references: [id])
+  dossierId    String
+  answers      Json     // { [questionId]: string | string[] }
+  scorePercent Int
+  passed       Boolean
+  submittedAt  DateTime @default(now())
+
+  @@index([quizId])
+  @@index([dossierId])
 }
 
 model ElearningProgress {
@@ -569,8 +1078,24 @@ model ElearningProgress {
   module             ElearningModule @relation(fields: [moduleId], references: [id])
   moduleId           String
   percentComplete    Int             @default(0)
+  // Raw playback position, separate from percentComplete — percent is
+  // "furthest point ever reached" (never regresses, see the progress
+  // route), but resuming should pick up from wherever the learner actually
+  // paused, which can be earlier than their furthest point if they went
+  // back to re-watch something. Video only; documents have no position.
+  lastPositionSeconds Int?
   lastEventAt        DateTime?       // last tracked login/lesson/quiz event —
                                        // feeds Qualiopi evidence, see spec §5.12
+  // This row IS the assignment record — a learner only sees a module once
+  // one exists for their dossier (see /mon-espace). Created exclusively by
+  // staff (see /api/lms/modules/[id]/assign); a learner can update their
+  // own row's percentComplete but can no longer create one for themselves,
+  // closing the implicit self-assignment gap the previous version had.
+  assignedAt         DateTime        @default(now())
+  assignedByUserId   String?
+  assignedByName     String?
+
+  @@unique([dossierId, moduleId])
 }
 
 // ---------------------------------------------------------------------------
@@ -601,7 +1126,11 @@ model MailboxConnection {
   connectedAt    DateTime     @default(now())
   lastSyncedAt   DateTime?
 
-  @@unique([organizationId, provider])
+  emailMessages  EmailMessage[]
+
+  // An org can connect several mailboxes (several Gmail accounts, an IMAP
+  // account, etc.) — uniqueness is per actual account, not per provider.
+  @@unique([organizationId, provider, accountEmail])
   @@index([organizationId])
 }
 
@@ -623,6 +1152,13 @@ model EmailMessage {
   receivedAt     DateTime
   direction      String       // "in" | "out"
 
+  // Which connected mailbox this came from — null for seed/demo rows and
+  // locally-composed replies that predate multi-mailbox support. Lets
+  // /inbox filter to one mailbox and lets disconnecting one mailbox only
+  // clear messages that actually came from it.
+  mailboxConnection   MailboxConnection? @relation(fields: [mailboxConnectionId], references: [id])
+  mailboxConnectionId String?
+
   // Team triage: who on the team is handling this message. Denormalized
   // name alongside the id so list views don't need an extra join, same
   // pattern as sentByUserId/sentByName elsewhere in this schema.
@@ -636,6 +1172,19 @@ model EmailMessage {
   replyTo        EmailMessage?  @relation("EmailThread", fields: [inReplyToId], references: [id])
   inReplyToId    String?
   replies        EmailMessage[] @relation("EmailThread")
+
+  // AI classification for the RGPD register (spec: catch exercise-of-rights
+  // requests — access/erasure/portability/rectification — buried in the
+  // inbox before their legal 1-month deadline runs out, rather than relying
+  // on a human to notice one among newsletters and prospect emails).
+  // rgpdClassifiedAt is set the first time classification runs so a synced
+  // message is never re-classified (cost control); rgpdSuggestedType holds
+  // the open suggestion and is cleared once staff confirms or dismisses it
+  // — same "AI suggests, human decides" shape as suggestedDossierId above,
+  // never auto-creates the actual RightsRequest record on its own.
+  rgpdClassifiedAt  DateTime?
+  rgpdSuggestedType String?   // access | erasure | portability | rectification | null
+  rgpdReasoning     String?
 
   @@index([organizationId])
   @@index([contactId])
@@ -691,4 +1240,25 @@ model IntegrationCredential {
 
   @@unique([organizationId, provider])
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Public marketing site content — NOT tenant-scoped: this is Conforma's own
+// editorial content and visitor list, not an OFP's data.
+// ---------------------------------------------------------------------------
+
+model NewsArticle {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  category    String   // qualiopi | rgpd | reglementation | produit
+  excerpt     String
+  body        String
+  publishedAt DateTime @default(now())
+}
+
+model NewsletterSubscriber {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  subscribedAt DateTime @default(now())
 }

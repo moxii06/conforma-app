@@ -84,10 +84,15 @@ export async function GET(request: Request) {
   }
   const userinfo = (await userinfoRes.json()) as { email: string };
 
+  // Upsert by (org, provider, accountEmail) rather than just (org,
+  // provider) — an org can connect several distinct Gmail accounts;
+  // reconnecting the SAME account refreshes its tokens instead of
+  // creating a duplicate row.
   await prisma.mailboxConnection.upsert({
-    where: { organizationId_provider: { organizationId: session.organizationId, provider: "gmail" } },
+    where: {
+      organizationId_provider_accountEmail: { organizationId: session.organizationId, provider: "gmail", accountEmail: userinfo.email },
+    },
     update: {
-      accountEmail: userinfo.email,
       accessTokenEncrypted: encrypt(tokens.access_token),
       refreshTokenEncrypted: encrypt(tokens.refresh_token),
     },

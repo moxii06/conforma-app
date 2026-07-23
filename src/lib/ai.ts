@@ -102,3 +102,136 @@ export async function extractProspectInfo(emailBody: string): Promise<ProspectEx
     throw new Error("Réponse de l'IA illisible — réessayez.");
   }
 }
+
+export type EmailIntent = "follow_up" | "payment_reminder" | "quote_follow_up" | "custom";
+
+const INTENT_INSTRUCTIONS: Record<EmailIntent, string> = {
+  follow_up: "Rédige un email de relance commerciale amicale pour reprendre contact avec ce prospect et faire avancer son dossier.",
+  payment_reminder: "Rédige un email de relance de paiement, ferme mais courtois, rappelant le montant dû et la référence de la facture.",
+  quote_follow_up: "Rédige un email de relance sur un devis envoyé, pour savoir si le prospect a des questions et encourager une réponse.",
+  custom: "Rédige un email à partir de l'instruction ci-dessous.",
+};
+
+// Fresh (non-reply) email drafting for the unified CRM contact record's
+// intent-based composer — distinct from draftEmailReply, which replies to
+// an existing inbound thread. The draft always needs an explicit human
+// review + send action (see IntentEmailComposer), same as draftEmailReply.
+export async function draftIntentEmail(params: {
+  intent: EmailIntent;
+  contactFirstName: string;
+  organizationName: string;
+  context?: string;
+  instruction?: string;
+}): Promise<string> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error(NOT_CONFIGURED_ERROR);
+
+  const instruction = params.intent === "custom" && params.instruction ? params.instruction : INTENT_INSTRUCTIONS[params.intent];
+
+  return chatCompletion(apiKey, {
+    system:
+      "Tu rédiges des emails professionnels, concis et courtois en français, pour un organisme de formation professionnelle (OFP), à destination d'un prospect ou client nommé. Réponds uniquement avec le texte du corps de l'email — pas de formule d'introduction, pas d'objet, pas de commentaire, juste le message prêt à relire et envoyer.",
+    user: `Destinataire : ${params.contactFirstName}\nExpéditeur : ${params.organizationName}\n${params.context ? `Contexte : ${params.context}\n` : ""}\nInstruction : ${instruction}`,
+    temperature: 0.6,
+  });
+}
+
+// Convocation drafting for the Planning session detail page's invite
+// composer — an alternative to the fixed template createSessionInvitation()
+// falls back to when no custom subject/body is supplied. Always just a
+// suggestion dropped into the composer's editable fields, same
+// review-before-send pattern as every other AI draft in this app.
+export async function draftConvocationEmail(params: {
+  contactFirstName: string;
+  organizationName: string;
+  courseTitle: string;
+  dateLabel: string;
+  timeLabel: string;
+  details: string;
+}): Promise<string> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error(NOT_CONFIGURED_ERROR);
+
+  return chatCompletion(apiKey, {
+    system:
+      "Tu rédiges des emails de convocation à une session de formation, professionnels et clairs, en français, pour un organisme de formation professionnelle (OFP). Réponds uniquement avec le texte du corps de l'email — pas de formule d'introduction, pas d'objet, pas de commentaire, juste le message prêt à relire et envoyer. Le message doit mentionner la formation, la date, l'heure, et les modalités pratiques fournies.",
+    user: `Destinataire : ${params.contactFirstName}\nExpéditeur : ${params.organizationName}\nFormation : ${params.courseTitle}\nDate : ${params.dateLabel} à ${params.timeLabel}\nModalités pratiques : ${params.details}`,
+    temperature: 0.5,
+  });
+}
+
+export type RgpdRequestType = "access" | "erasure" | "portability" | "rectification";
+
+export type RgpdClassification = {
+  isRightsRequest: boolean;
+  requestType: RgpdRequestType | null;
+  reasoning: string;
+};
+
+const RGPD_REQUEST_TYPES = ["access", "erasure", "portability", "rectification"];
+
+// Runs automatically on every newly-synced inbound email (see gmailSync.ts
+// / imapSync.ts) to catch GDPR exercise-of-rights requests — access,
+// erasure ("droit à l'oubli"), portability, rectification — that could
+// otherwise sit unnoticed in a busy triage inbox until their 1-month legal
+// deadline (spec §5.7) is at risk. Only ever produces a suggestion
+// (EmailMessage.rgpdSuggestedType) for a human to confirm or dismiss on
+// /inbox — it never creates the actual RightsRequest record itself, same
+// "AI proposes, staff disposes" rule as every other AI feature in this app.
+export async function classifyEmailForRgpd(params: { subject: string; body: string }): Promise<RgpdClassification> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error(NOT_CONFIGURED_ERROR);
+
+  const raw = await chatCompletion(apiKey, {
+    system:
+      'Tu identifies si un email reçu par un organisme de formation constitue une demande d\'exercice de droit RGPD (accès, effacement/droit à l\'oubli, portabilité, ou rectification de données personnelles) — pas une simple question commerciale ou administrative. Réponds UNIQUEMENT avec un objet JSON valide de la forme {"isRightsRequest": true|false, "requestType": "access"|"erasure"|"portability"|"rectification"|null, "reasoning": "une phrase en français expliquant ta décision"}. Si ce n\'est pas une demande de droit RGPD, isRightsRequest doit être false et requestType null. Sois conservateur : en cas de doute réel, réponds false plutôt que de sur-signaler.',
+    user: `Objet : ${params.subject}\n\n${params.body.slice(0, 3000)}`,
+    json: true,
+    temperature: 0,
+  });
+
+  try {
+    const parsed = JSON.parse(raw);
+    const requestType =
+      typeof parsed.requestType === "string" && RGPD_REQUEST_TYPES.includes(parsed.requestType)
+        ? (parsed.requestType as RgpdRequestType)
+        : null;
+    return {
+      isRightsRequest: Boolean(parsed.isRightsRequest) && requestType !== null,
+      requestType,
+      reasoning: typeof parsed.reasoning === "string" ? parsed.reasoning : "",
+    };
+  } catch {
+    return { isRightsRequest: false, requestType: null, reasoning: "" };
+  }
+}
+
+// Powers "voir mon résumé personnalisé" on the Qualiopi Préparation audit
+// tab — the official RNQ indicator label (e.g. "Indicateur 3") is
+// necessarily generic across every OFP in France; this turns it into a
+// plain-language explanation of what it concretely means AND what to
+// gather as evidence, given this specific organization's actual offering
+// (course titles, formats). Cached in AuditChecklistItem.personalizedSummary
+// so it's generated once per indicator, not on every page view.
+export async function summarizeQualiopiIndicator(params: {
+  indicatorLabel: string;
+  criterionLabel: string;
+  organizationName: string;
+  courseTitles: string[];
+  formats: string[];
+}): Promise<string> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error(NOT_CONFIGURED_ERROR);
+
+  const offering =
+    params.courseTitles.length > 0
+      ? `Formations proposées : ${params.courseTitles.slice(0, 8).join(", ")}. Modalités utilisées : ${params.formats.join(", ") || "non renseignées"}.`
+      : "Aucune formation encore renseignée dans le catalogue.";
+
+  return chatCompletion(apiKey, {
+    system:
+      "Tu es expert du Référentiel National Qualité (Qualiopi) pour les organismes de formation professionnelle français. On te donne un indicateur RNQ et le profil d'un organisme de formation précis. Rédige en français, en 3 à 5 phrases maximum, une explication concrète et personnalisée de ce que cet indicateur exige POUR CET ORGANISME EN PARTICULIER (pas une définition générique), et donne 2 ou 3 exemples précis de preuves qu'il pourrait rassembler compte tenu de son activité réelle. Pas de formule d'introduction, va droit au but.",
+    user: `Critère ${params.criterionLabel}\nIndicateur : ${params.indicatorLabel}\n\nOrganisme : ${params.organizationName}\n${offering}`,
+    temperature: 0.4,
+  });
+}

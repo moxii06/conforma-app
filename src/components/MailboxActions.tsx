@@ -3,8 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function MailboxActions({ provider }: { provider: "gmail" | "imap" }) {
+// MailboxConnection.provider stores "gmail" (matches the display/DB value
+// used throughout the rest of the app), but the API routes live under
+// /api/integrations/google/... (named after the OAuth provider, not the
+// mailbox brand) — this map bridges the two so the fetch URLs hit the
+// routes that actually exist.
+const API_PATH: Record<"gmail" | "imap", string> = { gmail: "google", imap: "imap" };
+
+export function MailboxActions({ provider, connectionId }: { provider: "gmail" | "imap"; connectionId: string }) {
   const router = useRouter();
+  const apiPath = API_PATH[provider];
   const [loading, setLoading] = useState<"disconnect" | "sync" | null>(null);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -12,7 +20,11 @@ export function MailboxActions({ provider }: { provider: "gmail" | "imap" }) {
   async function handleDisconnect() {
     setLoading("disconnect");
     setError(null);
-    await fetch(`/api/integrations/${provider}/disconnect`, { method: "POST" });
+    await fetch(`/api/integrations/${apiPath}/disconnect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connectionId }),
+    });
     setLoading(null);
     router.refresh();
   }
@@ -21,7 +33,11 @@ export function MailboxActions({ provider }: { provider: "gmail" | "imap" }) {
     setLoading("sync");
     setError(null);
     setSyncResult(null);
-    const res = await fetch(`/api/integrations/${provider}/sync`, { method: "POST" });
+    const res = await fetch(`/api/integrations/${apiPath}/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connectionId }),
+    });
     const body = await res.json().catch(() => ({}));
     setLoading(null);
     if (!res.ok) {

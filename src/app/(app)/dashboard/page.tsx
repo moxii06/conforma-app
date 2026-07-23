@@ -1,18 +1,27 @@
 import { prisma } from "@/lib/prisma";
-import { MetricCard, PageHeader } from "@/components/ui";
+import { MetricCard, PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext } from "@/lib/tenant";
 import { BarChart } from "@/components/charts/BarChart";
-import { getFollowUpsDue } from "@/lib/followUps";
+import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
 import { PipelineStage, Role } from "@prisma/client";
 import { addWeeks, startOfWeek, format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
 
-const FOLLOW_UP_KIND_LABELS: Record<string, string> = {
+const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "Test de positionnement",
   contract: "Contrat",
   platform_access: "Accès plateforme",
   convocation: "Convocation",
+  invoice_overdue: "Facture",
+  rgpd_suggestion: "RGPD (IA)",
+  rgpd_deadline: "RGPD",
+  session_draft: "Session",
+  subcontractor_expiry: "Sous-traitant",
+  dossier_prep_needs_assessment: "Recueil des besoins",
+  dossier_prep_contract: "Convention",
+  rolling_deadline_warning: "Formation en continu",
+  rolling_deadline_overdue: "Formation en continu",
 };
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
@@ -20,7 +29,9 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   QUOTE_SENT: "Devis",
   CONTRACT_SIGNED: "Signée",
   SESSION_SCHEDULED: "Planifiée",
+  TO_INVOICE: "À facturer",
   INVOICED: "Facturé",
+  PAID: "Payé",
 };
 
 export default async function DashboardPage() {
@@ -31,13 +42,14 @@ export default async function DashboardPage() {
       ? await prisma.subscription.findUnique({ where: { organizationId } })
       : null;
 
-  const followUps = await getFollowUpsDue(organizationId, role, userId);
+  const tasks = await getDashboardTasks(organizationId, role, userId);
 
   const [
     sessionsInProgress,
-    overdueInvoices,
     openNonConformities,
     opportunitiesByStage,
+    amountsByStage,
+    overdueInvoiceTotal,
     upcomingSessions,
     needsAssessmentDone,
     contractSigned,
@@ -47,13 +59,21 @@ export default async function DashboardPage() {
     totalDossiers,
   ] = await Promise.all([
     prisma.session.count({
-      where: { organizationId, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } },
+      // ROLLING (bande passante) sessions have no real start/end — their
+      // placeholder dates would otherwise make them count as permanently
+      // "in progress" here.
+      where: { organizationId, mode: "FIXED_DATE", startsAt: { lte: new Date() }, endsAt: { gte: new Date() } },
     }),
-    prisma.invoice.count({ where: { organizationId, status: "OVERDUE" } }),
     prisma.nonConformity.count({ where: { organizationId, status: { not: "resolved" } } }),
     prisma.opportunity.groupBy({ by: ["stage"], where: { organizationId }, _count: true }),
+    prisma.opportunity.groupBy({
+      by: ["stage"],
+      where: { organizationId, stage: { in: ["TO_INVOICE", "INVOICED", "PAID"] } },
+      _sum: { amountCents: true },
+    }),
+    prisma.invoice.aggregate({ where: { organizationId, status: "OVERDUE" }, _sum: { amountCents: true }, _count: true }),
     prisma.session.findMany({
-      where: { organizationId, startsAt: { gte: new Date(), lte: addWeeks(new Date(), 6) } },
+      where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date(), lte: addWeeks(new Date(), 6) } },
       select: { startsAt: true },
     }),
     prisma.dossier.count({ where: { organizationId, needsAssessmentDone: true } }),
@@ -65,6 +85,8 @@ export default async function DashboardPage() {
   ]);
 
   const stageCounts = new Map(opportunitiesByStage.map((g) => [g.stage, g._count]));
+  const stageAmounts = new Map(amountsByStage.map((g) => [g.stage, g._sum.amountCents ?? 0]));
+  const formatAmount = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
   const pipelineData = Object.values(PipelineStage).map((stage) => ({
     label: STAGE_LABELS[stage],
     value: stageCounts.get(stage) ?? 0,
@@ -90,6 +112,8 @@ export default async function DashboardPage() {
     { label: "Éval. froid", value: evaluationColdDone },
   ];
 
+  const canSeeMoney = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
+
   return (
     <>
       <PageHeader title="Tableau de bord" subtitle="Vue d'ensemble" />
@@ -98,11 +122,27 @@ export default async function DashboardPage() {
           <TrialBanner plan={subscription.plan} trialEndsAt={subscription.trialEndsAt} />
         )}
 
-        {followUps.length > 0 && <FollowUpsWidget followUps={followUps} />}
+        {tasks.length > 0 && <TasksWidget tasks={tasks} />}
+
+        {canSeeMoney && (
+          <div className="flex flex-col gap-2">
+            <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Argent</div>
+            <div className="flex gap-3.5">
+              <MetricCard label="À facturer" value={formatAmount(stageAmounts.get("TO_INVOICE") ?? 0)} />
+              <MetricCard label="Facturé, en attente de paiement" value={formatAmount(stageAmounts.get("INVOICED") ?? 0)} />
+              <MetricCard label="Payé" value={formatAmount(stageAmounts.get("PAID") ?? 0)} />
+              <MetricCard
+                label="Factures en retard"
+                value={formatAmount(overdueInvoiceTotal._sum.amountCents ?? 0)}
+                hint={overdueInvoiceTotal._count > 0 ? `${overdueInvoiceTotal._count} facture${overdueInvoiceTotal._count > 1 ? "s" : ""}` : undefined}
+                tone={overdueInvoiceTotal._count > 0 ? "danger" : "ink"}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="flex gap-3.5">
           <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} />
-          <MetricCard label="Factures en retard" value={String(overdueInvoices)} />
           <MetricCard label="Non-conformités ouvertes" value={String(openNonConformities)} />
         </div>
 
@@ -128,30 +168,35 @@ export default async function DashboardPage() {
   );
 }
 
-function FollowUpsWidget({ followUps }: { followUps: Awaited<ReturnType<typeof getFollowUpsDue>> }) {
+function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
+  const overdueCount = tasks.filter((t) => t.overdue).length;
   return (
     <div className="bg-white border border-line rounded-card p-4">
-      <div className="text-[12.5px] text-slate mb-3">
-        Relances à faire ({followUps.length})
+      <div className="flex items-center gap-2 mb-3">
+        <div className="text-[12.5px] text-slate">À faire ({tasks.length})</div>
+        {overdueCount > 0 && <Pill tone="danger">{overdueCount} en retard</Pill>}
       </div>
       <div className="flex flex-col">
-        {followUps.slice(0, 8).map((f) => (
+        {tasks.slice(0, 8).map((t) => (
           <Link
-            key={`${f.kind}-${f.id}`}
-            href={f.href}
+            key={`${t.kind}-${t.id}`}
+            href={t.href}
             className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#FAF8F2] -mx-1 px-1 rounded"
           >
             <div>
-              <span className="text-[12.5px] text-ink font-medium">{f.contactName}</span>
-              <span className="text-[12.5px] text-slate"> — {f.label}</span>
+              <span className="text-[12.5px] text-ink font-medium">{t.contactName}</span>
+              <span className="text-[12.5px] text-slate"> — {t.label}</span>
             </div>
-            <span className="text-[11px] text-slate shrink-0">{FOLLOW_UP_KIND_LABELS[f.kind]}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              {t.overdue && <Pill tone="danger">En retard</Pill>}
+              <span className="text-[11px] text-slate">{TASK_KIND_LABELS[t.kind]}</span>
+            </div>
           </Link>
         ))}
       </div>
-      {followUps.length > 8 && (
+      {tasks.length > 8 && (
         <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
-          + {followUps.length - 8} autre{followUps.length - 8 > 1 ? "s" : ""}
+          + {tasks.length - 8} autre{tasks.length - 8 > 1 ? "s" : ""}
         </div>
       )}
     </div>

@@ -6,7 +6,11 @@ import { redirect } from "next/navigation";
 import { NewQuoteForm } from "@/components/NewQuoteForm";
 import { NewInvoiceForm } from "@/components/NewInvoiceForm";
 import { DocStatusSelect } from "@/components/DocStatusSelect";
-import { DocStatus } from "@prisma/client";
+import { DocFilterBar } from "@/components/DocFilterBar";
+import { RecordPaymentForm } from "@/components/RecordPaymentForm";
+import { CreatePaymentLinkButton } from "@/components/CreatePaymentLinkButton";
+import { isStripeConfigured } from "@/lib/stripe";
+import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -27,11 +31,30 @@ function formatAmount(cents: number) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
 
-export default async function FacturationPage({ searchParams }: { searchParams: { tab?: string } }) {
+function buildOrderBy(sort?: string): Prisma.QuoteOrderByWithRelationInput | Prisma.InvoiceOrderByWithRelationInput {
+  switch (sort) {
+    case "date_asc":
+      return { createdAt: "asc" };
+    case "amount_desc":
+      return { amountCents: "desc" };
+    case "amount_asc":
+      return { amountCents: "asc" };
+    default:
+      return { createdAt: "desc" };
+  }
+}
+
+export default async function FacturationPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string; status?: string; sort?: string };
+}) {
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "invoicing") === "none") redirect("/dashboard");
   const canWrite = can(role, "invoicing") !== "none";
   const activeTab = searchParams.tab ?? "devis";
+  const statusFilter = searchParams.status && searchParams.status in DocStatus ? (searchParams.status as DocStatus) : undefined;
+  const orderBy = buildOrderBy(searchParams.sort);
 
   const [contacts, dossiers] = await Promise.all([
     prisma.contact.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true }, orderBy: { lastName: "asc" } }),
@@ -50,11 +73,12 @@ export default async function FacturationPage({ searchParams }: { searchParams: 
     <>
       <PageHeader title="Facturation" subtitle="Devis et factures, transmission via le portail public par défaut" />
       <Tabs basePath="/facturation" tabs={TABS} active={activeTab} />
-      <div className="p-8">
+      <div className="p-8 flex flex-col gap-4">
+        <DocFilterBar />
         {activeTab === "factures" ? (
-          <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} />
+          <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
         ) : (
-          <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} />
+          <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
         )}
       </div>
     </>
@@ -66,16 +90,20 @@ async function QuotesTab({
   canWrite,
   contacts,
   dossierOptions,
+  statusFilter,
+  orderBy,
 }: {
   organizationId: string;
   canWrite: boolean;
   contacts: { id: string; firstName: string; lastName: string }[];
   dossierOptions: { id: string; label: string }[];
+  statusFilter?: DocStatus;
+  orderBy: Prisma.QuoteOrderByWithRelationInput;
 }) {
   const quotes = await prisma.quote.findMany({
-    where: { organizationId },
+    where: { organizationId, ...(statusFilter ? { status: statusFilter } : {}) },
     include: { contact: true },
-    orderBy: { createdAt: "desc" },
+    orderBy,
   });
 
   return (
@@ -111,17 +139,24 @@ async function InvoicesTab({
   canWrite,
   contacts,
   dossierOptions,
+  statusFilter,
+  orderBy,
 }: {
   organizationId: string;
   canWrite: boolean;
   contacts: { id: string; firstName: string; lastName: string }[];
   dossierOptions: { id: string; label: string }[];
+  statusFilter?: DocStatus;
+  orderBy: Prisma.InvoiceOrderByWithRelationInput;
 }) {
-  const invoices = await prisma.invoice.findMany({
-    where: { organizationId },
-    include: { contact: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const [invoices, stripeConfigured] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { organizationId, ...(statusFilter ? { status: statusFilter } : {}) },
+      include: { contact: true, payments: true },
+      orderBy,
+    }),
+    isStripeConfigured(organizationId),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -134,17 +169,28 @@ async function InvoicesTab({
           <div className="flex-1">Transmission</div>
           <div className="flex-[0.8]">Statut</div>
         </div>
-        {invoices.map((inv) => (
-          <div key={inv.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
-            <div className="flex-1">{inv.reference}</div>
-            <div className="flex-[1.4] text-slate">{inv.contact.firstName} {inv.contact.lastName}</div>
-            <div className="flex-1">{formatAmount(inv.amountCents)}</div>
-            <div className="flex-1 text-slate uppercase">{inv.einvoicingProvider ?? "—"}</div>
-            <div className="flex-[0.8]">
-              {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{inv.status}</Pill>}
+        {invoices.map((inv) => {
+          const totalPaidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
+          return (
+            <div key={inv.id} className="py-2.5 border-b border-line last:border-b-0">
+              <div className="flex items-center text-[12.5px] text-ink">
+                <div className="flex-1">{inv.reference}</div>
+                <div className="flex-[1.4] text-slate">{inv.contact.firstName} {inv.contact.lastName}</div>
+                <div className="flex-1">{formatAmount(inv.amountCents)}</div>
+                <div className="flex-1 text-slate uppercase">{inv.einvoicingProvider ?? "—"}</div>
+                <div className="flex-[0.8]">
+                  {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{inv.status}</Pill>}
+                </div>
+              </div>
+              {canWrite && inv.status !== "DRAFT" && (
+                <div className="flex items-center gap-4 flex-wrap">
+                  <RecordPaymentForm invoiceId={inv.id} amountCents={inv.amountCents} totalPaidCents={totalPaidCents} />
+                  {stripeConfigured && inv.status !== "PAID" && <CreatePaymentLinkButton invoiceId={inv.id} />}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         {invoices.length === 0 && <div className="text-[12.5px] text-slate py-3">Aucune facture enregistrée.</div>}
       </div>
     </div>

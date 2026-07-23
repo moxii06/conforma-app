@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SessionFormat } from "@prisma/client";
+import { SessionFormat, SessionMode } from "@prisma/client";
 
 type Course = { id: string; title: string };
 type Trainer = { id: string; name: string };
@@ -20,6 +20,7 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
   const [courseId, setCourseId] = useState(courses[0]?.id ?? "");
   const [courseTitle, setCourseTitle] = useState("");
   const [trainerId, setTrainerId] = useState("");
+  const [mode, setMode] = useState<SessionMode>(SessionMode.FIXED_DATE);
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("12:00");
@@ -31,15 +32,15 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!date) {
+    if (mode === "FIXED_DATE" && !date) {
       setError("Choisissez une date.");
       return;
     }
     setLoading(true);
     setError(null);
 
-    const startsAt = new Date(`${date}T${startTime}`).toISOString();
-    const endsAt = new Date(`${date}T${endTime}`).toISOString();
+    const startsAt = mode === "FIXED_DATE" ? new Date(`${date}T${startTime}`).toISOString() : undefined;
+    const endsAt = mode === "FIXED_DATE" ? new Date(`${date}T${endTime}`).toISOString() : undefined;
 
     const res = await fetch("/api/planning/sessions", {
       method: "POST",
@@ -49,6 +50,7 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
         courseId: courseMode === "existing" ? courseId : undefined,
         courseTitle: courseMode === "new" ? courseTitle : undefined,
         trainerId: trainerId || undefined,
+        mode,
         startsAt,
         endsAt,
         format,
@@ -103,6 +105,15 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
         <input required placeholder="Intitulé du cours" value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
       )}
 
+      <div className="flex items-center gap-2 text-[12.5px]">
+        <button type="button" onClick={() => setMode("FIXED_DATE")} className={`px-2.5 py-1 rounded-md ${mode === "FIXED_DATE" ? "bg-ink text-white" : "bg-[#F1EFE8] text-slate"}`}>
+          Date fixe
+        </button>
+        <button type="button" onClick={() => setMode("ROLLING")} className={`px-2.5 py-1 rounded-md ${mode === "ROLLING" ? "bg-ink text-white" : "bg-[#F1EFE8] text-slate"}`}>
+          En continu (bande passante)
+        </button>
+      </div>
+
       <div className="flex gap-2">
         <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">
           <option value="">Formateur à assigner</option>
@@ -117,11 +128,15 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
         </select>
       </div>
 
-      <div className="flex gap-2">
-        <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
-        <input required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28" />
-        <input required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28" />
-      </div>
+      {mode === "FIXED_DATE" ? (
+        <div className="flex gap-2">
+          <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+          <input required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28" />
+          <input required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28" />
+        </div>
+      ) : (
+        <div className="text-[11.5px] text-slate">Toujours disponible — chaque apprenant a son propre délai, réglé à son inscription.</div>
+      )}
 
       <div className="flex gap-2">
         <input placeholder="Lieu / adresse (si présentiel)" value={location} onChange={(e) => setLocation(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />

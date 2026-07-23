@@ -16,6 +16,8 @@ export function InviteComposer({
   mapLink,
   libraryDocuments,
   alreadyInvited,
+  defaultSubject,
+  defaultBody,
 }: {
   sessionId: string;
   dossierId: string;
@@ -25,15 +27,37 @@ export function InviteComposer({
   mapLink: string | null;
   libraryDocuments: Doc[];
   alreadyInvited: boolean;
+  defaultSubject: string;
+  defaultBody: string;
 }) {
   const router = useRouter();
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [newDocs, setNewDocs] = useState<NewDoc[]>([]);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftUrl, setDraftUrl] = useState("");
+  const [subject, setSubject] = useState(defaultSubject);
+  const [body, setBody] = useState(defaultBody);
+  const [aiLoading, setAiLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  async function handleAiAssist() {
+    setAiLoading(true);
+    setError(null);
+    const res = await fetch(`/api/planning/sessions/${sessionId}/ai-convocation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dossierId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setAiLoading(false);
+    if (!res.ok) {
+      setError(data.error ?? "Erreur inattendue.");
+      return;
+    }
+    setBody(data.draft);
+  }
 
   function toggleDoc(id: string) {
     setSelectedDocIds((prev) => {
@@ -67,6 +91,8 @@ export function InviteComposer({
         dossierId,
         attachDocumentIds: Array.from(selectedDocIds),
         newDocuments: newDocs,
+        subject,
+        body,
       }),
     });
 
@@ -160,11 +186,32 @@ export function InviteComposer({
         </div>
       )}
 
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Message de convocation</div>
+          <button type="button" onClick={handleAiAssist} disabled={aiLoading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+            {aiLoading ? "…" : "Rédiger avec l'IA"}
+          </button>
+        </div>
+        <input
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Objet"
+          className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+        />
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={6}
+          className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
+        />
+      </div>
+
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={handleSend}
-          disabled={sending}
+          disabled={sending || !subject.trim() || !body.trim()}
           className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
         >
           {sending ? "Envoi…" : alreadyInvited ? "Renvoyer l'invitation" : "Envoyer l'invitation"}

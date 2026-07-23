@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 
-const schema = z.object({ indicatorNumber: z.number().int().min(1).max(32), gathered: z.boolean() });
+const schema = z.object({ indicatorNumber: z.number().int().min(1).max(99), gathered: z.boolean() });
 
 // Toggles whether the org has gathered its evidence for one Qualiopi
 // indicator, for the "Préparation audit" checklist. This is a manual

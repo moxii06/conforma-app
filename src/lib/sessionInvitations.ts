@@ -19,6 +19,8 @@ export async function createSessionInvitation({
   sentByName,
   attachDocumentIds = [],
   newDocuments = [],
+  subject,
+  body,
 }: {
   session: Session;
   dossier: Dossier;
@@ -26,6 +28,12 @@ export async function createSessionInvitation({
   sentByName: string;
   attachDocumentIds?: string[];
   newDocuments?: { title: string; url: string }[];
+  // Custom subject/body from the Planning composer's manual or AI-drafted
+  // text — falls back to the fixed template below when omitted (the
+  // dossier record's one-click "Envoyer la convocation" button doesn't go
+  // through the composer, so it always hits this default).
+  subject?: string;
+  body?: string;
 }) {
   const isRemote = session.format === "REMOTE" || session.format === "HYBRID";
   const isInPerson = session.format === "IN_PERSON" || session.format === "HYBRID";
@@ -92,8 +100,8 @@ export async function createSessionInvitation({
       await sendTransactionalEmail({
         to: contact.email,
         toName: `${contact.firstName} ${contact.lastName}`,
-        subject: `Convocation — ${course?.title ?? "votre formation"} du ${dateLabel}`,
-        text: `Bonjour ${contact.firstName},\n\nVous êtes convoqué(e) à la session "${course?.title ?? ""}" le ${dateLabel} à ${timeLabel}.\n\n${details}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
+        subject: subject ?? `Convocation — ${course?.title ?? "votre formation"} du ${dateLabel}`,
+        text: body ?? `Bonjour ${contact.firstName},\n\nVous êtes convoqué(e) à la session "${course?.title ?? ""}" le ${dateLabel} à ${timeLabel}.\n\n${details}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
         senderName: organization.name,
       });
     } catch {

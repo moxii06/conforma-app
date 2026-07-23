@@ -1,16 +1,24 @@
+const METRIC_VALUE_TONES: Record<string, string> = {
+  ink: "text-ink",
+  danger: "text-rust",
+  good: "text-sage",
+};
+
 export function MetricCard({
   label,
   value,
   hint,
+  tone = "ink",
 }: {
   label: string;
   value: string;
   hint?: string;
+  tone?: keyof typeof METRIC_VALUE_TONES;
 }) {
   return (
     <div className="bg-white border border-line rounded-card p-4 flex-1">
       <div className="text-[12.5px] text-slate mb-2">{label}</div>
-      <div className="text-2xl font-display text-ink">{value}</div>
+      <div className={`text-2xl font-display ${METRIC_VALUE_TONES[tone]}`}>{value}</div>
       {hint && <div className="text-xs text-slate mt-1.5">{hint}</div>}
     </div>
   );

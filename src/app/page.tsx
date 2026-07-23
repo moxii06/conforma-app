@@ -62,6 +62,7 @@ export default function MarketingPage() {
             <a href="#fonctionnalites" className="hover:text-ink">Fonctionnalités</a>
             <a href="#conformite" className="hover:text-ink">Conformité</a>
             <a href="#tarifs" className="hover:text-ink">Tarifs</a>
+            <Link href="/actualites" className="hover:text-ink">Actualités</Link>
           </nav>
           <div className="flex items-center gap-2.5">
             <Link

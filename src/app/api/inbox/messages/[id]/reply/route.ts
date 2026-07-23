@@ -8,9 +8,12 @@ import { sendImapReply } from "@/lib/imapSync";
 const schema = z.object({ body: z.string().min(1).max(10000) });
 
 // Records a reply as a new "out" EmailMessage threaded via inReplyToId. If
-// the organization has a connected mailbox (Gmail or generic IMAP/SMTP),
-// also actually sends it — otherwise falls back to record-only, same as
-// before any mailbox was connected.
+// the original message came in through a connected mailbox (Gmail or
+// generic IMAP/SMTP), sends the reply through that SAME mailbox — an org
+// can have several connected, so "the org's mailbox" isn't well-defined
+// any more; the one that received the message is. Falls back to
+// record-only if the original has no mailboxConnectionId (seed/demo data,
+// or a message from before multi-mailbox support) or the send fails.
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
@@ -20,6 +23,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const original = await prisma.emailMessage.findFirst({
     where: { id: params.id, organizationId: session.organizationId },
+    include: { mailboxConnection: true },
   });
   if (!original) return NextResponse.json({ error: "Message introuvable." }, { status: 404 });
   if (!original.contactId) {
@@ -31,29 +35,20 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!parsed.success) return NextResponse.json({ error: "Réponse invalide." }, { status: 400 });
 
   const subject = original.subject.toLowerCase().startsWith("re:") ? original.subject : `Re: ${original.subject}`;
-
-  const [gmailConnection, imapConnection] = await Promise.all([
-    prisma.mailboxConnection.findUnique({
-      where: { organizationId_provider: { organizationId: session.organizationId, provider: "gmail" } },
-    }),
-    prisma.mailboxConnection.findUnique({
-      where: { organizationId_provider: { organizationId: session.organizationId, provider: "imap" } },
-    }),
-  ]);
-  const connection = gmailConnection ?? imapConnection;
+  const connection = original.mailboxConnection;
 
   let sendResult: { externalId: string; externalThreadId: string | null } | null = null;
   let sendError: string | null = null;
   try {
-    if (gmailConnection) {
-      sendResult = await sendGmailReply(session.organizationId, {
+    if (connection?.provider === "gmail") {
+      sendResult = await sendGmailReply(connection.id, {
         to: original.fromAddress,
         subject,
         body: parsed.data.body,
         threadId: original.externalThreadId,
       });
-    } else if (imapConnection) {
-      sendResult = await sendImapReply(session.organizationId, {
+    } else if (connection?.provider === "imap") {
+      sendResult = await sendImapReply(connection.id, {
         to: original.fromAddress,
         subject,
         body: parsed.data.body,
@@ -67,6 +62,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const reply = await prisma.emailMessage.create({
     data: {
       organizationId: session.organizationId,
+      mailboxConnectionId: connection?.id,
       contactId: original.contactId,
       fromAddress: connection?.accountEmail ?? session.email,
       subject,

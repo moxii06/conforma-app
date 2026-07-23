@@ -18,15 +18,20 @@ export default withAuth({
 // the whole point of a signup endpoint); the account-activation page
 // (/activation/[token], reached by invited team members and learners
 // granted platform access — no session exists yet either, the token is
-// the access control, same pattern as /formulaire); and the marketing/
-// pricing page at the site root. Static assets (_next, favicon) are
-// excluded so the app shell can still load its CSS/JS while an
+// the access control, same pattern as /formulaire); Stripe's webhook
+// callback (/api/webhooks/stripe/[organizationId] — called by Stripe
+// itself, no Conforma session exists, the request is authenticated by its
+// own Stripe-Signature header instead, see verifyStripeWebhook()); the
+// public marketing news page (/actualites) and its newsletter-signup API
+// (/api/newsletter — no session exists, visitors aren't Conforma accounts);
+// and the marketing/pricing page at the site root. Static assets (_next,
+// favicon) are excluded so the app shell can still load its CSS/JS while an
 // unauthenticated user is bounced to /login.
 // The trailing `|$` is what excludes the *exact* root "/" — everything
 // else keeps going through auth (e.g. "/dashboard" still matches, since
 // its remainder isn't empty).
 export const config = {
   matcher: [
-    "/((?!login|formulaire|essai|activation|api/auth|api/public|api/signup|_next/static|_next/image|favicon.ico|$).*)",
+    "/((?!login|formulaire|essai|activation|actualites|api/auth|api/public|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
   ],
 };

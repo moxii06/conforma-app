@@ -63,6 +63,8 @@ export const FEATURE_LABELS: Record<string, string> = {
   inbox: "Boîte mail",
   bpf: "Bilan pédagogique et financier",
   portal: "Mon espace",
+  faq: "FAQ & guides",
+  support: "Réclamations & signalement",
 };
 
 export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
@@ -82,6 +84,16 @@ export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
   // roles it exists for — Admin/Manager/Sales/DPO manage the org from the
   // regular screens, they don't need the simplified self-service view.
   portal: { ADMIN_OF: "none", ADMIN_MANAGER: "none", SALES: "none", TRAINER: "full", LEARNER: "full", DPO_EXTERNAL: "none" },
+  // Help content — same for every role, no write action exists on this
+  // page so "full" vs "limited" doesn't mean anything here; it's just on/off.
+  faq: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "full", TRAINER: "full", LEARNER: "full", DPO_EXTERNAL: "full" },
+  // Submission (complaint or secure report) is open to every role — the
+  // whole point of a reporting channel is that it's reachable by anyone,
+  // including a LEARNER. Who can then READ a Complaint or SecureReport is a
+  // separate, narrower check (see canAccessSecureReports and the "dossiers"
+  // feature reused for complaint visibility) — this flag only gates whether
+  // the page exists for you at all.
+  support: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "full", TRAINER: "full", LEARNER: "full", DPO_EXTERNAL: "full" },
 };
 
 export function can(role: Role, feature: keyof typeof PERMISSIONS): AccessLevel {
@@ -117,6 +129,35 @@ export function canManageOpportunity(role: Role, userId: string, opportunity: { 
   if (role === "ADMIN_OF" || role === "ADMIN_MANAGER") return true;
   if (role === "SALES") return opportunity.ownerId === userId;
   return false;
+}
+
+// Gates the unified CRM contact record (spec request: click-through from a
+// prospect to a merged CRM+Dossier view). Same "SALES limited to their own
+// prospects" rule as canManageOpportunity, but a contact can have several
+// opportunities — SALES needs to own at least one of them.
+export function canAccessContact(role: Role, userId: string, opportunities: { ownerId: string | null }[]): boolean {
+  if (role === "ADMIN_OF" || role === "ADMIN_MANAGER") return true;
+  if (role === "SALES") return opportunities.some((o) => o.ownerId === userId);
+  return false;
+}
+
+// AccommodationRequest holds RGPD art. 9 special-category data (situation
+// de handicap) — deliberately not part of the general "dossiers" feature
+// matrix. Restricted to admins plus whichever single person the org has
+// designated as référent handicap (Organization.referentHandicapUserId),
+// same as the RNQ indicator 20 requirement — not every TRAINER/SALES with
+// normal dossier access should see this.
+export function canAccessAccommodations(role: Role, userId: string, organization: { referentHandicapUserId: string | null }): boolean {
+  if (role === "ADMIN_OF" || role === "ADMIN_MANAGER") return true;
+  return organization.referentHandicapUserId === userId;
+}
+
+// Deliberately narrower than canAccessAccommodations — no per-org "referent"
+// carve-out, since a harassment/discrimination report could be about the
+// referent-equivalent person too. Submitting a report (see /support) is
+// open to every role; only ADMIN_OF can ever read one back.
+export function canAccessSecureReports(role: Role): boolean {
+  return role === "ADMIN_OF";
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

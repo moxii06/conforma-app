@@ -6,12 +6,23 @@ import { Role } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { InviteComposer } from "@/components/InviteComposer";
+import { EditSessionForm } from "@/components/EditSessionForm";
+import { ValidateSessionButton } from "@/components/ValidateSessionButton";
+import { EnrollProspectForm } from "@/components/EnrollProspectForm";
+import { GenerateCertificateButton } from "@/components/GenerateCertificateButton";
 
 const FORMAT_LABELS: Record<string, string> = {
   IN_PERSON: "Présentiel",
   REMOTE: "Distanciel",
   HYBRID: "Mixte",
 };
+
+function formatAttendanceDuration(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  if (h === 0) return `${m} min`;
+  return `${h} h ${String(m).padStart(2, "0")} min`;
+}
 
 function mapLinkFor(location: string | null) {
   if (!location) return null;
@@ -32,6 +43,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           contact: true,
           documents: true,
           invitations: { orderBy: { sentAt: "desc" }, take: 1 },
+          virtualClassAttendances: { where: { session: { id: params.id } } },
         },
       },
     },
@@ -43,15 +55,66 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
   if (auth.role === Role.TRAINER && session.trainerId !== auth.userId) redirect("/planning");
 
   const canManage = canManageSessionInvitations(auth.role, auth.userId, session);
+  const canEdit = can(auth.role, "planning") === "full";
   const isRemote = session.format === "REMOTE" || session.format === "HYBRID";
   const isInPerson = session.format === "IN_PERSON" || session.format === "HYBRID";
   const mapLink = isInPerson ? mapLinkFor(session.location) : null;
+  const isArchived = session.endsAt < new Date();
+  const isValidated = session.status === "VALIDATED";
+
+  const trainers = canEdit
+    ? await prisma.user.findMany({ where: { organizationId: auth.organizationId, role: Role.TRAINER }, orderBy: { name: "asc" } })
+    : [];
+
+  const matchingOpportunities = canEdit
+    ? await prisma.opportunity.findMany({
+        where: { organizationId: auth.organizationId, stage: "CONTRACT_SIGNED", courseOfInterestId: session.courseId },
+        include: { contact: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
+  const organization = canManage ? await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } }) : null;
+  const courseTitle = session.course.title;
+  const dateLabel = format(session.startsAt, "d MMMM yyyy", { locale: fr });
+  const timeLabel = format(session.startsAt, "HH:mm");
+  const invitationDetails = isRemote
+    ? `Lien de connexion : ${session.meetingLink ?? "généré à l'envoi"}`
+    : `Lieu : ${session.location ?? "communiqué séparément"}`;
+  function defaultConvocationBody(firstName: string) {
+    return `Bonjour ${firstName},\n\nVous êtes convoqué(e) à la session "${courseTitle}" le ${dateLabel} à ${timeLabel}.\n\n${invitationDetails}\n\nÀ bientôt,\nL'équipe ${organization?.name ?? ""}`;
+  }
+  const defaultConvocationSubject = `Convocation — ${courseTitle} du ${dateLabel}`;
 
   return (
     <>
       <PageHeader title={session.course.title} subtitle={`${format(session.startsAt, "EEEE d MMMM yyyy", { locale: fr })} · ${FORMAT_LABELS[session.format]}`} />
       <div className="p-8 flex flex-col gap-5 max-w-3xl">
         <div className="bg-white border border-line rounded-card p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Pill tone={isArchived ? "neutral" : isValidated ? "good" : "warn"}>
+                {isArchived ? "Archivée" : isValidated ? "Validée" : "Brouillon"}
+              </Pill>
+            </div>
+            {canEdit && !isArchived && (
+              <div className="flex items-center gap-3">
+                <EditSessionForm
+                  sessionId={session.id}
+                  trainers={trainers}
+                  initial={{
+                    trainerId: session.trainerId,
+                    startsAt: session.startsAt,
+                    endsAt: session.endsAt,
+                    format: session.format,
+                    location: session.location,
+                    capacity: session.capacity,
+                  }}
+                />
+                {!isValidated && <ValidateSessionButton sessionId={session.id} />}
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-6 text-[12.5px]">
             <div>
               <div className="text-slate mb-1">Horaires</div>
@@ -105,8 +168,26 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           )}
         </div>
 
+        {canEdit && !isArchived && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink mb-3.5">Ajouter un apprenant</div>
+            <EnrollProspectForm
+              sessionId={session.id}
+              suggestions={matchingOpportunities.map((o) => ({
+                opportunityId: o.id,
+                contactName: `${o.contact.firstName} ${o.contact.lastName}`,
+              }))}
+            />
+          </div>
+        )}
+
         <div className="bg-white border border-line rounded-card p-5">
           <div className="text-[13.5px] font-semibold text-ink mb-3.5">Apprenants inscrits ({session.dossiers.length})</div>
+          {!isValidated && session.dossiers.length > 0 && (
+            <div className="text-[12px] text-slate mb-3">
+              Validez la session pour pouvoir envoyer les convocations.
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             {session.dossiers.map((d) => {
               const lastInvitation = d.invitations[0];
@@ -125,7 +206,28 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                     )}
                   </summary>
                   <div className="px-3.5 pb-3.5 pt-1 border-t border-line">
-                    {canManage ? (
+                    {isRemote && (
+                      <div className="pt-2 pb-1 text-[12px] text-ink flex items-center justify-between gap-3">
+                        {d.virtualClassAttendances[0] ? (
+                          <span className="text-slate">
+                            Connecté le {format(d.virtualClassAttendances[0].joinedAt, "d MMM HH:mm", { locale: fr })} ·
+                            {" "}
+                            {formatAttendanceDuration(d.virtualClassAttendances[0].durationSeconds)} de présence
+                            {!d.virtualClassAttendances[0].leftAt && " · en cours"}
+                          </span>
+                        ) : (
+                          <span className="text-slate">Aucune connexion enregistrée</span>
+                        )}
+                        {d.virtualClassAttendances[0] && (
+                          <GenerateCertificateButton sessionId={session.id} dossierId={d.id} />
+                        )}
+                      </div>
+                    )}
+                    {!isValidated ? (
+                      <div className="text-[12px] text-slate pt-2">
+                        Session en brouillon — validez-la pour activer l&apos;envoi des convocations.
+                      </div>
+                    ) : canManage ? (
                       <InviteComposer
                         sessionId={session.id}
                         dossierId={d.id}
@@ -135,6 +237,8 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                         mapLink={mapLink}
                         libraryDocuments={d.documents.map((doc) => ({ id: doc.id, title: doc.title }))}
                         alreadyInvited={Boolean(lastInvitation)}
+                        defaultSubject={defaultConvocationSubject}
+                        defaultBody={defaultConvocationBody(d.contact.firstName)}
                       />
                     ) : (
                       <div className="text-[12px] text-slate pt-2">
@@ -148,12 +252,6 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
             })}
             {session.dossiers.length === 0 && <div className="text-[12.5px] text-slate">Aucun apprenant inscrit.</div>}
           </div>
-        </div>
-
-        <div className="text-[11.5px] text-slate">
-          L&apos;envoi d&apos;email n&apos;est pas encore branché (spec §3 prévoit Brevo) — l&apos;invitation est
-          enregistrée avec son lien et ses pièces jointes, mais aucun email n&apos;est réellement délivré à
-          l&apos;apprenant pour l&apos;instant.
         </div>
       </div>
     </>

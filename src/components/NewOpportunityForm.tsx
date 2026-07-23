@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Contact = { id: string; firstName: string; lastName: string; email: string };
+type Course = { id: string; title: string };
 
-export function NewOpportunityForm({ contacts }: { contacts: Contact[] }) {
+export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Contact[]; courses?: Course[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"existing" | "new">(contacts.length > 0 ? "existing" : "new");
@@ -15,6 +16,7 @@ export function NewOpportunityForm({ contacts }: { contacts: Contact[] }) {
   const [email, setEmail] = useState("");
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
+  const [courseOfInterestId, setCourseOfInterestId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,8 +28,8 @@ export function NewOpportunityForm({ contacts }: { contacts: Contact[] }) {
     const amountCents = amount ? Math.round(parseFloat(amount) * 100) : undefined;
     const body =
       mode === "existing"
-        ? { contactMode: "existing", contactId, label, amountCents }
-        : { contactMode: "new", firstName, lastName, email, label, amountCents };
+        ? { contactMode: "existing", contactId, label, amountCents, courseOfInterestId: courseOfInterestId || undefined }
+        : { contactMode: "new", firstName, lastName, email, label, amountCents, courseOfInterestId: courseOfInterestId || undefined };
 
     const res = await fetch("/api/crm/opportunities", {
       method: "POST",
@@ -121,6 +123,21 @@ export function NewOpportunityForm({ contacts }: { contacts: Contact[] }) {
           className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
         />
       </div>
+
+      {courses.length > 0 && (
+        <select
+          value={courseOfInterestId}
+          onChange={(e) => setCourseOfInterestId(e.target.value)}
+          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+        >
+          <option value="">Formation d&apos;intérêt (facultatif)</option>
+          {courses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
+          ))}
+        </select>
+      )}
 
       <div className="flex items-center gap-2.5">
         <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">

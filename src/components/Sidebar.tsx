@@ -14,9 +14,13 @@ import {
   User,
   Plug,
   GraduationCap,
+  HelpCircle,
+  MessageCircleWarning,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionContext } from "@/lib/tenant";
 import { SignOutButton } from "@/components/SignOutButton";
+import { NotificationBell } from "@/components/NotificationBell";
+import { getDashboardTasks } from "@/lib/dashboardTasks";
 
 // Each entry's `feature` key must match a key in PERMISSIONS
 // (src/lib/tenant.ts) — items a role has no access to are hidden rather
@@ -36,19 +40,28 @@ const NAV = [
   { href: "/bpf", label: "Bilan pédagogique et financier", icon: BarChart3, feature: "bpf" as const },
   { href: "/team", label: "Équipe & rôles", icon: UserCog, feature: "team" as const },
   { href: "/integrations", label: "Intégrations", icon: Plug, feature: "integrations" as const },
+  { href: "/faq", label: "FAQ & guides", icon: HelpCircle, feature: "faq" as const },
+  { href: "/support", label: "Réclamations & signalement", icon: MessageCircleWarning, feature: "support" as const },
 ];
 
-export function Sidebar({ user }: { user: SessionContext }) {
+export async function Sidebar({ user }: { user: SessionContext }) {
   const items = NAV.filter((item) => can(user.role, item.feature) !== "none");
+  const tasks =
+    can(user.role, "dashboard") !== "none"
+      ? await getDashboardTasks(user.organizationId, user.role, user.userId)
+      : [];
 
   return (
     <div className="w-60 h-screen bg-ink text-white flex flex-col shrink-0">
       <div className="px-5 pt-6 pb-4 border-b border-ink-soft shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-            <ShieldCheck size={17} className="text-ink" strokeWidth={2.4} />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
+              <ShieldCheck size={17} className="text-ink" strokeWidth={2.4} />
+            </div>
+            <div className="font-display text-lg tracking-wide">Conforma</div>
           </div>
-          <div className="font-display text-lg tracking-wide">Conforma</div>
+          {can(user.role, "dashboard") !== "none" && <NotificationBell tasks={tasks} />}
         </div>
         <div className="text-xs text-white/60 mt-1 pl-9">pour les organismes de formation</div>
       </div>

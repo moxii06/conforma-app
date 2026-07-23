@@ -4,6 +4,7 @@ import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 import { getAlreadyImportedIds, createContactDossierMatcher } from "@/lib/mailboxMatching";
+import { classifyEmailForRgpd } from "@/lib/ai";
 import type { MailboxConnection } from "@prisma/client";
 
 const MAX_MESSAGES_PER_SYNC = 25;
@@ -32,11 +33,11 @@ async function openClient(connection: MailboxConnection): Promise<ImapFlow> {
   return client;
 }
 
-export async function syncImapMailbox(organizationId: string): Promise<{ imported: number }> {
-  const connection = await prisma.mailboxConnection.findUnique({
-    where: { organizationId_provider: { organizationId, provider: "imap" } },
+export async function syncImapMailbox(organizationId: string, connectionId: string): Promise<{ imported: number }> {
+  const connection = await prisma.mailboxConnection.findFirst({
+    where: { id: connectionId, organizationId, provider: "imap" },
   });
-  if (!connection) throw new Error("Aucune boîte IMAP connectée pour cette organisation.");
+  if (!connection) throw new Error("Boîte IMAP introuvable pour cette organisation.");
 
   const client = await openClient(connection);
   let imported = 0;
@@ -76,11 +77,19 @@ export async function syncImapMailbox(organizationId: string): Promise<{ importe
         const contactId = matcher.matchContact(fromAddress);
         const { suggestedDossierId, matchBasis } = matcher.matchDossier(contactId, threadId);
 
+        // Best-effort, same as gmailSync.ts — a classification failure
+        // never blocks the message from being imported.
+        const classification = await classifyEmailForRgpd({ subject, body }).catch(() => null);
+
         await prisma.emailMessage.create({
           data: {
             organizationId,
+            mailboxConnectionId: connection.id,
             contactId,
             suggestedDossierId,
+            rgpdClassifiedAt: classification ? new Date() : null,
+            rgpdSuggestedType: classification?.isRightsRequest ? classification.requestType : null,
+            rgpdReasoning: classification?.isRightsRequest ? classification.reasoning : null,
             matchBasis,
             fromAddress,
             fromName: fromName || null,
@@ -110,15 +119,17 @@ export async function syncImapMailbox(organizationId: string): Promise<{ importe
 // Sends a real reply through SMTP for a connected IMAP mailbox — same role
 // as sendGmailReply() for Gmail. inReplyTo/references keep the reply
 // threaded in mail clients that honor those headers (most do), the closest
-// generic-SMTP equivalent to Gmail's threadId mechanism.
+// generic-SMTP equivalent to Gmail's threadId mechanism. Sends from the
+// SAME connection that received the original message (see the reply
+// route), now that an org can have several.
 export async function sendImapReply(
-  organizationId: string,
+  connectionId: string,
   params: { to: string; subject: string; body: string; inReplyTo?: string | null }
 ): Promise<{ externalId: string; externalThreadId: string | null }> {
-  const connection = await prisma.mailboxConnection.findUnique({
-    where: { organizationId_provider: { organizationId, provider: "imap" } },
+  const connection = await prisma.mailboxConnection.findFirst({
+    where: { id: connectionId, provider: "imap" },
   });
-  if (!connection) throw new Error("Aucune boîte IMAP connectée pour cette organisation.");
+  if (!connection) throw new Error("Boîte IMAP introuvable.");
   if (!connection.passwordEncrypted || !connection.smtpHost || !connection.smtpPort) {
     throw new Error("Connexion IMAP incomplète — reconnectez la boîte depuis /integrations.");
   }

@@ -11,7 +11,7 @@ export function IntegrationCredentialForm({
   hasClientSecret,
 }: {
   provider: string;
-  kind: "apiKey" | "oauth";
+  kind: "apiKey" | "oauth" | "stripe";
   hasApiKey?: boolean;
   initialClientId?: string;
   hasClientSecret?: boolean;
@@ -32,7 +32,9 @@ export function IntegrationCredentialForm({
       body: JSON.stringify(
         kind === "apiKey"
           ? { provider, apiKey: apiKey || undefined }
-          : { provider, clientId, clientSecret: clientSecret || undefined }
+          : kind === "stripe"
+            ? { provider, apiKey: apiKey || undefined, clientSecret: clientSecret || undefined }
+            : { provider, clientId, clientSecret: clientSecret || undefined }
       ),
     });
     setSaving(false);
@@ -56,6 +58,35 @@ export function IntegrationCredentialForm({
           {saving ? "…" : "Enregistrer"}
         </button>
         {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
+      </div>
+    );
+  }
+
+  if (kind === "stripe") {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="password"
+            placeholder={hasApiKey ? "•••••••• (laisser vide pour ne pas changer)" : "Clé secrète Stripe (sk_...)"}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="password"
+            placeholder={hasClientSecret ? "•••••••• (laisser vide pour ne pas changer)" : "Secret de signature du webhook (whsec_...)"}
+            value={clientSecret}
+            onChange={(e) => setClientSecret(e.target.value)}
+            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
+          />
+          <button onClick={handleSave} disabled={saving} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 shrink-0">
+            {saving ? "…" : "Enregistrer"}
+          </button>
+          {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
+        </div>
       </div>
     );
   }

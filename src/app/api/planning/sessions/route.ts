@@ -1,23 +1,31 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { SessionFormat } from "@prisma/client";
+import { SessionFormat, SessionMode } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 
+// ROLLING (bande passante) sessions are always-open — there's no cohort
+// date to pick, so startsAt/endsAt are optional from the client and filled
+// in server-side with a wide-open placeholder window instead. FIXED_DATE
+// keeps the original strict requirement: a real date is the whole point.
 const schema = z
   .object({
     courseMode: z.enum(["existing", "new"]),
     courseId: z.string().optional(),
     courseTitle: z.string().optional(),
     trainerId: z.string().optional(),
-    startsAt: z.string().min(1),
-    endsAt: z.string().min(1),
+    mode: z.nativeEnum(SessionMode).default("FIXED_DATE"),
+    startsAt: z.string().optional(),
+    endsAt: z.string().optional(),
     format: z.nativeEnum(SessionFormat),
     location: z.string().optional(),
     capacity: z.number().int().positive(),
   })
   .refine((d) => (d.courseMode === "existing" ? !!d.courseId : !!d.courseTitle?.trim()), {
     message: "Cours manquant.",
+  })
+  .refine((d) => d.mode === "ROLLING" || (!!d.startsAt && !!d.endsAt), {
+    message: "Dates manquantes.",
   });
 
 export async function POST(request: Request) {
@@ -32,10 +40,17 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
   const data = parsed.data;
 
-  const startsAt = new Date(data.startsAt);
-  const endsAt = new Date(data.endsAt);
-  if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
-    return NextResponse.json({ error: "Dates invalides." }, { status: 400 });
+  let startsAt: Date;
+  let endsAt: Date;
+  if (data.mode === "ROLLING") {
+    startsAt = new Date();
+    endsAt = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000);
+  } else {
+    startsAt = new Date(data.startsAt!);
+    endsAt = new Date(data.endsAt!);
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+      return NextResponse.json({ error: "Dates invalides." }, { status: 400 });
+    }
   }
 
   let courseId: string;
@@ -63,6 +78,7 @@ export async function POST(request: Request) {
     data: {
       organizationId: session.organizationId,
       courseId,
+      mode: data.mode,
       trainerId: data.trainerId || null,
       startsAt,
       endsAt,

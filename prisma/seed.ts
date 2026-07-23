@@ -295,11 +295,24 @@ async function main() {
     { number: 32, criterionNumber: 7, label: "Mesure de la valeur ajoutée de la prestation (insertion, certifications...)" },
   ];
 
+  await prisma.qualiopiReferentielVersion.upsert({
+    where: { id: "rnq2022v1" },
+    update: {},
+    create: {
+      id: "rnq2022v1",
+      label: "RNQ 2022 (en vigueur)",
+      status: "applicable",
+      publishedAt: new Date("2022-01-01"),
+      applicableFrom: new Date("2022-01-01"),
+      notes: "Référentiel National Qualité en vigueur depuis le lancement de Qualiopi.",
+    },
+  });
+
   for (const indicator of QUALIOPI_INDICATORS) {
     await prisma.qualiopiIndicator.upsert({
-      where: { number: indicator.number },
+      where: { versionId_number: { versionId: "rnq2022v1", number: indicator.number } },
       update: indicator,
-      create: indicator,
+      create: { ...indicator, versionId: "rnq2022v1" },
     });
   }
 
@@ -409,6 +422,80 @@ async function main() {
         "2. Quels changements concrets avez-vous constatés dans votre pratique professionnelle ?\n\n" +
         "3. Quels freins avez-vous rencontrés, le cas échéant, dans la mise en application ?\n\n" +
         "4. Auriez-vous besoin d'un accompagnement complémentaire ?",
+    },
+    {
+      category: "welcome_booklet",
+      title: "Livret d'accueil",
+      bodyText:
+        DISCLAIMER +
+        "LIVRET D'ACCUEIL\n\n" +
+        "Bienvenue chez [NOM DE L'ORGANISME].\n\n" +
+        "1. Présentation de l'organisme — activité, valeurs, équipe : [À COMPLÉTER].\n\n" +
+        "2. Vos interlocuteurs — référent pédagogique, référent handicap, contact administratif : [COORDONNÉES].\n\n" +
+        "3. Modalités pratiques — horaires, accès aux locaux ou à la plateforme à distance, matériel nécessaire : [À COMPLÉTER].\n\n" +
+        "4. Règlement intérieur — se référer au document dédié remis séparément.\n\n" +
+        "5. Accessibilité — les personnes en situation de handicap peuvent contacter le référent handicap : [COORDONNÉES].\n\n" +
+        "6. Modalités d'évaluation et de suivi — évaluations à chaud/à froid, suivi de la progression e-learning le cas échéant.\n\n" +
+        "7. Réclamations — comment signaler une difficulté ou déposer une réclamation : [PROCÉDURE].",
+    },
+    {
+      category: "attendance_sheet",
+      title: "Feuille d'émargement",
+      bodyText:
+        DISCLAIMER +
+        "FEUILLE D'ÉMARGEMENT\n\n" +
+        "Formation : [TITRE DE LA FORMATION]\n" +
+        "Date : [DATE]\n" +
+        "Horaires : [HORAIRES]\n" +
+        "Formateur : [NOM DU FORMATEUR]\n" +
+        "Lieu / modalité : [LIEU OU « À DISTANCE »]\n\n" +
+        "Pour une session à distance, l'émargement électronique réel est disponible depuis la fiche de session " +
+        "(classe virtuelle) une fois la présence enregistrée par connexion effective des participants.\n\n" +
+        "Nom / Prénom | Matin (arrivée/départ) | Après-midi (arrivée/départ) | Signature\n" +
+        "[À COMPLÉTER EN PRÉSENTIEL]",
+    },
+    {
+      category: "interim_report",
+      title: "Bilan intermédiaire",
+      bodyText:
+        DISCLAIMER +
+        "BILAN INTERMÉDIAIRE\n\n" +
+        "Formation : [TITRE DE LA FORMATION]\n" +
+        "Période couverte : [DATES]\n\n" +
+        "1. Progression par rapport aux objectifs initiaux : [À COMPLÉTER].\n\n" +
+        "2. Modules ou compétences déjà validés.\n\n" +
+        "3. Points de vigilance ou difficultés identifiées à date.\n\n" +
+        "4. Ajustements envisagés pour la suite du parcours, le cas échéant (individualisation).\n\n" +
+        "5. Prochaine échéance de suivi : [DATE].",
+    },
+    {
+      category: "final_report",
+      title: "Bilan final",
+      bodyText:
+        DISCLAIMER +
+        "BILAN FINAL\n\n" +
+        "Formation : [TITRE DE LA FORMATION]\n" +
+        "Période : [DATES DE DÉBUT ET DE FIN]\n\n" +
+        "1. Objectifs initiaux de la formation : [RAPPEL].\n\n" +
+        "2. Atteinte des objectifs — synthèse des résultats obtenus.\n\n" +
+        "3. Assiduité — taux de présence sur l'ensemble du parcours.\n\n" +
+        "4. Évaluation finale des acquis — résultats, le cas échéant note ou validation de compétences.\n\n" +
+        "5. Recommandations et suites possibles (formation complémentaire, mise en pratique...).",
+    },
+    {
+      category: "results_summary",
+      title: "Relevé de résultats",
+      bodyText:
+        DISCLAIMER +
+        "RELEVÉ DE RÉSULTATS\n\n" +
+        "Bénéficiaire : [NOM ET PRÉNOM]\n" +
+        "Formation : [TITRE DE LA FORMATION]\n" +
+        "Période : [DATES]\n\n" +
+        "Épreuve / module | Résultat obtenu | Seuil de réussite | Validé\n" +
+        "[À COMPLÉTER — une ligne par module ou évaluation]\n\n" +
+        "Résultat global : [À COMPLÉTER]\n\n" +
+        "Fait à [VILLE], le [DATE].\n" +
+        "Signature du responsable pédagogique : [SIGNATURE]",
     },
   ];
 

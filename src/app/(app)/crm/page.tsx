@@ -1,21 +1,50 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader } from "@/components/ui";
-import { PipelineStage } from "@prisma/client";
+import { PageHeader, Pill } from "@/components/ui";
+import { PipelineStage, Prisma } from "@prisma/client";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { NewOpportunityForm } from "@/components/NewOpportunityForm";
 import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
+import { OpportunityFilterBar } from "@/components/OpportunityFilterBar";
 import { SendNeedsAssessmentButton } from "@/components/SendNeedsAssessmentButton";
+import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   PROSPECT: "Prospect",
   QUOTE_SENT: "Devis envoyé",
   CONTRACT_SIGNED: "Convention signée",
   SESSION_SCHEDULED: "Session planifiée",
+  TO_INVOICE: "À facturer",
   INVOICED: "Facturé",
+  PAID: "Payé",
 };
 
-export default async function CrmPage() {
+function formatAmount(cents: number | null) {
+  if (cents === null) return "—";
+  return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+}
+
+function buildOrderBy(sort?: string): Prisma.OpportunityOrderByWithRelationInput {
+  switch (sort) {
+    case "date_asc":
+      return { createdAt: "asc" };
+    case "amount_desc":
+      return { amountCents: "desc" };
+    case "amount_asc":
+      return { amountCents: "asc" };
+    default:
+      return { createdAt: "desc" };
+  }
+}
+
+export default async function CrmPage({
+  searchParams,
+}: {
+  searchParams: { view?: string; stage?: string; sort?: string };
+}) {
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "crm") === "none") redirect("/dashboard");
   const canWrite = can(role, "crm") !== "none";
@@ -23,18 +52,22 @@ export default async function CrmPage() {
   // own prospects" — every other role with crm access sees the whole org's
   // pipeline.
   const ownerFilter = role === "SALES" ? { ownerId: userId } : {};
+  const view = searchParams.view === "table" ? "table" : "kanban";
+  const stageFilter = searchParams.stage && searchParams.stage in PipelineStage ? (searchParams.stage as PipelineStage) : undefined;
+  const orderBy = buildOrderBy(searchParams.sort);
 
-  const [opportunities, contacts] = await Promise.all([
+  const [opportunities, contacts, courses] = await Promise.all([
     prisma.opportunity.findMany({
-      where: { organizationId, ...ownerFilter },
+      where: { organizationId, ...ownerFilter, ...(view === "table" && stageFilter ? { stage: stageFilter } : {}) },
       include: { contact: true, needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 } },
-      orderBy: { createdAt: "desc" },
+      orderBy: view === "table" ? orderBy : { createdAt: "desc" },
     }),
     prisma.contact.findMany({
       where: { organizationId },
       select: { id: true, firstName: true, lastName: true, email: true },
       orderBy: { lastName: "asc" },
     }),
+    prisma.course.findMany({ where: { organizationId }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
   ]);
 
   const byStage = Object.values(PipelineStage).map((stage) => ({
@@ -45,44 +78,108 @@ export default async function CrmPage() {
   return (
     <>
       <PageHeader title="CRM commercial" subtitle="Du premier contact à la facturation" />
+      <div className="flex gap-1 px-8 border-b border-line">
+        <Link
+          href="/crm"
+          className={`px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+            view === "kanban" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
+          }`}
+        >
+          Kanban
+        </Link>
+        <Link
+          href="/crm?view=table"
+          className={`px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+            view === "table" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
+          }`}
+        >
+          Tableau
+        </Link>
+      </div>
       <div className="p-8 flex flex-col gap-4">
-        {canWrite && <NewOpportunityForm contacts={contacts} />}
-        <div className="flex gap-3.5">
-          {byStage.map(({ stage, items }) => (
-            <div key={stage} className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2.5">
-                <div className="text-xs font-bold text-ink uppercase tracking-wide">{STAGE_LABELS[stage]}</div>
-                <div className="text-[11px] text-slate">{items.length}</div>
+        {canWrite && <NewOpportunityForm contacts={contacts} courses={courses} />}
+
+        {view === "table" ? (
+          <>
+            <OpportunityFilterBar />
+            <div className="bg-white border border-line rounded-card p-5">
+              <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
+                <div className="flex-[1.4]">Contact</div>
+                <div className="flex-[1.4]">Libellé</div>
+                <div className="flex-1">Montant</div>
+                <div className="flex-1">Créé le</div>
+                <div className="flex-[1.2]">Étape</div>
+                {canWrite && <div className="flex-1">Actions</div>}
               </div>
-              <div className="flex flex-col gap-2">
-                {items.map((o) => {
-                  const lastRequest = o.needsAssessmentRequests[0];
-                  return (
-                    <div key={o.id} className="bg-white border border-line rounded-md p-3 text-[12.5px] text-ink flex flex-col gap-2">
-                      <div>
-                        {o.contact.firstName} {o.contact.lastName} — {o.label}
-                      </div>
-                      {canWrite && (
-                        <div className="flex flex-col gap-1.5">
-                          <OpportunityStageSelect opportunityId={o.id} stage={o.stage} />
-                          <SendNeedsAssessmentButton
-                            opportunityId={o.id}
-                            alreadySent={Boolean(lastRequest)}
-                          />
-                          {lastRequest && (
-                            <div className="text-[10.5px] text-slate">
-                              {lastRequest.status === "completed" ? "Recueil complété" : "Recueil envoyé, en attente"}
-                            </div>
-                          )}
-                        </div>
-                      )}
+              {opportunities.map((o) => {
+                const lastRequest = o.needsAssessmentRequests[0];
+                return (
+                  <div key={o.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
+                    <div className="flex-[1.4]">
+                      <Link href={`/crm/contacts/${o.contactId}`} className="text-ink underline decoration-line hover:decoration-ink">
+                        {o.contact.firstName} {o.contact.lastName}
+                      </Link>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex-[1.4] text-slate">{o.label}</div>
+                    <div className="flex-1">{formatAmount(o.amountCents)}</div>
+                    <div className="flex-1 text-slate">{format(o.createdAt, "d MMM yyyy", { locale: fr })}</div>
+                    <div className="flex-[1.2]">
+                      {canWrite ? <OpportunityStageSelect opportunityId={o.id} stage={o.stage} /> : <Pill tone="neutral">{STAGE_LABELS[o.stage]}</Pill>}
+                    </div>
+                    {canWrite && (
+                      <div className="flex-1 flex items-center gap-2.5 flex-wrap">
+                        <SendNeedsAssessmentButton opportunityId={o.id} alreadySent={Boolean(lastRequest)} />
+                        <DeleteOpportunityButton opportunityId={o.id} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {opportunities.length === 0 && <div className="text-[12.5px] text-slate py-3">Aucun prospect.</div>}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <div className="flex gap-3.5">
+            {byStage.map(({ stage, items }) => (
+              <div key={stage} className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="text-xs font-bold text-ink uppercase tracking-wide">{STAGE_LABELS[stage]}</div>
+                  <div className="text-[11px] text-slate">{items.length}</div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {items.map((o) => {
+                    const lastRequest = o.needsAssessmentRequests[0];
+                    return (
+                      <div key={o.id} className="bg-white border border-line rounded-md p-3 text-[12.5px] text-ink flex flex-col gap-2">
+                        <div>
+                          <Link href={`/crm/contacts/${o.contactId}`} className="text-ink underline decoration-line hover:decoration-ink">
+                            {o.contact.firstName} {o.contact.lastName}
+                          </Link>
+                          {" — "}{o.label}
+                        </div>
+                        {canWrite && (
+                          <div className="flex flex-col gap-1.5">
+                            <OpportunityStageSelect opportunityId={o.id} stage={o.stage} />
+                            <SendNeedsAssessmentButton
+                              opportunityId={o.id}
+                              alreadySent={Boolean(lastRequest)}
+                            />
+                            {lastRequest && (
+                              <div className="text-[10.5px] text-slate">
+                                {lastRequest.status === "completed" ? "Recueil complété" : "Recueil envoyé, en attente"}
+                              </div>
+                            )}
+                            <DeleteOpportunityButton opportunityId={o.id} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

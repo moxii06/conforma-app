@@ -32,3 +32,26 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   return NextResponse.json(updated);
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+  if (can(session.role, "crm") === "none") {
+    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+
+  const opportunity = await prisma.opportunity.findFirst({
+    where: { id: params.id, organizationId: session.organizationId },
+  });
+  if (!opportunity) return NextResponse.json({ error: "Opportunité introuvable." }, { status: 404 });
+  if (!canManageOpportunity(session.role, session.userId, opportunity)) {
+    return NextResponse.json({ error: "Cette opportunité appartient à un autre commercial." }, { status: 403 });
+  }
+
+  await prisma.$transaction([
+    prisma.needsAssessmentRequest.deleteMany({ where: { opportunityId: opportunity.id } }),
+    prisma.opportunity.delete({ where: { id: opportunity.id } }),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}

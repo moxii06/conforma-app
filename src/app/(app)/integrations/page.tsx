@@ -8,8 +8,7 @@ import { ImapMailboxForm } from "@/components/ImapMailboxForm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const PROVIDERS: { key: string; label: string; description: string; kind: "apiKey" | "oauth" }[] = [
-  { key: "stripe", label: "Stripe", description: "Paiement des abonnements — active un essai (Subscription.status) une fois la clé secrète configurée et le webhook branché.", kind: "apiKey" },
+const PROVIDERS: { key: string; label: string; description: string; kind: "apiKey" | "oauth" | "stripe" }[] = [
   { key: "yousign", label: "Yousign", description: "Signature électronique des conventions et contrats — génère un document mais n'envoie pas encore de demande de signature réelle (aucun moteur de génération de PDF dans ce scaffold, voir README).", kind: "apiKey" },
   { key: "pennylane", label: "Pennylane", description: "Connecteur e-facturation (spec §5.3 / §7.2).", kind: "apiKey" },
   { key: "sellsy", label: "Sellsy", description: "Connecteur e-facturation alternatif (spec §5.3 / §7.2).", kind: "apiKey" },
@@ -34,10 +33,10 @@ export default async function IntegrationsPage({
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "integrations") === "none") redirect("/dashboard");
 
-  const [credentials, googleConnection, imapConnection] = await Promise.all([
+  const [credentials, googleConnections, imapConnections] = await Promise.all([
     prisma.integrationCredential.findMany({ where: { organizationId } }),
-    prisma.mailboxConnection.findUnique({ where: { organizationId_provider: { organizationId, provider: "gmail" } } }),
-    prisma.mailboxConnection.findUnique({ where: { organizationId_provider: { organizationId, provider: "imap" } } }),
+    prisma.mailboxConnection.findMany({ where: { organizationId, provider: "gmail" }, orderBy: { connectedAt: "asc" } }),
+    prisma.mailboxConnection.findMany({ where: { organizationId, provider: "imap" }, orderBy: { connectedAt: "asc" } }),
   ]);
   const byProvider = new Map(credentials.map((c) => [c.provider, c]));
 
@@ -68,60 +67,65 @@ export default async function IntegrationsPage({
         <div className="bg-white border border-line rounded-card p-4">
           <div className="flex items-center gap-2 mb-1">
             <div className="text-[13px] font-semibold text-ink">Google (Gmail)</div>
-            <Pill tone={googleConnection ? "good" : "neutral"}>{googleConnection ? "Connecté" : "Non connecté"}</Pill>
+            <Pill tone={googleConnections.length > 0 ? "good" : "neutral"}>
+              {googleConnections.length > 0 ? `${googleConnections.length} connecté${googleConnections.length > 1 ? "s" : ""}` : "Non connecté"}
+            </Pill>
           </div>
           <div className="text-[12px] text-slate mb-3">
-            Connexion de boîte mail pour le triage et les réponses (spec §5.11) — réel, pas une simulation.
+            Connexion de boîte mail pour le triage et les réponses (spec §5.11) — réel, pas une simulation. Une
+            organisation peut connecter plusieurs comptes Gmail.
           </div>
-          {googleConnection ? (
-            <div className="flex flex-col gap-2">
-              <div className="text-[12.5px] text-ink">
-                {googleConnection.accountEmail}
-                <span className="text-slate">
-                  {" — connecté le "}
-                  {format(googleConnection.connectedAt, "d MMM yyyy", { locale: fr })}
-                  {googleConnection.lastSyncedAt &&
-                    `, dernière synchro le ${format(googleConnection.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
-                </span>
+          <div className="flex flex-col gap-3">
+            {googleConnections.map((conn) => (
+              <div key={conn.id} className="flex flex-col gap-2 pb-3 border-b border-line last:border-b-0 last:pb-0">
+                <div className="text-[12.5px] text-ink">
+                  {conn.accountEmail}
+                  <span className="text-slate">
+                    {" — connecté le "}
+                    {format(conn.connectedAt, "d MMM yyyy", { locale: fr })}
+                    {conn.lastSyncedAt && `, dernière synchro le ${format(conn.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
+                  </span>
+                </div>
+                <MailboxActions provider="gmail" connectionId={conn.id} />
               </div>
-              <MailboxActions provider="gmail" />
-            </div>
-          ) : (
+            ))}
             <a
               href="/api/integrations/google/connect"
-              className="inline-block bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft"
+              className="inline-block bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft self-start"
             >
-              Connecter Google
+              {googleConnections.length > 0 ? "Connecter un autre compte Google" : "Connecter Google"}
             </a>
-          )}
+          </div>
         </div>
 
         <div className="bg-white border border-line rounded-card p-4">
           <div className="flex items-center gap-2 mb-1">
             <div className="text-[13px] font-semibold text-ink">Autre messagerie (IMAP/SMTP)</div>
-            <Pill tone={imapConnection ? "good" : "neutral"}>{imapConnection ? "Connecté" : "Non connecté"}</Pill>
+            <Pill tone={imapConnections.length > 0 ? "good" : "neutral"}>
+              {imapConnections.length > 0 ? `${imapConnections.length} connectée${imapConnections.length > 1 ? "s" : ""}` : "Non connecté"}
+            </Pill>
           </div>
           <div className="text-[12px] text-slate mb-3">
             Pour toute messagerie hors Gmail — OVH, Ionos, Zoho, la plupart des hébergeurs — via IMAP/SMTP standard.
             Contrepartie par rapport à Google : le mot de passe du compte est stocké (chiffré) plutôt qu&apos;un
-            jeton OAuth révocable.
+            jeton OAuth révocable. Une organisation peut connecter plusieurs boîtes.
           </div>
-          {imapConnection ? (
-            <div className="flex flex-col gap-2">
-              <div className="text-[12.5px] text-ink">
-                {imapConnection.accountEmail}
-                <span className="text-slate">
-                  {" — connecté le "}
-                  {format(imapConnection.connectedAt, "d MMM yyyy", { locale: fr })}
-                  {imapConnection.lastSyncedAt &&
-                    `, dernière synchro le ${format(imapConnection.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
-                </span>
+          <div className="flex flex-col gap-3">
+            {imapConnections.map((conn) => (
+              <div key={conn.id} className="flex flex-col gap-2 pb-3 border-b border-line last:border-b-0 last:pb-0">
+                <div className="text-[12.5px] text-ink">
+                  {conn.accountEmail}
+                  <span className="text-slate">
+                    {" — connecté le "}
+                    {format(conn.connectedAt, "d MMM yyyy", { locale: fr })}
+                    {conn.lastSyncedAt && `, dernière synchro le ${format(conn.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
+                  </span>
+                </div>
+                <MailboxActions provider="imap" connectionId={conn.id} />
               </div>
-              <MailboxActions provider="imap" />
-            </div>
-          ) : (
+            ))}
             <ImapMailboxForm />
-          )}
+          </div>
         </div>
 
         <div className="bg-white border border-line rounded-card p-4">
@@ -153,6 +157,34 @@ export default async function IntegrationsPage({
             fonctionnalité intégrée à la plateforme Conforma, incluse dans votre abonnement. Aucune clé à
             fournir de votre côté.
             {!process.env.OPENAI_API_KEY && " (Non disponible pour le moment — clé non configurée côté serveur.)"}
+          </div>
+        </div>
+
+        <div className="bg-white border border-line rounded-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-[13px] font-semibold text-ink">Stripe</div>
+            <Pill tone={byProvider.get("stripe") ? "good" : "neutral"}>
+              {byProvider.get("stripe") ? "Configuré" : "Non configuré"}
+            </Pill>
+          </div>
+          <div className="text-[12px] text-slate mb-3">
+            Encaissement des factures — réel, sur votre propre compte Stripe (pas celui de Conforma) : chaque
+            organisme reçoit directement le paiement de ses propres clients. Un lien de paiement Stripe peut être
+            généré depuis chaque facture sur <code>/facturation</code> ; le webhook ci-dessous rapproche
+            automatiquement le paiement une fois reçu (facture marquée payée sans action manuelle).
+          </div>
+          <IntegrationCredentialForm
+            provider="stripe"
+            kind="stripe"
+            hasApiKey={Boolean(byProvider.get("stripe")?.apiKey)}
+            hasClientSecret={Boolean(byProvider.get("stripe")?.clientSecret)}
+          />
+          <div className="text-[11.5px] text-slate mt-3 pt-3 border-t border-line">
+            URL du webhook à configurer côté Stripe (événement <code>checkout.session.completed</code>) :
+            <br />
+            <code className="text-ink break-all">
+              https://votre-domaine{`/api/webhooks/stripe/${organizationId}`}
+            </code>
           </div>
         </div>
 

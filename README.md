@@ -31,11 +31,71 @@ database queries instead of mock data.
   upcoming sessions by week, dossier-journey-checklist completion. All three
   are single-series magnitude-by-category, so there's no categorical-palette
   concern — see the dataviz skill notes in the component's comment.
+- **Dashboard, reworked around tasks/invoices/money** — the page now leads
+  with two things instead of a wall of charts:
+  - **"À faire"** (`getDashboardTasks()` in `src/lib/dashboardTasks.ts`,
+    replaces the narrower `followUps.ts`) — one unified, sorted list of
+    every "something needs a human" signal in the app: the original sales
+    relances (positioning test/contract/platform-access sent and not
+    acted on, convocation due soon) plus overdue invoices, RGPD AI
+    suggestions and open rights-request deadlines, and draft Planning
+    sessions that already have learners enrolled but haven't been
+    validated. Overdue items (invoices, RGPD deadlines) sort first and get
+    a red "En retard" pill; each row links straight to where it's acted
+    on. Scoped by the same SALES/TRAINER/RGPD ownership rules as the rest
+    of the app.
+  - **"Argent"** (ADMIN_OF/ADMIN_MANAGER only, same role gate as
+    `invoicing` access) — à facturer / facturé en attente / payé (from the
+    CRM pipeline's `TO_INVOICE`/`INVOICED`/`PAID` stage sums, see the CRM
+    section below) alongside a fourth card, total overdue invoice amount,
+    rendered in red via `MetricCard`'s new `tone` prop when non-zero.
+  The existing charts (pipeline by stage, sessions programmées, parcours
+  apprenant) stay, just demoted below the fold as secondary "vue
+  d'ensemble" context rather than the page's opening content. Verified by
+  seeding a real overdue invoice and a draft session with an enrolled
+  learner — both surfaced correctly in "À faire" and the red styling
+  rendered as expected.
+  - **Notification bell** (`NotificationBell`, in the `Sidebar` header) —
+    the same `getDashboardTasks()` list, one click away from every page
+    instead of only the dashboard. Badge count turns red when anything in
+    it is overdue; the dropdown links straight to each item, same as the
+    dashboard widget.
 - **CRM** — `/crm` now supports creating a prospect (new or existing
   contact + opportunity), changing an opportunity's pipeline stage inline,
   and sending the needs assessment to a contact (see below). Write actions
   gate on `can(role, "crm") !== "none"`, both in the UI and in the API routes
-  (`/api/crm/opportunities`, `/api/crm/opportunities/[id]`).
+  (`/api/crm/opportunities`, `/api/crm/opportunities/[id]`). Deleting a
+  prospect (two-step confirm button) removes the `Opportunity` and its
+  `NeedsAssessmentRequest`s via `DELETE /api/crm/opportunities/[id]`.
+  `PipelineStage` now ends `SESSION_SCHEDULED → TO_INVOICE ("À facturer") →
+  INVOICED ("Facturé") → PAID ("Payé")` — the dashboard sums `amountCents`
+  across those three stages into a financial summary (à facturer / facturé
+  en attente / payé). `/crm` has a Kanban/Tableau toggle (`?view=table`); the
+  table view is sortable (date/amount) and filterable by stage
+  (`OpportunityFilterBar`, mirrors `DocFilterBar` on `/facturation`).
+  - **Unified contact record** (`/crm/contacts/[id]`) — clicking a prospect's
+    name (Kanban or table) opens a merged CRM+Dossier view: contact info,
+    every `Opportunity`, a payment summary from `Quote`/`Invoice` (gated on
+    `can(role, "invoicing")` — SALES doesn't see amounts, matching the
+    existing permission matrix), links out to any `Dossier` the contact has
+    (reuses the existing `/dossiers/[id]` page rather than duplicating its
+    dossier-scoped actions), the full email thread (same `EmailsTab` pattern
+    as the Dossier page), and the `ClientOutreach` history. SALES access is
+    scoped to contacts where they own at least one opportunity
+    (`canAccessContact()` in `tenant.ts`) — TRAINER/DPO_EXTERNAL don't reach
+    this page at all, same as `/crm` itself.
+  - **Intent-based email composer** (`IntentEmailComposer`, on the contact
+    record) — pick an intent (relance commerciale / relance de paiement /
+    relance sur devis / message libre — the last two only offered when the
+    contact actually has an unpaid invoice or a quote), optionally draft
+    with AI (`draftIntentEmail()` in `ai.ts`, feeds the invoice/quote/
+    opportunity as context), edit, then send for real via Brevo
+    (`/api/crm/contacts/[id]/send-email`). Logged as a `ClientOutreach` row
+    (type `"message"`) regardless of whether the Brevo call itself
+    succeeds, same non-fatal-send pattern as the dossier outreach route.
+    There's no "send the quote/invoice as a document" intent — this app
+    still has no PDF-rendering step (see the Yousign section below), so a
+    quote/invoice can only be referenced in the email text, not attached.
 - **Session/course creation + calendar** — `/planning` gained a "+ Nouvelle
   session" form (pick an existing course or create one inline, assign a
   trainer, format, location, capacity) and a Liste/Calendrier tab toggle; the
@@ -44,6 +104,29 @@ database queries instead of mock data.
   Creation is gated to `can(role, "planning") === "full"` (ADMIN_OF/
   ADMIN_MANAGER) — Trainer/Sales can still see the list/calendar per their
   existing "limited" access.
+  - **Draft/validate workflow** — `Session.status` (`DRAFT`/`VALIDATED`,
+    defaults `DRAFT`). Sessions are editable (`EditSessionForm`, date/
+    time/trainer/format/location/capacity via `PATCH /api/planning/
+    sessions/[id]`) and a "Valider la session" button flips the status.
+    Convocations only become sendable once `VALIDATED` — the enrolled-
+    learners panel shows a "Validez la session…" note instead of the
+    composer until then. "Archived" isn't a stored status: a session is
+    just treated as past/read-only once `endsAt < now()`, computed on
+    read, no cron needed.
+  - **CRM → Planning enrollment** (`EnrollProspectForm`, `POST /api/
+    planning/sessions/[id]/enroll`) — the previously-missing link between
+    the two modules: `Opportunity` gained an optional `courseOfInterestId`
+    (set on the CRM "+ Nouveau prospect" form), and a session's detail
+    page autosuggests every `CONTRACT_SIGNED` opportunity whose course of
+    interest matches. Enrolling creates the `Dossier` and advances the
+    opportunity to `SESSION_SCHEDULED` in one transaction.
+  - **Convocation composer** (`InviteComposer`) — subject/body are now
+    editable, prefilled with the same text the fixed template used to
+    send unconditionally (so nothing regresses by default), with a
+    "Rédiger avec l'IA" button (`draftConvocationEmail()` in `ai.ts`,
+    real OpenAI call) as an alternative to writing it by hand. Resend
+    ("Renvoyer l'invitation") already worked before this — sending again
+    was never blocked by `alreadyInvited`, only the button label changes.
 - **Document library + needs-assessment send tool** (`/documents`,
   `DocumentTemplate` model) — spec §5.8's "legal document toolkit" scoped
   down to a plain editable-text library (not the dynamic merge-field
@@ -217,11 +300,9 @@ for what that means in practice for each one.
   `src/lib/sessionInvitations.ts` so the two entry points can't drift) rather
   than duplicating it; **Accès plateforme** creates/links a real `LEARNER`
   `User` (or detects one already exists/is active) and issues a genuine
-  activation link. The dashboard's new "Relances à faire" widget
-  (`src/lib/followUps.ts`) aggregates everything still waiting — positioning
-  tests, contracts, platform access — past a 5-day threshold, plus dossiers
-  with a session starting soon that still have no convocation sent, scoped
-  by the same SALES/TRAINER ownership rules as the rest of the app.
+  activation link. The dashboard's "Relances à faire" widget originally
+  aggregated just this (`src/lib/followUps.ts`) — since folded into the
+  broader dashboard rework below (`src/lib/dashboardTasks.ts`).
 - **Account activation** (`/activation/[token]`) — the missing half of the
   Team invite flow: an invited member (or a learner granted platform access)
   sets their own password via a token-gated public page, same pattern as
@@ -262,6 +343,49 @@ for what that means in practice for each one.
   back to the browser — leaving a field blank on save keeps the existing
   value rather than clearing it, standard secret-field convention.
 
+  **RGPD AI email classification** (`classifyEmailForRgpd()`) — every
+  newly-synced inbound message (Gmail and IMAP alike) is automatically run
+  through a real `gpt-4o-mini` classification call asking "is this a GDPR
+  exercise-of-rights request (access/erasure/portability/rectification),
+  and if so which one" — the point being to catch one buried in a triage
+  inbox full of newsletters and prospect emails before its 1-month legal
+  deadline (spec §5.7) is at risk, rather than relying on staff to notice
+  it themselves. Classification is best-effort and non-fatal (parallelized
+  in `gmailSync.ts`, inline in `imapSync.ts`'s already-sequential IMAP
+  loop) — a failure (quota, transient error) just leaves that message
+  unclassified rather than breaking the sync. It only ever produces a
+  suggestion (`EmailMessage.rgpdSuggestedType`/`rgpdReasoning`), shown in a
+  dedicated "Suggestions RGPD" section on `/inbox` (visible only to roles
+  with `canWriteRgpd()` — SALES can triage the inbox but won't see this
+  section) with the type and person editable before either **Confirmer la
+  demande** (creates the real `RightsRequest` via
+  `/api/inbox/messages/[id]/rgpd-confirm`, deadline = today + 1 month,
+  same rule as the manual `/rgpd` form) or **Ce n'est pas une demande
+  RGPD** (dismisses it, `rgpd-dismiss`) — the AI never creates the
+  compliance record itself, same "AI proposes, staff disposes" pattern as
+  every other AI feature in this app. `rgpdClassifiedAt` is set regardless
+  of the outcome so a message is never re-classified on a later sync.
+  Verified end-to-end with a seeded suggestion: confirm created a real
+  `RightsRequest` with the correct 1-month deadline and cleared the
+  suggestion; dismiss cleared it without creating one.
+
+  **Qualiopi AI-personalized indicator summaries**
+  (`summarizeQualiopiIndicator()`) — the official RNQ indicator label
+  (e.g. "#3 — Information du public sur les prérequis...") is necessarily
+  generic across every OFP in France. "Voir mon résumé personnalisé" on
+  each indicator row (Préparation audit tab) calls a real `gpt-4o-mini`
+  request with the org's actual profile (name, course catalog, session
+  formats in use) and gets back what that indicator concretely requires
+  *for this organization* plus 2–3 realistic evidence examples — not a
+  copy of the RNQ text. Cached in `AuditChecklistItem.personalizedSummary`
+  (same per-org+indicator row the manual "gathered" checkbox already
+  uses) so each indicator only ever costs one real API call unless staff
+  explicitly clicks "Régénérer" — verified this caching by seeding a
+  summary directly and confirming the reveal click made no new network
+  request. Generation is gated on any `qualiopi` access (not just
+  `"full"`), since it's informational rather than a compliance sign-off,
+  unlike the gathered checkbox itself.
+
   **Other providers that could move platform-level too** (same reasoning
   as AI — Conforma owns the account, tenants just use the feature):
   - **Brevo** — one Conforma-operated transactional-email account could
@@ -270,11 +394,19 @@ for what that means in practice for each one.
     session invitations, needs-assessment requests, contract/convocation/
     platform-access outreach) — the single highest-leverage integration
     to centralize next, not yet done.
-  - **Stripe** — arguably a design bug as currently modeled: it's Conforma
-    billing *its own* customers for their subscription, so it should
-    already be a Conforma-owned key (env var), not a per-organization
-    `IntegrationCredential` row asking each OFP to bring their own Stripe
-    account. Not yet corrected.
+  - **Stripe — correction, this one should NOT move platform-level.**
+    An earlier version of this note claimed it should, conflating two
+    different things Stripe could mean here: (a) Conforma billing *its
+    own* customers for their Conforma subscription — that one genuinely
+    would be a Conforma-owned key, but isn't built at all yet (no
+    Checkout session creation, no webhook, `Subscription.status` is only
+    ever set to `"trialing"` by `/api/signup`); (b) the OFP collecting
+    payment *from their own training clients* via the Facturation module
+    — this is what the existing `/integrations` "Stripe" row is actually
+    for, and it's correctly per-organization as-is: Conforma must never
+    sit in that money flow between an OFP and their client. Each OFP
+    brings their own payment processor account (Stripe or otherwise —
+    see the Facturation section below for the multi-provider plan).
   - **Microsoft OAuth** — same pattern as the Gmail OAuth client; would
     need its own Azure/Entra app registration (env vars), still not built
     at all (the IMAP/SMTP connector is the current workaround for
@@ -323,19 +455,149 @@ for what that means in practice for each one.
   signature accounts from one integration, which would remove that
   per-organization friction — but that requires a commercial agreement
   with Yousign, not just more code.
+- **Real Stripe invoice payments** (`src/lib/stripe.ts`, per-organization —
+  same reasoning as Yousign, but here it's non-negotiable: **an OFP's
+  Stripe account receives payment from that OFP's own clients, and
+  Conforma must never sit in that money flow**, per an explicit
+  correction from the user during this build who'd originally been asked
+  about a Conforma-owned Stripe account). Configured on `/integrations`
+  with two fields — a secret key (`sk_...`) and a webhook signing secret
+  (`whsec_...`, stored in `IntegrationCredential.clientSecret`, repurposed
+  since there's no OAuth flow here needing it for its original purpose).
+  "Créer un lien de paiement Stripe" on `/facturation` creates a real
+  Checkout Session on the org's own account
+  (`createInvoiceCheckoutLink()`) for staff to copy and send — no
+  automated email delivery, same "link generated, human relays it"
+  pattern as every other unsent-email flow in this app.
+  **`/api/webhooks/stripe/[organizationId]`** is the actual "rapprochement
+  automatique" (auto-reconciliation): a public route (excluded from the
+  auth middleware — Stripe calls it directly, authenticated by its own
+  `Stripe-Signature` header instead of a Conforma session) that verifies
+  the signature against that org's own webhook secret, then on
+  `checkout.session.completed` records a real `Payment` against the
+  invoice named in the session's metadata and auto-flips it to `PAID` once
+  fully covered — idempotent against Stripe's at-least-once delivery via a
+  `method: "stripe:<session id>"` marker. Verified structurally (no live
+  Stripe test account was available in this session): a fake key produces
+  a genuine "Invalid API Key provided" response from Stripe's own API when
+  creating a Checkout Session, and a fake webhook signature is genuinely
+  rejected by `stripe.webhooks.constructEvent()` — both prove real calls
+  reach Stripe rather than a stub, but the full success path (an actual
+  payment completing and the webhook firing) hasn't been exercised
+  end-to-end. **Installment payments** (`Payment` model, `payments` on
+  `Invoice`) work independently of Stripe too — "Enregistrer un paiement"
+  on `/facturation` records a manual partial payment (any method) and
+  auto-flips the invoice to `PAID` once the running total covers it,
+  verified end-to-end with real partial + final payments. Separately,
+  marking a `Quote` `SENT` now advances its contact's still-`PROSPECT`
+  `Opportunity` to `QUOTE_SENT` (`/api/facturation/quotes/[id]`) — the CRM
+  pipeline no longer needs a second manual click to reflect a quote that
+  just went out.
 - **Document merge-field engine** (`src/lib/mergeTemplate.ts`) — the piece
   the first pass's document library explicitly deferred. A template's
   `{{contact.firstName}}`-style placeholders (listed on `/documents`) get
   substituted with real dossier/session/contact/org data and saved as a new
   `Document` (its `bodyText`, viewable via `/api/documents/generated/[id]`).
   Still string substitution, not a layout/PDF engine.
-- **LMS** (`/formations`, spec §5.12) — module management per course, and
-  progress tracking (`ElearningProgress.percentComplete` +
-  `lastEventAt`) editable from both the admin catalog view and the learner's
-  own portal. Per-event evidence logging (every login/lesson/quiz timestamped
-  individually) isn't implemented — only the latest percentage + timestamp
-  per module, which is enough to show engagement but not a full event
-  history for a Qualiopi audit trail.
+- **LMS, reworked around real content + explicit assignment** (`/formations`,
+  spec §5.12) — the original version let a module's progress be typed in
+  as any number by anyone, for anyone, with no actual file attached; this
+  closes both gaps rather than building a second, parallel LMS (a
+  from-scratch spec was handed over for this rework — audited what already
+  existed first and extended it in place, per that spec's own "don't
+  duplicate" instructions, rather than adopting its full scope, which was
+  an entire enterprise LMS — RNCP tracking, harassment reporting, virtual
+  classrooms, regulatory watch, etc. — far beyond what a scoped follow-up
+  should attempt in one pass):
+  - **Real file/video upload** (`src/lib/storage.ts`, Vercel Blob) —
+    `ElearningModule` gained `type` (video/document), `fileUrl`,
+    `fileName`, `fileSizeBytes`. Platform-level, same reasoning as AI/Brevo
+    (`BLOB_READ_WRITE_TOKEN`, see `.env.example`) — deliberately *not*
+    written to local disk, which would work in this dev session but
+    silently break once deployed (Vercel's serverless functions don't have
+    a persistent filesystem). `NewModuleForm` now posts real
+    `multipart/form-data` to `/api/lms/modules`, which creates the module
+    even if the upload itself fails (a bad/missing token surfaces its own
+    error rather than losing the title/description already filled in).
+    A Vercel Blob store (`conforma-lms`) was provisioned for this project via
+    `vercel blob create-store --access public` and linked, which populated
+    `BLOB_READ_WRITE_TOKEN` in `.env.local` automatically — verified with a
+    real end-to-end upload (not just the earlier "token missing" structural
+    check): posted a real file, got back a genuine
+    `https://*.public.blob.vercel-storage.com/...` URL, and confirmed it
+    served the exact uploaded bytes with the right content-type. Test
+    module and blob were both cleaned up afterward (`vercel blob del`).
+  - **Explicit assignment, not implicit self-service access** — an
+    `ElearningProgress` row *is* the assignment (schema comment explains
+    why no separate join table was added): previously any learner's own
+    progress POST would silently create one for a module they'd never
+    been granted; now only staff can create one
+    (`/api/lms/modules/[id]/assign`, `AssignLearnersPanel` on
+    `/formations`), a learner can only update an existing row, and
+    `/api/lms/progress` returns 403 if none exists yet. `RevokeAccessButton`
+    removes access (deletes the row — destructive by design, no "hidden but
+    assigned" state in this scope). Added the `@@unique([dossierId, moduleId])`
+    constraint the original version was missing (verified no existing
+    duplicate rows before migrating).
+  - **Real video progress, not a manual number field** — `LmsModulePlayer`
+    replaces the old `LmsProgressUpdater` `<input type="number">`: an
+    actual `<video>` element tracks `timeupdate`/`pause`/`ended` and computes
+    percent watched from real playback position, monotonically (a rewind
+    can't lower the recorded "furthest point reached" for a learner,
+    though staff overrides can still set any value). A document has no
+    equivalent browser signal for "was this actually read" — it stays an
+    explicit "Marquer comme terminé" action rather than pretending merely
+    opening the link proves anything. Verified end-to-end logged in as a
+    real seeded learner: seeking a real (small public) test video and
+    firing a pause event produced real `POST /api/lms/progress` calls that
+    updated the stored percentage, visible immediately in the portal.
+  - **Scrubbing straight to the end prompts a confirmation, not a free
+    100%** (`LmsModulePlayer`) — a jump of more than ~3 seconds between two
+    `timeupdate` ticks that lands near the very end can't come from normal
+    playback (which fires every ~250ms); it means the learner dragged the
+    scrubber, possibly without watching anything. That specific pattern
+    pauses the video and asks "Êtes-vous sûr(e) d'avoir vu la vidéo en
+    entier ?" instead of silently recording completion — "Non, revoir"
+    rewinds to the last honestly-reached position without saving, "Oui"
+    saves the real position they were at (not a hardcoded 100). It only
+    ever asks once: a module already at 100% when the player first mounts
+    is trusted from then on, so rewatching or scrubbing around a finished
+    video never re-prompts — verified by re-seeking a completed video and
+    confirming no popup. This is a nudge against the *accidental* "oops I
+    dragged to the end" case, not real proctoring — confirming "Oui"
+    dishonestly still gets a learner through, same as the old free-text
+    input did.
+  - **Next module unlocks automatically on completion**
+    (`/api/lms/progress`) — staff still does the *first* assignment for a
+    course (nothing is visible before it's meant to be), but a learner
+    reaching 100% on a module no longer has to sit and wait for someone on
+    staff to notice and manually assign the next one: crossing into 100%
+    for the first time auto-creates the `ElearningProgress` row for the
+    next module in the course (by `order`, see below), if it doesn't
+    already have one. Fires once per crossing-into-100 event, not on every
+    subsequent save. Verified end-to-end as a real learner: completing
+    module 1 made module 2 appear in the portal immediately, with
+    `assignedByName: "Déblocage automatique"` recorded on the row.
+  - **`order` is real now, not inert** — originally added to the schema
+    with nothing writing to it; a real bug surfaced while building the
+    auto-unlock feature above, which needs a reliable "next module" signal:
+    ordering by `createdAt` instead sorts a pre-existing module (its
+    `createdAt` backfilled to whatever moment the migration adding that
+    column happened to run) *after* modules created later, silently
+    breaking "find the next one." `POST /api/lms/modules` now assigns
+    `order` server-side (next slot in the course, ignoring any
+    client-supplied value) instead. There's still no drag-and-drop reorder
+    UI — modules can only be sequenced by the order they're created in.
+  - **Admin view — per-learner, not an org-wide average** (`/formations`)
+    — each module now lists exactly who has access and their individual
+    percentage (`RevokeAccessButton` per learner) instead of one blended
+    average across everyone, plus `DeleteModuleButton`
+    (`/api/lms/modules/[id]`, cleans up the Blob file and progress rows).
+  - **Not built in this pass**: per-page PDF tracking (a document's
+    progress is binary — done or not — not "which pages were viewed");
+    a reorder UI (see the `order` note above); content versioning
+    (re-uploading replaces nothing yet — there is no "edit an existing
+    module's file" path, only delete-and-recreate).
 - **BPF report** (`/bpf`, `src/lib/bpfReport.ts`, spec §5.13) — learner
   hours by legal-status category and revenue by funding origin, computed
   from `Dossier`/`Session`/`Invoice` for a selected year, with a text export.
@@ -385,14 +647,14 @@ delivers manually, not an actual delivery:
   `einvoicingProvider: "ppf"` as an intent, not an actual PPF/Pennylane/
   Sellsy API call.
 - No signature request is ever sent — Yousign isn't called anywhere.
-- No payment is ever processed and no Stripe API is ever called — trial
-  signup (`/essai`) needs neither, by design (spec §8), but converting a
-  trial to a paid `Subscription` afterward has no working mechanism yet:
-  saving a key on `/integrations` doesn't do anything, there's no Checkout
-  session creation and no webhook route.
-- `IntegrationCredential` secrets are stored **in plaintext** — spec §7.1
-  requires encryption at rest for exactly this kind of data; don't put real
-  production keys in here as-is.
+- Two separate Stripe concerns, only one of them real: **converting a
+  trial to a paid Conforma `Subscription`** (Conforma billing the OFP) is
+  still not built at all — saving a key on `/integrations` did nothing
+  toward that, no Checkout session or webhook exists for it. **An OFP
+  invoicing their own training clients** (`Invoice`/`Payment`, per-org
+  Stripe key) is real — see "Real Stripe invoice payments" below.
+- Every `IntegrationCredential` secret (Stripe included) is encrypted at
+  rest (`src/lib/crypto.ts`) and never echoed back to the browser.
 
 ### Still not built at all
 
@@ -431,6 +693,7 @@ npx vercel env add GOOGLE_CLIENT_SECRET production
 npx vercel env add OPENAI_API_KEY production          # only if you want AI (reply drafting / prospect extraction) active — platform-level, one key for every tenant
 npx vercel env add BREVO_API_KEY production           # only if you want real email delivery active — platform-level, one account for every tenant
 npx vercel env add BREVO_SENDER_EMAIL production      # must be a domain verified in the Brevo account
+npx vercel blob create-store <name> --access public --yes   # provisions BLOB_READ_WRITE_TOKEN automatically for all environments (see "Real file/video upload" above) — only if you want LMS uploads active
 npx vercel --prod --yes
 ```
 

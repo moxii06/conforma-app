@@ -54,8 +54,12 @@ export default async function PlanningPage({ searchParams }: { searchParams: { t
 }
 
 async function ListTab({ organizationId, ownerFilter }: { organizationId: string; ownerFilter: { trainerId?: string } }) {
+  // ROLLING (bande passante) sessions have no cohort date — Planning's
+  // list/calendar are for dated sessions to staff/schedule; a rolling
+  // course's roster lives on /formations instead, where it doesn't need a
+  // date to make sense.
   const sessions = await prisma.session.findMany({
-    where: { organizationId, startsAt: { gte: new Date() }, ...ownerFilter },
+    where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date() }, ...ownerFilter },
     include: { course: true, trainer: true, dossiers: true },
     orderBy: { startsAt: "asc" },
     take: 20,
@@ -111,7 +115,7 @@ async function CalendarTab({
   const gridEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
 
   const sessions = await prisma.session.findMany({
-    where: { organizationId, startsAt: { gte: gridStart, lte: gridEnd }, ...ownerFilter },
+    where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: gridStart, lte: gridEnd }, ...ownerFilter },
     include: { course: true },
     orderBy: { startsAt: "asc" },
   });

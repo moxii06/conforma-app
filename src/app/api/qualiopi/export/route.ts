@@ -13,9 +13,14 @@ export async function GET() {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
-  const [org, indicators, checklistItems, evidence] = await Promise.all([
-    prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } }),
-    prisma.qualiopiIndicator.findMany({ orderBy: { number: "asc" } }),
+  const org = await prisma.organization.findUniqueOrThrow({
+    where: { id: session.organizationId },
+    include: { activeReferentielVersion: true },
+  });
+  const [indicators, checklistItems, evidence] = await Promise.all([
+    org.activeReferentielVersionId
+      ? prisma.qualiopiIndicator.findMany({ where: { versionId: org.activeReferentielVersionId }, orderBy: { number: "asc" } })
+      : Promise.resolve([]),
     prisma.auditChecklistItem.findMany({ where: { organizationId: session.organizationId } }),
     prisma.qualiopiIndicatorEvidence.findMany({ where: { organizationId: session.organizationId } }),
   ]);
@@ -27,6 +32,7 @@ export async function GET() {
   lines.push(`Préparation audit Qualiopi — ${org.name}`);
   lines.push(`Généré le ${new Date().toLocaleDateString("fr-FR")}`);
   if (org.nextAuditDate) lines.push(`Prochain audit : ${org.nextAuditDate.toLocaleDateString("fr-FR")}`);
+  if (org.activeReferentielVersion) lines.push(`Référentiel : ${org.activeReferentielVersion.label}`);
   lines.push("");
 
   let criterion = 0;
