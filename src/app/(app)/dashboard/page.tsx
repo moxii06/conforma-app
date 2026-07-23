@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { MetricCard, PageHeader, Pill } from "@/components/ui";
-import { requireSessionContext } from "@/lib/tenant";
+import { requireSessionContext, can } from "@/lib/tenant";
+import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
 import { PipelineStage, Role } from "@prisma/client";
@@ -36,6 +37,11 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 
 export default async function DashboardPage() {
   const { organizationId, role, userId } = await requireSessionContext();
+  // /dashboard shows org-wide CRM pipeline and cross-learner progress
+  // data — it was never gated like every other page, and being the
+  // hardcoded post-login landing page meant LEARNER/DPO_EXTERNAL accounts
+  // saw it directly. Redirect to each role's real home instead.
+  if (can(role, "dashboard") === "none") redirect(role === "LEARNER" ? "/mon-espace" : "/rgpd");
 
   const subscription =
     role === Role.ADMIN_OF
