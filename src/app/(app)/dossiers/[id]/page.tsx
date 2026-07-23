@@ -17,6 +17,7 @@ import { SendOutreachButtons } from "@/components/SendOutreachButtons";
 import { MarkContractSignedButton } from "@/components/MarkContractSignedButton";
 import { AccommodationForm } from "@/components/AccommodationForm";
 import { AccommodationStatusForm } from "@/components/AccommodationStatusForm";
+import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -48,6 +49,8 @@ export default async function DossierPage({ params, searchParams }: { params: { 
   if (role === Role.TRAINER && dossier.session.trainerId !== userId) redirect("/dossiers");
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+  const sender = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } });
+  const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
   const canAccessAccomm = canAccessAccommodations(role, userId, organization);
   const TABS = canAccessAccomm ? [...BASE_TABS, { key: "accessibilite", label: "Accessibilité" }] : BASE_TABS;
   if (activeTab === "accessibilite" && !canAccessAccomm) redirect(`/dossiers/${dossier.id}`);
@@ -74,7 +77,13 @@ export default async function DossierPage({ params, searchParams }: { params: { 
         {activeTab === "emails" ? (
           <EmailsTab contactId={dossier.contactId} canManageEmail={canManageEmail} members={members} />
         ) : activeTab === "documents" ? (
-          <DocumentsTab dossierId={dossier.id} organizationId={organizationId} canWrite={can(role, "dossiers") !== "none"} />
+          <DocumentsTab
+            dossierId={dossier.id}
+            organizationId={organizationId}
+            canWrite={can(role, "dossiers") !== "none"}
+            contactFirstName={dossier.contact.firstName}
+            signatureHtml={signatureHtml}
+          />
         ) : activeTab === "donnees-personnelles" ? (
           <PersonalDataTab dossier={dossier} canWrite={canWriteRgpd(role)} />
         ) : activeTab === "preuves-qualiopi" ? (
@@ -89,6 +98,7 @@ export default async function DossierPage({ params, searchParams }: { params: { 
             canManageOutreach={can(role, "dossiers") !== "none"}
             canConvocation={canConvocation}
             outreaches={outreaches}
+            signatureHtml={signatureHtml}
           />
         )}
       </div>
@@ -103,13 +113,15 @@ async function InfoTab({
   canManageOutreach,
   canConvocation,
   outreaches,
+  signatureHtml,
 }: {
-  dossier: { id: string; needsAssessmentDone: boolean; contractSigned: boolean; convocationSent: boolean; evaluationHotDone: boolean; evaluationColdDone: boolean; learnerCategory: string | null };
+  dossier: { id: string; needsAssessmentDone: boolean; contractSigned: boolean; convocationSent: boolean; evaluationHotDone: boolean; evaluationColdDone: boolean; learnerCategory: string | null; contact: { firstName: string } };
   organizationId: string;
   canEditCategory: boolean;
   canManageOutreach: boolean;
   canConvocation: boolean;
   outreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
+  signatureHtml: string;
 }) {
   const templates = canManageOutreach
     ? await prisma.documentTemplate.findMany({
@@ -146,7 +158,14 @@ async function InfoTab({
           <div className="text-[13.5px] font-semibold text-ink mb-3">Communications</div>
           <div className="flex items-center gap-2.5 flex-wrap mb-2.5">
             <SendOutreachButtons dossierId={dossier.id} showConvocation={canConvocation} />
-            {canManageOutreach && <SendDocumentDialog dossierId={dossier.id} templates={templates} />}
+            {canManageOutreach && (
+              <SendDocumentDialog
+                dossierId={dossier.id}
+                templates={templates}
+                contactFirstName={dossier.contact.firstName}
+                signatureHtml={signatureHtml}
+              />
+            )}
           </div>
           {outreaches.length > 0 && (
             <div className="mt-3.5 pt-3.5 border-t border-line flex flex-col gap-2">
@@ -216,7 +235,19 @@ async function EmailsTab({
   );
 }
 
-async function DocumentsTab({ dossierId, organizationId, canWrite }: { dossierId: string; organizationId: string; canWrite: boolean }) {
+async function DocumentsTab({
+  dossierId,
+  organizationId,
+  canWrite,
+  contactFirstName,
+  signatureHtml,
+}: {
+  dossierId: string;
+  organizationId: string;
+  canWrite: boolean;
+  contactFirstName: string;
+  signatureHtml: string;
+}) {
   const [documents, templates] = await Promise.all([
     prisma.document.findMany({ where: { dossierId }, orderBy: { createdAt: "desc" } }),
     canWrite
@@ -232,19 +263,38 @@ async function DocumentsTab({ dossierId, organizationId, canWrite }: { dossierId
     <div className="bg-white border border-line rounded-card p-5">
       <div className="flex items-center justify-between mb-3.5">
         <div className="text-[13.5px] font-semibold text-ink">Documents</div>
-        {canWrite && <SendDocumentDialog dossierId={dossierId} templates={templates} />}
+        {canWrite && (
+          <SendDocumentDialog
+            dossierId={dossierId}
+            templates={templates}
+            contactFirstName={contactFirstName}
+            signatureHtml={signatureHtml}
+          />
+        )}
       </div>
       {documents.map((d) => (
         <div key={d.id} className="flex items-center justify-between gap-3 py-2.5 border-t border-line first:border-t-0">
-          <a
-            href={d.bodyText ? `/api/documents/generated/${d.id}` : d.fileUrl ?? "#"}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[12.5px] text-ink underline decoration-line hover:decoration-ink"
-          >
-            {d.title}
-          </a>
-          {d.templateOrigin && <Pill tone="neutral">{d.templateOrigin}</Pill>}
+          <div className="min-w-0">
+            <a
+              href={d.bodyText ? `/api/documents/generated/${d.id}` : d.fileUrl ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[12.5px] text-ink underline decoration-line hover:decoration-ink"
+            >
+              {d.title}
+            </a>
+            <div className="text-[11px] text-slate mt-0.5">
+              Envoyé le {format(d.createdAt, "d MMM yyyy", { locale: fr })}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Pill tone="neutral">{CATEGORY_LABELS[d.category] ?? d.category}</Pill>
+            {d.templateOrigin && <Pill tone="neutral">{d.templateOrigin}</Pill>}
+            {d.signatureStatus === "pending" && <Pill tone="warn">En attente de signature</Pill>}
+            {d.signatureStatus === "signed" && d.signedAt && (
+              <Pill tone="good">Signé le {format(d.signedAt, "d MMM yyyy", { locale: fr })}</Pill>
+            )}
+          </div>
         </div>
       ))}
       {documents.length === 0 && <div className="text-[12.5px] text-slate py-2">Aucun document.</div>}

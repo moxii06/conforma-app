@@ -7,6 +7,7 @@ const schema = z.object({
   subject: z.string().min(1),
   description: z.string().min(1),
   dossierId: z.string().optional(),
+  category: z.enum(["complaint", "question", "other"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
       dossierId,
       subject: parsed.data.subject,
       description: parsed.data.description,
+      category: parsed.data.category ?? "other",
       submittedByName: session.name || session.email,
     },
   });

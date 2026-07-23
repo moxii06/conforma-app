@@ -132,6 +132,10 @@ model Complaint {
   subject         String
   description     String
   submittedByName String
+  // Which intent the unified support dialog's picker was set to — "complaint"
+  // | "question" | "other" — purely for staff triage, same underlying model
+  // and workflow either way.
+  category        String    @default("other")
   status          String    @default("open") // open | investigating | resolved
   resolutionNotes String?
   resolvedAt      DateTime?
@@ -286,7 +290,22 @@ model User {
   status         String       @default("active") // active | invited | disabled
   passwordHash   String? // null while status = "invited" — set once the member activates their account
   activationToken String?     @unique // set alongside status="invited"; consumed by /activation/[token]
+  // "Mot de passe oublié" — set by /api/public/forgot-password, consumed by
+  // /reinitialiser-mot-de-passe/[token]. Unlike activationToken this always
+  // carries an expiry: an activation link is issued once by staff to a
+  // known invitee, but a reset link is self-service and publicly requestable
+  // by anyone typing an email address, so a stale unconsumed link staying
+  // valid forever is a real risk, not just a tidiness concern.
+  passwordResetToken          String?   @unique
+  passwordResetTokenExpiresAt DateTime?
   createdAt      DateTime     @default(now())
+  // Sanitized HTML, set by the user themselves on /profil — auto-appended
+  // to composed messages (client feedback: "la même signature qu'un mail
+  // classique envoyé depuis sa boîte normale"). No auto-import from a
+  // connected Gmail/IMAP mailbox: IMAP has no protocol-level concept of a
+  // signature, and Gmail's lives behind a broader OAuth scope than this
+  // app currently requests — this is the practical always-works version.
+  emailSignature String?
 
   trainerSessions Session[]      @relation("SessionTrainer")
   learnerDossiers Dossier[]      @relation("DossierLearnerUser")
@@ -697,6 +716,20 @@ model Document {
   // (src/app/(app)/documents/page.tsx). Defaults to "other" so existing
   // rows and manual adds without a picked category still file predictably.
   category       String       @default("other")
+  // Who sent it — nullable since older rows (uploads via
+  // AddDossierDocumentForm, LMS certificates, /api/documents/generate) predate
+  // this; also who a completed signature's staff notification email goes to.
+  sentByUserId   String?
+  sentByName     String?
+  // "none" | "pending" | "signed" — set at send time (SendDocumentDialog's
+  // "Demander une signature électronique" checkbox), flipped to "signed" by
+  // the learner's mon-espace sign action. Deliberately NOT wired to a real
+  // e-signature provider yet (Yousign client exists in lib/yousign.ts,
+  // integration explicitly deferred by the client) — this is the status/UI
+  // half of the workflow, ready to swap the stub sign action for a real
+  // Yousign signature-request flow later without changing the data model.
+  signatureStatus String      @default("none")
+  signedAt       DateTime?
   createdAt      DateTime     @default(now())
 
   invitationLinks SessionInvitationDocument[]
@@ -814,6 +847,11 @@ model RightsRequest {
   // actually working it.
   assignedToUserId String?
   assignedToName   String?
+  // Set when a learner files this themselves via the unified support dialog
+  // (mon-espace's "Aide & demandes") instead of staff creating it manually
+  // from a dossier — null for the latter case.
+  submittedByUserId String?
+  details           String?
 
   @@index([organizationId])
 }

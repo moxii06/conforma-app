@@ -4,23 +4,51 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { plainTextToHtml } from "@/lib/plainTextToHtml";
 
 type Template = { id: string; title: string; category: string };
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, "").trim();
+}
+
+function defaultMessage(contactFirstName: string, signatureHtml: string): string {
+  return `<p>Bonjour ${contactFirstName},</p><p>Veuillez trouver ci-joint le document.</p><p><br></p>${signatureHtml}`;
+}
 
 // Client feedback: a single button that opens a dialog pre-filled with the
 // client's info, lets staff edit the text or pick a template from the
 // library (or upload a file from their own computer instead), then sends
 // it — used both from the dossier's Documents tab and its Communications
-// panel (same underlying /api/dossiers/[id]/documents/send).
-export function SendDocumentDialog({ dossierId, templates }: { dossierId: string; templates: Template[] }) {
+// panel (same underlying /api/dossiers/[id]/documents/send). Both the
+// document body (mode=template) and the accompanying email message are
+// rich text (bold/italic/highlight/font) via RichTextEditor — the message
+// is pre-filled with a greeting and the sender's own signature (set on
+// /profil), matching "avec la signature" from the client's spec.
+export function SendDocumentDialog({
+  dossierId,
+  templates,
+  contactFirstName,
+  signatureHtml,
+}: {
+  dossierId: string;
+  templates: Template[];
+  contactFirstName: string;
+  signatureHtml: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"template" | "upload">("template");
   const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
-  const [bodyText, setBodyText] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
+  const [bodyResetKey, setBodyResetKey] = useState(0);
+  const [message, setMessage] = useState(() => defaultMessage(contactFirstName, signatureHtml));
+  const [messageResetKey, setMessageResetKey] = useState(0);
   const [category, setCategory] = useState<string>("other");
   const [file, setFile] = useState<File | null>(null);
+  const [requiresSignature, setRequiresSignature] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ emailSent: boolean; documentUrl: string } | null>(null);
@@ -31,7 +59,8 @@ export function SendDocumentDialog({ dossierId, templates }: { dossierId: string
     setError(null);
     if (!id) {
       setTitle("");
-      setBodyText("");
+      setBodyHtml("");
+      setBodyResetKey((k) => k + 1);
       return;
     }
     setLoadingPreview(true);
@@ -43,7 +72,8 @@ export function SendDocumentDialog({ dossierId, templates }: { dossierId: string
     }
     const data = await res.json();
     setTitle(data.title);
-    setBodyText(data.bodyText);
+    setBodyHtml(plainTextToHtml(data.bodyText));
+    setBodyResetKey((k) => k + 1);
     setCategory(data.category);
   }
 
@@ -51,9 +81,13 @@ export function SendDocumentDialog({ dossierId, templates }: { dossierId: string
     setMode("template");
     setTemplateId("");
     setTitle("");
-    setBodyText("");
+    setBodyHtml("");
+    setBodyResetKey((k) => k + 1);
+    setMessage(defaultMessage(contactFirstName, signatureHtml));
+    setMessageResetKey((k) => k + 1);
     setCategory("other");
     setFile(null);
+    setRequiresSignature(false);
     setResult(null);
     setError(null);
   }
@@ -68,9 +102,11 @@ export function SendDocumentDialog({ dossierId, templates }: { dossierId: string
     formData.set("mode", mode);
     formData.set("title", title);
     formData.set("category", category);
+    formData.set("message", message);
+    formData.set("requiresSignature", String(requiresSignature));
     if (mode === "template") {
       formData.set("templateId", templateId);
-      formData.set("bodyText", bodyText);
+      formData.set("bodyText", bodyHtml);
     } else {
       if (file) formData.set("file", file);
     }
@@ -118,7 +154,7 @@ export function SendDocumentDialog({ dossierId, templates }: { dossierId: string
         {result ? (
           <div className="flex flex-col gap-2">
             <div className="text-[12.5px] text-sage">
-              {result.emailSent ? "Document envoyé par email." : "Document créé — email non envoyé, lien à transmettre :"}
+              {result.emailSent ? "Document envoyé par email, en pièce jointe." : "Document créé — email non envoyé, lien à transmettre :"}
             </div>
             <a href={result.documentUrl} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline break-all">
               {result.documentUrl}
@@ -178,13 +214,15 @@ export function SendDocumentDialog({ dossierId, templates }: { dossierId: string
             />
 
             {mode === "template" ? (
-              <textarea
-                value={bodyText}
-                onChange={(e) => setBodyText(e.target.value)}
-                placeholder={loadingPreview ? "Chargement…" : "Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."}
-                rows={8}
-                className="border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink outline-none focus:border-seal resize-y font-mono"
-              />
+              <div className="flex flex-col gap-1">
+                <div className="text-[11px] text-slate uppercase tracking-wide">Contenu du document (PDF envoyé en pièce jointe)</div>
+                <RichTextEditor
+                  html={bodyHtml}
+                  onChange={setBodyHtml}
+                  resetKey={bodyResetKey}
+                  placeholder={loadingPreview ? "Chargement…" : "Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."}
+                />
+              </div>
             ) : (
               <div className="flex flex-col gap-2">
                 <select
@@ -207,10 +245,25 @@ export function SendDocumentDialog({ dossierId, templates }: { dossierId: string
               </div>
             )}
 
+            <div className="flex flex-col gap-1">
+              <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
+              <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" />
+            </div>
+
+            <label className="flex items-center gap-2 text-[12px] text-ink">
+              <input
+                type="checkbox"
+                checked={requiresSignature}
+                onChange={(e) => setRequiresSignature(e.target.checked)}
+                className="accent-sage"
+              />
+              Demander une signature électronique pour ce document
+            </label>
+
             <div className="flex items-center gap-2.5">
               <button
                 type="submit"
-                disabled={sending || !title.trim() || (mode === "template" && !bodyText.trim()) || (mode === "upload" && !file)}
+                disabled={sending || !title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
                 className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
               >
                 {sending ? "Envoi…" : "Envoyer au client"}

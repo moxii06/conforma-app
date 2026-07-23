@@ -48,6 +48,8 @@ export default async function CrmPage({
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "crm") === "none") redirect("/dashboard");
   const canWrite = can(role, "crm") !== "none";
+  const sender = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } });
+  const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
   // Spec §2: "Sales / commercial: CRM and pipeline only, limited to their
   // own prospects" — every other role with crm access sees the whole org's
   // pipeline.
@@ -154,7 +156,13 @@ export default async function CrmPage({
                         {canWrite && (
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3 flex-wrap">
-                              <SendProspectDocumentDialog opportunityId={o.id} alreadySentNeedsAssessment={Boolean(lastRequest)} templates={templates} />
+                              <SendProspectDocumentDialog
+                                opportunityId={o.id}
+                                alreadySentNeedsAssessment={Boolean(lastRequest)}
+                                templates={templates}
+                                contactFirstName={o.contact.firstName}
+                                signatureHtml={signatureHtml}
+                              />
                               <DeleteOpportunityButton opportunityId={o.id} />
                             </div>
                           </td>
@@ -193,6 +201,8 @@ export default async function CrmPage({
                               opportunityId={o.id}
                               alreadySentNeedsAssessment={Boolean(lastRequest)}
                               templates={templates}
+                              contactFirstName={o.contact.firstName}
+                              signatureHtml={signatureHtml}
                             />
                             {lastRequest && (
                               <div className="text-[10.5px] text-slate">

@@ -4,15 +4,22 @@ import { requireSessionContext, can, canAccessSecureReports } from "@/lib/tenant
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ComplaintForm } from "@/components/ComplaintForm";
 import { ComplaintStatusForm } from "@/components/ComplaintStatusForm";
-import { SecureReportForm } from "@/components/SecureReportForm";
 import { SecureReportStatusForm } from "@/components/SecureReportStatusForm";
+import { SupportRequestDialog } from "@/components/SupportRequestDialog";
 
 const COMPLAINT_STATUS_LABELS: Record<string, string> = { open: "Ouverte", investigating: "En cours d'examen", resolved: "Résolue" };
 const COMPLAINT_STATUS_TONE: Record<string, "danger" | "warn" | "good"> = { open: "danger", investigating: "warn", resolved: "good" };
 const REPORT_STATUS_LABELS: Record<string, string> = { received: "Reçu", under_review: "En cours d'examen", escalated: "Escaladé", closed: "Clos" };
 const REPORT_STATUS_TONE: Record<string, "danger" | "warn" | "good" | "neutral"> = { received: "danger", under_review: "warn", escalated: "danger", closed: "neutral" };
+const RIGHTS_STATUS_LABELS: Record<string, string> = { open: "Ouverte", in_progress: "En cours", closed: "Traitée" };
+const RIGHTS_STATUS_TONE: Record<string, "danger" | "warn" | "good"> = { open: "danger", in_progress: "warn", closed: "good" };
+const RIGHTS_TYPE_LABELS: Record<string, string> = {
+  access: "Accès à mes données",
+  erasure: "Effacement de mes données",
+  portability: "Portabilité de mes données",
+  rectification: "Rectification de mes données",
+};
 
 // Access to an already-received report is logged every time an admin's
 // page load renders it — deduped to once per 5 minutes per (report, admin)
@@ -53,6 +60,14 @@ export default async function SupportPage() {
       : Promise.resolve([]),
   ]);
 
+  const myRightsRequests =
+    session.role === "LEARNER"
+      ? await prisma.rightsRequest.findMany({
+          where: { organizationId: session.organizationId, submittedByUserId: session.userId },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+
   let secureReports: Awaited<ReturnType<typeof prisma.secureReport.findMany>> = [];
   let accessLogByReport = new Map<string, { viewedByName: string; viewedAt: Date }[]>();
   if (canViewSecureReports) {
@@ -72,14 +87,38 @@ export default async function SupportPage() {
 
   return (
     <>
-      <PageHeader title="Réclamations & signalement" subtitle="Support des apprenants et canal de signalement confidentiel" />
+      <PageHeader title="Aide & demandes" subtitle="Réclamations, signalement confidentiel, questions et demandes RGPD" />
       <div className="p-8 flex flex-col gap-6 max-w-2xl">
         <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13.5px] font-semibold text-ink mb-3.5">Déposer une réclamation</div>
-          <ComplaintForm
+          <div className="text-[13.5px] font-semibold text-ink mb-1">Une question, un problème ?</div>
+          <div className="text-[11.5px] text-slate mb-3.5">
+            Réclamation, signalement confidentiel, question générale, ou demande sur vos données personnelles — un
+            seul endroit pour nous contacter, votre demande sera transmise à la bonne personne.
+          </div>
+          <SupportRequestDialog
             dossiers={myDossiers.map((d) => ({ id: d.id, label: d.session.course.title }))}
+            canRequestOwnRights={session.role === "LEARNER"}
           />
         </div>
+
+        {session.role === "LEARNER" && myRightsRequests.length > 0 && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink mb-3.5">Vos demandes sur vos données personnelles</div>
+            {myRightsRequests.map((r) => (
+              <div key={r.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[13px] text-ink font-medium">{RIGHTS_TYPE_LABELS[r.requestType] ?? r.requestType}</div>
+                  <Pill tone={RIGHTS_STATUS_TONE[r.status] ?? "warn"}>{RIGHTS_STATUS_LABELS[r.status] ?? r.status}</Pill>
+                </div>
+                <div className="text-[11.5px] text-slate">
+                  Envoyée le {format(r.createdAt, "d MMM yyyy", { locale: fr })} · réponse attendue avant le{" "}
+                  {format(r.deadline, "d MMM yyyy", { locale: fr })}
+                </div>
+                {r.details && <div className="text-[12.5px] text-ink">{r.details}</div>}
+              </div>
+            ))}
+          </div>
+        )}
 
         {canManageComplaints && (
           <div className="bg-white border border-line rounded-card p-5">
@@ -99,15 +138,6 @@ export default async function SupportPage() {
             {complaints.length === 0 && <div className="text-[12.5px] text-slate">Aucune réclamation.</div>}
           </div>
         )}
-
-        <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13.5px] font-semibold text-ink mb-1">Signalement confidentiel</div>
-          <div className="text-[11.5px] text-slate mb-3.5">
-            Harcèlement, discrimination ou tout fait grave. Seuls les administrateurs habilités ont accès aux
-            signalements, et chaque consultation est tracée.
-          </div>
-          <SecureReportForm />
-        </div>
 
         {canViewSecureReports && (
           <div className="bg-white border border-line rounded-card p-5">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 
 export function LoginForm() {
@@ -71,6 +72,10 @@ export function LoginForm() {
           >
             {loading ? "Connexion…" : "Se connecter"}
           </button>
+
+          <Link href="/mot-de-passe-oublie" className="text-center text-[12.5px] text-ink underline decoration-line hover:decoration-ink">
+            Mot de passe oublié ?
+          </Link>
         </form>
       </div>
     </div>

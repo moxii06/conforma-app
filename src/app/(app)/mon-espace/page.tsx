@@ -7,27 +7,81 @@ import { fr } from "date-fns/locale";
 import { CheckCircle2, Circle } from "lucide-react";
 import Link from "next/link";
 import { buildCourseProgress } from "@/lib/lms";
+import { CATEGORY_LABELS } from "@/lib/documentCategories";
+import { Tabs } from "@/components/Tabs";
+import { SignDocumentButton } from "@/components/SignDocumentButton";
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
+const LEARNER_TABS = [
+  { key: "parcours", label: "Parcours" },
+  { key: "documents", label: "Mes documents" },
+];
 
-export default async function MonEspacePage() {
+export default async function MonEspacePage({ searchParams }: { searchParams: { tab?: string } }) {
   const session = await requireSessionContext();
   if (can(session.role, "portal") === "none") redirect("/dashboard");
+  const isLearner = session.role === "LEARNER";
+  const activeTab = searchParams.tab === "documents" ? "documents" : "parcours";
 
   return (
     <>
       <PageHeader
         title="Mon espace"
-        subtitle={session.role === "LEARNER" ? "Vos dossiers et votre progression" : "Vos sessions à animer"}
+        subtitle={isLearner ? "Vos dossiers et votre progression" : "Vos sessions à animer"}
       />
+      {isLearner && <Tabs basePath="/mon-espace" tabs={LEARNER_TABS} active={activeTab} />}
       <div className="p-8 max-w-3xl">
-        {session.role === "LEARNER" ? (
-          <LearnerPortal userId={session.userId} organizationId={session.organizationId} />
+        {isLearner ? (
+          activeTab === "documents" ? (
+            <LearnerDocumentsTab userId={session.userId} organizationId={session.organizationId} />
+          ) : (
+            <LearnerPortal userId={session.userId} organizationId={session.organizationId} />
+          )
         ) : (
           <TrainerPortal userId={session.userId} organizationId={session.organizationId} />
         )}
       </div>
     </>
+  );
+}
+
+// Every document across every one of the learner's dossiers (contracts,
+// convocations, evaluations, and LMS certificates — CourseCertificateButton
+// creates those as regular Document rows too) in one flat, dated list —
+// client feedback: scattered inside each course card wasn't enough to
+// actually find "my certificate" once someone has more than one dossier.
+async function LearnerDocumentsTab({ userId, organizationId }: { userId: string; organizationId: string }) {
+  const documents = await prisma.document.findMany({
+    where: { organizationId, dossier: { learnerUserId: userId } },
+    include: { dossier: { include: { session: { include: { course: true } } } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return (
+    <div className="bg-white border border-line rounded-card">
+      {documents.map((doc) => (
+        <div key={doc.id} className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-[#EFEDE7]">
+          <a
+            href={doc.bodyText ? `/api/documents/generated/${doc.id}` : doc.fileUrl ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="flex-1 min-w-0"
+          >
+            <div className="text-[13px] text-ink font-medium truncate">{doc.title}</div>
+            {doc.dossier && <div className="text-[11.5px] text-slate truncate">{doc.dossier.session.course.title}</div>}
+            <div className="text-[11px] text-slate mt-0.5">{format(doc.createdAt, "d MMM yyyy", { locale: fr })}</div>
+          </a>
+          <Pill tone="neutral">{CATEGORY_LABELS[doc.category] ?? doc.category}</Pill>
+          {doc.signatureStatus === "pending" && <SignDocumentButton documentId={doc.id} title={doc.title} />}
+          {doc.signatureStatus === "signed" && doc.signedAt && (
+            <Pill tone="good">Signé le {format(doc.signedAt, "d MMM yyyy", { locale: fr })}</Pill>
+          )}
+        </div>
+      ))}
+      {documents.length === 0 && (
+        <div className="px-4 py-6 text-[12.5px] text-slate text-center">Aucun document pour le moment.</div>
+      )}
+    </div>
   );
 }
 
@@ -40,7 +94,6 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
           course: { include: { elearningModules: { include: { quiz: true }, orderBy: { order: "asc" } } } },
         },
       },
-      documents: true,
       elearningProgress: true,
       quizAttempts: true,
     },
@@ -84,23 +137,6 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
                 <span className="text-[12.5px] text-ink">{s.label}</span>
               </div>
             ))}
-
-            {d.documents.length > 0 && (
-              <>
-                <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mt-3.5 mb-1.5">Documents</div>
-                {d.documents.map((doc) => (
-                  <a
-                    key={doc.id}
-                    href={doc.bodyText ? `/api/documents/generated/${doc.id}` : doc.fileUrl ?? "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block text-[12.5px] text-ink underline decoration-line hover:decoration-ink py-1"
-                  >
-                    {doc.title}
-                  </a>
-                ))}
-              </>
-            )}
 
             {d.session.course.elearningModules.length > 0 && (() => {
               const progress = buildCourseProgress(d.session.course.elearningModules, d.elearningProgress, d.quizAttempts);

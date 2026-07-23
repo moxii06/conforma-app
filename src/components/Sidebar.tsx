@@ -41,7 +41,7 @@ const NAV = [
   { href: "/team", label: "Équipe & rôles", icon: UserCog, feature: "team" as const },
   { href: "/integrations", label: "Intégrations", icon: Plug, feature: "integrations" as const },
   { href: "/faq", label: "FAQ & guides", icon: HelpCircle, feature: "faq" as const },
-  { href: "/support", label: "Réclamations & signalement", icon: MessageCircleWarning, feature: "support" as const },
+  { href: "/support", label: "Aide & demandes", icon: MessageCircleWarning, feature: "support" as const },
 ];
 
 export async function Sidebar({ user }: { user: SessionContext }) {
@@ -85,10 +85,10 @@ export async function Sidebar({ user }: { user: SessionContext }) {
         })}
       </nav>
       <div className="p-2.5 border-t border-ink-soft shrink-0">
-        <div className="px-3 py-2">
+        <Link href="/profil" className="block px-3 py-2 rounded-md hover:bg-ink-soft">
           <div className="text-sm text-white font-medium truncate">{user.name || user.email}</div>
           <div className="text-xs text-white/60">{ROLE_LABELS[user.role]}</div>
-        </div>
+        </Link>
         <SignOutButton />
       </div>
     </div>

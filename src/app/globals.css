@@ -7,3 +7,13 @@ body {
   color: #1f2329;
   font-family: var(--font-sans), -apple-system, sans-serif;
 }
+
+/* RichTextEditor's contentEditable placeholder — Tailwind has no utility
+   for :empty:before, and the element must stay genuinely empty (no zero-
+   width placeholder text node) or execCommand's formatting commands pick
+   up the placeholder styling. */
+.rich-text-editable:empty:before {
+  content: attr(data-placeholder);
+  color: #9a9689;
+  pointer-events: none;
+}

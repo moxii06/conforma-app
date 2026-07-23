@@ -1,0 +1,13 @@
+-- AlterTable
+ALTER TABLE "Document" ADD COLUMN     "sentByName" TEXT,
+ADD COLUMN     "sentByUserId" TEXT,
+ADD COLUMN     "signatureStatus" TEXT NOT NULL DEFAULT 'none',
+ADD COLUMN     "signedAt" TIMESTAMP(3);
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "passwordResetToken" TEXT,
+ADD COLUMN     "passwordResetTokenExpiresAt" TIMESTAMP(3);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_passwordResetToken_key" ON "User"("passwordResetToken");
+
