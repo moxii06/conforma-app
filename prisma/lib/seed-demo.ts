@@ -9,8 +9,11 @@ const ORG_ID = "org_demo";
 
 // Committed to the repo (not the local scratchpad) so this file resolves
 // identically whether run via `tsx prisma/seed-demo.ts` locally or from
-// the packaged /api/admin/seed-demo route on Vercel.
-const DEMO_ASSETS_DIR = path.join(__dirname, "..", "demo-assets");
+// the packaged /api/admin/seed-demo route on Vercel. process.cwd() rather
+// than __dirname — Next's bundler flattens compiled module locations
+// (__dirname stops matching the source tree), but process.cwd() stays the
+// project root in both tsx and the Vercel serverless function.
+const DEMO_ASSETS_DIR = path.join(process.cwd(), "prisma", "demo-assets");
 
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 24 * 3600 * 1000);
