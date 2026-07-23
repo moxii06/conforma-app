@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { MetricCard, PageHeader, Pill } from "@/components/ui";
-import { requireSessionContext, can } from "@/lib/tenant";
+import { requireSessionContext, can, canAccessSecureReports } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
@@ -52,6 +52,15 @@ export default async function DashboardPage() {
 
   const tasks = await getDashboardTasks(organizationId, role, userId);
 
+  // Same visibility rules as /support — a complaint/report otherwise only
+  // surfaced there, easy to miss unless someone thinks to go check. Split
+  // into two widgets rather than folded into "À faire": different audiences
+  // (complaints: anyone with dossier access; signalements: ADMIN_OF only,
+  // deliberately narrower) and conflating them risked burying the
+  // confidential channel among routine relances.
+  const canManageComplaints = can(role, "dossiers") !== "none";
+  const canViewSecureReports = canAccessSecureReports(role);
+
   const [
     sessionsInProgress,
     openNonConformities,
@@ -60,6 +69,8 @@ export default async function DashboardPage() {
     overdueInvoiceTotal,
     upcomingSessions,
     elearningDossiers,
+    openComplaints,
+    openSecureReports,
   ] = await Promise.all([
     prisma.session.count({
       // ROLLING (bande passante) sessions have no real start/end — their
@@ -91,6 +102,12 @@ export default async function DashboardPage() {
         session: { select: { course: { select: { elearningModules: { select: { id: true, type: true, quiz: { select: { id: true } } } } } } } },
       },
     }),
+    canManageComplaints
+      ? prisma.complaint.findMany({ where: { organizationId, status: { not: "resolved" } }, orderBy: { createdAt: "desc" } })
+      : Promise.resolve([]),
+    canViewSecureReports
+      ? prisma.secureReport.findMany({ where: { organizationId, status: { not: "closed" } }, orderBy: { createdAt: "desc" } })
+      : Promise.resolve([]),
   ]);
 
   const stageCounts = new Map(opportunitiesByStage.map((g) => [g.stage, g._count]));
@@ -143,6 +160,9 @@ export default async function DashboardPage() {
         )}
 
         {tasks.length > 0 && <TasksWidget tasks={tasks} />}
+
+        {canManageComplaints && openComplaints.length > 0 && <ComplaintsWidget complaints={openComplaints} />}
+        {canViewSecureReports && openSecureReports.length > 0 && <SecureReportsWidget reports={openSecureReports} />}
 
         {canSeeMoney && (
           <div className="flex flex-col gap-2">
@@ -221,6 +241,79 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
       {tasks.length > 8 && (
         <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
           + {tasks.length - 8} autre{tasks.length - 8 > 1 ? "s" : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComplaintsWidget({
+  complaints,
+}: {
+  complaints: { id: string; subject: string; submittedByName: string; createdAt: Date; status: string }[];
+}) {
+  return (
+    <div className="bg-white border border-line rounded-card p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="text-[12.5px] text-slate">Réclamations en attente ({complaints.length})</div>
+      </div>
+      <div className="flex flex-col">
+        {complaints.slice(0, 5).map((c) => (
+          <Link
+            key={c.id}
+            href="/support"
+            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
+          >
+            <div className="min-w-0">
+              <span className="text-[12.5px] text-ink font-medium truncate">{c.subject}</span>
+              <span className="text-[12.5px] text-slate"> — {c.submittedByName}</span>
+            </div>
+            <span className="text-[11px] text-slate shrink-0">{format(c.createdAt, "d MMM", { locale: fr })}</span>
+          </Link>
+        ))}
+      </div>
+      {complaints.length > 5 && (
+        <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
+          + {complaints.length - 5} autre{complaints.length - 5 > 1 ? "s" : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ADMIN_OF-only (canAccessSecureReports) — kept as its own widget rather
+// than merged with ComplaintsWidget so the confidential-reporting channel
+// never ends up on a screen a broader audience (SALES/TRAINER, who can see
+// ComplaintsWidget) might glimpse.
+function SecureReportsWidget({
+  reports,
+}: {
+  reports: { id: string; description: string; reporterName: string | null; createdAt: Date; status: string }[];
+}) {
+  return (
+    <div className="bg-white border border-line rounded-card p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="text-[12.5px] text-slate">Signalements confidentiels ({reports.length})</div>
+        <Pill tone="danger">Accès restreint</Pill>
+      </div>
+      <div className="flex flex-col">
+        {reports.slice(0, 5).map((r) => (
+          <Link
+            key={r.id}
+            href="/support"
+            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
+          >
+            <div className="min-w-0">
+              <span className="text-[12.5px] text-ink font-medium truncate">{r.description.slice(0, 60)}{r.description.length > 60 ? "…" : ""}</span>
+              <span className="text-[12.5px] text-slate"> — {r.reporterName ?? "Anonyme"}</span>
+            </div>
+            <span className="text-[11px] text-slate shrink-0">{format(r.createdAt, "d MMM", { locale: fr })}</span>
+          </Link>
+        ))}
+      </div>
+      {reports.length > 5 && (
+        <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
+          + {reports.length - 5} autre{reports.length - 5 > 1 ? "s" : ""}
         </div>
       )}
     </div>
