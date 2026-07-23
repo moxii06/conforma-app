@@ -83,7 +83,7 @@ export default function MarketingPage() {
 
       {/* ---- Hero ---- */}
       <section className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#F7EFDB] border border-[#EBDCB4] rounded-full px-3 py-1 mb-6">
+        <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#F0E7D4] border border-[#D9C79E] rounded-full px-3 py-1 mb-6">
           Hébergement France · Qualiopi · RGPD
         </div>
         <h1 className="font-display text-[40px] sm:text-[52px] leading-[1.08] text-ink mb-5 text-balance">
@@ -120,7 +120,7 @@ export default function MarketingPage() {
             const Icon = f.icon;
             return (
               <div key={f.title} className="bg-white border border-line rounded-card p-5">
-                <div className="w-8 h-8 rounded-md bg-[#F1EFE8] flex items-center justify-center mb-3.5">
+                <div className="w-8 h-8 rounded-md bg-[#E6E3DA] flex items-center justify-center mb-3.5">
                   <Icon size={16} className="text-ink" />
                 </div>
                 <div className="text-[13.5px] font-semibold text-ink mb-1.5">{f.title}</div>
@@ -180,7 +180,7 @@ export default function MarketingPage() {
               <Link
                 href={`/essai?plan=${plan.slug}`}
                 className={`text-center text-[13.5px] font-medium rounded-md px-4 py-2.5 ${
-                  plan.featured ? "bg-seal text-ink hover:bg-[#DBAE55]" : "bg-ink text-white hover:bg-ink-soft"
+                  plan.featured ? "bg-seal text-ink hover:bg-[#A9884A]" : "bg-ink text-white hover:bg-ink-soft"
                 }`}
               >
                 Commencer l&apos;essai

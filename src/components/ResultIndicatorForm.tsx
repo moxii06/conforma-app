@@ -74,7 +74,7 @@ export function ResultIndicatorForm({ courses }: { courses: Course[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#FAF8F2] border border-line rounded-md p-3.5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#EFEDE7] border border-line rounded-md p-3.5">
       <input
         value={label}
         onChange={(e) => setLabel(e.target.value)}

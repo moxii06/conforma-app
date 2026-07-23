@@ -45,7 +45,7 @@ export function ReplaceModuleFileForm({ moduleId, type }: { moduleId: string; ty
 
   if (confirmMessage) {
     return (
-      <div className="flex flex-col gap-2 bg-[#FAF8F2] border border-line rounded-md p-3">
+      <div className="flex flex-col gap-2 bg-[#EFEDE7] border border-line rounded-md p-3">
         <div className="text-[12px] text-rust">{confirmMessage}</div>
         <div className="flex items-center gap-2.5">
           <button

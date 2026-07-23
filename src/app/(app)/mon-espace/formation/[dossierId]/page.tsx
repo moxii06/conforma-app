@@ -149,10 +149,10 @@ export default async function LearnerCourseDetailPage({ params }: { params: { do
                 <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Progression</div>
                 <div className="text-[11px] text-slate">{progress.completedCount}/{progress.total} modules terminés</div>
               </div>
-              <div className="h-1.5 bg-[#F1EFE8] rounded-full overflow-hidden mb-4">
+              <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden mb-4">
                 <div className="h-full bg-sage" style={{ width: `${progress.totalPercent}%` }} />
               </div>
-              <div className="bg-[#FAF8F2] border border-line rounded-md">
+              <div className="bg-[#EFEDE7] border border-line rounded-md">
                 <CourseModulesList rows={rows} defaultExpandedId={progress.currentModuleId} />
               </div>
               {progress.allCompleted && (

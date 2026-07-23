@@ -112,7 +112,7 @@ export function QuizBuilder({
   }
 
   return (
-    <div className="flex flex-col gap-3 bg-[#FAF8F2] border border-line rounded-md p-3.5">
+    <div className="flex flex-col gap-3 bg-[#EFEDE7] border border-line rounded-md p-3.5">
       <div className="flex items-center gap-2.5 flex-wrap">
         <label className="text-[11.5px] text-slate flex items-center gap-1.5">
           Score minimum

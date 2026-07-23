@@ -119,7 +119,7 @@ function InfoTab({
         <div className="text-[13.5px] font-semibold text-ink mb-3">Parcours de formation</div>
         {steps.map((s, i) => (
           <div key={i} className="flex items-center gap-2.5 py-2 border-t border-line first:border-t-0">
-            {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#C9C4B5]" />}
+            {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#B9B6AA]" />}
             <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
           </div>
         ))}

@@ -163,7 +163,7 @@ export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentCom
         />
 
         {confirmOpen && (
-          <div className="bg-[#FAF8F2] border border-line rounded-md p-3 flex flex-col gap-2">
+          <div className="bg-[#EFEDE7] border border-line rounded-md p-3 flex flex-col gap-2">
             <div className="text-[12.5px] text-ink">Êtes-vous sûr(e) d&apos;avoir vu la vidéo en entier ?</div>
             <div className="flex items-center gap-2.5">
               <button
@@ -180,7 +180,7 @@ export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentCom
         )}
 
         <div className="flex items-center gap-2">
-          <div className="h-1.5 flex-1 bg-[#F1EFE8] rounded-full overflow-hidden">
+          <div className="h-1.5 flex-1 bg-[#E6E3DA] rounded-full overflow-hidden">
             <div className="h-full bg-sage" style={{ width: `${percent}%` }} />
           </div>
           <span className="text-[11px] text-slate w-24 text-right">

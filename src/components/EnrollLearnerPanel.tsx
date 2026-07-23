@@ -63,7 +63,7 @@ export function EnrollLearnerPanel({ courseId }: { courseId: string }) {
 
   if (sessionOptions) {
     return (
-      <div className="bg-[#FAF8F2] border border-line rounded-md p-3 flex flex-col gap-2">
+      <div className="bg-[#EFEDE7] border border-line rounded-md p-3 flex flex-col gap-2">
         <div className="text-[12.5px] text-ink">Plusieurs sessions existent pour cette formation, choisissez-en une :</div>
         <div className="flex flex-col gap-1">
           {sessionOptions.map((s) => (
@@ -95,7 +95,7 @@ export function EnrollLearnerPanel({ courseId }: { courseId: string }) {
   }
 
   return (
-    <div className="bg-[#FAF8F2] border border-line rounded-md p-3 flex flex-col gap-2.5">
+    <div className="bg-[#EFEDE7] border border-line rounded-md p-3 flex flex-col gap-2.5">
       <label className="flex items-center gap-2 text-[11.5px] text-slate">
         Durée pour terminer (jours, si formation en continu)
         <input

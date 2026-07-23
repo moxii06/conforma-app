@@ -185,7 +185,7 @@ function LearnerCourseCard({
             <div className="text-[11px] text-slate uppercase tracking-wide font-semibold">Progression</div>
             <div className="text-[11px] text-slate">{progress!.completedCount}/{progress!.total} modules</div>
           </div>
-          <div className="h-1.5 bg-[#F1EFE8] rounded-full overflow-hidden mb-3.5">
+          <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden mb-3.5">
             <div className="h-full bg-sage" style={{ width: `${progress!.totalPercent}%` }} />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -279,7 +279,7 @@ function CourseCard({
                       <Link
                         key={d.id}
                         href={`/dossiers/${d.id}`}
-                        className="inline-block bg-[#FAF8F2] border border-line rounded-full px-2.5 py-1 text-[11.5px] text-ink hover:border-ink-soft"
+                        className="inline-block bg-[#EFEDE7] border border-line rounded-full px-2.5 py-1 text-[11.5px] text-ink hover:border-ink-soft"
                       >
                         {d.contactName}
                       </Link>

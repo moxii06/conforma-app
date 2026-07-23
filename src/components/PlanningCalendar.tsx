@@ -45,7 +45,7 @@ export function PlanningCalendar({ month, sessions }: { month: Date; sessions: S
 
       <div className="grid grid-cols-7 gap-px bg-line border border-line rounded-md overflow-hidden text-[11px]">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="bg-[#F1EFE8] text-slate font-semibold uppercase tracking-wide px-2 py-1.5 text-center">
+          <div key={d} className="bg-[#E6E3DA] text-slate font-semibold uppercase tracking-wide px-2 py-1.5 text-center">
             {d}
           </div>
         ))}
@@ -53,13 +53,13 @@ export function PlanningCalendar({ month, sessions }: { month: Date; sessions: S
           const inMonth = isSameMonth(day, monthStart);
           const daySessions = sessions.filter((s) => isSameDay(s.startsAt, day));
           return (
-            <div key={day.toISOString()} className={`bg-white min-h-[76px] p-1.5 flex flex-col gap-1 ${inMonth ? "" : "bg-[#FBFAF7]"}`}>
-              <div className={`text-[10.5px] ${inMonth ? "text-ink" : "text-[#C9C4B5]"}`}>{format(day, "d")}</div>
+            <div key={day.toISOString()} className={`bg-white min-h-[76px] p-1.5 flex flex-col gap-1 ${inMonth ? "" : "bg-[#EEECE6]"}`}>
+              <div className={`text-[10.5px] ${inMonth ? "text-ink" : "text-[#B9B6AA]"}`}>{format(day, "d")}</div>
               {daySessions.slice(0, 3).map((s) => (
                 <Link
                   key={s.id}
                   href={`/planning/${s.id}`}
-                  className="bg-[#EFE9DA] text-ink rounded px-1 py-0.5 truncate hover:bg-seal hover:text-white"
+                  className="bg-[#E8E4D8] text-ink rounded px-1 py-0.5 truncate hover:bg-seal hover:text-white"
                   title={s.courseTitle}
                 >
                   {format(s.startsAt, "HH:mm")} {s.courseTitle}

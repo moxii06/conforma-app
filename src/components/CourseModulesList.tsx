@@ -38,14 +38,14 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
               type="button"
               onClick={() => !isLocked && setExpandedId(isExpanded ? null : r.id)}
               disabled={isLocked}
-              className={`w-full flex items-center gap-2.5 py-2.5 text-left ${isLocked ? "cursor-not-allowed opacity-50" : "hover:bg-[#FAF8F2]"}`}
+              className={`w-full flex items-center gap-2.5 py-2.5 text-left ${isLocked ? "cursor-not-allowed opacity-50" : "hover:bg-[#EFEDE7]"}`}
             >
               {r.state === "completed" ? (
                 <CheckCircle2 size={15} className="text-sage shrink-0" />
               ) : isLocked ? (
                 <Lock size={13} className="text-slate shrink-0" />
               ) : (
-                <Circle size={14} className={r.state === "in_progress" ? "text-seal-dark shrink-0" : "text-[#C9C4B5] shrink-0"} />
+                <Circle size={14} className={r.state === "in_progress" ? "text-seal-dark shrink-0" : "text-[#B9B6AA] shrink-0"} />
               )}
               <Icon size={14} className="text-slate shrink-0" />
               <span className="flex-1 text-[12.5px] text-ink font-medium">{i + 1}. {r.title}</span>

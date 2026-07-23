@@ -41,7 +41,7 @@ export function AccommodationForm({ dossierId }: { dossierId: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 bg-[#FAF8F2] border border-line rounded-md p-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 bg-[#EFEDE7] border border-line rounded-md p-3">
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}

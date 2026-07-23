@@ -79,7 +79,7 @@ export default async function InboxPage({ searchParams }: { searchParams: { mail
               </div>
               <a
                 href="/integrations"
-                className="text-[12px] text-ink border border-line rounded-md px-3 py-1.5 hover:bg-[#F1EFE8] shrink-0 ml-3"
+                className="text-[12px] text-ink border border-line rounded-md px-3 py-1.5 hover:bg-[#E6E3DA] shrink-0 ml-3"
               >
                 Aller aux Intégrations
               </a>

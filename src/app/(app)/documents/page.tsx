@@ -69,7 +69,7 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
         tout usage réel (voir le texte d&apos;avertissement inclus dans chaque modèle). Insérez des champs de
         fusion dans le texte d&apos;un modèle pour qu&apos;ils soient remplacés automatiquement à la génération :{" "}
         {AVAILABLE_MERGE_FIELDS.map((f) => (
-          <code key={f} className="bg-[#F1EFE8] rounded px-1 py-0.5 mr-1 text-[10.5px]">{`{{${f}}}`}</code>
+          <code key={f} className="bg-[#E6E3DA] rounded px-1 py-0.5 mr-1 text-[10.5px]">{`{{${f}}}`}</code>
         ))}
       </div>
 
@@ -212,7 +212,7 @@ async function MyDocumentsTab({
             href={doc.bodyText ? `/api/documents/generated/${doc.id}` : doc.fileUrl ?? "#"}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-[#FAF8F2]"
+            className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-[#EFEDE7]"
           >
             <Pill tone="neutral">{CATEGORY_LABELS[doc.category] ?? doc.category}</Pill>
             <div className="flex-1 min-w-0">

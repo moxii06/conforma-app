@@ -80,7 +80,7 @@ export function QualityRiskForm({ courses, prefill }: { courses: Course[]; prefi
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#FAF8F2] border border-line rounded-md p-3.5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#EFEDE7] border border-line rounded-md p-3.5">
       <input
         value={risk}
         onChange={(e) => setRisk(e.target.value)}

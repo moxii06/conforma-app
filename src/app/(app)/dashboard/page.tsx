@@ -149,11 +149,11 @@ export default async function DashboardPage() {
         <div className="flex gap-3.5">
           <div className="bg-white border border-line rounded-card p-4 flex-1">
             <div className="text-[12.5px] text-slate mb-3">Pipeline commercial par étape</div>
-            <BarChart data={pipelineData} color="#C99A3E" />
+            <BarChart data={pipelineData} color="#8C6B2E" />
           </div>
           <div className="bg-white border border-line rounded-card p-4 flex-1">
             <div className="text-[12.5px] text-slate mb-3">Sessions programmées (6 prochaines semaines)</div>
-            <BarChart data={weekBuckets.map((w) => ({ label: w.label, value: w.value }))} color="#5E7D5B" />
+            <BarChart data={weekBuckets.map((w) => ({ label: w.label, value: w.value }))} color="#4B6358" />
           </div>
         </div>
 
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
           <div className="text-[12.5px] text-slate mb-3">
             Avancement du parcours apprenant ({totalDossiers} dossier{totalDossiers > 1 ? "s" : ""} au total)
           </div>
-          <BarChart data={journeyData} color="#1C2B45" />
+          <BarChart data={journeyData} color="#1B2430" />
         </div>
       </div>
     </>
@@ -181,7 +181,7 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
           <Link
             key={`${t.kind}-${t.id}`}
             href={t.href}
-            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#FAF8F2] -mx-1 px-1 rounded"
+            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
           >
             <div>
               <span className="text-[12.5px] text-ink font-medium">{t.contactName}</span>
@@ -212,11 +212,11 @@ const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team", growth
 function TrialBanner({ plan, trialEndsAt }: { plan: string; trialEndsAt: Date }) {
   const daysLeft = Math.max(0, differenceInCalendarDays(trialEndsAt, new Date()));
   return (
-    <div className="bg-[#F7EFDB] border border-[#EBDCB4] rounded-card px-4 py-3 flex items-center justify-between gap-3">
+    <div className="bg-[#F0E7D4] border border-[#D9C79E] rounded-card px-4 py-3 flex items-center justify-between gap-3">
       <div className="text-[12.5px] text-seal-dark">
         Essai <strong>{PLAN_LABELS[plan] ?? plan}</strong> — {daysLeft > 0 ? `${daysLeft} jour${daysLeft > 1 ? "s" : ""} restant${daysLeft > 1 ? "s" : ""}` : "se termine aujourd'hui"}, sans carte bancaire.
       </div>
-      <Link href="/integrations" className="text-[12px] font-medium text-seal-dark underline decoration-[#EBDCB4] hover:decoration-seal-dark shrink-0">
+      <Link href="/integrations" className="text-[12px] font-medium text-seal-dark underline decoration-[#D9C79E] hover:decoration-seal-dark shrink-0">
         Gérer la facturation
       </Link>
     </div>

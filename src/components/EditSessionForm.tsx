@@ -81,7 +81,7 @@ export function EditSessionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#FAF8F2] border border-line rounded-md p-3.5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#EFEDE7] border border-line rounded-md p-3.5">
       <div className="flex gap-2">
         <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">
           <option value="">Formateur à assigner</option>

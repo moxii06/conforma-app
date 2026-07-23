@@ -23,7 +23,7 @@ export function ResultIndicatorPublishToggle({ indicatorId, published }: { indic
       onClick={toggle}
       disabled={saving}
       className={`text-[11px] font-semibold px-2.5 py-1 rounded-full disabled:opacity-60 ${
-        published ? "bg-[#E5EBE1] text-sage" : "bg-[#F1EFE8] text-slate"
+        published ? "bg-[#DEE5E0] text-sage" : "bg-[#E6E3DA] text-slate"
       }`}
     >
       {saving ? "…" : published ? "Publié" : "Non publié"}

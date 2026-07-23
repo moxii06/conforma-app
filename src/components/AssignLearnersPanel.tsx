@@ -78,7 +78,7 @@ export function AssignLearnersPanel({ moduleId, eligibleDossiers }: { moduleId: 
   }
 
   return (
-    <div className="flex flex-col gap-2 bg-[#FAF8F2] border border-line rounded-md p-3">
+    <div className="flex flex-col gap-2 bg-[#EFEDE7] border border-line rounded-md p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Apprenants sans accès</div>
         {eligibleDossiers.length > 6 && (

@@ -51,7 +51,7 @@ export function RecordPaymentForm({
   return (
     <div className="flex flex-col gap-1.5 mt-1.5">
       <div className="flex items-center gap-2.5">
-        <div className="h-1.5 flex-1 max-w-[160px] bg-[#F1EFE8] rounded-full overflow-hidden">
+        <div className="h-1.5 flex-1 max-w-[160px] bg-[#E6E3DA] rounded-full overflow-hidden">
           <div className="h-full bg-sage" style={{ width: `${pct}%` }} />
         </div>
         <span className="text-[11.5px] text-slate">

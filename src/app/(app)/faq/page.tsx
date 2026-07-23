@@ -182,7 +182,7 @@ export default async function FaqPage() {
           return (
             <div key={section.key} className="bg-white border border-line rounded-card p-5">
               <div className="flex items-center gap-2.5 mb-3.5">
-                <div className="w-7 h-7 rounded-md bg-[#F1EFE8] flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-md bg-[#E6E3DA] flex items-center justify-center shrink-0">
                   <Icon size={15} className="text-ink" />
                 </div>
                 <div className="text-[13.5px] font-semibold text-ink">{section.label}</div>

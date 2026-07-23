@@ -80,7 +80,7 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
             <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-1.5">Parcours</div>
             {steps.map((s, i) => (
               <div key={i} className="flex items-center gap-2 py-1.5">
-                {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-[#C9C4B5]" />}
+                {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-[#B9B6AA]" />}
                 <span className="text-[12.5px] text-ink">{s.label}</span>
               </div>
             ))}
@@ -112,7 +112,7 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
                     <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">E-learning</div>
                     <div className="text-[11px] text-slate">{progress.completedCount}/{progress.total} modules terminés</div>
                   </div>
-                  <div className="h-1.5 bg-[#F1EFE8] rounded-full overflow-hidden mb-2.5">
+                  <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden mb-2.5">
                     <div className="h-full bg-sage" style={{ width: `${progress.totalPercent}%` }} />
                   </div>
                   <Link

@@ -33,12 +33,12 @@ export function Pagination({
         {page > 1 ? (
           <Link href={hrefFor(page - 1)} className="text-ink underline decoration-line hover:decoration-ink">Précédent</Link>
         ) : (
-          <span className="text-[#C9C4B5]">Précédent</span>
+          <span className="text-[#B9B6AA]">Précédent</span>
         )}
         {page < totalPages ? (
           <Link href={hrefFor(page + 1)} className="text-ink underline decoration-line hover:decoration-ink">Suivant</Link>
         ) : (
-          <span className="text-[#C9C4B5]">Suivant</span>
+          <span className="text-[#B9B6AA]">Suivant</span>
         )}
       </div>
     </div>

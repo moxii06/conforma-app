@@ -18,17 +18,17 @@ export function MetricCard({
   return (
     <div className="bg-white border border-line rounded-card p-4 flex-1">
       <div className="text-[12.5px] text-slate mb-2">{label}</div>
-      <div className={`text-2xl font-display ${METRIC_VALUE_TONES[tone]}`}>{value}</div>
+      <div className={`text-2xl font-mono font-semibold tabular-nums ${METRIC_VALUE_TONES[tone]}`}>{value}</div>
       {hint && <div className="text-xs text-slate mt-1.5">{hint}</div>}
     </div>
   );
 }
 
 const PILL_STYLES: Record<string, string> = {
-  neutral: "bg-[#F1EFE8] text-slate",
-  warn: "bg-[#F7E3DA] text-seal-dark",
-  danger: "bg-[#F5DFD8] text-rust",
-  good: "bg-[#E5EBE1] text-sage",
+  neutral: "bg-[#E6E3DA] text-slate",
+  warn: "bg-[#EDDFC6] text-seal-dark",
+  danger: "bg-[#E9D8D3] text-rust",
+  good: "bg-[#DEE5E0] text-sage",
 };
 
 export function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: keyof typeof PILL_STYLES }) {

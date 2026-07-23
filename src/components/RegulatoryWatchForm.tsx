@@ -72,7 +72,7 @@ export function RegulatoryWatchForm({ courses }: { courses: Course[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#FAF8F2] border border-line rounded-md p-3.5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#EFEDE7] border border-line rounded-md p-3.5">
       <select value={watchType} onChange={(e) => setWatchType(e.target.value)} className="bg-white border border-line rounded-md px-2 py-1.5 text-[12px] text-ink">
         {Object.entries(TYPE_LABELS).map(([v, l]) => (
           <option key={v} value={v}>{l}</option>

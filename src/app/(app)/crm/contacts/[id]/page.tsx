@@ -159,7 +159,7 @@ export default async function ContactRecordPage({
                   <Link
                     key={d.id}
                     href={`/dossiers/${d.id}`}
-                    className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#FAF8F2] -mx-1 px-1 rounded"
+                    className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
                   >
                     <div className="text-[12.5px] text-ink">{d.session.course.title}</div>
                     <span className="text-[11.5px] text-slate underline decoration-line">Voir le dossier</span>

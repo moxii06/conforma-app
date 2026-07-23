@@ -12,7 +12,7 @@ const PAD_TOP = 20;
 
 export function BarChart({
   data,
-  color = "#5E7D5B", // sage
+  color = "#4B6358", // sage
   formatValue = (v: number) => String(v),
 }: {
   data: { label: string; value: number }[];
@@ -26,7 +26,7 @@ export function BarChart({
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Graphique en barres">
-      <line x1={0} y1={H - PAD_BOTTOM} x2={W} y2={H - PAD_BOTTOM} stroke="#E7E2D6" strokeWidth={1} />
+      <line x1={0} y1={H - PAD_BOTTOM} x2={W} y2={H - PAD_BOTTOM} stroke="#E2DFD6" strokeWidth={1} />
       {data.map((d, i) => {
         const barHeight = max > 0 ? (d.value / max) * plotHeight : 0;
         const x = i * slot;
@@ -39,10 +39,18 @@ export function BarChart({
               {d.label}: {formatValue(d.value)}
             </title>
             <rect x={barX} y={barY} width={barWidth} height={Math.max(barHeight, 1.5)} rx={3} fill={color} />
-            <text x={x + slot / 2} y={barY - 5} textAnchor="middle" fontSize={11} fill="#1C2B45" fontWeight={600}>
+            <text
+              x={x + slot / 2}
+              y={barY - 5}
+              textAnchor="middle"
+              fontSize={11}
+              fill="#1B2430"
+              fontWeight={600}
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
               {formatValue(d.value)}
             </text>
-            <text x={x + slot / 2} y={H - PAD_BOTTOM + 14} textAnchor="middle" fontSize={9.5} fill="#6B6F76">
+            <text x={x + slot / 2} y={H - PAD_BOTTOM + 14} textAnchor="middle" fontSize={9.5} fill="#6A6D74">
               {d.label}
             </text>
           </g>

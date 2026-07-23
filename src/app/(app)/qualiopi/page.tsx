@@ -142,7 +142,7 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
                   {c.covered}/{c.total}
                 </div>
               </div>
-              <div className="h-1.5 bg-[#F1EFE8] rounded-full overflow-hidden">
+              <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden">
                 <div className="h-full bg-sage" style={{ width: `${pct}%` }} />
               </div>
             </div>
