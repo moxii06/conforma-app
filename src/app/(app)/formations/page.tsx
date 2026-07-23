@@ -18,6 +18,8 @@ import { Tabs } from "@/components/Tabs";
 import { SearchInput } from "@/components/SearchInput";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { buildCourseProgress } from "@/lib/lms";
+import { CourseCertificateButton } from "@/components/CourseCertificateButton";
 
 const TYPE_LABELS: Record<string, string> = { video: "Vidéo", document: "Document", quiz: "Quiz" };
 
@@ -43,8 +45,14 @@ const courseInclude = {
 type CourseWithRelations = Awaited<ReturnType<typeof prisma.course.findMany<{ where: { organizationId: string }; include: typeof courseInclude }>>>[number];
 
 export default async function FormationsPage({ searchParams }: { searchParams: { tab?: string; q?: string } }) {
-  const { organizationId, role } = await requireSessionContext();
+  const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none") redirect("/dashboard");
+  // A learner gets a completely different page here, not just a read-only
+  // version of the staff one — the staff view lists every course org-wide
+  // with every enrolled learner's name (needed for staff to manage
+  // rosters), which is exactly what a learner must never see about their
+  // classmates. Scoped to their own dossiers only, see LearnerCatalog below.
+  if (role === "LEARNER") return <LearnerCatalog userId={userId} organizationId={organizationId} />;
   const canManage = can(role, "planning") === "full";
   const activeTab = searchParams.tab === "archivees" ? "archivees" : "catalogue";
   const q = searchParams.q?.trim();
@@ -94,6 +102,106 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
         )}
       </div>
     </>
+  );
+}
+
+function formatLearnerCourseDuration(session: { mode: string; startsAt: Date; endsAt: Date }, accessDurationDays: number | null) {
+  if (session.mode === "ROLLING") {
+    return accessDurationDays ? `En continu · ${accessDurationDays} j pour terminer` : "En continu · sans délai imposé";
+  }
+  const hours = (session.endsAt.getTime() - session.startsAt.getTime()) / 3_600_000;
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  return m > 0 ? `${h} h ${m} min` : `${h} h`;
+}
+
+async function LearnerCatalog({ userId, organizationId }: { userId: string; organizationId: string }) {
+  const dossiers = await prisma.dossier.findMany({
+    where: { organizationId, learnerUserId: userId },
+    include: {
+      session: {
+        include: {
+          trainer: true,
+          course: { include: { elearningModules: { include: { quiz: true }, orderBy: { order: "asc" } } } },
+        },
+      },
+      elearningProgress: true,
+      quizAttempts: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return (
+    <>
+      <PageHeader title="Mes formations" subtitle="Vos formations, votre progression" />
+      <div className="p-8 flex flex-col gap-3 max-w-2xl">
+        {dossiers.map((d) => (
+          <LearnerCourseCard key={d.id} dossier={d} />
+        ))}
+        {dossiers.length === 0 && <div className="text-[12.5px] text-slate">Aucune formation ne vous est encore associée.</div>}
+      </div>
+    </>
+  );
+}
+
+function LearnerCourseCard({
+  dossier,
+}: {
+  dossier: {
+    id: string;
+    accessDurationDays: number | null;
+    firstAccessedAt: Date | null;
+    session: {
+      mode: string;
+      startsAt: Date;
+      endsAt: Date;
+      trainer: { name: string } | null;
+      course: { title: string; elearningModules: { id: string; type: string; quiz: { id: string } | null }[] };
+    };
+    elearningProgress: { moduleId: string; percentComplete: number }[];
+    quizAttempts: { quizId: string; passed: boolean }[];
+  };
+}) {
+  const modules = dossier.session.course.elearningModules;
+  const hasContent = modules.length > 0;
+  const progress = hasContent ? buildCourseProgress(modules, dossier.elearningProgress, dossier.quizAttempts) : null;
+  // "Commencer" vs "Continuer" tracks real engagement (firstAccessedAt,
+  // set the moment any module is actually opened — see markDossierAccessed
+  // in lib/lms.ts), not full-module completion: a learner 60% through the
+  // first video has clearly "started," even though completedCount is
+  // still 0.
+  const ctaLabel = !progress || !dossier.firstAccessedAt ? "Commencer ma formation" : progress.allCompleted ? "Revoir ma formation" : "Continuer ma formation";
+
+  return (
+    <div className="bg-white border border-line rounded-card p-4">
+      <div className="text-[13.5px] font-semibold text-ink mb-0.5">{dossier.session.course.title}</div>
+      <div className="text-[12px] text-slate mb-3">
+        Formateur : {dossier.session.trainer?.name ?? "à confirmer"} · {formatLearnerCourseDuration(dossier.session, dossier.accessDurationDays)}
+      </div>
+
+      {hasContent ? (
+        <>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="text-[11px] text-slate uppercase tracking-wide font-semibold">Progression</div>
+            <div className="text-[11px] text-slate">{progress!.completedCount}/{progress!.total} modules</div>
+          </div>
+          <div className="h-1.5 bg-[#F1EFE8] rounded-full overflow-hidden mb-3.5">
+            <div className="h-full bg-sage" style={{ width: `${progress!.totalPercent}%` }} />
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link
+              href={`/mon-espace/formation/${dossier.id}`}
+              className="inline-block bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-2 hover:bg-ink-soft"
+            >
+              {ctaLabel}
+            </Link>
+            {progress!.allCompleted && <CourseCertificateButton dossierId={dossier.id} />}
+          </div>
+        </>
+      ) : (
+        <div className="text-[12px] text-slate">Aucun contenu en ligne pour l&apos;instant.</div>
+      )}
+    </div>
   );
 }
 

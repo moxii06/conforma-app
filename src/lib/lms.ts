@@ -50,16 +50,71 @@ function isModuleComplete(
   return (progress?.percentComplete ?? 0) >= 100;
 }
 
-// Shared by the certificate route and the rolling-access alerts in
-// dashboardTasks.ts — "is every module in this course done for this
-// dossier" always means the same thing (quiz: a passing attempt; video/doc:
-// percentComplete >= 100), so it shouldn't be reimplemented per caller.
-export function getCourseCompletion(
+export type ModuleState = "locked" | "unlocked_not_started" | "in_progress" | "completed";
+
+// A module with no progress row is "locked" (see unlockNextModuleIfNeeded —
+// no row means staff/the auto-unlock never opened it), not just "not
+// started". Quiz completion is a passing attempt; video/document
+// completion is percentComplete reaching 100 — same distinction as
+// isModuleComplete above, just resolved into the four UI-facing states
+// instead of a plain boolean.
+function getModuleState(
+  module: CompletionModule,
+  progress: CompletionProgress | undefined,
+  quizAttempts: CompletionQuizAttempt[]
+): ModuleState {
+  if (!progress) return "locked";
+  if (module.type === "quiz" && module.quiz) {
+    const attempts = quizAttempts.filter((a) => a.quizId === module.quiz!.id);
+    if (attempts.some((a) => a.passed)) return "completed";
+    return attempts.length > 0 ? "in_progress" : "unlocked_not_started";
+  }
+  if (progress.percentComplete >= 100) return "completed";
+  return progress.percentComplete > 0 ? "in_progress" : "unlocked_not_started";
+}
+
+// The single place that turns a course's modules + one dossier's progress
+// into "what should the learner UI show" — used by the learner catalog
+// (aggregate progress bar, current-module link) and the per-course detail
+// page (per-module state, which one to auto-expand). Previously
+// reimplemented inline in mon-espace/page.tsx; consolidated here once a
+// second real caller (the new dedicated course page) needed the exact same
+// logic.
+export function buildCourseProgress(
   modules: CompletionModule[],
   progressList: CompletionProgress[],
   quizAttempts: CompletionQuizAttempt[]
 ) {
   const progressByModule = new Map(progressList.map((p) => [p.moduleId, p]));
-  const completedCount = modules.filter((m) => isModuleComplete(m, progressByModule.get(m.id), quizAttempts)).length;
-  return { completedCount, total: modules.length, allCompleted: modules.length > 0 && completedCount === modules.length };
+  const states = new Map<string, ModuleState>();
+  let completedCount = 0;
+  let currentModuleId: string | null = null;
+
+  for (const m of modules) {
+    const state = getModuleState(m, progressByModule.get(m.id), quizAttempts);
+    states.set(m.id, state);
+    if (state === "completed") completedCount++;
+    if (!currentModuleId && (state === "in_progress" || state === "unlocked_not_started")) currentModuleId = m.id;
+  }
+
+  const total = modules.length;
+  return {
+    states,
+    completedCount,
+    total,
+    totalPercent: total > 0 ? Math.round((completedCount / total) * 100) : 0,
+    currentModuleId,
+    allCompleted: total > 0 && completedCount === total,
+  };
+}
+
+// Shared by the certificate route and the rolling-access alerts in
+// dashboardTasks.ts, which only need the aggregate (not per-module state).
+export function getCourseCompletion(
+  modules: CompletionModule[],
+  progressList: CompletionProgress[],
+  quizAttempts: CompletionQuizAttempt[]
+) {
+  const { completedCount, total, allCompleted } = buildCourseProgress(modules, progressList, quizAttempts);
+  return { completedCount, total, allCompleted };
 }
