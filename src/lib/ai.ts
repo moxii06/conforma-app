@@ -206,7 +206,46 @@ export async function classifyEmailForRgpd(params: { subject: string; body: stri
   }
 }
 
-// Powers "voir mon résumé personnalisé" on the Qualiopi Préparation audit
+export type CourseExtraction = {
+  title: string;
+  description: string;
+  durationHours: number | null;
+};
+
+// Powers "Importer un document" on the course creation form — inspired by
+// what Digiforma's create-session flow does (upload an existing programme/
+// convention instead of retyping it), adapted to Jalon's own creation form:
+// that form only ever asks for title/description/durationHours at creation
+// time (modules, if any, get added afterward from the course detail page),
+// so this only needs to extract those three fields, not a full module
+// breakdown. Always a suggestion dropped into editable fields for staff to
+// review before submitting — same "AI proposes, staff disposes" rule as
+// every other AI feature here, never creates the course itself.
+export async function extractCourseInfoFromDocument(documentText: string): Promise<CourseExtraction> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error(NOT_CONFIGURED_ERROR);
+
+  const raw = await chatCompletion(apiKey, {
+    system:
+      'Tu extrais les informations d\'une formation professionnelle depuis un programme de formation ou une convention existante. Réponds UNIQUEMENT avec un objet JSON valide de la forme {"title": "", "description": "", "durationHours": 0}. "title" est l\'intitulé de la formation (court, sans mentions administratives). "description" résume en 2-3 phrases maximum l\'objectif et le contenu de la formation, en français, à partir du texte fourni — jamais inventé si l\'information n\'est pas présente. "durationHours" est la durée totale en heures (nombre entier, additionne si le document donne des jours — compte 7h par jour sauf indication contraire), ou 0 si non déterminable. N\'invente aucune information absente du texte fourni.',
+    user: documentText.slice(0, 12000),
+    json: true,
+    temperature: 0,
+  });
+
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      title: typeof parsed.title === "string" ? parsed.title.trim() : "",
+      description: typeof parsed.description === "string" ? parsed.description.trim() : "",
+      durationHours: typeof parsed.durationHours === "number" && parsed.durationHours > 0 ? Math.round(parsed.durationHours) : null,
+    };
+  } catch {
+    throw new Error("Réponse de l'IA illisible — réessayez.");
+  }
+}
+
+// Powers "voir mon résumé personnalisé" sur l'onglet Préparation audit
 // tab — the official RNQ indicator label (e.g. "Indicateur 3") is
 // necessarily generic across every OFP in France; this turns it into a
 // plain-language explanation of what it concretely means AND what to

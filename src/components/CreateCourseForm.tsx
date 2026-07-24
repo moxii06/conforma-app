@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { PersonPicker, type LearnerInput } from "@/components/PersonPicker";
 import { SuggestedLearners } from "@/components/SuggestedLearners";
 import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
-import { X } from "lucide-react";
+import { X, FileUp } from "lucide-react";
 
 type Member = { id: string; name: string };
 type PendingLearner = { key: string; label: string; input: LearnerInput & { accessDurationDays?: number } };
@@ -27,6 +27,28 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [accessDurationDays, setAccessDurationDays] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [imported, setImported] = useState(false);
+
+  async function handleImport(file: File) {
+    setImporting(true);
+    setImportError(null);
+    setImported(false);
+    const body = new FormData();
+    body.set("file", file);
+    const res = await fetch("/api/courses/import-analyze", { method: "POST", body });
+    const data = await res.json().catch(() => ({}));
+    setImporting(false);
+    if (!res.ok) {
+      setImportError(data.error ?? "Échec de l'analyse du document.");
+      return;
+    }
+    if (data.title) setTitle(data.title);
+    if (data.description) setDescription(data.description);
+    if (data.durationHours) setDurationHours(String(data.durationHours));
+    setImported(true);
+  }
 
   function addLearner(input: LearnerInput, label: string) {
     const key = "contactId" in input ? input.contactId : input.email;
@@ -66,6 +88,8 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     setLearners([]);
     setAccessDurationDays("");
     setError(null);
+    setImportError(null);
+    setImported(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -120,6 +144,23 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
           </button>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
+          <label className="flex items-center gap-2 border border-dashed border-line rounded-md px-2.5 py-2 text-[12px] text-slate hover:border-ink-soft hover:text-ink cursor-pointer">
+            <FileUp size={14} className="shrink-0" />
+            {importing ? "Analyse du document…" : "Importer un programme existant (PDF) pour préremplir le titre, la description et la durée"}
+            <input
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              disabled={importing}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImport(file);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          {importError && <div className="text-[11.5px] text-rust">{importError}</div>}
+          {imported && <div className="text-[11.5px] text-sage">Champs préremplis depuis le document — vérifiez-les avant de créer la formation.</div>}
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
