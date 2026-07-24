@@ -1,10 +1,15 @@
-# Jalon — Phase 1 scaffold
+# Jalon
 
-This is a starting codebase for the product described in `technical-specification.md`
-(handed to you alongside this repo). It is **not** a finished MVP — it's the
-skeleton a developer can build on: project structure, data model, tenant/role
-scoping pattern, and a handful of pages wired to real (if unseeded-by-default)
-database queries instead of mock data.
+A Next.js/Prisma SaaS for French Qualiopi-certified training organizations
+(organismes de formation) — CRM, session planning, an LMS with quizzes and
+certificates, Qualiopi/GDPR/BPF compliance modules, native invoicing, an
+automation-rule engine for relances, and a public marketing site. Originally
+scaffolded from the spec in `technical-specification.md`; that document
+describes the initial target, not the current state — a large amount has been
+built since (see the task-by-task sections below, which read as a running
+build log rather than a spec). **No paying customers yet** — read "A few
+things worth flagging before you go further" at the bottom before assuming
+any part of this is battle-tested.
 
 ## What's actually built here
 
@@ -775,3 +780,56 @@ optional once real customer data is involved.
   emails end up in the inbox-triage queue rather than being force-linked to
   the wrong contact. Don't "simplify" this to a required field; the matching
   logic in spec §5.11 depends on it.
+- **There is no automated test suite and no CI** (`npm test` doesn't exist,
+  no `.github/workflows`). Every feature so far has been verified by hand —
+  type-check (`npx tsc --noEmit`) plus manually driving a real browser
+  against the seeded demo data. That means there's currently no safety net
+  against a change silently breaking something unrelated; add tests (at
+  minimum for the tenant-scoping and permission logic in `src/lib/tenant.ts`,
+  since that's the one place a bug becomes a real data leak) before more than
+  one person is changing this code at once.
+- **The Prisma migration workflow here is non-standard**, because `prisma
+  migrate dev`'s interactive flow (which needs a disposable shadow database)
+  isn't reliable in this dev environment. Migrations are instead hand-built:
+  `npx prisma migrate diff --from-url <local-db> --to-schema-datamodel
+  prisma/schema.prisma --script`, the output saved by hand into
+  `prisma/migrations/<timestamp>_<name>/migration.sql`, then applied locally
+  with `npx prisma migrate deploy`. Once that's committed and pushed, the
+  standard `prisma migrate deploy && next build` step in `package.json`'s
+  `build` script applies it to production automatically on the next
+  `vercel --prod` — confirmed working, migration by migration, in the Vercel
+  build logs throughout this project's build-out. **If you use a normal
+  `prisma migrate dev` setup instead, none of the hand-authoring above is
+  needed** — this is only a workaround for this specific Windows dev
+  environment, not a permanent project convention.
+- `src/app/api/admin/migrate-prod` is a secret-gated (`MIGRATE_PROD_SECRET`)
+  fallback route added early on for applying a migration to production
+  without local database access, with a `MIGRATIONS` array that's been kept
+  updated ever since as new migrations were added. In practice, every
+  migration observed in this project so far was already applied
+  automatically by the standard build-step `prisma migrate deploy` described
+  above — this route's actual necessity hasn't been re-confirmed in a long
+  time. Before relying on it, check whether it's still needed at all; if not,
+  it (and `MIGRATE_PROD_SECRET`) should be deleted rather than kept "just in
+  case" — it's a live route that can run arbitrary SQL against production.
+- **Where the permission model actually lives**: `src/lib/tenant.ts`'s
+  `PERMISSIONS` matrix (`can(role, feature)`) is the single source of truth
+  for coarse "does this role see this section at all" access — the Sidebar,
+  page-level redirects, and the UI's own feature gating all read from it
+  directly, so it should stay the only place that matrix is defined. It
+  can't express "their own records only," though — several pages layer a
+  second, query-level ownership filter on top (the repeated
+  `role === Role.TRAINER ? { session: { trainerId: userId } } : {}` pattern
+  in `/dossiers`, `/planning`, `/formations`, etc.). Adding a new role or
+  feature means checking both layers, not just the matrix.
+- **The automation-rule engine is reusable, on-purpose infrastructure** —
+  `src/lib/automationRules.ts` (trigger names/labels) +
+  `src/app/api/cron/automation-rules/route.ts` (the daily handler, one
+  function per trigger) + `AutomationRulesPanel.tsx` (the per-course UI,
+  already shared by every course automatically). Adding a new kind of
+  automated relance is: add the trigger to
+  `AUTOMATION_TRIGGER_VALUES`/`AUTOMATION_TRIGGER_LABELS`, add its phrasing
+  to `AFTER_DAYS_PHRASING`/`AFTER_DAYS_SUFFIX` in `AutomationRulesPanel.tsx`,
+  and add one handler function + a dispatch branch in the cron route. No new
+  UI component is needed — the existing rule panel and the `/automatisations`
+  activity log both pick up a new trigger automatically.
