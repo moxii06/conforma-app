@@ -59,6 +59,50 @@ export async function uploadDossierDocument(params: {
   return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
 }
 
+// Same real Blob storage, for a subcontractor's tracked documents
+// (contrat/CV/diplôme/NDA) — replaces the old paste-a-URL flow, which
+// required staff to have already hosted the file somewhere else.
+export async function uploadSubcontractorDocument(params: {
+  organizationId: string;
+  subcontractorId: string;
+  file: File;
+}): Promise<{ url: string; fileName: string; sizeBytes: number }> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
+  if (params.file.size > MAX_FILE_SIZE_BYTES) {
+    throw new Error("Fichier trop volumineux (limite 500 Mo).");
+  }
+
+  const pathname = `subcontractors/${params.organizationId}/${params.subcontractorId}/${params.file.name}`;
+  const blob = await put(pathname, params.file, {
+    access: "public",
+    addRandomSuffix: true,
+    contentType: params.file.type || undefined,
+  });
+
+  return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
+}
+
+// Same real Blob storage, for a team member's own documents (CV, diplôme...).
+export async function uploadUserDocument(params: {
+  organizationId: string;
+  userId: string;
+  file: File;
+}): Promise<{ url: string; fileName: string; sizeBytes: number }> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
+  if (params.file.size > MAX_FILE_SIZE_BYTES) {
+    throw new Error("Fichier trop volumineux (limite 500 Mo).");
+  }
+
+  const pathname = `team-members/${params.organizationId}/${params.userId}/${params.file.name}`;
+  const blob = await put(pathname, params.file, {
+    access: "public",
+    addRandomSuffix: true,
+    contentType: params.file.type || undefined,
+  });
+
+  return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
+}
+
 export async function deleteModuleFile(url: string): Promise<void> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return;
   await del(url).catch(() => {

@@ -46,3 +46,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
 // and different set than the dossier/library document categories above
 // (which would be noise in this picker, and vice versa).
 export const SUBCONTRACTOR_DOCUMENT_CATEGORIES = ["subcontractor_contract", "cv", "diploma", "nda", "other"] as const;
+
+// A team member (internal staff) doesn't have a contrat sous-traitant or
+// NDA to track — just the same CV/diplôme kind of paperwork, narrower still.
+export const MEMBER_DOCUMENT_CATEGORIES = ["cv", "diploma", "other"] as const;

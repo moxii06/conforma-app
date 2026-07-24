@@ -5,13 +5,12 @@ import { InviteMemberForm } from "@/components/InviteMemberForm";
 import { ReferentHandicapSelect } from "@/components/ReferentHandicapSelect";
 import { SubcontractorForm } from "@/components/SubcontractorForm";
 import { SubcontractorStatusSelect } from "@/components/SubcontractorStatusSelect";
-import { AddSubcontractorDocumentForm } from "@/components/AddSubcontractorDocumentForm";
-import { EditSubcontractorForm } from "@/components/EditSubcontractorForm";
-import { InviteSubcontractorButton } from "@/components/InviteSubcontractorButton";
+import { MemberRoleSelect } from "@/components/MemberRoleSelect";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { Tabs } from "@/components/Tabs";
 import { Role } from "@prisma/client";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -85,7 +84,7 @@ export default async function TeamPage({ searchParams }: { searchParams: { tab?:
                 {learnerCount > 1 ? "s" : ""} (non listés ici — voir Dossiers apprenants).
               </div>
             )}
-            <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
+            <div className="flex items-center text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
               <div className="flex-[1.5]">Nom</div>
               <div className="flex-[2]">Email</div>
               <div className="flex-1">Rôle</div>
@@ -93,9 +92,15 @@ export default async function TeamPage({ searchParams }: { searchParams: { tab?:
             </div>
             {members.map((m) => (
               <div key={m.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
-                <div className="flex-[1.5]">{m.name}</div>
+                <div className="flex-[1.5]">
+                  <Link href={`/team/members/${m.id}`} className="font-medium text-ink underline decoration-line hover:decoration-ink">
+                    {m.name}
+                  </Link>
+                </div>
                 <div className="flex-[2] text-slate">{m.email}</div>
-                <div className="flex-1">{ROLE_LABELS[m.role]}</div>
+                <div className="flex-1">
+                  {m.role === Role.ADMIN_OF ? ROLE_LABELS[m.role] : <MemberRoleSelect memberId={m.id} role={m.role} />}
+                </div>
                 <div className="flex-[0.6]">
                   <Pill tone={m.status === "active" ? "good" : "warn"}>{m.status === "active" ? "Actif" : "Invité"}</Pill>
                 </div>
@@ -173,7 +178,11 @@ function SubcontractorsTab({ subcontractors }: { subcontractors: SubcontractorRo
                   const contractExpiring = isExpiringSoon(s.contractEndDate);
                   return (
                     <tr key={s.id} className="border-b border-line last:border-b-0">
-                      <td className="py-2 pr-3 text-ink font-medium">{s.name}</td>
+                      <td className="py-2 pr-3 text-ink font-medium">
+                        <Link href={`/team/subcontractors/${s.id}`} className="underline decoration-line hover:decoration-ink">
+                          {s.name}
+                        </Link>
+                      </td>
                       <td className="py-2 pr-3 text-slate">{SUBCONTRACTOR_TYPE_LABELS[s.type] ?? s.type}</td>
                       <td className={`py-2 pr-3 ${contractExpiring ? "text-rust font-medium" : "text-slate"}`}>
                         {s.contractEndDate ? format(s.contractEndDate, "d MMM yyyy", { locale: fr }) : "—"}
@@ -211,76 +220,20 @@ function SubcontractorsTab({ subcontractors }: { subcontractors: SubcontractorRo
           Formateurs externes et prestataires. Un formateur externe peut être invité sur la plateforme pour devenir
           assignable à une session, comme n&apos;importe quel formateur interne.
         </div>
-        {subcontractors.map((s) => {
-          const contractExpiring = isExpiringSoon(s.contractEndDate);
-          const qualificationExpiring = isExpiringSoon(s.qualificationExpiryDate);
-          return (
-            <div key={s.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-[13px] text-ink font-medium">{s.name}</span>
-                  <span className="text-[11.5px] text-slate ml-1.5">
-                    ({SUBCONTRACTOR_TYPE_LABELS[s.type] ?? s.type}
-                    {s.isIndividual ? " — entreprise individuelle" : s.legalForm ? ` — ${s.legalForm}` : ""})
-                  </span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <EditSubcontractorForm
-                    subcontractorId={s.id}
-                    initial={{
-                      name: s.name,
-                      type: s.type,
-                      isIndividual: s.isIndividual,
-                      legalForm: s.legalForm,
-                      siret: s.siret,
-                      address: s.address,
-                      contactEmail: s.contactEmail,
-                      contactPhone: s.contactPhone,
-                      qualifications: s.qualifications,
-                    }}
-                  />
-                  <SubcontractorStatusSelect subcontractorId={s.id} status={s.status} />
-                </div>
-              </div>
-              {s.qualifications && <div className="text-[12px] text-ink">{s.qualifications}</div>}
-              <div className="text-[11.5px] flex items-center gap-2 flex-wrap">
-                {s.siret && <span className="text-slate">SIRET {s.siret}</span>}
-                {s.address && <span className="text-slate">{s.address}</span>}
-                {s.contactEmail && <span className="text-slate">{s.contactEmail}</span>}
-                {s.contactPhone && <span className="text-slate">{s.contactPhone}</span>}
-                {s.contractEndDate && (
-                  <span className={contractExpiring ? "text-rust font-medium" : "text-slate"}>
-                    Contrat jusqu&apos;au {format(s.contractEndDate, "d MMM yyyy", { locale: fr })}
-                  </span>
-                )}
-                {s.qualificationExpiryDate && (
-                  <span className={qualificationExpiring ? "text-rust font-medium" : "text-slate"}>
-                    Qualification valable jusqu&apos;au {format(s.qualificationExpiryDate, "d MMM yyyy", { locale: fr })}
-                  </span>
-                )}
-              </div>
-              {s.documents.length > 0 && (
-                <div className="flex flex-col gap-0.5">
-                  {s.documents.map((doc) => (
-                    <a key={doc.id} href={doc.fileUrl ?? "#"} target="_blank" rel="noreferrer" className="text-[11.5px] text-ink underline decoration-line hover:decoration-ink">
-                      {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
-                    </a>
-                  ))}
-                </div>
-              )}
-              <AddSubcontractorDocumentForm subcontractorId={s.id} />
-              <div className="pt-1">
-                {s.linkedUser ? (
-                  <span className="text-[11.5px] text-sage">
-                    Compte plateforme : {s.linkedUser.status === "active" ? "actif" : "invité, en attente d'activation"}
-                  </span>
-                ) : (
-                  <InviteSubcontractorButton subcontractorId={s.id} hasEmail={Boolean(s.contactEmail)} />
-                )}
-              </div>
+        {subcontractors.map((s) => (
+          <div key={s.id} className="py-2.5 border-t border-line first:border-t-0 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Link href={`/team/subcontractors/${s.id}`} className="text-[13px] text-ink font-medium underline decoration-line hover:decoration-ink">
+                {s.name}
+              </Link>
+              <span className="text-[11.5px] text-slate ml-1.5">
+                ({SUBCONTRACTOR_TYPE_LABELS[s.type] ?? s.type}
+                {s.isIndividual ? " — entreprise individuelle" : s.legalForm ? ` — ${s.legalForm}` : ""})
+              </span>
             </div>
-          );
-        })}
+            <SubcontractorStatusSelect subcontractorId={s.id} status={s.status} />
+          </div>
+        ))}
         {subcontractors.length === 0 && <div className="text-[12.5px] text-slate">Aucun sous-traitant enregistré.</div>}
       </div>
     </>

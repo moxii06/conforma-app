@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { SUBCONTRACTOR_DOCUMENT_CATEGORIES } from "@/lib/documentCategories";
-import { uploadSubcontractorDocument } from "@/lib/storage";
+import { MEMBER_DOCUMENT_CATEGORIES } from "@/lib/documentCategories";
+import { uploadUserDocument } from "@/lib/storage";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionContext();
@@ -11,8 +11,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
-  const subcontractor = await prisma.subcontractor.findFirst({ where: { id: params.id, organizationId: session.organizationId } });
-  if (!subcontractor) return NextResponse.json({ error: "Introuvable." }, { status: 404 });
+  const member = await prisma.user.findFirst({ where: { id: params.id, organizationId: session.organizationId } });
+  if (!member) return NextResponse.json({ error: "Introuvable." }, { status: 404 });
 
   const formData = await request.formData().catch(() => null);
   if (!formData) return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const category = formData.get("category")?.toString();
   const file = formData.get("file");
   if (!title) return NextResponse.json({ error: "Titre requis." }, { status: 400 });
-  if (!category || !(SUBCONTRACTOR_DOCUMENT_CATEGORIES as readonly string[]).includes(category)) {
+  if (!category || !(MEMBER_DOCUMENT_CATEGORIES as readonly string[]).includes(category)) {
     return NextResponse.json({ error: "Catégorie invalide." }, { status: 400 });
   }
   if (!(file instanceof File) || file.size === 0) {
@@ -30,7 +30,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   let uploaded: { url: string };
   try {
-    uploaded = await uploadSubcontractorDocument({ organizationId: session.organizationId, subcontractorId: subcontractor.id, file });
+    uploaded = await uploadUserDocument({ organizationId: session.organizationId, userId: member.id, file });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Erreur d'upload." }, { status: 502 });
   }
@@ -38,7 +38,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const document = await prisma.document.create({
     data: {
       organizationId: session.organizationId,
-      subcontractorId: subcontractor.id,
+      userId: member.id,
       title,
       fileUrl: uploaded.url,
       category,

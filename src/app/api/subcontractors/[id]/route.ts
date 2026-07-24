@@ -62,3 +62,25 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   });
   return NextResponse.json(updated);
 }
+
+export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+  if (can(session.role, "team") !== "full") {
+    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+
+  const subcontractor = await prisma.subcontractor.findFirst({ where: { id: params.id, organizationId: session.organizationId } });
+  if (!subcontractor) return NextResponse.json({ error: "Introuvable." }, { status: 404 });
+
+  // Only removes the Subcontractor record and its tracked documents — a
+  // linked platform account (User), if any, stays untouched: it was created
+  // via InviteSubcontractorButton as its own login and shouldn't disappear
+  // just because the tracking record does.
+  await prisma.$transaction([
+    prisma.document.deleteMany({ where: { subcontractorId: subcontractor.id } }),
+    prisma.subcontractor.delete({ where: { id: subcontractor.id } }),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}

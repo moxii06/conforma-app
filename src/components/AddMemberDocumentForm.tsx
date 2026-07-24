@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SUBCONTRACTOR_DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
+import { MEMBER_DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 
-export function AddSubcontractorDocumentForm({ subcontractorId }: { subcontractorId: string }) {
+export function AddMemberDocumentForm({ memberId }: { memberId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<string>("subcontractor_contract");
+  const [category, setCategory] = useState<string>("cv");
   const [file, setFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,7 @@ export function AddSubcontractorDocumentForm({ subcontractorId }: { subcontracto
     formData.set("title", title);
     formData.set("category", category);
     formData.set("file", file);
-    const res = await fetch(`/api/subcontractors/${subcontractorId}/documents`, { method: "POST", body: formData });
+    const res = await fetch(`/api/team/members/${memberId}/documents`, { method: "POST", body: formData });
     setLoading(false);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -38,7 +38,7 @@ export function AddSubcontractorDocumentForm({ subcontractorId }: { subcontracto
   return (
     <form onSubmit={handleSubmit} className="flex items-center gap-1.5 flex-wrap">
       <select value={category} onChange={(e) => setCategory(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal">
-        {SUBCONTRACTOR_DOCUMENT_CATEGORIES.map((c) => (
+        {MEMBER_DOCUMENT_CATEGORIES.map((c) => (
           <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
         ))}
       </select>

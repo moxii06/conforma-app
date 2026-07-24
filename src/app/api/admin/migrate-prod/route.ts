@@ -17,6 +17,7 @@ const MIGRATIONS = [
   "20260724084158_company_responsable_info",
   "20260724073018_automation_rule_email_triggers",
   "20260724112646_contact_default_learner_category",
+  "20260724114352_document_user_relation",
 ];
 
 export async function POST(request: Request) {
