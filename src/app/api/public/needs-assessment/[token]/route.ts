@@ -23,5 +23,15 @@ export async function POST(request: Request, { params }: { params: { token: stri
     data: { responseText: parsed.data.responseText, status: "completed", completedAt: new Date() },
   });
 
+  // The request is tied to the Contact, not a specific Dossier (it's
+  // typically sent before enrollment) — so completion flips the "Recueil
+  // des besoins" Parcours step on every one of that contact's dossiers
+  // that hasn't already been marked done, rather than requiring staff to
+  // notice and toggle it by hand.
+  await prisma.dossier.updateMany({
+    where: { contactId: req.contactId, needsAssessmentDone: false },
+    data: { needsAssessmentDone: true },
+  });
+
   return NextResponse.json({ ok: true });
 }

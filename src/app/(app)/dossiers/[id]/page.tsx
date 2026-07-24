@@ -69,6 +69,22 @@ export default async function DossierPage({ params, searchParams }: { params: { 
     where: { dossierId: dossier.id },
     orderBy: { sentAt: "desc" },
   });
+
+  // Parcours de formation steps (needs_assessment/convention/convocation/
+  // eval_hot/eval_cold) mirror Document's own category set 1-for-1 — so
+  // "click a done step to see the document" is just "most recent Document
+  // in this dossier whose category matches the step key", no separate
+  // linking table needed.
+  const stepDocuments = await prisma.document.findMany({
+    where: { dossierId: dossier.id, category: { in: ["needs_assessment", "convention", "convocation", "eval_hot", "eval_cold"] } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, category: true, fileUrl: true, bodyText: true },
+  });
+  const documentHrefByStep: Record<string, string> = {};
+  for (const doc of stepDocuments) {
+    if (documentHrefByStep[doc.category]) continue; // already have the most recent one for this category
+    documentHrefByStep[doc.category] = doc.fileUrl ?? `/api/documents/generated/${doc.id}`;
+  }
   const canConvocation = canManageSessionInvitations(role, userId, dossier.session);
 
   // Client feedback: anticipate the same contact attending several
@@ -109,6 +125,7 @@ export default async function DossierPage({ params, searchParams }: { params: { 
             canManageOutreach={can(role, "dossiers") !== "none"}
             canConvocation={canConvocation}
             outreaches={outreaches}
+            documentHrefByStep={documentHrefByStep}
             signatureHtml={signatureHtml}
             otherDossiers={otherDossiers.map((d) => ({
               id: d.id,
@@ -129,6 +146,7 @@ async function InfoTab({
   canManageOutreach,
   canConvocation,
   outreaches,
+  documentHrefByStep,
   signatureHtml,
   otherDossiers,
 }: {
@@ -138,6 +156,7 @@ async function InfoTab({
   canManageOutreach: boolean;
   canConvocation: boolean;
   outreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
+  documentHrefByStep: Record<string, string>;
   signatureHtml: string;
   otherDossiers: { id: string; courseTitle: string; startsAt: Date }[];
 }) {
@@ -148,12 +167,12 @@ async function InfoTab({
         orderBy: { title: "asc" },
       })
     : [];
-  const steps: { key: "needs_assessment" | "contract" | "convocation" | "eval_hot" | "eval_cold"; label: string; done: boolean }[] = [
-    { key: "needs_assessment", label: "Recueil des besoins", done: dossier.needsAssessmentDone },
-    { key: "contract", label: "Convention signée", done: dossier.contractSigned },
-    { key: "convocation", label: "Convocation envoyée", done: dossier.convocationSent },
-    { key: "eval_hot", label: "Évaluation à chaud", done: dossier.evaluationHotDone },
-    { key: "eval_cold", label: "Évaluation à froid", done: dossier.evaluationColdDone },
+  const steps: { key: "needs_assessment" | "contract" | "convocation" | "eval_hot" | "eval_cold"; docCategory: string; label: string; done: boolean }[] = [
+    { key: "needs_assessment", docCategory: "needs_assessment", label: "Recueil des besoins", done: dossier.needsAssessmentDone },
+    { key: "contract", docCategory: "convention", label: "Convention signée", done: dossier.contractSigned },
+    { key: "convocation", docCategory: "convocation", label: "Convocation envoyée", done: dossier.convocationSent },
+    { key: "eval_hot", docCategory: "eval_hot", label: "Évaluation à chaud", done: dossier.evaluationHotDone },
+    { key: "eval_cold", docCategory: "eval_cold", label: "Évaluation à froid", done: dossier.evaluationColdDone },
   ];
 
   return (
@@ -181,11 +200,30 @@ async function InfoTab({
         <div className="text-[13.5px] font-semibold text-ink mb-3">Parcours de formation</div>
         {steps.map((s) =>
           canManageOutreach ? (
-            <ParcoursStepToggle key={s.key} dossierId={dossier.id} stepKey={s.key} label={s.label} done={s.done} />
+            <ParcoursStepToggle
+              key={s.key}
+              dossierId={dossier.id}
+              stepKey={s.key}
+              label={s.label}
+              done={s.done}
+              documentHref={documentHrefByStep[s.docCategory]}
+            />
           ) : (
-            <div key={s.key} className="flex items-center gap-2.5 py-2 border-t border-line first:border-t-0">
-              {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#B9B6AA]" />}
-              <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
+            <div key={s.key} className="flex items-center justify-between gap-2.5 py-2 border-t border-line first:border-t-0">
+              <div className="flex items-center gap-2.5">
+                {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#B9B6AA]" />}
+                <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
+              </div>
+              {s.done && documentHrefByStep[s.docCategory] && (
+                <a
+                  href={documentHrefByStep[s.docCategory]}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-slate underline decoration-line hover:decoration-ink shrink-0"
+                >
+                  Voir le document
+                </a>
+              )}
             </div>
           )
         )}
