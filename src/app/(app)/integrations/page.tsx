@@ -8,8 +8,7 @@ import { ImapMailboxForm } from "@/components/ImapMailboxForm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const PROVIDERS: { key: string; label: string; description: string; kind: "apiKey" | "oauth" | "stripe" }[] = [
-  { key: "yousign", label: "Yousign", description: "Signature électronique des conventions et contrats — génère un document mais n'envoie pas encore de demande de signature réelle (aucun moteur de génération de PDF dans ce scaffold, voir README).", kind: "apiKey" },
+const PROVIDERS: { key: string; label: string; description: string; kind: "apiKey" | "oauth" }[] = [
   { key: "pennylane", label: "Pennylane", description: "Connecteur e-facturation (spec §5.3 / §7.2).", kind: "apiKey" },
   { key: "sellsy", label: "Sellsy", description: "Connecteur e-facturation alternatif (spec §5.3 / §7.2).", kind: "apiKey" },
   { key: "microsoft_oauth", label: "Microsoft (Outlook)", description: "Connexion de boîte mail pour le triage (spec §5.11).", kind: "oauth" },
@@ -46,9 +45,9 @@ export default async function IntegrationsPage({
       <div className="p-8 flex flex-col gap-4 max-w-2xl">
         <div className="text-[11.5px] text-slate">
           Ces identifiants sont chiffrés en base (jamais réaffichés en clair — laisser un champ vide en
-          enregistrant ne l&apos;efface pas). La plupart des fonctionnalités ne les utilisent pas encore — le
-          branchement réel (signature via Yousign, transmission via Pennylane/Sellsy, connexion Outlook) reste à
-          faire. Les connexions de boîte mail (Google, IMAP/SMTP) sont en revanche réelles : synchronisation et
+          enregistrant ne l&apos;efface pas). Signature électronique (Yousign) et encaissement (Stripe) sont
+          réels une fois configurés ci-dessous. Pennylane, Sellsy et la connexion Outlook restent à brancher.
+          Les connexions de boîte mail (Google, IMAP/SMTP) sont en revanche réelles : synchronisation et
           réponses passent par de vrais appels aux API concernées. L&apos;IA et l&apos;envoi d&apos;emails
           (ci-dessous) sont des fonctionnalités intégrées à la plateforme — rien à configurer de votre côté.
         </div>
@@ -175,15 +174,48 @@ export default async function IntegrationsPage({
           </div>
           <IntegrationCredentialForm
             provider="stripe"
-            kind="stripe"
+            kind="apiKeyWithSecret"
             hasApiKey={Boolean(byProvider.get("stripe")?.apiKey)}
             hasClientSecret={Boolean(byProvider.get("stripe")?.clientSecret)}
+            apiKeyPlaceholder="Clé secrète Stripe (sk_...)"
+            clientSecretPlaceholder="Secret de signature du webhook (whsec_...)"
           />
           <div className="text-[11.5px] text-slate mt-3 pt-3 border-t border-line">
             URL du webhook à configurer côté Stripe (événement <code>checkout.session.completed</code>) :
             <br />
             <code className="text-ink break-all">
               https://votre-domaine{`/api/webhooks/stripe/${organizationId}`}
+            </code>
+          </div>
+        </div>
+
+        <div className="bg-white border border-line rounded-card p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="text-[13px] font-semibold text-ink">Yousign</div>
+            <Pill tone={byProvider.get("yousign") ? "good" : "neutral"}>
+              {byProvider.get("yousign") ? "Configuré" : "Non configuré"}
+            </Pill>
+          </div>
+          <div className="text-[12px] text-slate mb-3">
+            Signature électronique réelle des conventions et contrats envoyés depuis un dossier (case « Demander
+            une signature électronique »). Yousign s&apos;appelle désormais Youtrust depuis le 16 juillet 2026 —
+            même entreprise, même moteur de signature ; la clé API et le webhook se configurent au même endroit
+            dans votre compte. Sans clé configurée, la signature reste gérée en interne (l&apos;apprenant signe
+            depuis son espace personnel).
+          </div>
+          <IntegrationCredentialForm
+            provider="yousign"
+            kind="apiKeyWithSecret"
+            hasApiKey={Boolean(byProvider.get("yousign")?.apiKey)}
+            hasClientSecret={Boolean(byProvider.get("yousign")?.clientSecret)}
+            apiKeyPlaceholder="Clé API Yousign / Youtrust"
+            clientSecretPlaceholder="Secret de signature du webhook"
+          />
+          <div className="text-[11.5px] text-slate mt-3 pt-3 border-t border-line">
+            URL du webhook à créer côté Yousign (événement <code>signature_request.done</code>) :
+            <br />
+            <code className="text-ink break-all">
+              https://votre-domaine{`/api/webhooks/yousign/${organizationId}`}
             </code>
           </div>
         </div>

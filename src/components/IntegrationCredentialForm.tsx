@@ -9,12 +9,16 @@ export function IntegrationCredentialForm({
   hasApiKey,
   initialClientId,
   hasClientSecret,
+  apiKeyPlaceholder,
+  clientSecretPlaceholder,
 }: {
   provider: string;
-  kind: "apiKey" | "oauth" | "stripe";
+  kind: "apiKey" | "oauth" | "apiKeyWithSecret";
   hasApiKey?: boolean;
   initialClientId?: string;
   hasClientSecret?: boolean;
+  apiKeyPlaceholder?: string;
+  clientSecretPlaceholder?: string;
 }) {
   const router = useRouter();
   const [apiKey, setApiKey] = useState("");
@@ -32,7 +36,7 @@ export function IntegrationCredentialForm({
       body: JSON.stringify(
         kind === "apiKey"
           ? { provider, apiKey: apiKey || undefined }
-          : kind === "stripe"
+          : kind === "apiKeyWithSecret"
             ? { provider, apiKey: apiKey || undefined, clientSecret: clientSecret || undefined }
             : { provider, clientId, clientSecret: clientSecret || undefined }
       ),
@@ -62,13 +66,13 @@ export function IntegrationCredentialForm({
     );
   }
 
-  if (kind === "stripe") {
+  if (kind === "apiKeyWithSecret") {
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <input
             type="password"
-            placeholder={hasApiKey ? "•••••••• (laisser vide pour ne pas changer)" : "Clé secrète Stripe (sk_...)"}
+            placeholder={hasApiKey ? "•••••••• (laisser vide pour ne pas changer)" : apiKeyPlaceholder ?? "Clé API"}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
@@ -77,7 +81,7 @@ export function IntegrationCredentialForm({
         <div className="flex items-center gap-2">
           <input
             type="password"
-            placeholder={hasClientSecret ? "•••••••• (laisser vide pour ne pas changer)" : "Secret de signature du webhook (whsec_...)"}
+            placeholder={hasClientSecret ? "•••••••• (laisser vide pour ne pas changer)" : clientSecretPlaceholder ?? "Secret de signature du webhook"}
             value={clientSecret}
             onChange={(e) => setClientSecret(e.target.value)}
             className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"

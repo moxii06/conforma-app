@@ -1,16 +1,23 @@
-// Yousign e-signature — PREPARED, NOT WIRED into any button yet. See the
-// README ("Yousign (prepared, not wired)") for the full explanation; the
-// short version: sending a real signature request needs an actual PDF
-// file, and this scaffold has no PDF-rendering step anywhere —
-// Document.bodyText (src/lib/mergeTemplate.ts) is merged plain text, never
-// rendered to a file. This client is real and ready to call once that
-// piece exists; it has NOT been exercised against a live Yousign account
-// (no key available while building it), unlike gmailSync.ts/imapSync.ts/
-// ai.ts/brevo.ts, which were all verified end-to-end against the real API
-// (even if only via a deliberately-invalid-key error response). Treat the
-// exact request/response shapes below as "believed correct as of Yousign's
-// v3 API docs," not "confirmed working" — re-verify against
-// https://developers.yousign.com before relying on it.
+// Yousign e-signature — now actually wired (src/app/api/dossiers/[id]/documents/send/route.ts
+// calls sendDocumentForSignature when "Demander une signature électronique"
+// is checked and an org has a key configured; falls back to the internal
+// stub — src/app/api/documents/[id]/sign/route.ts — otherwise). The
+// PDF-rendering gap that used to block this was closed by
+// src/lib/htmlToPdf.ts (real pdf-lib generation, feeding both the outbound
+// email attachment and this client's `pdf: Buffer` param via
+// buildDocumentAttachment in src/lib/documentSending.ts) — the request/
+// response shapes below are still "believed correct as of Yousign's v3
+// docs," not exercised against a live signature end-to-end in this
+// environment, so watch the first real send closely.
+//
+// Yousign renamed itself Youtrust on 16 July 2026 — same company, same
+// signature engine, same qualified-trust-provider status, docs moved to
+// developers.youtrust.com (the api.yousign.app host and v3 paths below were
+// unaffected as of that rename). Kept "Yousign" as the integration's
+// internal name since that's still the e-signature product's own name
+// inside the Youtrust suite (alongside Verify/eSeal) — not worth a rename
+// that touches the credential provider key, the /integrations label, and
+// this file for a rebrand with no functional effect on this client.
 //
 // Unlike AI/Brevo, this deliberately stays a PER-ORGANIZATION credential
 // (IntegrationCredential, provider "yousign" — already on /integrations)
@@ -20,6 +27,7 @@
 // partnership could remove that constraint later, but that's a commercial
 // step, not a code change.
 
+import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 
@@ -31,6 +39,33 @@ async function getYousignKey(organizationId: string): Promise<string | null> {
   });
   if (!credential?.apiKey) return null;
   return decrypt(credential.apiKey);
+}
+
+export async function isYousignConfigured(organizationId: string): Promise<boolean> {
+  const credential = await prisma.integrationCredential.findUnique({
+    where: { organizationId_provider: { organizationId, provider: "yousign" } },
+  });
+  return Boolean(credential?.apiKey);
+}
+
+// Verifies the `x-yousign-signature-256` header (HMAC-SHA256 of the raw
+// body, hex-encoded, prefixed "sha256=") against the webhook subscription's
+// signing secret — set up manually in the Youtrust app when creating the
+// subscription, stored the same way Stripe's whsec_ is (IntegrationCredential
+// .clientSecret, reused rather than adding a fifth column for one provider).
+// Per https://developers.yousign.com/docs/use-webhooks-in-your-app.
+export async function verifyYousignWebhook(organizationId: string, rawBody: string, signatureHeader: string | null): Promise<boolean> {
+  if (!signatureHeader) return false;
+  const credential = await prisma.integrationCredential.findUnique({
+    where: { organizationId_provider: { organizationId, provider: "yousign" } },
+  });
+  if (!credential?.clientSecret) return false;
+  const secret = decrypt(credential.clientSecret);
+  const expected = "sha256=" + createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signatureHeader);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 async function yousignFetch(apiKey: string, path: string, init: RequestInit = {}) {

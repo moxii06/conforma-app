@@ -1,5 +1,7 @@
 import { put } from "@vercel/blob";
 import { generatePdfFromRichText } from "@/lib/htmlToPdf";
+import { prisma } from "@/lib/prisma";
+import { sendTransactionalEmail } from "@/lib/brevo";
 
 const NOT_CONFIGURED_ERROR =
   "Stockage de fichiers momentanément indisponible — BLOB_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
@@ -46,4 +48,30 @@ export async function buildDocumentAttachment(params: {
     contentBase64: buffer.toString("base64"),
     mimeType,
   };
+}
+
+// Shared by both signature-completion paths — the internal stub
+// (src/app/api/documents/[id]/sign/route.ts, used when an org has no
+// Yousign key on file) and the real Yousign webhook
+// (src/app/api/webhooks/yousign/[organizationId]/route.ts) — so the
+// notification a staff member gets doesn't drift between the two.
+export async function notifyDocumentSigned(document: { id: string; title: string; sentByUserId: string | null; dossierId: string | null }, organizationId: string): Promise<void> {
+  if (!document.sentByUserId || !document.dossierId) return;
+  const [sender, organization, dossier] = await Promise.all([
+    prisma.user.findUnique({ where: { id: document.sentByUserId } }),
+    prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
+    prisma.dossier.findUnique({ where: { id: document.dossierId }, include: { contact: true } }),
+  ]);
+  if (!sender || !dossier) return;
+  try {
+    await sendTransactionalEmail({
+      to: sender.email,
+      toName: sender.name,
+      subject: `Document signé — ${document.title}`,
+      text: `${dossier.contact.firstName} ${dossier.contact.lastName} vient de signer « ${document.title} ».`,
+      senderName: organization.name,
+    });
+  } catch {
+    // Non-fatal — the signature itself is recorded either way.
+  }
 }

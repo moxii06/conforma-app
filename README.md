@@ -93,9 +93,10 @@ database queries instead of mock data.
     (`/api/crm/contacts/[id]/send-email`). Logged as a `ClientOutreach` row
     (type `"message"`) regardless of whether the Brevo call itself
     succeeds, same non-fatal-send pattern as the dossier outreach route.
-    There's no "send the quote/invoice as a document" intent — this app
-    still has no PDF-rendering step (see the Yousign section below), so a
-    quote/invoice can only be referenced in the email text, not attached.
+    There's no "send the quote/invoice as a document" intent — real PDF
+    generation exists now (`htmlToPdf.ts`, see the Yousign section below),
+    it's just not wired into this specific composer — so a quote/invoice
+    can only be referenced in the email text, not attached, here.
 - **Session/course creation + calendar** — `/planning` gained a "+ Nouvelle
   session" form (pick an existing course or create one inline, assign a
   trainer, format, location, capacity) and a Liste/Calendrier tab toggle; the
@@ -436,25 +437,30 @@ for what that means in practice for each one.
   the existing "copy this link and relay it" fallback keeps working
   exactly as before; the UI just shows which one happened. Same
   usage-scaling caveat as AI: no per-tenant sending quota yet.
-- **Yousign (prepared, not wired)** (`src/lib/yousign.ts`) — a real client
-  for Yousign's v3 API (create a signature request, attach a document,
-  add a signer, activate it), ready to call. **Deliberately not hooked up
-  to the "Envoyer le contrat" button**, because doing so would mean
-  either faking success or shipping something broken: Yousign needs an
-  actual PDF file, and this scaffold has no PDF-rendering step anywhere —
-  `Document.bodyText` is merged plain text (see the merge-field engine
-  below), never rendered to a file. Wiring Yousign for real needs that
-  piece built first (e.g. `@react-pdf/renderer` or `pdf-lib` rendering a
-  `Document` to PDF) before `createSignatureRequest()` has anything valid
-  to send. Also, unlike Brevo/AI, this stays a **per-organization**
-  credential (already the case — `/integrations`'s "Yousign" row) rather
-  than moving platform-level: the signature request has to reflect the
-  actual OFP as the contracting party for the document to make legal
-  sense to the person signing it. Yousign does offer a partner/reseller
-  (ISV) program for platforms that want to manage many customers'
-  signature accounts from one integration, which would remove that
-  per-organization friction — but that requires a commercial agreement
-  with Yousign, not just more code.
+- **Yousign — actually wired** (`src/lib/yousign.ts`) — real signature
+  requests now go out when an org has a Yousign key on `/integrations`
+  *and* checks "Demander une signature électronique" in
+  `SendDocumentDialog` (`/api/dossiers/[id]/documents/send`): the same
+  real PDF already generated for the email attachment
+  (`buildDocumentAttachment`/`htmlToPdf.ts`) is sent to Yousign instead of
+  just emailed, `Document.yousignSignatureRequestId` records which
+  signature request it became, and
+  `/api/webhooks/yousign/[organizationId]` flips `signatureStatus` to
+  `"signed"` when Yousign posts `signature_request.done` (HMAC-verified
+  against the webhook's own signing secret, stored in
+  `IntegrationCredential.clientSecret` same as Stripe's `whsec_`). No key
+  configured, or the Yousign call throws → falls back to the original
+  internal stub (learner clicks "signer" in `/mon-espace`,
+  `/api/documents/[id]/sign`) — never blocks the send. Not yet exercised
+  against a real signing end-to-end in this environment; the request/
+  response and webhook payload shapes are believed correct per
+  developers.yousign.com, not confirmed live. Still **per-organization**
+  (`/integrations`'s "Yousign" row): the signature request has to reflect
+  the actual OFP as the contracting party for the document to make legal
+  sense to the person signing it, not Conforma. (Yousign renamed itself
+  Youtrust on 16 July 2026 — same company/API, docs moved to
+  developers.youtrust.com; kept the internal name since "Yousign" is
+  still the e-signature product's own name inside the Youtrust suite.)
 - **Real Stripe invoice payments** (`src/lib/stripe.ts`, per-organization —
   same reasoning as Yousign, but here it's non-negotiable: **an OFP's
   Stripe account receives payment from that OFP's own clients, and
@@ -641,12 +647,16 @@ delivers manually, not an actual delivery:
 - AI and transactional email (Brevo) are both real — see the sections
   below. Nothing is faked: a missing/invalid key surfaces the provider's
   own error message, not a canned response or fake success.
-- Yousign is *prepared*, not wired — see "Yousign (prepared, not wired)"
-  below for exactly what that means and why.
+- Yousign is now real when configured — see "Yousign — actually wired"
+  below. Still per-organization, and the org must paste an API key (and a
+  webhook signing secret) on `/integrations` for it to fire; unconfigured
+  orgs keep the original internal stub.
 - No e-invoice is ever transmitted — every invoice records
   `einvoicingProvider: "ppf"` as an intent, not an actual PPF/Pennylane/
   Sellsy API call.
-- No signature request is ever sent — Yousign isn't called anywhere.
+- Signature requests now go out for real when an org has a Yousign key
+  configured — see "Yousign — actually wired" below; orgs without one
+  keep using the internal stub instead.
 - Two separate Stripe concerns, only one of them real: **converting a
   trial to a paid Conforma `Subscription`** (Conforma billing the OFP) is
   still not built at all — saving a key on `/integrations` did nothing
@@ -659,8 +669,9 @@ delivers manually, not an actual delivery:
 ### Still not built at all
 
 CPF/OPCO integration (spec §6 — explicitly out of scope for v1, treat as its
-own project if pursued), the e-invoicing/Brevo/Yousign/mailbox connectors
-themselves (vs. the settings page and data model that anticipate them), a
+own project if pursued), the e-invoicing/mailbox connectors themselves (vs.
+the settings page and data model that anticipate them — Brevo and Yousign
+are both real now, see their own sections above), a
 real auth provider (Keycloak per spec §3, vs. the Credentials/JWT setup
 here), Postgres row-level security (still application-layer-only tenant
 isolation, per the flag in spec §10), and per-event LMS evidence logging.

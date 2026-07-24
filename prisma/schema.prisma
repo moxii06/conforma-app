@@ -979,14 +979,17 @@ model Document {
   sentByUserId   String?
   sentByName     String?
   // "none" | "pending" | "signed" — set at send time (SendDocumentDialog's
-  // "Demander une signature électronique" checkbox), flipped to "signed" by
-  // the learner's mon-espace sign action. Deliberately NOT wired to a real
-  // e-signature provider yet (Yousign client exists in lib/yousign.ts,
-  // integration explicitly deferred by the client) — this is the status/UI
-  // half of the workflow, ready to swap the stub sign action for a real
-  // Yousign signature-request flow later without changing the data model.
+  // "Demander une signature électronique" checkbox). Flipped to "signed" by
+  // one of two paths: the learner's mon-espace stub sign action (no Yousign
+  // key on file for this org), or the Yousign webhook handler below
+  // (yousignSignatureRequestId set, real signature_request.done event).
   signatureStatus String      @default("none")
   signedAt       DateTime?
+  // Set only when this document's signature was actually sent through
+  // Yousign (src/lib/yousign.ts) rather than the internal stub — lets the
+  // webhook handler (src/app/api/webhooks/yousign/[organizationId]) find
+  // the right Document from the signature_request.id in the event payload.
+  yousignSignatureRequestId String? @unique
   createdAt      DateTime     @default(now())
   // Client feedback: a document needed for a Qualiopi audit shouldn't be
   // permanently deleted just because it's no longer "current" — archiving
