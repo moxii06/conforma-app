@@ -4,12 +4,12 @@ import { requireSessionContext, can, canAccessSecureReports } from "@/lib/tenant
 import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
-import { getCourseCompletion } from "@/lib/lms";
 import { PipelineStage, Role } from "@prisma/client";
-import { addWeeks, startOfWeek, format, differenceInCalendarDays } from "date-fns";
+import { addWeeks, addMonths, startOfWeek, startOfMonth, subMonths, format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
 import { RefreshButton } from "@/components/RefreshButton";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 
 const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "Test de positionnement",
@@ -60,6 +60,7 @@ export default async function DashboardPage() {
   // confidential channel among routine relances.
   const canManageComplaints = can(role, "dossiers") !== "none";
   const canViewSecureReports = canAccessSecureReports(role);
+  const canSeeMoney = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
 
   const [
     sessionsInProgress,
@@ -68,7 +69,7 @@ export default async function DashboardPage() {
     amountsByStage,
     overdueInvoiceTotal,
     upcomingSessions,
-    elearningDossiers,
+    recentPayments,
     openComplaints,
     openSecureReports,
   ] = await Promise.all([
@@ -90,18 +91,12 @@ export default async function DashboardPage() {
       where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date(), lte: addWeeks(new Date(), 6) } },
       select: { startsAt: true },
     }),
-    // Only dossiers whose course actually has e-learning content — a
-    // dossier for a purely in-person course has nothing to be "not
-    // started" on, so counting it there would just inflate that bucket.
-    prisma.dossier.findMany({
-      where: { organizationId, session: { course: { elearningModules: { some: {} } } } },
-      select: {
-        id: true,
-        elearningProgress: { select: { moduleId: true, percentComplete: true } },
-        quizAttempts: { select: { quizId: true, passed: true } },
-        session: { select: { course: { select: { elearningModules: { select: { id: true, type: true, quiz: { select: { id: true } } } } } } } },
-      },
-    }),
+    canSeeMoney
+      ? prisma.payment.findMany({
+          where: { organizationId, paidAt: { gte: startOfMonth(subMonths(new Date(), 5)) } },
+          select: { amountCents: true, paidAt: true },
+        })
+      : Promise.resolve([]),
     canManageComplaints
       ? prisma.complaint.findMany({ where: { organizationId, status: { not: "resolved" } }, orderBy: { createdAt: "desc" } })
       : Promise.resolve([]),
@@ -130,26 +125,17 @@ export default async function DashboardPage() {
     if (bucket) bucket.value += 1;
   }
 
-  let notStarted = 0;
-  let inProgress = 0;
-  let completed = 0;
-  for (const d of elearningDossiers) {
-    const { completedCount, allCompleted } = getCourseCompletion(
-      d.session.course.elearningModules,
-      d.elearningProgress,
-      d.quizAttempts
-    );
-    if (allCompleted) completed++;
-    else if (completedCount > 0 || d.elearningProgress.some((p) => p.percentComplete > 0)) inProgress++;
-    else notStarted++;
+  const monthBuckets = Array.from({ length: 6 }, (_, i) => {
+    const monthStart = startOfMonth(subMonths(new Date(), 5 - i));
+    return { monthStart, label: format(monthStart, "MMM yyyy", { locale: fr }), value: 0 };
+  });
+  for (const p of recentPayments) {
+    const bucket = monthBuckets.find((m, i) => {
+      const next = i + 1 < monthBuckets.length ? monthBuckets[i + 1].monthStart : addMonths(m.monthStart, 1);
+      return p.paidAt >= m.monthStart && p.paidAt < next;
+    });
+    if (bucket) bucket.value += p.amountCents / 100;
   }
-  const elearningData = [
-    { label: "Pas commencé", value: notStarted },
-    { label: "En cours", value: inProgress },
-    { label: "Terminé", value: completed },
-  ];
-
-  const canSeeMoney = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
 
   return (
     <>
@@ -197,12 +183,14 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {elearningDossiers.length > 0 && (
+        {canSeeMoney && (
           <div className="bg-white border border-line rounded-card p-4">
-            <div className="text-[12.5px] text-slate mb-3">
-              Progression e-learning ({elearningDossiers.length} inscription{elearningDossiers.length > 1 ? "s" : ""} sur une formation avec contenu en ligne)
-            </div>
-            <BarChart data={elearningData} color="#1B2430" />
+            <div className="text-[12.5px] text-slate mb-3">Paiements encaissés par mois (6 derniers mois)</div>
+            <BarChart
+              data={monthBuckets.map((m) => ({ label: m.label, value: m.value }))}
+              color="#8C6B2E"
+              formatValue={(v) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
+            />
           </div>
         )}
       </div>
@@ -213,13 +201,11 @@ export default async function DashboardPage() {
 function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
   const overdueCount = tasks.filter((t) => t.overdue).length;
   return (
-    <div className="bg-white border border-line rounded-card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="text-[12.5px] text-slate">À faire ({tasks.length})</div>
-        {overdueCount > 0 && <Pill tone="danger">{overdueCount} en retard</Pill>}
-        <div className="flex-1" />
-        <RefreshButton />
-      </div>
+    <CollapsibleSection
+      title={`À faire (${tasks.length})`}
+      badge={overdueCount > 0 ? <Pill tone="danger">{overdueCount} en retard</Pill> : undefined}
+      extra={<RefreshButton />}
+    >
       <div className="flex flex-col">
         {tasks.slice(0, 8).map((t) => (
           <Link
@@ -243,7 +229,7 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
           + {tasks.length - 8} autre{tasks.length - 8 > 1 ? "s" : ""}
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -253,10 +239,7 @@ function ComplaintsWidget({
   complaints: { id: string; subject: string; submittedByName: string; createdAt: Date; status: string }[];
 }) {
   return (
-    <div className="bg-white border border-line rounded-card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="text-[12.5px] text-slate">Réclamations en attente ({complaints.length})</div>
-      </div>
+    <CollapsibleSection title={`Réclamations en attente (${complaints.length})`}>
       <div className="flex flex-col">
         {complaints.slice(0, 5).map((c) => (
           <Link
@@ -277,7 +260,7 @@ function ComplaintsWidget({
           + {complaints.length - 5} autre{complaints.length - 5 > 1 ? "s" : ""}
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 
