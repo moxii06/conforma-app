@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const PLAN_DETAILS: Record<string, { name: string; price: string; features: string[] }> = {
   solo: { name: "Solo", price: "39 €/mois", features: ["1 utilisateur", "Jusqu'à 15 apprenants actifs / mois", "Toolkit documents inclus"] },
   team: { name: "Team", price: "89 €/mois", features: ["5 utilisateurs", "Apprenants illimités", "Portails apprenant / formateur", "E-learning de base"] },
-  growth: { name: "Growth", price: "149 €/mois", features: ["Utilisateurs illimités", "Module RGPD / DPIA complet", "Futures intégrations OPCO"] },
+  growth: { name: "Growth", price: "189 €/mois", features: ["Utilisateurs illimités", "Module RGPD / DPIA complet", "Futures intégrations OPCO"] },
 };
 
 export default async function EssaiPage({ searchParams }: { searchParams: { plan?: string } }) {

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 const PLAN_LABELS: Record<string, { name: string; price: string }> = {
   solo: { name: "Solo", price: "39 €/mois" },
   team: { name: "Team", price: "89 €/mois" },
-  growth: { name: "Growth", price: "149 €/mois" },
+  growth: { name: "Growth", price: "189 €/mois" },
 };
 
 export function SignupForm({ initialPlan }: { initialPlan: string }) {

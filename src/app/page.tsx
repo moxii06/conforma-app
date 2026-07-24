@@ -56,7 +56,7 @@ const FAQ = [
   },
   {
     q: "Puis-je essayer sans engagement ?",
-    a: "Oui — 14 jours d'essai gratuit, sans carte bancaire à saisir au départ. Vous changez ou résiliez votre offre à tout moment.",
+    a: "Oui — 14 jours d'essai gratuit, sans carte bancaire à saisir au départ. Aucun frais de mise en route facturé à part, contrairement à certains éditeurs du secteur. Vous changez ou résiliez votre offre à tout moment.",
   },
   {
     q: "Et si je gère aussi des sous-traitants ou des formateurs externes ?",
@@ -84,7 +84,7 @@ const PLANS = [
   {
     slug: "growth",
     name: "Growth",
-    price: "149",
+    price: "189",
     tagline: "Pour aller plus loin",
     features: ["Utilisateurs illimités", "Module RGPD / DPIA complet", "Futures intégrations OPCO"],
     featured: false,
@@ -255,7 +255,7 @@ export default function MarketingPage() {
         <div className="text-center mb-12">
           <div className="text-[12px] font-semibold text-seal-dark uppercase tracking-wide mb-2">Tarifs</div>
           <h2 className="font-display text-[28px] text-ink mb-2">Trois offres, pensées pour votre croissance</h2>
-          <p className="text-[13.5px] text-slate">14 jours d&apos;essai gratuit — sans carte bancaire.</p>
+          <p className="text-[13.5px] text-slate">14 jours d&apos;essai gratuit — sans carte bancaire, sans frais de mise en route.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {PLANS.map((plan) => (
