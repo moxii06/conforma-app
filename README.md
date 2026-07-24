@@ -780,14 +780,22 @@ optional once real customer data is involved.
   emails end up in the inbox-triage queue rather than being force-linked to
   the wrong contact. Don't "simplify" this to a required field; the matching
   logic in spec §5.11 depends on it.
-- **There is no automated test suite and no CI** (`npm test` doesn't exist,
-  no `.github/workflows`). Every feature so far has been verified by hand —
-  type-check (`npx tsc --noEmit`) plus manually driving a real browser
-  against the seeded demo data. That means there's currently no safety net
-  against a change silently breaking something unrelated; add tests (at
-  minimum for the tenant-scoping and permission logic in `src/lib/tenant.ts`,
-  since that's the one place a bug becomes a real data leak) before more than
-  one person is changing this code at once.
+- **The automated test suite is minimal — a starting point, not coverage.**
+  `npm test` runs Vitest (`vitest.config.ts`) against `src/lib/tenant.test.ts`
+  and `src/lib/lms.test.ts`: the permission/ownership functions in
+  `tenant.ts` (the one place a bug becomes a real cross-tenant data leak)
+  and the LMS completion math in `lms.ts` (feeds the certificate route,
+  décrochage detection, and rolling-access reminders). Everything else —
+  every API route, every page, every other `lib/*.ts` — is still only
+  verified by hand: type-check (`npx tsc --noEmit`) plus manually driving a
+  real browser against the seeded demo data. `.github/workflows/ci.yml` runs
+  type-check + `npm test` on every push/PR to `master`; it deliberately
+  doesn't run `next build` (that needs a reachable Postgres to apply
+  migrations against, which this workflow doesn't provision). Treat the
+  current test files as the pattern to extend, not a finished job — route
+  handlers and anything else that touches Prisma at import time will need
+  either a real test database or a mocked Prisma client before they're
+  practical to cover.
 - **The Prisma migration workflow here is non-standard**, because `prisma
   migrate dev`'s interactive flow (which needs a disposable shadow database)
   isn't reliable in this dev environment. Migrations are instead hand-built:

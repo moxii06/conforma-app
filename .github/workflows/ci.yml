@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      # postinstall runs `prisma generate` — needed for the type-check step
+      # below, and doesn't require a reachable database (it only reads
+      # prisma/schema.prisma).
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+        # This intentionally stops short of `npm run build`: that script is
+        # `prisma migrate deploy && next build`, which needs a real
+        # reachable Postgres to apply migrations against — this workflow
+        # doesn't provision one. Type-check + unit tests catch most
+        # regressions cheaply; add a build step (with a CI database
+        # service) if that gap ever bites.
