@@ -12,13 +12,21 @@ export function EditCourseForm({
 }: {
   courseId: string;
   members: Member[];
-  initial: { title: string; description: string | null; responsibleUserIds: string[] };
+  initial: {
+    title: string;
+    description: string | null;
+    responsibleUserIds: string[];
+    durationHours: number | null;
+    priceCents: number | null;
+  };
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? "");
   const [responsibleIds, setResponsibleIds] = useState<Set<string>>(new Set(initial.responsibleUserIds));
+  const [durationHours, setDurationHours] = useState(initial.durationHours != null ? String(initial.durationHours) : "");
+  const [price, setPrice] = useState(initial.priceCents != null ? String(initial.priceCents / 100) : "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +50,8 @@ export function EditCourseForm({
         title,
         description: description || null,
         responsibleUserIds: Array.from(responsibleIds),
+        durationHours: durationHours ? parseInt(durationHours, 10) : null,
+        priceCents: price ? Math.round(parseFloat(price) * 100) : null,
       }),
     });
     setLoading(false);
@@ -78,6 +88,25 @@ export function EditCourseForm({
         rows={2}
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
       />
+      <div className="flex gap-2">
+        <input
+          value={durationHours}
+          onChange={(e) => setDurationHours(e.target.value)}
+          type="number"
+          min={1}
+          placeholder="Durée (heures)"
+          className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft flex-1"
+        />
+        <input
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          type="number"
+          min={0}
+          step="0.01"
+          placeholder="Prix (€)"
+          className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft flex-1"
+        />
+      </div>
       {members.length > 0 && (
         <div className="flex flex-col gap-1">
           <div className="text-[11px] text-slate uppercase tracking-wide">Responsables / personnes concernées</div>

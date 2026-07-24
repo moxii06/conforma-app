@@ -48,7 +48,7 @@ export default async function DocumentsPage({
 }
 
 async function TemplatesTab({ organizationId }: { organizationId: string }) {
-  const [globalTemplates, orgTemplates, dossiers] = await Promise.all([
+  const [globalTemplates, orgTemplates, dossiers, courses] = await Promise.all([
     prisma.documentTemplate.findMany({ where: { organizationId: null }, orderBy: { title: "asc" } }),
     prisma.documentTemplate.findMany({ where: { organizationId }, orderBy: { title: "asc" } }),
     prisma.dossier.findMany({
@@ -56,11 +56,21 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
       include: { contact: true, session: { include: { course: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.course.findMany({ where: { organizationId, archivedAt: null }, orderBy: { title: "asc" } }),
   ]);
   const dossierOptions = dossiers.map((d) => ({
     id: d.id,
     label: `${d.contact.firstName} ${d.contact.lastName} — ${d.session.course.title}`,
   }));
+
+  // Client feedback: "general" documents vs. a per-formation library — a
+  // template scoped to a course (see DocumentTemplate.courseId) pulls that
+  // course's own title/duration/price into anything generated from it (see
+  // mergeTemplate.ts's course.* fields), so it's grouped separately here.
+  const generalOrgTemplates = orgTemplates.filter((t) => !t.courseId);
+  const coursesWithTemplates = courses
+    .map((c) => ({ course: c, templates: orgTemplates.filter((t) => t.courseId === c.id) }))
+    .filter((g) => g.templates.length > 0);
 
   return (
     <div className="p-8 flex flex-col gap-6 max-w-3xl">
@@ -110,11 +120,11 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className="text-[13.5px] font-semibold text-ink">Vos modèles ({orgTemplates.length})</div>
-        {orgTemplates.length > 0 && (
+        <div className="text-[13.5px] font-semibold text-ink">Documents généraux ({generalOrgTemplates.length})</div>
+        {generalOrgTemplates.length > 0 && (
           <div className="bg-white border border-line rounded-card p-4">
             {DOCUMENT_CATEGORIES.map((category) => {
-              const items = orgTemplates.filter((t) => t.category === category);
+              const items = generalOrgTemplates.filter((t) => t.category === category);
               if (items.length === 0) return null;
               return (
                 <div key={category} className="mb-3 last:mb-0">
@@ -138,7 +148,41 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
             })}
           </div>
         )}
-        <NewTemplateForm />
+
+        {coursesWithTemplates.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <div className="text-[13.5px] font-semibold text-ink">Bibliothèques par formation</div>
+            {coursesWithTemplates.map(({ course, templates }) => (
+              <div key={course.id} className="bg-white border border-line rounded-card p-4">
+                <div className="text-[12.5px] font-semibold text-ink mb-0.5">{course.title}</div>
+                <div className="text-[11px] text-slate mb-2.5">
+                  {course.durationHours != null ? `${course.durationHours} h` : "Durée non renseignée"}
+                  {" · "}
+                  {course.priceCents != null
+                    ? (course.priceCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
+                    : "Prix non renseigné"}
+                  {" — "}
+                  <a href={`/formations/${course.id}`} className="underline decoration-line hover:decoration-ink">
+                    modifier sur la fiche formation
+                  </a>
+                </div>
+                {templates.map((t) => (
+                  <details key={t.id} className="border-t border-line py-2.5">
+                    <summary className="cursor-pointer list-none text-[13px] text-ink font-medium">
+                      {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
+                    </summary>
+                    <div className="mt-2.5 flex flex-col gap-2.5">
+                      <TemplateEditor templateId={t.id} title={t.title} bodyText={t.bodyText} />
+                      <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <NewTemplateForm courses={courses} />
       </div>
     </div>
   );

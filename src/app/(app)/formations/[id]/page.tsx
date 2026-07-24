@@ -76,6 +76,15 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
                   Responsable{course.responsibleUsers.length > 1 ? "s" : ""} : {course.responsibleUsers.map((u) => u.name).join(", ")}
                 </div>
               )}
+              {(course.durationHours != null || course.priceCents != null) && (
+                <div className="text-[11px] text-slate mt-0.5">
+                  {course.durationHours != null ? `${course.durationHours} h` : "Durée non renseignée"}
+                  {" · "}
+                  {course.priceCents != null
+                    ? (course.priceCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
+                    : "Prix non renseigné"}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {rollingSessionCount > 0 && <Pill tone="neutral">{rollingSessionCount} en continu</Pill>}
@@ -88,7 +97,13 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
               <EditCourseForm
                 courseId={course.id}
                 members={members}
-                initial={{ title: course.title, description: course.description, responsibleUserIds: course.responsibleUsers.map((u) => u.id) }}
+                initial={{
+                  title: course.title,
+                  description: course.description,
+                  responsibleUserIds: course.responsibleUsers.map((u) => u.id),
+                  durationHours: course.durationHours,
+                  priceCents: course.priceCents,
+                }}
               />
               <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
             </div>

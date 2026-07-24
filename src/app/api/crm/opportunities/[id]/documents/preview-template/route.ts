@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   const opportunity = await prisma.opportunity.findFirst({
     where: { id: params.id, organizationId: session.organizationId },
-    include: { contact: true },
+    include: { contact: true, courseOfInterest: true },
   });
   if (!opportunity) return NextResponse.json({ error: "Opportunité introuvable." }, { status: 404 });
   if (!canManageOpportunity(session.role, session.userId, opportunity)) {
@@ -27,6 +27,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   const template = await prisma.documentTemplate.findFirst({
     where: { id: templateId, OR: [{ organizationId: session.organizationId }, { organizationId: null }] },
+    include: { course: true },
   });
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
 
@@ -34,10 +35,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
   // No real session yet at the prospect stage — {{session.startsAt}} is left
   // blank rather than filled with a fake date (mergeTemplate treats a
   // missing session as "" for every session.* field, courseTitle included).
+  // course.* comes from the template's own library course if it's scoped to
+  // one, otherwise falls back to the opportunity's courseOfInterest.
   const bodyText = mergeTemplate(template.bodyText, {
     contact: opportunity.contact,
     organization,
     session: null,
+    course: template.course ?? opportunity.courseOfInterest,
   });
 
   return NextResponse.json({

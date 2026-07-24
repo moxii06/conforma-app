@@ -4,10 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 
-export function NewTemplateForm() {
+type Course = { id: string; title: string };
+
+export function NewTemplateForm({ courses = [] }: { courses?: Course[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<string>(DOCUMENT_CATEGORIES[0]);
+  const [courseId, setCourseId] = useState("");
   const [title, setTitle] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +24,7 @@ export function NewTemplateForm() {
     const res = await fetch("/api/documents/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, title, bodyText }),
+      body: JSON.stringify({ category, title, bodyText, courseId: courseId || undefined }),
     });
 
     setLoading(false);
@@ -33,6 +36,7 @@ export function NewTemplateForm() {
 
     setTitle("");
     setBodyText("");
+    setCourseId("");
     setOpen(false);
     router.refresh();
   }
@@ -58,6 +62,18 @@ export function NewTemplateForm() {
         </select>
         <input required placeholder="Titre du modèle" value={title} onChange={(e) => setTitle(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
       </div>
+      {courses.length > 0 && (
+        <select
+          value={courseId}
+          onChange={(e) => setCourseId(e.target.value)}
+          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+        >
+          <option value="">Document général (toutes formations)</option>
+          {courses.map((c) => (
+            <option key={c.id} value={c.id}>Bibliothèque : {c.title}</option>
+          ))}
+        </select>
+      )}
       <textarea
         required
         placeholder="Contenu du modèle…"

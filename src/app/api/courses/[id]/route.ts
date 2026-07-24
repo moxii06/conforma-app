@@ -8,6 +8,8 @@ const schema = z.object({
   description: z.string().nullable().optional(),
   responsibleUserIds: z.array(z.string()).optional(),
   archived: z.boolean().optional(),
+  durationHours: z.number().int().positive().nullable().optional(),
+  priceCents: z.number().int().positive().nullable().optional(),
 });
 
 // Single PATCH for both "edit the course's details" and "archive/unarchive
@@ -46,6 +48,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ...(data.description !== undefined ? { description: data.description || null } : {}),
       ...(data.responsibleUserIds ? { responsibleUsers: { set: data.responsibleUserIds.map((id) => ({ id })) } } : {}),
       ...(data.archived !== undefined ? { archivedAt: data.archived ? new Date() : null } : {}),
+      ...(data.durationHours !== undefined ? { durationHours: data.durationHours } : {}),
+      ...(data.priceCents !== undefined ? { priceCents: data.priceCents } : {}),
     },
     include: { responsibleUsers: true },
   });

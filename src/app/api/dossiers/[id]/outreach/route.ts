@@ -72,6 +72,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       organization,
       session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },
       dossier: { retentionUntil: dossier.retentionUntil },
+      course: dossier.session.course,
     });
 
     const document = await prisma.document.create({
