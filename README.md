@@ -13,7 +13,7 @@ any part of this is battle-tested.
 
 ## What's actually built here
 
-- Next.js 14 + TypeScript + Tailwind project structure
+- Next.js 16 + TypeScript + Tailwind project structure
 - **Full Prisma schema** (`prisma/schema.prisma`) covering every entity described
   in spec §4, including the ones not yet used by a page (GDPR, Qualiopi evidence,
   LMS, email matching) — so the data model doesn't need to be redesigned as each
@@ -821,6 +821,20 @@ optional once real customer data is involved.
   something similar rather than reaching for a standing route — it's a live
   SQL-execution surface and shouldn't exist longer than the specific problem
   it's solving.
+- **Upgraded Next.js 14 → 16.2.11** to close 2 high-severity CVEs (RSC cache
+  poisoning, Server Actions DoS, disclosure of internal Server Function
+  endpoints — none of which applied narrowly to this app's actual config, but
+  `npm audit` doesn't know that). Used the official
+  `next-async-request-api` codemod for the `params`/`searchParams` → async
+  breaking change, verified with a full local `next build` (both Turbopack
+  and webpack) plus a manual pass across Admin/Learner roles before merging.
+  `npm audit` still reports `postcss` (bundled inside `next`'s own build
+  tooling, never exposed to user input) and `sharp` (an optional dependency
+  of `next/image` — irrelevant here since `next/image` is never used
+  anywhere in this codebase; every image is a plain `<img>`). Both are
+  real-looking findings with effectively zero exposure in this app; don't
+  chase them without first checking whether the feature they gate is
+  actually used.
 - **Where the permission model actually lives**: `src/lib/tenant.ts`'s
   `PERMISSIONS` matrix (`can(role, feature)`) is the single source of truth
   for coarse "does this role see this section at all" access — the Sidebar,

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Jalon — a Next.js 14 (App Router) + Prisma/PostgreSQL SaaS for French Qualiopi-certified
+Jalon — a Next.js 16 (App Router) + Prisma/PostgreSQL SaaS for French Qualiopi-certified
 training organizations (organismes de formation): CRM, session planning, an LMS with
 quizzes/certificates, Qualiopi/GDPR/BPF compliance modules, native invoicing, an
 automation-rule engine for relances, and a public marketing site. `technical-specification.md`
