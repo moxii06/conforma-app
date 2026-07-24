@@ -10,6 +10,8 @@ import { EditSessionForm } from "@/components/EditSessionForm";
 import { ValidateSessionButton } from "@/components/ValidateSessionButton";
 import { EnrollProspectForm } from "@/components/EnrollProspectForm";
 import { GenerateCertificateButton } from "@/components/GenerateCertificateButton";
+import { CancelSessionButton } from "@/components/CancelSessionButton";
+import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
 
 const FORMAT_LABELS: Record<string, string> = {
   IN_PERSON: "Présentiel",
@@ -59,8 +61,30 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
   const isRemote = session.format === "REMOTE" || session.format === "HYBRID";
   const isInPerson = session.format === "IN_PERSON" || session.format === "HYBRID";
   const mapLink = isInPerson ? mapLinkFor(session.location) : null;
-  const isArchived = session.endsAt < new Date();
+  const isPast = session.endsAt < new Date();
+  const isCancelled = session.status === "CANCELLED";
+  const isManuallyArchived = Boolean(session.archivedAt);
+  const isArchived = isPast || isManuallyArchived;
+  // Past or cancelled: the roster is frozen, no more editing/enrolling/inviting.
+  const isReadOnly = isPast || isCancelled;
   const isValidated = session.status === "VALIDATED";
+  const isFull = session.dossiers.length >= session.capacity;
+
+  // Client feedback: staff need a heads-up when a learner already has other
+  // active formations, to avoid double-booking or duplicated outreach.
+  const contactIds = session.dossiers.map((d) => d.contactId);
+  const otherDossiersByContact = contactIds.length
+    ? await prisma.dossier.findMany({
+        where: { contactId: { in: contactIds }, sessionId: { not: session.id }, organizationId: auth.organizationId },
+        include: { session: { include: { course: true } } },
+      })
+    : [];
+  const otherFormationsByContactId = new Map<string, { dossierId: string; courseTitle: string; startsAt: Date }[]>();
+  for (const d of otherDossiersByContact) {
+    const list = otherFormationsByContactId.get(d.contactId) ?? [];
+    list.push({ dossierId: d.id, courseTitle: d.session.course.title, startsAt: d.session.startsAt });
+    otherFormationsByContactId.set(d.contactId, list);
+  }
 
   const trainers = canEdit
     ? await prisma.user.findMany({ where: { organizationId: auth.organizationId, role: Role.TRAINER }, orderBy: { name: "asc" } })
@@ -93,25 +117,32 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
         <div className="bg-white border border-line rounded-card p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Pill tone={isArchived ? "neutral" : isValidated ? "good" : "warn"}>
-                {isArchived ? "Archivée" : isValidated ? "Validée" : "Brouillon"}
+              <Pill tone={isCancelled ? "danger" : isArchived ? "neutral" : isValidated ? "good" : "warn"}>
+                {isCancelled ? "Annulée" : isArchived ? "Archivée" : isValidated ? "Validée" : "Brouillon"}
               </Pill>
+              {isFull && !isCancelled && <Pill tone="neutral">Complet</Pill>}
             </div>
-            {canEdit && !isArchived && (
+            {canEdit && (
               <div className="flex items-center gap-3">
-                <EditSessionForm
-                  sessionId={session.id}
-                  trainers={trainers}
-                  initial={{
-                    trainerId: session.trainerId,
-                    startsAt: session.startsAt,
-                    endsAt: session.endsAt,
-                    format: session.format,
-                    location: session.location,
-                    capacity: session.capacity,
-                  }}
-                />
-                <ValidateSessionButton sessionId={session.id} isValidated={isValidated} />
+                {!isReadOnly && (
+                  <>
+                    <EditSessionForm
+                      sessionId={session.id}
+                      trainers={trainers}
+                      initial={{
+                        trainerId: session.trainerId,
+                        startsAt: session.startsAt,
+                        endsAt: session.endsAt,
+                        format: session.format,
+                        location: session.location,
+                        capacity: session.capacity,
+                      }}
+                    />
+                    <ValidateSessionButton sessionId={session.id} isValidated={isValidated} />
+                    <CancelSessionButton sessionId={session.id} />
+                  </>
+                )}
+                <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />
               </div>
             )}
           </div>
@@ -134,6 +165,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
               <div className="text-slate mb-1">Places</div>
               <div className="text-ink font-medium">
                 {session.dossiers.length}/{session.capacity}
+                {isFull && !isCancelled && <span className="text-rust"> · Complet</span>}
               </div>
             </div>
           </div>
@@ -168,7 +200,7 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           )}
         </div>
 
-        {canEdit && !isArchived && (
+        {canEdit && !isReadOnly && (
           <div className="bg-white border border-line rounded-card p-5">
             <div className="text-[13.5px] font-semibold text-ink mb-3.5">Ajouter un apprenant</div>
             <EnrollProspectForm
@@ -191,11 +223,20 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
           <div className="flex flex-col gap-2">
             {session.dossiers.map((d) => {
               const lastInvitation = d.invitations[0];
+              const otherFormations = otherFormationsByContactId.get(d.contactId) ?? [];
               return (
                 <details key={d.id} className="border border-line rounded-md group">
                   <summary className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer list-none">
-                    <div className="flex-1 text-[13px] text-ink font-medium">
-                      {d.contact.firstName} {d.contact.lastName}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] text-ink font-medium">
+                        {d.contact.firstName} {d.contact.lastName}
+                      </div>
+                      {otherFormations.length > 0 && (
+                        <div className="text-[11px] text-slate mt-0.5 truncate">
+                          + {otherFormations.length} autre{otherFormations.length > 1 ? "s" : ""} formation
+                          {otherFormations.length > 1 ? "s" : ""} : {otherFormations.map((f) => f.courseTitle).join(", ")}
+                        </div>
+                      )}
                     </div>
                     {lastInvitation ? (
                       <Pill tone="good">
@@ -223,7 +264,9 @@ export default async function SessionDetailPage({ params }: { params: { id: stri
                         )}
                       </div>
                     )}
-                    {!isValidated ? (
+                    {isCancelled ? (
+                      <div className="text-[12px] text-slate pt-2">Session annulée — aucune convocation ne peut être envoyée.</div>
+                    ) : !isValidated ? (
                       <div className="text-[12px] text-slate pt-2">
                         Session en brouillon — validez-la pour activer l&apos;envoi des convocations.
                       </div>

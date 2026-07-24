@@ -13,6 +13,18 @@ const FORMAT_LABELS: Record<SessionFormat, string> = {
   HYBRID: "Mixte",
 };
 
+// location is one physical field doing double duty depending on format —
+// see the Prisma comment on Session.location. Client feedback: the field
+// used to always read "si présentiel", which made no sense once Distanciel
+// was picked. A REMOTE session doesn't need this at all in practice (a
+// Jitsi link auto-generates at first invitation send if left blank), but
+// staff can still paste a real Zoom/Teams link here to use instead.
+const LOCATION_PLACEHOLDER: Record<SessionFormat, string> = {
+  IN_PERSON: "Lieu / adresse",
+  REMOTE: "Lien de visio (facultatif — généré automatiquement sinon)",
+  HYBRID: "Lieu et/ou lien de visio",
+};
+
 export function CreateSessionForm({ courses, trainers }: { courses: Course[]; trainers: Trainer[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -139,7 +151,7 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
       )}
 
       <div className="flex gap-2">
-        <input placeholder="Lieu / adresse (si présentiel)" value={location} onChange={(e) => setLocation(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
+        <input placeholder={LOCATION_PLACEHOLDER[format]} value={location} onChange={(e) => setLocation(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
         <input required type="number" min={1} placeholder="Places" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-24" />
       </div>
 

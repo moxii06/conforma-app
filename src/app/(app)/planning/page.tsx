@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Tabs } from "@/components/Tabs";
 import { CreateSessionForm } from "@/components/CreateSessionForm";
 import { PlanningCalendar } from "@/components/PlanningCalendar";
+import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
 import { Role } from "@prisma/client";
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -19,6 +20,7 @@ const FORMAT_LABELS: Record<string, string> = {
 const TABS = [
   { key: "liste", label: "Liste" },
   { key: "calendrier", label: "Calendrier" },
+  { key: "archives", label: "Archives" },
 ];
 
 export default async function PlanningPage({ searchParams }: { searchParams: { tab?: string; month?: string } }) {
@@ -45,6 +47,8 @@ export default async function PlanningPage({ searchParams }: { searchParams: { t
         {canCreate && <CreateSessionForm courses={courses} trainers={trainers} />}
         {activeTab === "calendrier" ? (
           <CalendarTab organizationId={organizationId} monthParam={searchParams.month} ownerFilter={ownerFilter} />
+        ) : activeTab === "archives" ? (
+          <ArchivesTab organizationId={organizationId} ownerFilter={ownerFilter} canEdit={canCreate} />
         ) : (
           <ListTab organizationId={organizationId} ownerFilter={ownerFilter} />
         )}
@@ -59,7 +63,7 @@ async function ListTab({ organizationId, ownerFilter }: { organizationId: string
   // course's roster lives on /formations instead, where it doesn't need a
   // date to make sense.
   const sessions = await prisma.session.findMany({
-    where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date() }, ...ownerFilter },
+    where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date() }, archivedAt: null, ...ownerFilter },
     include: { course: true, trainer: true, dossiers: true },
     orderBy: { startsAt: "asc" },
     take: 20,
@@ -67,35 +71,44 @@ async function ListTab({ organizationId, ownerFilter }: { organizationId: string
 
   return (
     <div className="flex flex-col gap-2.5">
-      {sessions.map((s) => (
-        <Link
-          key={s.id}
-          href={`/planning/${s.id}`}
-          className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6 hover:border-ink-soft"
-        >
-          <div className="w-24 shrink-0">
-            <div className="text-[12.5px] font-semibold text-ink">
-              {format(s.startsAt, "EEE d MMM", { locale: fr })}
+      {sessions.map((s) => {
+        const isFull = s.dossiers.length >= s.capacity;
+        const isCancelled = s.status === "CANCELLED";
+        return (
+          <Link
+            key={s.id}
+            href={`/planning/${s.id}`}
+            className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6 hover:border-ink-soft"
+          >
+            <div className="w-24 shrink-0">
+              <div className="text-[12.5px] font-semibold text-ink">
+                {format(s.startsAt, "EEE d MMM", { locale: fr })}
+              </div>
+              <div className="text-[11.5px] text-slate">
+                {format(s.startsAt, "HH:mm")}–{format(s.endsAt, "HH:mm")}
+              </div>
             </div>
-            <div className="text-[11.5px] text-slate">
-              {format(s.startsAt, "HH:mm")}–{format(s.endsAt, "HH:mm")}
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] font-semibold text-ink truncate">{s.course.title}</div>
+              <div className="text-[11.5px] text-slate mt-0.5 truncate">
+                {s.location} · {FORMAT_LABELS[s.format]}
+              </div>
             </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13.5px] font-semibold text-ink truncate">{s.course.title}</div>
-            <div className="text-[11.5px] text-slate mt-0.5 truncate">
-              {s.location} · {FORMAT_LABELS[s.format]}
+            <div className="text-[12.5px] text-ink w-28 shrink-0 truncate">{s.trainer ? s.trainer.name : "À assigner"}</div>
+            <div className="text-[12.5px] text-slate w-14 shrink-0 text-right">
+              {s.dossiers.length}/{s.capacity}
             </div>
-          </div>
-          <div className="text-[12.5px] text-ink w-28 shrink-0 truncate">{s.trainer ? s.trainer.name : "À assigner"}</div>
-          <div className="text-[12.5px] text-slate w-14 shrink-0 text-right">
-            {s.dossiers.length}/{s.capacity}
-          </div>
-          <div className="shrink-0">
-            <Pill tone={s.trainer ? "good" : "danger"}>{s.trainer ? "Confirmée" : "Formateur à confirmer"}</Pill>
-          </div>
-        </Link>
-      ))}
+            <div className="shrink-0 flex items-center gap-1.5">
+              {isFull && !isCancelled && <Pill tone="neutral">Complet</Pill>}
+              {isCancelled ? (
+                <Pill tone="danger">Annulée</Pill>
+              ) : (
+                <Pill tone={s.trainer ? "good" : "danger"}>{s.trainer ? "Confirmée" : "Formateur à confirmer"}</Pill>
+              )}
+            </div>
+          </Link>
+        );
+      })}
       {sessions.length === 0 && <div className="text-[12.5px] text-slate">Aucune session à venir.</div>}
     </div>
   );
@@ -127,5 +140,68 @@ async function CalendarTab({
       month={month}
       sessions={sessions.map((s) => ({ id: s.id, startsAt: s.startsAt, courseTitle: s.course.title }))}
     />
+  );
+}
+
+// Client feedback: past sessions used to just vanish from "Liste" (its query
+// only ever looked at startsAt >= now) with nowhere to browse them again.
+// This surfaces both flavors of "inactive" — naturally past, and manually
+// archived via ArchiveSessionButton (e.g. a cancelled future session) — in
+// one place, newest-first so recently-finished sessions are at the top.
+async function ArchivesTab({
+  organizationId,
+  ownerFilter,
+  canEdit,
+}: {
+  organizationId: string;
+  ownerFilter: { trainerId?: string };
+  canEdit: boolean;
+}) {
+  const sessions = await prisma.session.findMany({
+    where: {
+      organizationId,
+      mode: "FIXED_DATE",
+      OR: [{ archivedAt: { not: null } }, { endsAt: { lt: new Date() } }],
+      ...ownerFilter,
+    },
+    include: { course: true, trainer: true, dossiers: true },
+    orderBy: { startsAt: "desc" },
+    take: 50,
+  });
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {sessions.map((s) => (
+        <div key={s.id} className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6">
+          <Link href={`/planning/${s.id}`} className="flex items-center gap-6 flex-1 min-w-0 hover:opacity-80">
+            <div className="w-24 shrink-0">
+              <div className="text-[12.5px] font-semibold text-ink">
+                {format(s.startsAt, "EEE d MMM yyyy", { locale: fr })}
+              </div>
+              <div className="text-[11.5px] text-slate">
+                {format(s.startsAt, "HH:mm")}–{format(s.endsAt, "HH:mm")}
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13.5px] font-semibold text-ink truncate">{s.course.title}</div>
+              <div className="text-[11.5px] text-slate mt-0.5 truncate">
+                {s.location} · {FORMAT_LABELS[s.format]}
+              </div>
+            </div>
+            <div className="text-[12.5px] text-ink w-28 shrink-0 truncate">{s.trainer ? s.trainer.name : "À assigner"}</div>
+            <div className="text-[12.5px] text-slate w-14 shrink-0 text-right">
+              {s.dossiers.length}/{s.capacity}
+            </div>
+            <div className="shrink-0">
+              <Pill tone={s.status === "CANCELLED" ? "danger" : "neutral"}>
+                {s.status === "CANCELLED" ? "Annulée" : "Archivée"}
+              </Pill>
+            </div>
+          </Link>
+          {canEdit && <ArchiveSessionButton sessionId={s.id} archived={Boolean(s.archivedAt)} />}
+        </div>
+      ))}
+      {sessions.length === 0 && <div className="text-[12.5px] text-slate">Aucune session archivée.</div>}
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SessionFormat } from "@prisma/client";
 import { format as formatDate } from "date-fns";
+import { ArrowLeft } from "lucide-react";
 
 type Trainer = { id: string; name: string };
 
@@ -11,6 +12,12 @@ const FORMAT_LABELS: Record<SessionFormat, string> = {
   IN_PERSON: "Présentiel",
   REMOTE: "Distanciel",
   HYBRID: "Mixte",
+};
+
+const LOCATION_PLACEHOLDER: Record<SessionFormat, string> = {
+  IN_PERSON: "Lieu / adresse",
+  REMOTE: "Lien de visio (facultatif — généré automatiquement sinon)",
+  HYBRID: "Lieu et/ou lien de visio",
 };
 
 export function EditSessionForm({
@@ -82,6 +89,21 @@ export function EditSessionForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#EFEDE7] border border-line rounded-md p-3.5">
+      {/* Client feedback: the only way out of edit mode was a small text
+          link at the very bottom, easy to miss once the form fills the
+          space where the session summary used to be. This arrow gives an
+          immediate, visible "go back" next to the form's own heading. */}
+      <div className="flex items-center gap-1.5 -mb-0.5">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-slate hover:text-ink shrink-0"
+          title="Revenir en arrière"
+        >
+          <ArrowLeft size={15} />
+        </button>
+        <div className="text-[12px] font-semibold text-ink">Modifier la session</div>
+      </div>
       <div className="flex gap-2">
         <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">
           <option value="">Formateur à assigner</option>
@@ -101,7 +123,7 @@ export function EditSessionForm({
         <input required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28" />
       </div>
       <div className="flex gap-2">
-        <input placeholder="Lieu / adresse (si présentiel)" value={location} onChange={(e) => setLocation(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
+        <input placeholder={LOCATION_PLACEHOLDER[sessFormat]} value={location} onChange={(e) => setLocation(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
         <input required type="number" min={1} placeholder="Places" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-24" />
       </div>
       <div className="flex items-center gap-2.5">

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill } from "@/components/ui";
 import { CheckCircle2, Circle } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSessionContext, can, canWriteRgpd, canManageSessionInvitations, canAccessAccommodations } from "@/lib/tenant";
 import { Role } from "@prisma/client";
 import { Tabs } from "@/components/Tabs";
@@ -69,6 +70,15 @@ export default async function DossierPage({ params, searchParams }: { params: { 
   });
   const canConvocation = canManageSessionInvitations(role, userId, dossier.session);
 
+  // Client feedback: anticipate the same contact attending several
+  // formations — surface it directly on the dossier so staff aren't
+  // surprised by (or duplicate work for) a learner already known elsewhere.
+  const otherDossiers = await prisma.dossier.findMany({
+    where: { contactId: dossier.contactId, id: { not: dossier.id }, organizationId },
+    include: { session: { include: { course: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
   return (
     <>
       <PageHeader title={`${dossier.contact.firstName} ${dossier.contact.lastName}`} subtitle={dossier.session.course.title} />
@@ -99,6 +109,11 @@ export default async function DossierPage({ params, searchParams }: { params: { 
             canConvocation={canConvocation}
             outreaches={outreaches}
             signatureHtml={signatureHtml}
+            otherDossiers={otherDossiers.map((d) => ({
+              id: d.id,
+              courseTitle: d.session.course.title,
+              startsAt: d.session.startsAt,
+            }))}
           />
         )}
       </div>
@@ -114,6 +129,7 @@ async function InfoTab({
   canConvocation,
   outreaches,
   signatureHtml,
+  otherDossiers,
 }: {
   dossier: { id: string; needsAssessmentDone: boolean; contractSigned: boolean; convocationSent: boolean; evaluationHotDone: boolean; evaluationColdDone: boolean; learnerCategory: string | null; contact: { firstName: string } };
   organizationId: string;
@@ -122,6 +138,7 @@ async function InfoTab({
   canConvocation: boolean;
   outreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
   signatureHtml: string;
+  otherDossiers: { id: string; courseTitle: string; startsAt: Date }[];
 }) {
   const templates = canManageOutreach
     ? await prisma.documentTemplate.findMany({
@@ -140,6 +157,25 @@ async function InfoTab({
 
   return (
     <div className="flex flex-col gap-4">
+      {otherDossiers.length > 0 && (
+        <div className="bg-white border border-line rounded-card p-5">
+          <div className="text-[13.5px] font-semibold text-ink mb-3">
+            Autres formations de {dossier.contact.firstName} ({otherDossiers.length})
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {otherDossiers.map((d) => (
+              <Link
+                key={d.id}
+                href={`/dossiers/${d.id}`}
+                className="flex items-center justify-between gap-3 text-[12.5px] text-ink hover:underline decoration-line"
+              >
+                <span className="truncate">{d.courseTitle}</span>
+                <span className="text-slate shrink-0">{format(d.startsAt, "d MMM yyyy", { locale: fr })}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="bg-white border border-line rounded-card p-5">
         <div className="text-[13.5px] font-semibold text-ink mb-3">Parcours de formation</div>
         {steps.map((s) =>
