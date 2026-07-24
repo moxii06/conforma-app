@@ -61,7 +61,7 @@ export async function Sidebar({ user }: { user: SessionContext }) {
             </div>
             <div className="font-display text-lg tracking-wide">Conforma</div>
           </div>
-          {can(user.role, "dashboard") !== "none" && <NotificationBell tasks={tasks} />}
+          {can(user.role, "dashboard") !== "none" && <NotificationBell tasks={tasks} userId={user.userId} />}
         </div>
         <div className="text-xs text-white/60 mt-1 pl-9">pour les organismes de formation</div>
       </div>

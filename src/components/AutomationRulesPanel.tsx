@@ -1,40 +1,106 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AUTOMATION_TRIGGER_LABELS } from "@/lib/automationRules";
+import { AUTOMATION_TRIGGER_LABELS, AUTOMATION_TRIGGER_VALUES, MERGE_TAGS } from "@/lib/automationRules";
 
 type Rule = {
   id: string;
   trigger: string;
   afterDays: number;
   sendEmail: boolean;
+  emailSubject: string | null;
+  emailBody: string | null;
   active: boolean;
 };
 
-// Client feedback: instead of relying only on the app's fixed global
-// relance thresholds, staff should be able to set a rule per formation —
-// "after N days, flag it" and, optionally, send an automatic reminder
-// email. Only one trigger kind exists today (needs_assessment_incomplete),
-// hidden as a fixed label rather than a picker since there's nothing to
-// choose between yet — see lib/automationRules.ts.
+// "Before" triggers count days back from a deadline (session date, access
+// duration end); "after" triggers count forward from enrollment/session end.
+// Just phrasing — the actual clock per trigger lives in dashboardTasks.ts.
+const AFTER_DAYS_PHRASING: Record<string, string> = {
+  needs_assessment_incomplete: "Relancer après",
+  contract_not_signed: "Relancer après",
+  convocation_missing: "Relancer si toujours pas envoyée, à partir de",
+  rolling_duration_expiring: "Prévenir",
+  satisfaction_not_collected: "Relancer après",
+};
+const AFTER_DAYS_SUFFIX: Record<string, string> = {
+  convocation_missing: "jours avant la session",
+  rolling_duration_expiring: "jours avant la fin de la durée d'accès",
+};
+
+// Client feedback: staff should be able to set a rule per formation instead
+// of relying only on the app's fixed global relance thresholds — "after N
+// days, flag it" and, optionally, write a reminder email once (with
+// clickable [Prénom]/[Nom]/... merge tags) that's filled in and sent
+// automatically for every learner the rule fires for.
 export function AutomationRulesPanel({ courseId, rules }: { courseId: string; rules: Rule[] }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
+  const [trigger, setTrigger] = useState<string>(AUTOMATION_TRIGGER_VALUES[0]);
   const [afterDays, setAfterDays] = useState("7");
   const [sendEmail, setSendEmail] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const activeField = useRef<"subject" | "body">("body");
+
+  function insertTag(tag: string) {
+    if (activeField.current === "subject" && subjectRef.current) {
+      const el = subjectRef.current;
+      const start = el.selectionStart ?? emailSubject.length;
+      const end = el.selectionEnd ?? emailSubject.length;
+      const next = emailSubject.slice(0, start) + tag + emailSubject.slice(end);
+      setEmailSubject(next);
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(start + tag.length, start + tag.length);
+      });
+    } else if (bodyRef.current) {
+      const el = bodyRef.current;
+      const start = el.selectionStart ?? emailBody.length;
+      const end = el.selectionEnd ?? emailBody.length;
+      const next = emailBody.slice(0, start) + tag + emailBody.slice(end);
+      setEmailBody(next);
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(start + tag.length, start + tag.length);
+      });
+    }
+  }
+
+  function resetForm() {
+    setTrigger(AUTOMATION_TRIGGER_VALUES[0]);
+    setAfterDays("7");
+    setSendEmail(false);
+    setEmailSubject("");
+    setEmailBody("");
+    setError(null);
+  }
 
   async function handleAdd() {
     const days = parseInt(afterDays, 10);
     if (!days || days < 1) return;
+    if (sendEmail && (!emailSubject.trim() || !emailBody.trim())) {
+      setError("L'objet et le corps de l'email sont requis pour une relance avec envoi automatique.");
+      return;
+    }
     setLoading(true);
     setError(null);
     const res = await fetch(`/api/courses/${courseId}/automation-rules`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ afterDays: days, sendEmail }),
+      body: JSON.stringify({
+        trigger,
+        afterDays: days,
+        sendEmail,
+        emailSubject: sendEmail ? emailSubject : undefined,
+        emailBody: sendEmail ? emailBody : undefined,
+      }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -43,8 +109,7 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
       return;
     }
     setAdding(false);
-    setAfterDays("7");
-    setSendEmail(false);
+    resetForm();
     router.refresh();
   }
 
@@ -81,7 +146,7 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
         {rules.map((rule) => (
           <div key={rule.id} className="flex items-center justify-between gap-3 py-1.5 border-t border-line first:border-t-0 text-[12px]">
             <div className={rule.active ? "text-ink" : "text-slate line-through"}>
-              {AUTOMATION_TRIGGER_LABELS[rule.trigger] ?? rule.trigger} — après {rule.afterDays} j
+              {AUTOMATION_TRIGGER_LABELS[rule.trigger] ?? rule.trigger} — {rule.afterDays} j
               {rule.sendEmail && " · email automatique"}
             </div>
             <div className="flex items-center gap-2.5 shrink-0">
@@ -98,9 +163,19 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
 
       {adding && (
         <div className="flex flex-col gap-1.5 mt-2 border border-line rounded-md p-2.5 bg-[#FAF9F6]">
-          <div className="text-[11.5px] text-ink">{AUTOMATION_TRIGGER_LABELS.needs_assessment_incomplete}</div>
+          <select
+            value={trigger}
+            onChange={(e) => setTrigger(e.target.value)}
+            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+          >
+            {AUTOMATION_TRIGGER_VALUES.map((key) => (
+              <option key={key} value={key}>
+                {AUTOMATION_TRIGGER_LABELS[key]}
+              </option>
+            ))}
+          </select>
           <label className="flex items-center gap-2 text-[11.5px] text-slate">
-            Relancer après
+            {AFTER_DAYS_PHRASING[trigger]}
             <input
               type="number"
               min={1}
@@ -108,17 +183,59 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
               onChange={(e) => setAfterDays(e.target.value)}
               className="w-16 bg-white border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none focus:border-ink-soft"
             />
-            jours
+            {AFTER_DAYS_SUFFIX[trigger] ?? "jours"}
           </label>
           <label className="flex items-center gap-1.5 text-[11.5px] text-ink">
             <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="accent-sage" />
             Envoyer aussi un email automatique à l&apos;apprenant
           </label>
+
+          {sendEmail && (
+            <div className="flex flex-col gap-1.5 border border-line rounded-md p-2 bg-white">
+              <div className="flex flex-wrap gap-1">
+                {MERGE_TAGS.map((m) => (
+                  <button
+                    key={m.tag}
+                    type="button"
+                    onClick={() => insertTag(m.tag)}
+                    className="text-[11px] bg-[#EFEDE7] hover:bg-[#E6E3DA] text-ink rounded-full px-2 py-0.5"
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                ref={subjectRef}
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                onFocus={() => (activeField.current = "subject")}
+                placeholder="Objet de l'email"
+                className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+              />
+              <textarea
+                ref={bodyRef}
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                onFocus={() => (activeField.current = "body")}
+                rows={5}
+                placeholder="Bonjour [Prénom], ..."
+                className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
+              />
+            </div>
+          )}
+
           <div className="flex items-center gap-2.5 mt-1">
             <button type="button" onClick={handleAdd} disabled={loading} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
               {loading ? "…" : "Créer la règle"}
             </button>
-            <button type="button" onClick={() => setAdding(false)} className="text-[12px] text-slate hover:text-ink">
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(false);
+                resetForm();
+              }}
+              className="text-[12px] text-slate hover:text-ink"
+            >
               Annuler
             </button>
           </div>

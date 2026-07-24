@@ -6,6 +6,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 const schema = z.object({
   afterDays: z.number().int().positive().optional(),
   sendEmail: z.boolean().optional(),
+  emailSubject: z.string().optional(),
+  emailBody: z.string().optional(),
   active: z.boolean().optional(),
 });
 

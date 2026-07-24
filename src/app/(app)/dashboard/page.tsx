@@ -25,6 +25,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   dossier_prep_contract: "Convention",
   rolling_deadline_warning: "Formation en continu",
   rolling_deadline_overdue: "Formation en continu",
+  satisfaction_not_collected: "Satisfaction",
 };
 
 const STAGE_LABELS: Record<PipelineStage, string> = {

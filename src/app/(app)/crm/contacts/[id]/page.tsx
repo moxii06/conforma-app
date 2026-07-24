@@ -35,6 +35,9 @@ const OUTREACH_LABELS: Record<string, string> = {
   platform_access: "Accès plateforme",
   message: "Email",
   needs_assessment_reminder: "Rappel recueil des besoins (auto)",
+  contract_reminder: "Rappel convention (auto)",
+  rolling_duration_reminder: "Rappel durée d'accès (auto)",
+  satisfaction_reminder: "Rappel satisfaction (auto)",
 };
 
 function formatAmount(cents: number | null) {

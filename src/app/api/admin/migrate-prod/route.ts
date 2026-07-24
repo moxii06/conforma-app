@@ -12,7 +12,11 @@ import { prisma } from "@/lib/prisma";
 // deploy` from a machine with real DB access sees it as already applied
 // and doesn't try to re-run it. Guarded by a secret header — remove this
 // route (and the MIGRATE_PROD_SECRET env var) once confirmed applied.
-const MIGRATIONS = ["20260724065915_course_subcontractors_automation_rules", "20260724084158_company_responsable_info"];
+const MIGRATIONS = [
+  "20260724065915_course_subcontractors_automation_rules",
+  "20260724084158_company_responsable_info",
+  "20260724073018_automation_rule_email_triggers",
+];
 
 export async function POST(request: Request) {
   const expected = process.env.MIGRATE_PROD_SECRET;

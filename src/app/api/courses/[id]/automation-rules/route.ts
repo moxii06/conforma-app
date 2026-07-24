@@ -2,16 +2,22 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { AUTOMATION_TRIGGER_VALUES } from "@/lib/automationRules";
 
-const schema = z.object({
-  afterDays: z.number().int().positive(),
-  sendEmail: z.boolean().optional(),
-});
-
-// Only one trigger kind exists today (needs_assessment_incomplete) — hardcoded
-// server-side rather than accepted from the client, so a bad payload can't
-// create a rule the rest of the app doesn't know how to evaluate.
-const TRIGGER = "needs_assessment_incomplete";
+const schema = z
+  .object({
+    trigger: z.enum(AUTOMATION_TRIGGER_VALUES),
+    afterDays: z.number().int().positive(),
+    sendEmail: z.boolean().optional(),
+    emailSubject: z.string().optional(),
+    emailBody: z.string().optional(),
+  })
+  // The email dialog is written once at rule creation — if staff opt into
+  // sending it automatically, a subject/body must actually exist to fill in
+  // and send; a task-only rule doesn't need either.
+  .refine((data) => !data.sendEmail || (data.emailSubject?.trim() && data.emailBody?.trim()), {
+    message: "L'objet et le corps de l'email sont requis pour une relance avec envoi automatique.",
+  });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionContext();
@@ -31,9 +37,11 @@ export async function POST(request: Request, { params }: { params: { id: string 
     data: {
       organizationId: session.organizationId,
       courseId: course.id,
-      trigger: TRIGGER,
+      trigger: parsed.data.trigger,
       afterDays: parsed.data.afterDays,
       sendEmail: parsed.data.sendEmail ?? false,
+      emailSubject: parsed.data.emailSubject?.trim() || null,
+      emailBody: parsed.data.emailBody?.trim() || null,
     },
   });
 

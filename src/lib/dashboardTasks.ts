@@ -37,7 +37,8 @@ export type DashboardTask = {
     | "dossier_prep_needs_assessment"
     | "dossier_prep_contract"
     | "rolling_deadline_warning"
-    | "rolling_deadline_overdue";
+    | "rolling_deadline_overdue"
+    | "satisfaction_not_collected";
   label: string;
   contactName: string;
   since: Date;
@@ -62,6 +63,20 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   const canSeeSales = canSeeGeneral || role === Role.SALES;
   const canSeeTrainer = canSeeGeneral || role === Role.TRAINER;
   const canSeeRgpd = canWriteRgpd(role);
+
+  // Client feedback: staff should be able to set a per-course "relance" rule
+  // instead of only relying on the fixed thresholds below — when a course
+  // has an active rule for a given trigger, its afterDays replaces that
+  // trigger's generic deadline calculation for dossiers in that course.
+  // Fetched once, grouped by trigger, and looked up per courseId below.
+  const activeRules = canSeeTrainer
+    ? await prisma.automationRule.findMany({ where: { organizationId, active: true } })
+    : [];
+  const rulesByTrigger = new Map<string, Map<string, (typeof activeRules)[number]>>();
+  for (const rule of activeRules) {
+    if (!rulesByTrigger.has(rule.trigger)) rulesByTrigger.set(rule.trigger, new Map());
+    rulesByTrigger.get(rule.trigger)!.set(rule.courseId, rule);
+  }
 
   if (canSeeSales) {
     const needsAssessments = await prisma.needsAssessmentRequest.findMany({
@@ -112,7 +127,14 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   }
 
   if (canSeeTrainer) {
-    const soon = addDays(new Date(), CONVOCATION_WARNING_DAYS);
+    const convocationRules = rulesByTrigger.get("convocation_missing");
+    // A course-specific rule can only widen the window (never shrink it
+    // below the app default) — worst case across all rules, evaluated with
+    // a single query, then narrowed per-dossier below.
+    const widestWindowDays = convocationRules
+      ? Math.max(CONVOCATION_WARNING_DAYS, ...Array.from(convocationRules.values()).map((r) => r.afterDays))
+      : CONVOCATION_WARNING_DAYS;
+    const soon = addDays(new Date(), widestWindowDays);
     const dossiersNeedingConvocation = await prisma.dossier.findMany({
       where: {
         organizationId,
@@ -126,10 +148,15 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
       orderBy: { session: { startsAt: "asc" } },
     });
     for (const d of dossiersNeedingConvocation) {
+      const rule = convocationRules?.get(d.session.courseId);
+      const windowDays = rule ? rule.afterDays : CONVOCATION_WARNING_DAYS;
+      if (d.session.startsAt > addDays(new Date(), windowDays)) continue;
       results.push({
         id: d.id,
         kind: "convocation",
-        label: `Convocation à envoyer — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
+        label: rule
+          ? `Convocation à envoyer — session le ${d.session.startsAt.toLocaleDateString("fr-FR")} (règle formation)`
+          : `Convocation à envoyer — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
         contactName: `${d.contact.firstName} ${d.contact.lastName}`,
         since: d.session.startsAt,
         href: `/dossiers/${d.id}`,
@@ -145,16 +172,8 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   // once and branch in-code rather than two near-duplicate Prisma queries.
   if (canSeeTrainer) {
     const now = new Date();
-    // Client feedback: staff should be able to set a per-course "relance"
-    // rule instead of only relying on the fixed thresholds above — when a
-    // course has an active rule for this trigger, its afterDays (counted
-    // from enrollment) replaces the generic FIXED/ROLLING deadline for the
-    // needs-assessment check specifically. contractSigned keeps using the
-    // generic clock either way, since no rule exists for it yet.
-    const needsAssessmentRules = await prisma.automationRule.findMany({
-      where: { organizationId, trigger: "needs_assessment_incomplete", active: true },
-    });
-    const ruleByCourseId = new Map(needsAssessmentRules.map((r) => [r.courseId, r]));
+    const needsAssessmentRules = rulesByTrigger.get("needs_assessment_incomplete");
+    const contractRules = rulesByTrigger.get("contract_not_signed");
 
     const incompleteDossiers = await prisma.dossier.findMany({
       where: {
@@ -171,22 +190,28 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         : addDays(d.session.startsAt, -FIXED_SESSION_PREP_WARNING_DAYS);
       const contactName = `${d.contact.firstName} ${d.contact.lastName}`;
 
-      if (!d.contractSigned && now >= genericDeadline) {
-        results.push({
-          id: d.id,
-          kind: "dossier_prep_contract",
-          label: isRolling
-            ? "Convention toujours non signée depuis l'inscription"
-            : `Convention non signée — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
-          contactName,
-          since: genericDeadline,
-          href: `/dossiers/${d.id}`,
-          overdue: isRolling || now >= d.session.startsAt,
-        });
+      if (!d.contractSigned) {
+        const rule = contractRules?.get(d.session.courseId);
+        const deadline = rule ? addDays(d.createdAt, rule.afterDays) : genericDeadline;
+        if (now >= deadline) {
+          results.push({
+            id: d.id,
+            kind: "dossier_prep_contract",
+            label: rule
+              ? `Convention non signée — relance après ${rule.afterDays} j (règle formation)`
+              : isRolling
+                ? "Convention toujours non signée depuis l'inscription"
+                : `Convention non signée — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
+            contactName,
+            since: deadline,
+            href: `/dossiers/${d.id}`,
+            overdue: rule ? true : isRolling || now >= d.session.startsAt,
+          });
+        }
       }
 
       if (!d.needsAssessmentDone) {
-        const rule = ruleByCourseId.get(d.session.courseId);
+        const rule = needsAssessmentRules?.get(d.session.courseId);
         const deadline = rule ? addDays(d.createdAt, rule.afterDays) : genericDeadline;
         if (now >= deadline) {
           results.push({
@@ -231,6 +256,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         quizAttempts: true,
       },
     });
+    const rollingRules = rulesByTrigger.get("rolling_duration_expiring");
     for (const d of rollingDossiers) {
       const modules = d.session.course.elearningModules;
       if (modules.length === 0) continue;
@@ -239,12 +265,20 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
 
       const firstAccessedAt = d.firstAccessedAt!;
       const deadline = addDays(firstAccessedAt, d.accessDurationDays!);
-      const totalMs = deadline.getTime() - firstAccessedAt.getTime();
-      const elapsedMs = now.getTime() - firstAccessedAt.getTime();
-      const ratio = totalMs > 0 ? elapsedMs / totalMs : 1;
-      if (ratio < ROLLING_DURATION_WARNING_RATIO) continue;
+      const overdue = now >= deadline;
 
-      const overdue = ratio >= 1;
+      const rule = rollingRules?.get(d.session.courseId);
+      if (!overdue) {
+        if (rule) {
+          if (now < addDays(deadline, -rule.afterDays)) continue;
+        } else {
+          const totalMs = deadline.getTime() - firstAccessedAt.getTime();
+          const elapsedMs = now.getTime() - firstAccessedAt.getTime();
+          const ratio = totalMs > 0 ? elapsedMs / totalMs : 1;
+          if (ratio < ROLLING_DURATION_WARNING_RATIO) continue;
+        }
+      }
+
       results.push({
         id: d.id,
         kind: overdue ? "rolling_deadline_overdue" : "rolling_deadline_warning",
@@ -256,6 +290,46 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         href: `/dossiers/${d.id}`,
         overdue,
       });
+    }
+  }
+
+  // Satisfaction survey ("à froid") not collected — only fires for courses
+  // with an active rule (no global default existed for this before staff
+  // could configure it, so nothing to fall back to). FIXED_DATE only: a
+  // ROLLING session's endsAt is a synthetic placeholder, not a real
+  // "the training is over" date to count from.
+  if (canSeeTrainer) {
+    const satisfactionRules = rulesByTrigger.get("satisfaction_not_collected");
+    if (satisfactionRules && satisfactionRules.size > 0) {
+      const now = new Date();
+      const dossiersToSurvey = await prisma.dossier.findMany({
+        where: {
+          organizationId,
+          evaluationColdDone: false,
+          session: {
+            mode: "FIXED_DATE",
+            courseId: { in: Array.from(satisfactionRules.keys()) },
+            endsAt: { lt: now },
+            ...(role === Role.TRAINER ? { trainerId: userId } : {}),
+          },
+        },
+        include: { contact: true, session: true },
+      });
+      for (const d of dossiersToSurvey) {
+        const rule = satisfactionRules.get(d.session.courseId);
+        if (!rule) continue;
+        const deadline = addDays(d.session.endsAt, rule.afterDays);
+        if (now < deadline) continue;
+        results.push({
+          id: d.id,
+          kind: "satisfaction_not_collected",
+          label: `Avis de satisfaction non recueilli — relance après ${rule.afterDays} j (règle formation)`,
+          contactName: `${d.contact.firstName} ${d.contact.lastName}`,
+          since: deadline,
+          href: `/dossiers/${d.id}`,
+          overdue: true,
+        });
+      }
     }
   }
 

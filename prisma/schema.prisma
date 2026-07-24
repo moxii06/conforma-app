@@ -478,9 +478,13 @@ model Dossier {
 
   // Idempotency guard for the automation-rule cron (see
   // /api/cron/automation-rules): stamped the first time an automatic
-  // "recueil des besoins" reminder email goes out for this dossier, so a
-  // rule never re-sends the same nudge on a later run.
+  // reminder email for that trigger goes out for this dossier, so a rule
+  // never re-sends the same nudge on a later run. convocation_missing needs
+  // no field of its own — convocationSent (above) is already that guard.
   needsAssessmentAutoReminderSentAt DateTime?
+  contractAutoReminderSentAt        DateTime?
+  rollingDurationAutoReminderSentAt DateTime?
+  satisfactionAutoReminderSentAt    DateTime?
 
   documents          Document[]
   qualiopiEvidence   QualiopiIndicatorEvidence[]
@@ -560,15 +564,20 @@ model AutomationRule {
   course         Course       @relation(fields: [courseId], references: [id])
   courseId       String
 
-  trigger   String // "needs_assessment_incomplete" for now
+  trigger   String // see LEARNER... AUTOMATION_TRIGGER_VALUES in lib/automationRules.ts
   afterDays Int
   // Task-only by default (shows up in the dashboard's "À faire"); an OFP
   // opts a rule into also sending an automatic reminder email to the
   // learner, tracked separately per rule since not every OFP wants
-  // unattended emails going out on their behalf.
-  sendEmail Boolean @default(false)
-  active    Boolean @default(true)
-  createdAt DateTime @default(now())
+  // unattended emails going out on their behalf. Written once at rule
+  // creation (with [Prénom]/[Nom]/... merge tags — see
+  // lib/automationRules.ts's fillMergeTags) and reused unedited for every
+  // learner the rule fires for, rather than reopened per send.
+  sendEmail    Boolean @default(false)
+  emailSubject String?
+  emailBody    String?
+  active       Boolean @default(true)
+  createdAt    DateTime @default(now())
 
   @@index([organizationId])
   @@index([courseId])
