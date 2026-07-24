@@ -22,6 +22,7 @@ const AUTO_OUTREACH_LABELS: Record<string, string> = {
   rolling_duration_reminder: "Rappel durée d'accès",
   satisfaction_reminder: "Rappel satisfaction",
   message: "Enquête de satisfaction envoyée",
+  session_reminder: "Rappel de session",
 };
 
 export default async function AutomationsPage() {

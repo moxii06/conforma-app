@@ -69,6 +69,8 @@ export async function GET(request: Request) {
       sent += await sendRollingDurationReminders(rule);
     } else if (rule.trigger === "satisfaction_not_collected") {
       sent += await sendSatisfactionReminders(rule, origin);
+    } else if (rule.trigger === "session_reminder") {
+      sent += await sendSessionReminders(rule);
     }
   }
 
@@ -156,6 +158,69 @@ async function sendConvocations(rule: Rule) {
     } catch {
       // Non-fatal — dossier stays flagged in the dashboard task for manual send.
     }
+  }
+  return sent;
+}
+
+// Distinct from sendConvocations: the convocation is the invitation itself
+// (sent once, whenever staff or the convocation_missing rule triggers it,
+// possibly weeks ahead); this is a courtesy nudge shortly before the
+// session actually starts, for learners already convoked — sending it to
+// someone with no convocation yet would be premature, so convocationSent
+// is a precondition here, not the thing being fixed.
+async function sendSessionReminders(rule: Rule) {
+  const now = new Date();
+  const soon = addDays(now, rule.afterDays);
+  const dossiers = await prisma.dossier.findMany({
+    where: {
+      organizationId: rule.organizationId,
+      convocationSent: true,
+      sessionReminderSentAt: null,
+      session: { courseId: rule.courseId, mode: "FIXED_DATE", startsAt: { gte: now, lte: soon } },
+    },
+    include: { contact: true, session: true },
+  });
+
+  let sent = 0;
+  for (const d of dossiers) {
+    const ctx = mergeContext(d.contact, rule.course, d.session, rule.organization);
+    const practicalInfo =
+      d.session.format === "IN_PERSON"
+        ? d.session.location
+          ? `Lieu : ${d.session.location}`
+          : ""
+        : d.session.meetingLink
+          ? `Lien de connexion : ${d.session.meetingLink}`
+          : "";
+    try {
+      await sendTransactionalEmail({
+        to: d.contact.email,
+        toName: `${d.contact.firstName} ${d.contact.lastName}`,
+        subject: rule.emailSubject
+          ? fillMergeTags(rule.emailSubject, ctx)
+          : `${rule.organization.name} — rappel : votre session approche`,
+        text: rule.emailBody
+          ? fillMergeTags(rule.emailBody, ctx)
+          : `Bonjour ${d.contact.firstName},\n\nPetit rappel : votre formation "${rule.course.title}" a lieu le ${ctx.sessionDateLabel}.\n${practicalInfo}\n\nÀ bientôt,\nL'équipe ${rule.organization.name}`,
+        senderName: rule.organization.name,
+      });
+    } catch {
+      // Non-fatal — still stamped below.
+    }
+    await prisma.$transaction([
+      prisma.dossier.update({ where: { id: d.id }, data: { sessionReminderSentAt: new Date() } }),
+      prisma.clientOutreach.create({
+        data: {
+          organizationId: rule.organizationId,
+          contactId: d.contactId,
+          dossierId: d.id,
+          type: "session_reminder",
+          sentByUserId: "system",
+          sentByName: "Automatisation (règle formation)",
+        },
+      }),
+    ]);
+    sent++;
   }
   return sent;
 }

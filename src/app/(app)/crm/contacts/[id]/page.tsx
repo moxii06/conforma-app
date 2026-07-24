@@ -42,6 +42,7 @@ const OUTREACH_LABELS: Record<string, string> = {
   contract_reminder: "Rappel convention (auto)",
   rolling_duration_reminder: "Rappel durée d'accès (auto)",
   satisfaction_reminder: "Rappel satisfaction (auto)",
+  session_reminder: "Rappel de session (auto)",
 };
 
 function formatAmount(cents: number | null) {
