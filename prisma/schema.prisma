@@ -36,6 +36,20 @@ model Organization {
   billingPostalCode   String?
   billingCity         String?
 
+  // Legal identity mentions the OFP needs printed on documents it issues
+  // to ITS OWN clients (contracts, conventions, CGV — the French "mentions
+  // légales" block: forme juridique + capital social + siège social + RCS +
+  // représentant légal). Distinct from the billing fields above, which are
+  // about Conforma invoicing the org, not the org invoicing its clients.
+  // Editable from /profil (ADMIN_OF only) and merged into templates via
+  // mergeTemplate.ts's AVAILABLE_MERGE_FIELDS.
+  legalForm               String?
+  shareCapital            String?
+  legalAddress            String?
+  rcsCity                 String?
+  rcsNumber               String?
+  legalRepresentativeName String?
+
   users               User[]
   contacts            Contact[]
   companies           Company[]
@@ -132,6 +146,11 @@ model Complaint {
   subject         String
   description     String
   submittedByName String
+  // Captured at submission time from the (always-authenticated) submitter's
+  // session — client feedback: staff need to find the complainant's email
+  // straight from the request, not go hunting for their dossier/contact
+  // record first. Clickable as a mailto: link in the UI.
+  submittedByEmail String?
   // Which intent the unified support dialog's picker was set to — "complaint"
   // | "question" | "other" — purely for staff triage, same underlying model
   // and workflow either way.
@@ -139,6 +158,19 @@ model Complaint {
   status          String    @default("open") // open | investigating | resolved
   resolutionNotes String?
   resolvedAt      DateTime?
+
+  // Client feedback: a request should be assignable to a specific staff
+  // member with their own working note and a deadline, independent of the
+  // open/investigating/resolved status — assignment is "whose job is this"
+  // while status is "where is it at."
+  assignedToUserId String?
+  assignedToName   String?
+  assigneeComment  String?
+  assigneeDeadline DateTime?
+  // Manual, independent of status — client feedback: a resolved complaint
+  // shouldn't just pile up in the main list forever; give staff an explicit
+  // "Archivées" tab to move it out of the way once truly done with it.
+  archivedAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -166,6 +198,15 @@ model SecureReport {
   status          String    @default("received") // received | under_review | escalated | closed
   escalationNotes String?
   escalatedAt     DateTime?
+
+  // Same reasoning as Complaint above — "whose job is this" independent of
+  // status, plus an explicit archive so a closed report doesn't linger in
+  // the main confidential-channel list forever.
+  assignedToUserId String?
+  assignedToName   String?
+  assigneeComment  String?
+  assigneeDeadline DateTime?
+  archivedAt       DateTime?
 
   createdAt DateTime @default(now())
 
@@ -217,13 +258,20 @@ model RegulatoryWatch {
   @@index([organizationId])
 }
 
-// A trainer/subcontractor delivering training on the org's behalf —
-// deliberately separate from User: they don't log into Conforma (no
-// account, no role, no permissions), they're a record the org keeps for
-// Qualiopi indicator 17 (qualification of external/internal staff) and
-// indicator 19 (coordination/supervision of intervenants). Documents
-// (contract, diploma, insurance...) reuse the existing Document model via
-// subcontractorId rather than a parallel table.
+// A trainer/subcontractor delivering training on the org's behalf — the
+// record the org keeps for Qualiopi indicator 17 (qualification of
+// external/internal staff) and indicator 19 (coordination/supervision of
+// intervenants), independent of whether they ever get a Conforma account.
+// Documents (contract, diploma, insurance...) reuse the existing Document
+// model via subcontractorId rather than a parallel table.
+// Client feedback: a formateur_externe should be assignable to a session
+// like any other trainer — rather than duplicating Session.trainerId to
+// accept a Subcontractor too, `linkedUser` is the bridge: an admin can send
+// a real platform invitation (same flow as inviting a staff member, see
+// /api/team/invite) that creates a User row and links it back here. Once
+// linked, they show up in every trainer picker exactly like a regular
+// TRAINER — no separate "or a subcontractor" branching needed anywhere else
+// in the codebase. Until invited, they're a pure record with no login.
 model Subcontractor {
   id             String       @id @default(cuid())
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -231,7 +279,14 @@ model Subcontractor {
 
   name           String
   type           String // formateur_externe | sous_traitant_pedagogique | prestataire_technique | autre
+  // French OFPs contract both registered companies and individual
+  // freelancers (auto-entrepreneurs) — the two carry different legal
+  // mentions on a contract (a company has a raison sociale + forme
+  // juridique; an individual just has their own SIRET, if any).
+  isIndividual   Boolean      @default(false)
+  legalForm      String? // company only — SARL, SAS, EI... blank/meaningless for an individual
   siret          String?
+  address        String?
   contactEmail   String?
   contactPhone   String?
   qualifications String? // free text: diplomas, certifications, specialties
@@ -242,6 +297,9 @@ model Subcontractor {
 
   status String  @default("active") // active | expired | terminated
   notes  String?
+
+  linkedUser   User?   @relation(fields: [linkedUserId], references: [id])
+  linkedUserId String? @unique
 
   documents Document[]
 
@@ -311,6 +369,7 @@ model User {
   learnerDossiers Dossier[]      @relation("DossierLearnerUser")
   referentHandicapForOrganizations Organization[] @relation("ReferentHandicap")
   responsibleForCourses Course[] @relation("CourseResponsibles")
+  subcontractorRecord Subcontractor?
 
   @@index([organizationId])
 }
@@ -432,7 +491,15 @@ model Course {
   // stay intact and queryable) — for offers no longer run but still
   // needed for compliance/audit lookback.
   archivedAt     DateTime?
+  // Client feedback: a per-course document library should be able to pull
+  // the formation's own reference info (title/duration/price) into any
+  // document generated from it — see mergeTemplate.ts's course.* fields and
+  // DocumentTemplate.courseId below. Nullable: most courses won't bother
+  // filling these in until they actually attach a course-scoped template.
+  durationHours  Int?
+  priceCents     Int?
 
+  documentTemplates DocumentTemplate[]
   sessions          Session[]
   elearningModules  ElearningModule[]
   opportunitiesOfInterest Opportunity[]
@@ -458,12 +525,15 @@ enum SessionFormat {
 
 // DRAFT sessions are still being put together (dates/trainer/roster can
 // change freely); VALIDATED is the point at which convocations should go
-// out. There's no separate "archived" status — a session is simply treated
-// as past/archived once `endsAt` is in the past (computed on read, see
-// /planning), no cron or manual action needed.
+// out. CANCELLED is a manual dead-end (client feedback: staff need to call
+// off a session — trainer unavailable, too few sign-ups — without deleting
+// it or pretending it's still live). Archival is separate from status —
+// see Session.archivedAt below — since a cancelled OR completed session can
+// each independently be tidied out of the active Planning views.
 enum SessionStatus {
   DRAFT
   VALIDATED
+  CANCELLED
 }
 
 // Some OFPs run cohort training on a fixed calendar (FIXED_DATE — the
@@ -501,6 +571,12 @@ model Session {
   // provider since the spec doesn't mandate one; swap for a real
   // Zoom/Meet/Teams integration if the client picks a provider later.
   meetingLink    String?
+  // Client feedback: past sessions used to just fall out of the "Liste" view
+  // once endsAt passed, with no way to browse them again. This is a manual
+  // toggle (staff-driven, not date-driven) so a cancelled-but-future session
+  // can be tidied away too, and so "Archives" is an explicit place to look
+  // rather than sessions silently vanishing.
+  archivedAt     DateTime?
 
   dossiers    Dossier[]
   invitations SessionInvitation[]
@@ -753,8 +829,15 @@ model DocumentTemplate {
   bodyText       String
   forkedFromId   String?
   createdAt      DateTime      @default(now())
+  // Client feedback: a template scoped to one formation (vs. the general
+  // library) — its documents should auto-pull that course's own info
+  // (title/duration/price) via mergeTemplate.ts's course.* fields. Null
+  // means "general" — usable/generated for any dossier regardless of course.
+  course         Course?       @relation(fields: [courseId], references: [id])
+  courseId       String?
 
   @@index([organizationId])
+  @@index([courseId])
 }
 
 // The "send the needs assessment to a prospect" tool from the CRM: a
