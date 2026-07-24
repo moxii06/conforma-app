@@ -60,6 +60,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   toolkit: "Toolkit documents",
   integrations: "Intégrations",
   team: "Équipe & rôles",
+  automations: "Automatisations",
   inbox: "Boîte mail",
   bpf: "Bilan pédagogique et financier",
   portal: "Mon espace",
@@ -78,6 +79,12 @@ export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
   toolkit: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
   integrations: { ADMIN_OF: "full", ADMIN_MANAGER: "none", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   team: { ADMIN_OF: "full", ADMIN_MANAGER: "none", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
+  // Same audience as "planning: full" (the only roles that can already
+  // configure a course's automation rules from /formations/[id]) — a
+  // distinct key rather than reusing "planning" so the sidebar doesn't
+  // show this to SALES/TRAINER, who have "limited" planning access and
+  // would just hit the redirect.
+  automations: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   inbox: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   bpf: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   // The admin-facing nav filters this one out for everyone except the two

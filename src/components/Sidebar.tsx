@@ -14,6 +14,7 @@ import {
   BarChart3,
   User,
   Plug,
+  Zap,
   GraduationCap,
   HelpCircle,
   MessageCircleWarning,
@@ -66,6 +67,7 @@ const NAV_GROUPS: { label: string | null; items: { href: string; label: string; 
     label: "Organisation",
     items: [
       { href: "/team", label: "Équipe & rôles", icon: UserCog, feature: "team" },
+      { href: "/automatisations", label: "Automatisations", icon: Zap, feature: "automations" },
       { href: "/integrations", label: "Intégrations", icon: Plug, feature: "integrations" },
     ],
   },
