@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { PersonPicker, type LearnerInput } from "@/components/PersonPicker";
 import { SuggestedLearners } from "@/components/SuggestedLearners";
 import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
-import { X, FileUp } from "lucide-react";
+import { COURSE_TEMPLATES, COURSE_TEMPLATE_SECTORS } from "@/lib/courseTemplates";
+import { X, FileUp, LayoutTemplate } from "lucide-react";
 
 type Member = { id: string; name: string };
 type PendingLearner = { key: string; label: string; input: LearnerInput & { accessDurationDays?: number } };
@@ -77,6 +78,16 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
       else next.add(id);
       return next;
     });
+  }
+
+  function applyTemplate(templateId: string) {
+    const template = COURSE_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+    setTitle(template.title);
+    setDescription(template.description);
+    setDurationHours(String(template.durationHours));
+    setImported(false);
+    setImportError(null);
   }
 
   function reset() {
@@ -161,6 +172,31 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
           </label>
           {importError && <div className="text-[11.5px] text-rust">{importError}</div>}
           {imported && <div className="text-[11.5px] text-sage">Champs préremplis depuis le document — vérifiez-les avant de créer la formation.</div>}
+          <label className="flex items-center gap-2 border border-line rounded-md px-2.5 py-2 text-[12px] text-slate hover:border-ink-soft hover:text-ink cursor-pointer">
+            <LayoutTemplate size={14} className="shrink-0" />
+            <span className="shrink-0">Ou partir d&apos;un modèle</span>
+            <select
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) applyTemplate(e.target.value);
+                e.target.value = "";
+              }}
+              className="flex-1 min-w-0 bg-transparent outline-none text-ink"
+            >
+              <option value="" disabled>
+                Sélectionner un thème…
+              </option>
+              {COURSE_TEMPLATE_SECTORS.map((sector) => (
+                <optgroup key={sector} label={sector}>
+                  {COURSE_TEMPLATES.filter((t) => t.sector === sector).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
