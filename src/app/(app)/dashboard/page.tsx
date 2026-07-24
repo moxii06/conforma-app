@@ -10,6 +10,7 @@ import { fr } from "date-fns/locale";
 import Link from "next/link";
 import { RefreshButton } from "@/components/RefreshButton";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
+import { DismissTaskButton } from "@/components/DismissTaskButton";
 
 const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "Test de positionnement",
@@ -209,20 +210,20 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
     >
       <div className="flex flex-col">
         {tasks.slice(0, 8).map((t) => (
-          <Link
+          <div
             key={`${t.kind}-${t.id}`}
-            href={t.href}
             className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
           >
-            <div>
+            <Link href={t.href} className="min-w-0 flex-1">
               <span className="text-[12.5px] text-ink font-medium">{t.contactName}</span>
               <span className="text-[12.5px] text-slate"> — {t.label}</span>
-            </div>
+            </Link>
             <div className="flex items-center gap-2 shrink-0">
               {t.overdue && <Pill tone="danger">En retard</Pill>}
               <span className="text-[11px] text-slate">{TASK_KIND_LABELS[t.kind]}</span>
+              <DismissTaskButton kind={t.kind} id={t.id} />
             </div>
-          </Link>
+          </div>
         ))}
       </div>
       {tasks.length > 8 && (
@@ -275,11 +276,7 @@ function SecureReportsWidget({
   reports: { id: string; description: string; reporterName: string | null; createdAt: Date; status: string }[];
 }) {
   return (
-    <div className="bg-white border border-line rounded-card p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="text-[12.5px] text-slate">Signalements confidentiels ({reports.length})</div>
-        <Pill tone="danger">Accès restreint</Pill>
-      </div>
+    <CollapsibleSection title={`Signalements confidentiels (${reports.length})`} badge={<Pill tone="danger">Accès restreint</Pill>}>
       <div className="flex flex-col">
         {reports.slice(0, 5).map((r) => (
           <Link
@@ -300,7 +297,7 @@ function SecureReportsWidget({
           + {reports.length - 5} autre{reports.length - 5 > 1 ? "s" : ""}
         </div>
       )}
-    </div>
+    </CollapsibleSection>
   );
 }
 

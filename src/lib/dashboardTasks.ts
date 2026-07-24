@@ -59,6 +59,15 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   const threshold = addDays(new Date(), -REMINDER_AFTER_DAYS);
   const results: DashboardTask[] = [];
 
+  // Tasks are recomputed live from dossier/invoice/etc. state on every load
+  // — there's no row to mark done, so "ignorer" is tracked separately here
+  // and filtered out just before returning.
+  const dismissals = await prisma.dashboardTaskDismissal.findMany({
+    where: { organizationId },
+    select: { kind: true, entityId: true },
+  });
+  const dismissedKeys = new Set(dismissals.map((d) => `${d.kind}:${d.entityId}`));
+
   const canSeeGeneral = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
   const canSeeSales = canSeeGeneral || role === Role.SALES;
   const canSeeTrainer = canSeeGeneral || role === Role.TRAINER;
@@ -433,8 +442,10 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     }
   }
 
-  return results.sort((a, b) => {
-    if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-    return a.since.getTime() - b.since.getTime();
-  });
+  return results
+    .filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`))
+    .sort((a, b) => {
+      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+      return a.since.getTime() - b.since.getTime();
+    });
 }

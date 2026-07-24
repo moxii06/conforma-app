@@ -79,6 +79,7 @@ model Organization {
   subscription        Subscription?
   qualityRisks        QualityRisk[]
   resultIndicators    ResultIndicator[]
+  dashboardTaskDismissals DashboardTaskDismissal[]
 
   // Which version of the RNQ this org is currently auditing itself against
   // (see QualiopiReferentielVersion) — nullable only until the backfill
@@ -329,6 +330,25 @@ model Subscription {
   stripeSubscriptionId String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+}
+
+// The dashboard's "À faire" list is computed live from dossier/invoice/etc.
+// state every page load — there's no underlying row to mark done, so
+// "ignorer" needs its own record instead. Keyed by (kind, entityId), the
+// same composite the widget already uses as its React key, and scoped to
+// the whole org rather than per-user — simpler, and matches "this doesn't
+// need chasing" being a shared team decision, not a personal one.
+model DashboardTaskDismissal {
+  id                String       @id @default(cuid())
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  organizationId    String
+  kind              String
+  entityId          String
+  dismissedByUserId String
+  dismissedAt       DateTime     @default(now())
+
+  @@unique([organizationId, kind, entityId])
+  @@index([organizationId])
 }
 
 enum Role {
@@ -886,6 +906,12 @@ model Document {
   signatureStatus String      @default("none")
   signedAt       DateTime?
   createdAt      DateTime     @default(now())
+  // Client feedback: a document needed for a Qualiopi audit shouldn't be
+  // permanently deleted just because it's no longer "current" — archiving
+  // keeps the row (and its file) around, out of the active list, still
+  // retrievable later. Deletion stays available separately for genuine
+  // mistakes/duplicates.
+  archivedAt     DateTime?
 
   invitationLinks SessionInvitationDocument[]
 

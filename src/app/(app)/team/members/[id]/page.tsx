@@ -9,6 +9,7 @@ import { MemberRoleSelect } from "@/components/MemberRoleSelect";
 import { EditMemberForm } from "@/components/EditMemberForm";
 import { DeleteMemberButton } from "@/components/DeleteMemberButton";
 import { AddMemberDocumentForm } from "@/components/AddMemberDocumentForm";
+import { DocumentActions } from "@/components/DocumentActions";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 
 export default async function MemberRecordPage({ params }: { params: { id: string } }) {
@@ -25,6 +26,9 @@ export default async function MemberRecordPage({ params }: { params: { id: strin
     },
   });
   if (!member) notFound();
+
+  const activeDocuments = member.documents.filter((d) => !d.archivedAt);
+  const archivedDocuments = member.documents.filter((d) => d.archivedAt);
 
   return (
     <>
@@ -93,19 +97,38 @@ export default async function MemberRecordPage({ params }: { params: { id: strin
         )}
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13.5px] font-semibold text-ink">Documents liés ({member.documents.length})</div>
-          {member.documents.length > 0 ? (
-            <div className="flex flex-col gap-1">
-              {member.documents.map((doc) => (
-                <a key={doc.id} href={doc.fileUrl ?? "#"} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline decoration-line hover:decoration-ink w-fit">
-                  {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
-                </a>
+          <div className="text-[13.5px] font-semibold text-ink">Documents liés ({activeDocuments.length})</div>
+          {activeDocuments.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              {activeDocuments.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between gap-3">
+                  <a href={doc.fileUrl ?? "#"} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline decoration-line hover:decoration-ink min-w-0 truncate">
+                    {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
+                  </a>
+                  <DocumentActions documentId={doc.id} archived={false} />
+                </div>
               ))}
             </div>
           ) : (
             <div className="text-[12px] text-slate">Aucun document.</div>
           )}
           <AddMemberDocumentForm memberId={member.id} />
+
+          {archivedDocuments.length > 0 && (
+            <div className="pt-2 mt-1 border-t border-line flex flex-col gap-1.5">
+              <div className="text-[11px] text-slate uppercase tracking-wide">
+                Documents archivés ({archivedDocuments.length}) — conservés pour les audits Qualiopi
+              </div>
+              {archivedDocuments.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between gap-3">
+                  <a href={doc.fileUrl ?? "#"} target="_blank" rel="noreferrer" className="text-[12px] text-slate underline decoration-line hover:decoration-ink min-w-0 truncate">
+                    {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
+                  </a>
+                  <DocumentActions documentId={doc.id} archived={true} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>
