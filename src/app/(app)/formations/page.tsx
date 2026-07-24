@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { MetricCard, PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
+import { Role, type Prisma } from "@prisma/client";
 import { CreateCourseForm } from "@/components/CreateCourseForm";
 import { ArchiveCourseButton } from "@/components/ArchiveCourseButton";
 import { Tabs } from "@/components/Tabs";
@@ -50,14 +51,32 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
   const canManage = can(role, "planning") === "full";
   const activeTab = searchParams.tab === "archivees" ? "archivees" : "catalogue";
   const q = searchParams.q?.trim();
+  // A trainer (staff or a subcontractor's linked account, see
+  // Subcontractor.linkedUserId) should only browse courses they're
+  // actually involved with — not the whole org's catalog, which would leak
+  // every other course's roster to an external prestataire. "Involved"
+  // mirrors how a course can reference a person: delivering one of its
+  // sessions, listed as an external subcontractor on it, or a named
+  // internal responsable.
+  const ownerFilter: Prisma.CourseWhereInput =
+    role === Role.TRAINER
+      ? {
+          OR: [
+            { sessions: { some: { trainerId: userId } } },
+            { subcontractors: { some: { linkedUserId: userId } } },
+            { responsibleUsers: { some: { id: userId } } },
+          ],
+        }
+      : {};
 
   const [courses, members, subcontractors, sessionsInProgress, activeLearnerCount] = await Promise.all([
     prisma.course.findMany({
       where: {
         organizationId,
         archivedAt: activeTab === "archivees" ? { not: null } : null,
+        ...ownerFilter,
         ...(activeTab === "archivees" && q
-          ? { OR: [{ title: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] }
+          ? { AND: [{ OR: [{ title: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] }] }
           : {}),
       },
       include: {

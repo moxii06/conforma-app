@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
+import { Role } from "@prisma/client";
 import { ArrowLeft } from "lucide-react";
 import { NewModuleForm } from "@/components/NewModuleForm";
 import { AssignLearnersPanel } from "@/components/AssignLearnersPanel";
@@ -42,7 +43,7 @@ const courseInclude = {
 // list-then-detail split already used for Dossiers apprenants and the
 // learner's own course view.
 export default async function CourseDetailPage({ params }: { params: { id: string } }) {
-  const { organizationId, role } = await requireSessionContext();
+  const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none" || role === "LEARNER") redirect("/formations");
   const canManage = can(role, "planning") === "full";
 
@@ -64,6 +65,18 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
       : Promise.resolve([]),
   ]);
   if (!course) notFound();
+  // Same "own courses only" boundary as the catalog list (/formations) —
+  // without it, a trainer could still reach any course's full roster and
+  // per-learner progress by guessing/following a link, even once the list
+  // itself stopped showing it to them.
+  if (
+    role === Role.TRAINER &&
+    !course.sessions.some((s) => s.trainerId === userId) &&
+    !course.subcontractors.some((s) => s.linkedUserId === userId) &&
+    !course.responsibleUsers.some((u) => u.id === userId)
+  ) {
+    redirect("/formations");
+  }
 
   const courseDossiers = course.sessions.flatMap((s) =>
     s.dossiers.map((d) => ({ id: d.id, contactName: `${d.contact.firstName} ${d.contact.lastName}` }))
