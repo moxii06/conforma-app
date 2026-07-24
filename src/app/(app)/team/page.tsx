@@ -6,6 +6,7 @@ import { ReferentHandicapSelect } from "@/components/ReferentHandicapSelect";
 import { SubcontractorForm } from "@/components/SubcontractorForm";
 import { SubcontractorStatusSelect } from "@/components/SubcontractorStatusSelect";
 import { MemberRoleSelect } from "@/components/MemberRoleSelect";
+import { PrintButton } from "@/components/PrintButton";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { Tabs } from "@/components/Tabs";
 import { Role } from "@prisma/client";
@@ -37,6 +38,7 @@ const REQUIRED_DOCS_BY_TYPE: Record<string, string[]> = {
 const TABS = [
   { key: "membres", label: "Membres" },
   { key: "prestataires", label: "Sous-traitants & intervenants" },
+  { key: "organigramme", label: "Organigramme" },
   { key: "permissions", label: "Permissions" },
 ];
 
@@ -73,6 +75,8 @@ export default async function TeamPage({ searchParams }: { searchParams: { tab?:
       <div className="p-8 flex flex-col gap-6">
         {activeTab === "prestataires" ? (
           <SubcontractorsTab subcontractors={subcontractors} />
+        ) : activeTab === "organigramme" ? (
+          <OrgChartTab organizationName={organization.name} members={members} subcontractors={subcontractors} />
         ) : activeTab === "permissions" ? (
           <PermissionsTab />
         ) : (
@@ -237,6 +241,84 @@ function SubcontractorsTab({ subcontractors }: { subcontractors: SubcontractorRo
         {subcontractors.length === 0 && <div className="text-[12.5px] text-slate">Aucun sous-traitant enregistré.</div>}
       </div>
     </>
+  );
+}
+
+type OrgChartMember = { id: string; name: string; role: Role };
+type OrgChartSubcontractor = { id: string; name: string; type: string };
+
+function OrgChartTab({
+  organizationName,
+  members,
+  subcontractors,
+}: {
+  organizationName: string;
+  members: OrgChartMember[];
+  subcontractors: OrgChartSubcontractor[];
+}) {
+  const roleGroups = Object.values(Role)
+    .filter((r) => r !== Role.LEARNER)
+    .map((role) => ({ key: role, label: ROLE_LABELS[role], people: members.filter((m) => m.role === role) }))
+    .filter((g) => g.people.length > 0);
+
+  const typeGroups = Object.entries(SUBCONTRACTOR_TYPE_LABELS)
+    .map(([key, label]) => ({ key, label, people: subcontractors.filter((s) => s.type === key) }))
+    .filter((g) => g.people.length > 0);
+
+  return (
+    <div className="bg-white border border-line rounded-card p-6">
+      <div className="flex items-center justify-between mb-6 print:hidden">
+        <div className="text-[13.5px] font-semibold text-ink">Organigramme</div>
+        <PrintButton />
+      </div>
+
+      <div className="flex flex-col items-center gap-5">
+        <div className="text-[13.5px] font-semibold text-ink px-4 py-2 border-2 border-ink rounded-md">{organizationName}</div>
+        <div className="w-px h-5 bg-line" />
+
+        <div className="text-[11px] text-slate uppercase tracking-wide font-semibold">Équipe interne</div>
+        {roleGroups.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-4 w-full">
+            {roleGroups.map((g) => (
+              <div key={g.key} className="bg-[#FAF9F6] border border-line rounded-md p-3 min-w-[180px] flex flex-col gap-1.5">
+                <div className="text-[11.5px] font-semibold text-ink">
+                  {g.label} <span className="text-slate font-normal">({g.people.length})</span>
+                </div>
+                {g.people.map((p) => (
+                  <div key={p.id} className="text-[12px] text-ink">
+                    {p.name}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[12px] text-slate">Aucun membre.</div>
+        )}
+
+        <div className="w-full border-t border-line my-1" />
+
+        <div className="text-[11px] text-slate uppercase tracking-wide font-semibold">Sous-traitants & prestataires</div>
+        {typeGroups.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-4 w-full">
+            {typeGroups.map((g) => (
+              <div key={g.key} className="bg-[#FAF9F6] border border-line rounded-md p-3 min-w-[180px] flex flex-col gap-1.5">
+                <div className="text-[11.5px] font-semibold text-ink">
+                  {g.label} <span className="text-slate font-normal">({g.people.length})</span>
+                </div>
+                {g.people.map((p) => (
+                  <div key={p.id} className="text-[12px] text-ink">
+                    {p.name}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[12px] text-slate">Aucun sous-traitant enregistré.</div>
+        )}
+      </div>
+    </div>
   );
 }
 
