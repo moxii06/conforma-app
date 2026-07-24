@@ -26,11 +26,13 @@ const AFTER_DAYS_PHRASING: Record<string, string> = {
   rolling_duration_expiring: "Prévenir",
   satisfaction_not_collected: "Relancer après",
   session_reminder: "Envoyer le rappel",
+  certificate_expiring: "Envoyer le rappel de renouvellement",
 };
 const AFTER_DAYS_SUFFIX: Record<string, string> = {
   convocation_missing: "jours avant la session",
   rolling_duration_expiring: "jours avant la fin de la durée d'accès",
   session_reminder: "jours avant la session",
+  certificate_expiring: "jours avant l'expiration de l'attestation",
 };
 
 // Client feedback: staff should be able to set a rule per formation instead

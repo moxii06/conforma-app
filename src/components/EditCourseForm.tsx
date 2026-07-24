@@ -21,6 +21,7 @@ export function EditCourseForm({
     subcontractorIds: string[];
     durationHours: number | null;
     priceCents: number | null;
+    certificateValidityMonths: number | null;
   };
 }) {
   const router = useRouter();
@@ -31,6 +32,9 @@ export function EditCourseForm({
   const [subcontractorIds, setSubcontractorIds] = useState<Set<string>>(new Set(initial.subcontractorIds));
   const [durationHours, setDurationHours] = useState(initial.durationHours != null ? String(initial.durationHours) : "");
   const [price, setPrice] = useState(initial.priceCents != null ? String(initial.priceCents / 100) : "");
+  const [certificateValidityMonths, setCertificateValidityMonths] = useState(
+    initial.certificateValidityMonths != null ? String(initial.certificateValidityMonths) : ""
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +70,7 @@ export function EditCourseForm({
         subcontractorIds: Array.from(subcontractorIds),
         durationHours: durationHours ? parseInt(durationHours, 10) : null,
         priceCents: price ? Math.round(parseFloat(price) * 100) : null,
+        certificateValidityMonths: certificateValidityMonths ? parseInt(certificateValidityMonths, 10) : null,
       }),
     });
     setLoading(false);
@@ -121,6 +126,19 @@ export function EditCourseForm({
           className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft flex-1"
         />
       </div>
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-slate uppercase tracking-wide">
+          Validité de l&apos;attestation (mois) — laisser vide si pas de renouvellement
+        </span>
+        <input
+          value={certificateValidityMonths}
+          onChange={(e) => setCertificateValidityMonths(e.target.value)}
+          type="number"
+          min={1}
+          placeholder="ex. 12 pour une formation à recycler chaque année"
+          className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
+        />
+      </label>
       {members.length > 0 && (
         <div className="flex flex-col gap-1">
           <div className="text-[11px] text-slate uppercase tracking-wide">Responsables / personnes concernées</div>

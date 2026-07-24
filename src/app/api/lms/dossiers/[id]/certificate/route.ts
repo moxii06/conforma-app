@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { addMonths } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 
@@ -54,6 +55,8 @@ export async function POST(_request: Request, { params }: { params: { id: string
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
   const courseTitle = dossier.session.course.title;
   const learnerName = `${dossier.contact.firstName} ${dossier.contact.lastName}`;
+  const validityMonths = dossier.session.course.certificateValidityMonths;
+  const expiresAt = validityMonths ? addMonths(new Date(), validityMonths) : null;
 
   const bodyText =
     `ATTESTATION DE RÉUSSITE\n\n` +
@@ -63,7 +66,8 @@ export async function POST(_request: Request, { params }: { params: { id: string
     `« ${courseTitle} »\n\n` +
     `Modules validés :\n` +
     modules.map((m, i) => `${i + 1}. ${m.title}`).join("\n") +
-    `\n\nFait le ${new Date().toLocaleDateString("fr-FR")}.`;
+    `\n\nFait le ${new Date().toLocaleDateString("fr-FR")}.` +
+    (expiresAt ? `\n\nCette attestation est valable jusqu'au ${expiresAt.toLocaleDateString("fr-FR")}.` : "");
 
   const document = await prisma.document.create({
     data: {
@@ -73,6 +77,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
       bodyText,
       templateOrigin: "lms_certificate",
       category: "results_summary",
+      expiresAt,
     },
   });
 

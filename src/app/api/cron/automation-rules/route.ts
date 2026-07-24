@@ -71,6 +71,8 @@ export async function GET(request: Request) {
       sent += await sendSatisfactionReminders(rule, origin);
     } else if (rule.trigger === "session_reminder") {
       sent += await sendSessionReminders(rule);
+    } else if (rule.trigger === "certificate_expiring") {
+      sent += await sendCertificateExpiryReminders(rule);
     }
   }
 
@@ -215,6 +217,64 @@ async function sendSessionReminders(rule: Rule) {
           contactId: d.contactId,
           dossierId: d.id,
           type: "session_reminder",
+          sentByUserId: "system",
+          sentByName: "Automatisation (règle formation)",
+        },
+      }),
+    ]);
+    sent++;
+  }
+  return sent;
+}
+
+// Reads expiry off Document.expiresAt (set once, at the moment a given
+// certificate was actually issued — see /api/lms/dossiers/[id]/certificate)
+// rather than recomputing it from Course.certificateValidityMonths, so a
+// later change to the course's validity setting never silently reschedules
+// reminders for attestations already granted under a different duration.
+async function sendCertificateExpiryReminders(rule: Rule) {
+  const now = new Date();
+  const soon = addDays(now, rule.afterDays);
+  const documents = await prisma.document.findMany({
+    where: {
+      organizationId: rule.organizationId,
+      templateOrigin: "lms_certificate",
+      expiresAt: { gte: now, lte: soon },
+      expiryReminderSentAt: null,
+      dossier: { session: { courseId: rule.courseId } },
+    },
+    include: { dossier: { include: { contact: true, session: true } } },
+  });
+
+  let sent = 0;
+  for (const doc of documents) {
+    const d = doc.dossier;
+    if (!d) continue;
+    const ctx = mergeContext(d.contact, rule.course, d.session, rule.organization);
+    const expiryLabel = doc.expiresAt!.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    try {
+      await sendTransactionalEmail({
+        to: d.contact.email,
+        toName: `${d.contact.firstName} ${d.contact.lastName}`,
+        subject: rule.emailSubject
+          ? fillMergeTags(rule.emailSubject, ctx)
+          : `${rule.organization.name} — votre attestation arrive à expiration`,
+        text: rule.emailBody
+          ? fillMergeTags(rule.emailBody, ctx)
+          : `Bonjour ${d.contact.firstName},\n\nVotre attestation pour la formation "${rule.course.title}" arrive à expiration le ${expiryLabel}. Contactez-nous pour organiser son renouvellement.\n\nÀ bientôt,\nL'équipe ${rule.organization.name}`,
+        senderName: rule.organization.name,
+      });
+    } catch {
+      // Non-fatal — still stamped below.
+    }
+    await prisma.$transaction([
+      prisma.document.update({ where: { id: doc.id }, data: { expiryReminderSentAt: new Date() } }),
+      prisma.clientOutreach.create({
+        data: {
+          organizationId: rule.organizationId,
+          contactId: d.contactId,
+          dossierId: d.id,
+          type: "certificate_expiring",
           sentByUserId: "system",
           sentByName: "Automatisation (règle formation)",
         },

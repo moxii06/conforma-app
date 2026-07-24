@@ -115,6 +115,11 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
                     : "Prix non renseigné"}
                 </div>
               )}
+              {course.certificateValidityMonths != null && (
+                <div className="text-[11px] text-slate mt-0.5">
+                  Attestation valable {course.certificateValidityMonths} mois — renouvellement à prévoir
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {rollingSessionCount > 0 && <Pill tone="neutral">{rollingSessionCount} en continu</Pill>}
@@ -135,6 +140,7 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
                   subcontractorIds: course.subcontractors.map((s) => s.id),
                   durationHours: course.durationHours,
                   priceCents: course.priceCents,
+                  certificateValidityMonths: course.certificateValidityMonths,
                 }}
               />
               <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />

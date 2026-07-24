@@ -11,6 +11,7 @@ const schema = z.object({
   archived: z.boolean().optional(),
   durationHours: z.number().int().positive().nullable().optional(),
   priceCents: z.number().int().positive().nullable().optional(),
+  certificateValidityMonths: z.number().int().positive().nullable().optional(),
 });
 
 // Single PATCH for both "edit the course's details" and "archive/unarchive
@@ -60,6 +61,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ...(data.archived !== undefined ? { archivedAt: data.archived ? new Date() : null } : {}),
       ...(data.durationHours !== undefined ? { durationHours: data.durationHours } : {}),
       ...(data.priceCents !== undefined ? { priceCents: data.priceCents } : {}),
+      ...(data.certificateValidityMonths !== undefined ? { certificateValidityMonths: data.certificateValidityMonths } : {}),
     },
     include: { responsibleUsers: true, subcontractors: true },
   });

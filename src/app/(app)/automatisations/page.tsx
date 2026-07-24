@@ -23,6 +23,7 @@ const AUTO_OUTREACH_LABELS: Record<string, string> = {
   satisfaction_reminder: "Rappel satisfaction",
   message: "Enquête de satisfaction envoyée",
   session_reminder: "Rappel de session",
+  certificate_expiring: "Rappel de renouvellement (attestation)",
 };
 
 export default async function AutomationsPage() {

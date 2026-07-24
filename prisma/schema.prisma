@@ -588,6 +588,13 @@ model Course {
   // filling these in until they actually attach a course-scoped template.
   durationHours  Int?
   priceCents     Int?
+  // For formations that need periodic renewal (SST, sécurité incendie,
+  // habilitations...) — set on the course, locked into Document.expiresAt
+  // at the moment a given certificate is actually issued, so a later change
+  // here doesn't retroactively alter attestations already granted under a
+  // different duration. Null means "no expiry," the default for most
+  // courses.
+  certificateValidityMonths Int?
 
   documentTemplates DocumentTemplate[]
   sessions          Session[]
@@ -1005,6 +1012,13 @@ model Document {
   // the right Document from the signature_request.id in the event payload.
   yousignSignatureRequestId String? @unique
   createdAt      DateTime     @default(now())
+  // Set only on LMS certificates (templateOrigin "lms_certificate") issued
+  // for a course with Course.certificateValidityMonths set — the date this
+  // specific attestation stops being valid. expiryReminderSentAt is the
+  // idempotency stamp for the certificate_expiring AutomationRule trigger,
+  // same pattern as Dossier's *AutoReminderSentAt fields.
+  expiresAt      DateTime?
+  expiryReminderSentAt DateTime?
   // Client feedback: a document needed for a Qualiopi audit shouldn't be
   // permanently deleted just because it's no longer "current" — archiving
   // keeps the row (and its file) around, out of the active list, still

@@ -11,6 +11,7 @@ export const AUTOMATION_TRIGGER_VALUES = [
   "rolling_duration_expiring",
   "satisfaction_not_collected",
   "session_reminder",
+  "certificate_expiring",
 ] as const;
 
 export const AUTOMATION_TRIGGER_LABELS: Record<string, string> = {
@@ -20,6 +21,7 @@ export const AUTOMATION_TRIGGER_LABELS: Record<string, string> = {
   rolling_duration_expiring: "Durée d'accès bientôt expirée (formation en continu)",
   satisfaction_not_collected: "Avis de satisfaction non recueilli",
   session_reminder: "Rappel de session à venir",
+  certificate_expiring: "Attestation bientôt expirée (renouvellement)",
 };
 
 export { MERGE_TAGS, fillMergeTags, type MergeTagContext } from "@/lib/mergeTags";
