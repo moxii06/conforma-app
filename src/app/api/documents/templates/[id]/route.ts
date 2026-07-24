@@ -5,7 +5,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 
 const schema = z.object({ title: z.string().min(1).optional(), bodyText: z.string().min(1).optional() });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "toolkit") === "none") {
@@ -32,7 +33,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   return NextResponse.json(updated);
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "toolkit") === "none") {

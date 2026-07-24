@@ -15,7 +15,8 @@ const schema = z.object({ role: z.nativeEnum(Role).default(Role.TRAINER) });
 // /api/team/invite — and links it back via Subcontractor.linkedUserId.
 // Once linked, they show up in every existing TRAINER query immediately
 // (status "invited" is enough; they don't need to have logged in yet).
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "team") !== "full") {

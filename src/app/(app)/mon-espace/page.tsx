@@ -17,7 +17,8 @@ const LEARNER_TABS = [
   { key: "documents", label: "Mes documents" },
 ];
 
-export default async function MonEspacePage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function MonEspacePage(props: { searchParams: Promise<{ tab?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await requireSessionContext();
   if (can(session.role, "portal") === "none") redirect("/dashboard");
   const isLearner = session.role === "LEARNER";

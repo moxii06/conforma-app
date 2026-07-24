@@ -15,7 +15,8 @@ import type Stripe from "stripe";
 // manual "Enregistrer un paiement" flow (see
 // /api/facturation/invoices/[id]/payments), just triggered by Stripe
 // instead of a staff member.
-export async function POST(request: Request, { params }: { params: { organizationId: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ organizationId: string }> }) {
+  const params = await props.params;
   const signature = request.headers.get("stripe-signature");
   if (!signature) return NextResponse.json({ error: "Signature manquante." }, { status: 400 });
 

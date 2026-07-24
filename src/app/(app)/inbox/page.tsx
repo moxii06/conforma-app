@@ -18,7 +18,8 @@ const RGPD_REQUEST_TYPE_LABELS: Record<string, string> = {
   rectification: "Rectification",
 };
 
-export default async function InboxPage({ searchParams }: { searchParams: { mailbox?: string } }) {
+export default async function InboxPage(props: { searchParams: Promise<{ mailbox?: string }> }) {
+  const searchParams = await props.searchParams;
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "inbox") === "none") redirect("/dashboard");
   const canWrite = can(role, "inbox") !== "none";

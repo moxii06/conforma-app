@@ -12,7 +12,8 @@ const schema = z.object({
   remediation: z.string().optional(),
 });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!canWriteRgpd(session.role)) return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });

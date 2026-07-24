@@ -11,7 +11,8 @@ const schema = z.object({ dossierIds: z.array(z.string().min(1)).min(1) });
 // module they were never assigned (see /api/lms/progress). Only dossiers
 // belonging to a session of the module's own course are accepted, and
 // already-assigned dossiers are silently skipped rather than erroring.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "planning") !== "full") {

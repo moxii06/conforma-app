@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 
-export async function DELETE(_request: Request, { params }: { params: { quizId: string; questionId: string } }) {
+export async function DELETE(
+  _request: Request,
+  props: { params: Promise<{ quizId: string; questionId: string }> }
+) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {

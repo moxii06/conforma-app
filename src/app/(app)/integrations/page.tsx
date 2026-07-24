@@ -24,11 +24,12 @@ const GOOGLE_ERROR_LABELS: Record<string, string> = {
   userinfo: "Impossible de récupérer l'adresse du compte Google connecté.",
 };
 
-export default async function IntegrationsPage({
-  searchParams,
-}: {
-  searchParams: { google_error?: string; google_connected?: string };
-}) {
+export default async function IntegrationsPage(
+  props: {
+    searchParams: Promise<{ google_error?: string; google_connected?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "integrations") === "none") redirect("/dashboard");
 

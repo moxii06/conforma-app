@@ -7,7 +7,8 @@ import { advanceOpportunityStage } from "@/lib/pipeline";
 
 const schema = z.object({ status: z.nativeEnum(DocStatus) });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "invoicing") === "none") {

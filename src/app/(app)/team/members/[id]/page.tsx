@@ -12,7 +12,8 @@ import { AddMemberDocumentForm } from "@/components/AddMemberDocumentForm";
 import { DocumentActions } from "@/components/DocumentActions";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 
-export default async function MemberRecordPage({ params }: { params: { id: string } }) {
+export default async function MemberRecordPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await requireSessionContext();
   if (can(session.role, "team") !== "full") redirect("/dashboard");
 

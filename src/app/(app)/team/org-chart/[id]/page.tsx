@@ -9,7 +9,8 @@ import { OrgChartView } from "@/components/OrgChartView";
 import { PrintButton } from "@/components/PrintButton";
 import type { OrgChartGroups } from "@/lib/orgChart";
 
-export default async function OrgChartSnapshotPage({ params }: { params: { id: string } }) {
+export default async function OrgChartSnapshotPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await requireSessionContext();
   if (can(session.role, "team") !== "full") redirect("/dashboard");
 

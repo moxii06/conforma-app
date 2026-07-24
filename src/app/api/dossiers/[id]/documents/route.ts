@@ -6,7 +6,8 @@ import { DOCUMENT_CATEGORIES } from "@/lib/documentCategories";
 
 const schema = z.object({ title: z.string().min(1), url: z.string().url(), category: z.enum(DOCUMENT_CATEGORIES).optional() });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "dossiers") === "none") {

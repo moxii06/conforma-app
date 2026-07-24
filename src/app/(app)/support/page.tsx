@@ -51,7 +51,8 @@ async function logSecureReportAccess(reportIds: string[], userId: string, userNa
   });
 }
 
-export default async function SupportPage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function SupportPage(props: { searchParams: Promise<{ tab?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await requireSessionContext();
   if (can(session.role, "support") === "none") redirect("/dashboard");
   const activeTab = searchParams.tab ?? TABS[0].key;

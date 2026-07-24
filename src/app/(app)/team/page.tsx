@@ -44,7 +44,8 @@ function isExpiringSoon(date: Date | null) {
   return date.getTime() < Date.now() + 30 * 24 * 60 * 60 * 1000;
 }
 
-export default async function TeamPage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function TeamPage(props: { searchParams: Promise<{ tab?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await requireSessionContext();
   if (can(session.role, "team") !== "full") redirect("/dashboard");
   const activeTab = searchParams.tab ?? TABS[0].key;

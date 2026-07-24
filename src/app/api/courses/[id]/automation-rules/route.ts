@@ -19,7 +19,8 @@ const schema = z
     message: "L'objet et le corps de l'email sont requis pour une relance avec envoi automatique.",
   });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {

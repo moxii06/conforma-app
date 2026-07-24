@@ -9,7 +9,8 @@ const schema = z.object({ archived: z.boolean() });
 // /api/crm/opportunities/[id]/route.ts — client feedback: staff should be
 // able to archive (or bring back) a contact themselves, not only have it
 // happen automatically once a deal closes.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "crm") === "none") {

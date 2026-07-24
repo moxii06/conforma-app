@@ -44,11 +44,12 @@ function buildOrderBy(sort?: string): Prisma.QuoteOrderByWithRelationInput | Pri
   }
 }
 
-export default async function FacturationPage({
-  searchParams,
-}: {
-  searchParams: { tab?: string; status?: string; sort?: string };
-}) {
+export default async function FacturationPage(
+  props: {
+    searchParams: Promise<{ tab?: string; status?: string; sort?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "invoicing") === "none") redirect("/dashboard");
   const canWrite = can(role, "invoicing") !== "none";

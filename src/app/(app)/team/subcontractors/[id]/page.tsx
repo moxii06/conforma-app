@@ -20,7 +20,8 @@ const SUBCONTRACTOR_TYPE_LABELS: Record<string, string> = {
   autre: "Autre",
 };
 
-export default async function SubcontractorRecordPage({ params }: { params: { id: string } }) {
+export default async function SubcontractorRecordPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await requireSessionContext();
   if (can(session.role, "team") !== "full") redirect("/dashboard");
 

@@ -24,7 +24,8 @@ const schema = z.object({
 // (client feedback: there was no way to fix a typo or update a
 // subcontractor's info after creation) — same pattern as the session/course
 // PATCH routes.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "team") !== "full") {
@@ -63,7 +64,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   return NextResponse.json(updated);
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "team") !== "full") {

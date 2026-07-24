@@ -12,7 +12,8 @@ const schema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("short_answer"), prompt: z.string().min(1), correctAnswerText: z.string().min(1) }),
 ]);
 
-export async function POST(request: Request, { params }: { params: { quizId: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ quizId: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {

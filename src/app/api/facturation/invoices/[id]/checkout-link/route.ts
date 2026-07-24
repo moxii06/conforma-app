@@ -8,7 +8,8 @@ import { createInvoiceCheckoutLink } from "@/lib/stripe";
 // staff to copy and send to the client. No automated delivery — same
 // "link generated, human relays it" pattern as every other unsent-email
 // flow in this app.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "invoicing") === "none") {

@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { Milestone } from "lucide-react";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 
-export default async function ResetPasswordPage({ params }: { params: { token: string } }) {
+export default async function ResetPasswordPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const user = await prisma.user.findUnique({
     where: { passwordResetToken: params.token },
     include: { organization: true },

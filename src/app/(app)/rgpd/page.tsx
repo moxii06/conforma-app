@@ -40,7 +40,8 @@ const DPIA_STATUS_LABELS: Record<string, string> = {
   not_required: "Non requise",
 };
 
-export default async function RgpdPage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function RgpdPage(props: { searchParams: Promise<{ tab?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await requireSessionContext();
   if (can(session.role, "rgpd") === "none") redirect("/dashboard");
   const activeTab = searchParams.tab ?? "registre";

@@ -42,7 +42,8 @@ const courseInclude = {
 // can stay a scannable summary even with a large catalog, the same
 // list-then-detail split already used for Dossiers apprenants and the
 // learner's own course view.
-export default async function CourseDetailPage({ params }: { params: { id: string } }) {
+export default async function CourseDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none" || role === "LEARNER") redirect("/formations");
   const canManage = can(role, "planning") === "full";

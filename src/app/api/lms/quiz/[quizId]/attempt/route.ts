@@ -34,7 +34,8 @@ function gradeQuestion(question: { type: string; options: unknown; correctAnswer
   return typeof answer === "string" && correctIds.has(answer);
 }
 
-export async function POST(request: Request, { params }: { params: { quizId: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ quizId: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 

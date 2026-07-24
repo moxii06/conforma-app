@@ -16,7 +16,8 @@ const schema = z.object({ body: z.string().min(1).max(10000), includeSignature: 
 // any more; the one that received the message is. Falls back to
 // record-only if the original has no mailboxConnectionId (seed/demo data,
 // or a message from before multi-mailbox support) or the send fails.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "inbox") === "none") {

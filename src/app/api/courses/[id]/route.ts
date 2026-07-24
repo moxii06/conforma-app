@@ -19,7 +19,8 @@ const schema = z.object({
 // updates. Archiving never deletes anything: sessions, dossiers, documents
 // and certificates tied to the course stay exactly as they were, only
 // archivedAt is set so the course drops out of the default catalog view.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {

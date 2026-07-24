@@ -25,7 +25,8 @@ const schema = z.object({ questions: z.array(questionSchema) });
 // list on save rather than incrementally add/remove server-side, since a
 // survey builder is edited as a batch, not question-by-question like the
 // LMS quiz builder.
-export async function PUT(request: Request, { params }: { params: { id: string; kind: string } }) {
+export async function PUT(request: Request, props: { params: Promise<{ id: string; kind: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {

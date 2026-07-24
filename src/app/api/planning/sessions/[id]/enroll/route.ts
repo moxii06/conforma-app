@@ -11,7 +11,8 @@ const schema = z.object({ opportunityId: z.string().min(1) }).merge(enrollmentCa
 // (learner enrollment) tied to this Session, and advances the opportunity
 // to SESSION_SCHEDULED so the CRM pipeline reflects it. Restricted to full
 // planning access (ADMIN_OF/ADMIN_MANAGER) — same as session creation.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "planning") !== "full") {

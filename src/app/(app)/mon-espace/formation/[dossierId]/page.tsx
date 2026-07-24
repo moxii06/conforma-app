@@ -31,7 +31,8 @@ function formatCourseDuration(session: { mode: string; startsAt: Date; endsAt: D
 // straight to another learner's dossier by guessing an id, so this checks
 // ownership itself rather than relying on the catalog page never linking
 // there.
-export default async function LearnerCourseDetailPage({ params }: { params: { dossierId: string } }) {
+export default async function LearnerCourseDetailPage(props: { params: Promise<{ dossierId: string }> }) {
+  const params = await props.params;
   const session = await requireSessionContext();
   if (session.role !== "LEARNER") redirect("/formations");
 

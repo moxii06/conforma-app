@@ -11,7 +11,8 @@ const schema = z.object({
 // Upsert — a "quiz" module has exactly one Quiz row for its settings,
 // created lazily the first time staff configures it rather than at module
 // creation (a fresh quiz module has no questions yet either).
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {

@@ -18,7 +18,8 @@ import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
 // outreach/route.ts, this doesn't create a ClientOutreach row — that
 // model's ack-tracking (signed/activated) is specific to those three, not
 // a generic "here's a file" send.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 

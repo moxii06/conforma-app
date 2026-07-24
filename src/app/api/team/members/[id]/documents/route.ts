@@ -4,7 +4,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 import { MEMBER_DOCUMENT_CATEGORIES } from "@/lib/documentCategories";
 import { uploadUserDocument } from "@/lib/storage";
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "team") !== "full") {

@@ -17,7 +17,8 @@ const schema = z.object({ type: z.enum(["contract", "convocation", "platform_acc
 // through createSessionInvitation, which sends its own real email;
 // contract and platform_access send here directly (best-effort — a failed
 // send doesn't block the record/link from being created).
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 

@@ -9,7 +9,8 @@ import { Role } from "@prisma/client";
 // preview as staff switch between templates, before they've decided to
 // send (and possibly edit the text first). Contrast with
 // /api/documents/generate, which creates the Document immediately.
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "dossiers") === "none") {

@@ -4,7 +4,8 @@ import { SatisfactionSurveyForm } from "@/components/SatisfactionSurveyForm";
 import { SURVEY_KIND_LABELS, type SurveyKind } from "@/lib/satisfactionSurveys";
 import { BrandedLogo } from "@/components/BrandedLogo";
 
-export default async function SatisfactionSurveyPublicPage({ params }: { params: { token: string } }) {
+export default async function SatisfactionSurveyPublicPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const response = await prisma.satisfactionSurveyResponse.findUnique({
     where: { token: params.token },
     include: {

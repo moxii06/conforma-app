@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 
 const schema = z.object({ password: z.string().min(8) });
 
-export async function POST(request: Request, { params }: { params: { token: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const user = await prisma.user.findUnique({ where: { passwordResetToken: params.token } });
   if (!user || !user.passwordResetTokenExpiresAt || user.passwordResetTokenExpiresAt < new Date()) {
     return NextResponse.json({ error: "Lien invalide ou expiré." }, { status: 404 });

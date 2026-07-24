@@ -18,7 +18,8 @@ const schema = z.object({
 // or a portal account alongside the email. This one is just a message: it
 // logs a ClientOutreach row (type "message") so it shows up in the
 // record's communications history, same non-fatal-send pattern as outreach.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "crm") === "none") {

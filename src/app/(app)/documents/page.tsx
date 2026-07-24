@@ -16,11 +16,12 @@ import { AVAILABLE_MERGE_FIELDS } from "@/lib/mergeTemplate";
 
 const PAGE_SIZE = 30;
 
-export default async function DocumentsPage({
-  searchParams,
-}: {
-  searchParams: { tab?: string; q?: string; category?: string; page?: string };
-}) {
+export default async function DocumentsPage(
+  props: {
+    searchParams: Promise<{ tab?: string; q?: string; category?: string; page?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   const canToolkit = can(role, "toolkit") !== "none";
   const canDossiers = can(role, "dossiers") !== "none";

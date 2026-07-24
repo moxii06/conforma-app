@@ -10,7 +10,8 @@ import { uploadModuleFile } from "@/lib/storage";
 // fresh module (no progress exists yet, nothing to invalidate), this path
 // requires the caller to pass `confirm=true` once told that learners are
 // mid-progress, rather than swapping the file silently.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {
