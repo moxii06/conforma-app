@@ -27,6 +27,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   rolling_deadline_warning: "Formation en continu",
   rolling_deadline_overdue: "Formation en continu",
   satisfaction_not_collected: "Satisfaction",
+  learner_inactive: "Décrochage",
 };
 
 const STAGE_LABELS: Record<PipelineStage, string> = {

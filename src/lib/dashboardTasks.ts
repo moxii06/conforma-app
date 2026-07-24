@@ -21,6 +21,12 @@ const ROLLING_PREP_DEADLINE_DAYS = 7;
 // whole window — 0.7 means "70% of the time is gone and it's still not
 // finished." At 1.0 (the whole window elapsed) it becomes overdue instead.
 const ROLLING_DURATION_WARNING_RATIO = 0.7;
+// Client feedback: staff had no way to spot a learner who started a
+// formation and then went quiet — nothing flagged it until the rolling
+// access window ran out (or never, for a FIXED_DATE session). Two weeks
+// with no tracked LMS event is a reasonable generic "probably dropped off"
+// signal, independent of session mode.
+const LEARNER_INACTIVITY_DAYS = 14;
 
 export type DashboardTask = {
   id: string;
@@ -38,7 +44,8 @@ export type DashboardTask = {
     | "dossier_prep_contract"
     | "rolling_deadline_warning"
     | "rolling_deadline_overdue"
-    | "satisfaction_not_collected";
+    | "satisfaction_not_collected"
+    | "learner_inactive";
   label: string;
   contactName: string;
   since: Date;
@@ -298,6 +305,52 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         since: deadline,
         href: `/dossiers/${d.id}`,
         overdue,
+      });
+    }
+  }
+
+  // Décrochage: a learner who opened their formation at least once
+  // (firstAccessedAt) but hasn't triggered a single tracked LMS event since
+  // — applies to both FIXED_DATE and ROLLING sessions alike, unlike the
+  // rolling-only deadline check above, since "gone quiet" is a signal
+  // regardless of whether there's a hard access-duration clock running.
+  if (canSeeTrainer) {
+    const now = new Date();
+    const inactivityThreshold = addDays(now, -LEARNER_INACTIVITY_DAYS);
+    const startedDossiers = await prisma.dossier.findMany({
+      where: {
+        organizationId,
+        firstAccessedAt: { not: null },
+        session: role === Role.TRAINER ? { trainerId: userId } : undefined,
+      },
+      include: {
+        contact: true,
+        session: { include: { course: { include: { elearningModules: { include: { quiz: true } } } } } },
+        elearningProgress: true,
+        quizAttempts: true,
+      },
+    });
+    for (const d of startedDossiers) {
+      const modules = d.session.course.elearningModules;
+      if (modules.length === 0) continue;
+      const { allCompleted } = getCourseCompletion(modules, d.elearningProgress, d.quizAttempts);
+      if (allCompleted) continue;
+
+      const lastActivity = d.elearningProgress.reduce<Date>((latest, p) => {
+        const candidate = p.lastEventAt ?? p.assignedAt;
+        return candidate > latest ? candidate : latest;
+      }, d.firstAccessedAt!);
+      if (lastActivity > inactivityThreshold) continue;
+
+      const inactiveDays = Math.floor((now.getTime() - lastActivity.getTime()) / 86_400_000);
+      results.push({
+        id: d.id,
+        kind: "learner_inactive",
+        label: `Aucune activité depuis ${inactiveDays} j — apprenant potentiellement décroché`,
+        contactName: `${d.contact.firstName} ${d.contact.lastName}`,
+        since: lastActivity,
+        href: `/dossiers/${d.id}`,
+        overdue: true,
       });
     }
   }
