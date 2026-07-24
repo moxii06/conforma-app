@@ -10,6 +10,7 @@ import { EmailReplyComposer } from "@/components/EmailReplyComposer";
 import { NewEmailComposer } from "@/components/NewEmailComposer";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
+import { EditContactForm } from "@/components/EditContactForm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -108,8 +109,7 @@ export default async function ContactRecordPage({
           <>
             <div className="bg-white border border-line rounded-card p-5">
               <div className="text-[13.5px] font-semibold text-ink mb-3">Coordonnées</div>
-              <div className="text-[13px] text-ink">{contact.email}</div>
-              {contact.phone && <div className="text-[13px] text-ink mt-1">{contact.phone}</div>}
+              <EditContactForm contact={{ id: contact.id, firstName: contact.firstName, lastName: contact.lastName, email: contact.email, phone: contact.phone }} />
             </div>
 
             {contact.company && (
