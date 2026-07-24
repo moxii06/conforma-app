@@ -28,7 +28,7 @@ export default async function AbonnementPage() {
 
   return (
     <>
-      <PageHeader title="Abonnement" subtitle="Votre abonnement Conforma — factures et moyen de paiement" />
+      <PageHeader title="Abonnement" subtitle="Votre abonnement Jalon — factures et moyen de paiement" />
       <div className="p-8 flex flex-col gap-5 max-w-2xl">
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -63,7 +63,7 @@ export default async function AbonnementPage() {
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
           <div className="text-[13px] font-semibold text-ink">Historique des factures</div>
           <div className="text-[12.5px] text-slate">
-            Aucune facture pour l'instant — vos factures d'abonnement Conforma apparaîtront ici, téléchargeables en
+            Aucune facture pour l'instant — vos factures d'abonnement Jalon apparaîtront ici, téléchargeables en
             PDF, dès la première échéance facturée.
           </div>
         </div>

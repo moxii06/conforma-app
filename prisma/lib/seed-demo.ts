@@ -208,7 +208,7 @@ export async function seedDemoData(prisma: PrismaClient) {
       "3. Signaler tout message suspect au service informatique.",
       "4. Mettre a jour ses appareils regulierement.",
       "",
-      "Document de demonstration genere pour Conforma.",
+      "Document de demonstration genere pour Jalon.",
     ]);
     const uploaded = await uploadDemoFile(org.id, modDoc.id, "charte-securite-informatique.pdf", pdfBuf, "application/pdf");
     await prisma.elearningModule.update({ where: { id: modDoc.id }, data: { fileUrl: uploaded.url, fileName: uploaded.fileName, fileSizeBytes: uploaded.sizeBytes } });

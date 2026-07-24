@@ -1,10 +1,10 @@
 // Transactional email — platform-level, same reasoning as src/lib/ai.ts:
-// one Conforma-operated Brevo account sends for every tenant, rather than
+// one Jalon-operated Brevo account sends for every tenant, rather than
 // each organization bringing their own Brevo API key. The sender address
 // has to be a domain verified in Brevo (can't send arbitrary "from"
 // addresses), so the organization's identity is carried via the sender
 // *name* instead — recipients see "Formations Nova" as the sender name,
-// while the underlying verified address stays Conforma's own. replyTo can
+// while the underlying verified address stays Jalon's own. replyTo can
 // point at a real staff member so a reply still reaches a human.
 function isConfigured(): boolean {
   return Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);

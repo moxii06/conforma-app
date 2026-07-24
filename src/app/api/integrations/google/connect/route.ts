@@ -6,7 +6,7 @@ import { getSessionContext, can } from "@/lib/tenant";
 // — this is a data-source link, not a login, so it's deliberately separate
 // from NextAuth's own Credentials-based sign-in rather than added as a
 // second NextAuth provider (which would conflate "authenticate as this
-// Conforma user" with "grant Conforma read/send access to this Gmail
+// Jalon user" with "grant Jalon read/send access to this Gmail
 // account").
 export async function GET(request: Request) {
   const session = await getSessionContext();

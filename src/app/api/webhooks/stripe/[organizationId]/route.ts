@@ -5,7 +5,7 @@ import { verifyStripeWebhook } from "@/lib/stripe";
 import { advanceOpportunityStage } from "@/lib/pipeline";
 import type Stripe from "stripe";
 
-// Public endpoint — Stripe calls this directly, no Conforma session
+// Public endpoint — Stripe calls this directly, no Jalon session
 // involved, so the org is identified by the URL path and every event is
 // signature-verified against THAT org's own webhook secret before being
 // trusted (see verifyStripeWebhook). This is the actual "rapprochement

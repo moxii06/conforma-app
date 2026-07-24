@@ -2,9 +2,9 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
 
-// Stripe is per-organization, not a Conforma-owned platform credential like
+// Stripe is per-organization, not a Jalon-owned platform credential like
 // AI/Brevo — each OFP receives payment from their own training clients into
-// their own Stripe account; Conforma must never sit in that money flow (the
+// their own Stripe account; Jalon must never sit in that money flow (the
 // user explicitly corrected an earlier assumption to the contrary — see
 // README). The key lives in IntegrationCredential same as Yousign/Pennylane
 // etc., encrypted at rest. `clientSecret` on that row is repurposed here as

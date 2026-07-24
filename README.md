@@ -1,4 +1,4 @@
-# Conforma — Phase 1 scaffold
+# Jalon — Phase 1 scaffold
 
 This is a starting codebase for the product described in `technical-specification.md`
 (handed to you alongside this repo). It is **not** a finished MVP — it's the
@@ -132,7 +132,7 @@ database queries instead of mock data.
   `DocumentTemplate` model) — spec §5.8's "legal document toolkit" scoped
   down to a plain editable-text library (not the dynamic merge-field
   personalization engine that full toolkit describes — that's a separate,
-  bigger build). Conforma ships 7 starter templates as global reference data
+  bigger build). Jalon ships 7 starter templates as global reference data
   (`organizationId: null`): CGV, règlement intérieur, convention, and the
   five documents that map onto the dossier journey checklist — recueil des
   besoins, convocation, évaluation à chaud, évaluation à froid. An org
@@ -327,7 +327,7 @@ for what that means in practice for each one.
   verified end-to-end with a deliberately invalid key, which produced a
   real "Incorrect API key provided" response from OpenAI surfaced straight
   through to the UI. **Platform-level, not per-organization**: a single
-  `OPENAI_API_KEY` env var (billed to Conforma, same pattern as the Gmail
+  `OPENAI_API_KEY` env var (billed to Jalon, same pattern as the Gmail
   OAuth client's `GOOGLE_CLIENT_ID`/`SECRET`) powers AI for every tenant —
   no customer ever enters their own key, `/integrations` just shows an
   "Active"/"Indisponible" status pill with no input. This started out
@@ -335,7 +335,7 @@ for what that means in practice for each one.
   Stripe/Brevo/etc.) and was deliberately moved to platform-level — see
   the "Other providers that could move platform-level" note below for
   which of the *other* `/integrations` rows are similarly better suited
-  to a shared Conforma-owned credential than a per-tenant one. No usage
+  to a shared Jalon-owned credential than a per-tenant one. No usage
   quota or rate limiting per organization yet — worth adding before this
   is exposed to real paying customers at any scale, since every tenant
   currently draws on the same OpenAI billing.
@@ -388,8 +388,8 @@ for what that means in practice for each one.
   unlike the gathered checkbox itself.
 
   **Other providers that could move platform-level too** (same reasoning
-  as AI — Conforma owns the account, tenants just use the feature):
-  - **Brevo** — one Conforma-operated transactional-email account could
+  as AI — Jalon owns the account, tenants just use the feature):
+  - **Brevo** — one Jalon-operated transactional-email account could
     send for every tenant, which would unlock *real delivery* for every
     currently-stubbed "no email is ever sent" flow at once (Team invites,
     session invitations, needs-assessment requests, contract/convocation/
@@ -397,14 +397,14 @@ for what that means in practice for each one.
     to centralize next, not yet done.
   - **Stripe — correction, this one should NOT move platform-level.**
     An earlier version of this note claimed it should, conflating two
-    different things Stripe could mean here: (a) Conforma billing *its
-    own* customers for their Conforma subscription — that one genuinely
-    would be a Conforma-owned key, but isn't built at all yet (no
+    different things Stripe could mean here: (a) Jalon billing *its
+    own* customers for their Jalon subscription — that one genuinely
+    would be a Jalon-owned key, but isn't built at all yet (no
     Checkout session creation, no webhook, `Subscription.status` is only
     ever set to `"trialing"` by `/api/signup`); (b) the OFP collecting
     payment *from their own training clients* via the Facturation module
     — this is what the existing `/integrations` "Stripe" row is actually
-    for, and it's correctly per-organization as-is: Conforma must never
+    for, and it's correctly per-organization as-is: Jalon must never
     sit in that money flow between an OFP and their client. Each OFP
     brings their own payment processor account (Stripe or otherwise —
     see the Facturation section below for the multi-provider plan).
@@ -419,11 +419,11 @@ for what that means in practice for each one.
     each connects to a distinct external account (the OFP's own
     accounting tool, or a specific mailbox) that can't be shared.
 - **Real transactional email (Brevo)** (`src/lib/brevo.ts`) — the
-  centralization described above, actually done: one Conforma-operated
+  centralization described above, actually done: one Jalon-operated
   Brevo account (`BREVO_API_KEY` + `BREVO_SENDER_EMAIL`, platform-level,
   same pattern as `OPENAI_API_KEY`) sends for every tenant. The recipient
   sees the organization's own name as the sender (`senderName`), not
-  "Conforma" — `BREVO_SENDER_EMAIL` is a fixed, Brevo-verified address
+  "Jalon" — `BREVO_SENDER_EMAIL` is a fixed, Brevo-verified address
   under the hood, but the display name carries the OFP's identity, and
   `replyTo` is set to the staff member who triggered the send where that
   makes sense (invites, positioning test) so a reply still reaches a
@@ -457,16 +457,16 @@ for what that means in practice for each one.
   developers.yousign.com, not confirmed live. Still **per-organization**
   (`/integrations`'s "Yousign" row): the signature request has to reflect
   the actual OFP as the contracting party for the document to make legal
-  sense to the person signing it, not Conforma. (Yousign renamed itself
+  sense to the person signing it, not Jalon. (Yousign renamed itself
   Youtrust on 16 July 2026 — same company/API, docs moved to
   developers.youtrust.com; kept the internal name since "Yousign" is
   still the e-signature product's own name inside the Youtrust suite.)
 - **Real Stripe invoice payments** (`src/lib/stripe.ts`, per-organization —
   same reasoning as Yousign, but here it's non-negotiable: **an OFP's
   Stripe account receives payment from that OFP's own clients, and
-  Conforma must never sit in that money flow**, per an explicit
+  Jalon must never sit in that money flow**, per an explicit
   correction from the user during this build who'd originally been asked
-  about a Conforma-owned Stripe account). Configured on `/integrations`
+  about a Jalon-owned Stripe account). Configured on `/integrations`
   with two fields — a secret key (`sk_...`) and a webhook signing secret
   (`whsec_...`, stored in `IntegrationCredential.clientSecret`, repurposed
   since there's no OAuth flow here needing it for its original purpose).
@@ -478,7 +478,7 @@ for what that means in practice for each one.
   **`/api/webhooks/stripe/[organizationId]`** is the actual "rapprochement
   automatique" (auto-reconciliation): a public route (excluded from the
   auth middleware — Stripe calls it directly, authenticated by its own
-  `Stripe-Signature` header instead of a Conforma session) that verifies
+  `Stripe-Signature` header instead of a Jalon session) that verifies
   the signature against that org's own webhook secret, then on
   `checkout.session.completed` records a real `Payment` against the
   invoice named in the session's metadata and auto-flips it to `PAID` once
@@ -658,7 +658,7 @@ delivers manually, not an actual delivery:
   configured — see "Yousign — actually wired" below; orgs without one
   keep using the internal stub instead.
 - Two separate Stripe concerns, only one of them real: **converting a
-  trial to a paid Conforma `Subscription`** (Conforma billing the OFP) is
+  trial to a paid Jalon `Subscription`** (Jalon billing the OFP) is
   still not built at all — saving a key on `/integrations` did nothing
   toward that, no Checkout session or webhook exists for it. **An OFP
   invoicing their own training clients** (`Invoice`/`Payment`, per-org

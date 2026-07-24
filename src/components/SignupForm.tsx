@@ -106,7 +106,7 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
           className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
         />
         <div className="text-[11px] text-slate mt-1">
-          Nécessaire pour établir vos factures d&apos;abonnement Conforma une fois l&apos;essai terminé.
+          Nécessaire pour établir vos factures d&apos;abonnement Jalon une fois l&apos;essai terminé.
         </div>
       </div>
 

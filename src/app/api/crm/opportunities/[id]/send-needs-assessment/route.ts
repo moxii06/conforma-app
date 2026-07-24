@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: "Cette opportunité appartient à un autre commercial." }, { status: 403 });
   }
 
-  // Prefer the org's own adapted template over the Conforma starter, if
+  // Prefer the org's own adapted template over the Jalon starter, if
   // they've forked one — same "org copy wins" logic as the library page.
   const template =
     (await prisma.documentTemplate.findFirst({

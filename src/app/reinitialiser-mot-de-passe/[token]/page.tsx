@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ShieldCheck } from "lucide-react";
+import { Milestone } from "lucide-react";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 
 export default async function ResetPasswordPage({ params }: { params: { token: string } }) {
@@ -14,9 +14,9 @@ export default async function ResetPasswordPage({ params }: { params: { token: s
       <div className="max-w-md mx-auto flex flex-col gap-5">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-            <ShieldCheck size={16} className="text-ink" strokeWidth={2.4} />
+            <Milestone size={16} className="text-ink" strokeWidth={2.4} />
           </div>
-          <div className="font-display text-lg text-ink">{user?.organization.name ?? "Conforma"}</div>
+          <div className="font-display text-lg text-ink">{user?.organization.name ?? "Jalon"}</div>
         </div>
 
         <div className="bg-white border border-line rounded-card p-5">

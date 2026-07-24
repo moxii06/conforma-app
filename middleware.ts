@@ -12,7 +12,7 @@ export default withAuth({
 
 // Gate every route except: the login page; NextAuth's own API routes; the
 // public prospect-facing needs-assessment form (/formulaire/[token] + its
-// submission API — deliberately reached without a Conforma account, the
+// submission API — deliberately reached without a Jalon account, the
 // token itself is the access control); the trial signup page (/essai) and
 // its account-creation API (/api/signup — no session exists yet, that's
 // the whole point of a signup endpoint); the account-activation page
@@ -20,10 +20,10 @@ export default withAuth({
 // granted platform access — no session exists yet either, the token is
 // the access control, same pattern as /formulaire); Stripe's webhook
 // callback (/api/webhooks/stripe/[organizationId] — called by Stripe
-// itself, no Conforma session exists, the request is authenticated by its
+// itself, no Jalon session exists, the request is authenticated by its
 // own Stripe-Signature header instead, see verifyStripeWebhook()); the
 // public marketing news page (/actualites) and its newsletter-signup API
-// (/api/newsletter — no session exists, visitors aren't Conforma accounts);
+// (/api/newsletter — no session exists, visitors aren't Jalon accounts);
 // and the marketing/pricing page at the site root. Static assets (_next,
 // favicon) are excluded so the app shell can still load its CSS/JS while an
 // unauthenticated user is bounced to /login.

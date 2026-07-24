@@ -5,6 +5,7 @@ import {
   Calendar,
   FileText,
   ShieldCheck,
+  Milestone,
   ScrollText,
   UserCog,
   Library,
@@ -93,9 +94,9 @@ export async function Sidebar({ user }: { user: SessionContext }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-              <ShieldCheck size={17} className="text-ink" strokeWidth={2.4} />
+              <Milestone size={17} className="text-ink" strokeWidth={2.4} />
             </div>
-            <div className="font-display text-lg tracking-wide">Conforma</div>
+            <div className="font-display text-lg tracking-wide">Jalon</div>
           </div>
           {can(user.role, "dashboard") !== "none" && <NotificationBell tasks={tasks} userId={user.userId} />}
         </div>

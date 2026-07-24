@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
 
 export const metadata: Metadata = {
-  title: "Mot de passe oublié — Conforma",
+  title: "Mot de passe oublié — Jalon",
 };
 
 export default async function ForgotPasswordPage() {

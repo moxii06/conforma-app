@@ -136,7 +136,7 @@ export default async function IntegrationsPage({
           </div>
           <div className="text-[12px] text-slate">
             Invitations d&apos;équipe, convocations, test de positionnement, contrat et accès plateforme — envoyés
-            par email réel. Fonctionnalité intégrée à la plateforme Conforma, incluse dans votre abonnement.
+            par email réel. Fonctionnalité intégrée à la plateforme Jalon, incluse dans votre abonnement.
             Aucune clé à fournir de votre côté ; en cas d&apos;échec d&apos;envoi, un lien reste toujours affiché
             pour relayer manuellement.
             {!(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL) &&
@@ -153,7 +153,7 @@ export default async function IntegrationsPage({
           </div>
           <div className="text-[12px] text-slate">
             Rédaction assistée des réponses email et extraction des informations d&apos;un nouveau prospect —
-            fonctionnalité intégrée à la plateforme Conforma, incluse dans votre abonnement. Aucune clé à
+            fonctionnalité intégrée à la plateforme Jalon, incluse dans votre abonnement. Aucune clé à
             fournir de votre côté.
             {!process.env.OPENAI_API_KEY && " (Non disponible pour le moment — clé non configurée côté serveur.)"}
           </div>
@@ -167,7 +167,7 @@ export default async function IntegrationsPage({
             </Pill>
           </div>
           <div className="text-[12px] text-slate mb-3">
-            Encaissement des factures — réel, sur votre propre compte Stripe (pas celui de Conforma) : chaque
+            Encaissement des factures — réel, sur votre propre compte Stripe (pas celui de Jalon) : chaque
             organisme reçoit directement le paiement de ses propres clients. Un lien de paiement Stripe peut être
             généré depuis chaque facture sur <code>/facturation</code> ; le webhook ci-dessous rapproche
             automatiquement le paiement une fois reçu (facture marquée payée sans action manuelle).

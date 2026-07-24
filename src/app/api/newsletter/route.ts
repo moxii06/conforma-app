@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 const schema = z.object({ email: z.string().email() });
 
-// Public, unauthenticated endpoint — visitor is not a Conforma account.
+// Public, unauthenticated endpoint — visitor is not a Jalon account.
 // Collection only: no automated Brevo campaign is triggered from this
 // route, per the scope of this task (a real send pipeline is a separate
 // decision the user hasn't asked for yet).

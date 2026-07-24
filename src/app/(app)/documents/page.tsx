@@ -75,7 +75,7 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
   return (
     <div className="p-8 flex flex-col gap-6 max-w-3xl">
       <div className="text-[11.5px] text-slate">
-        Les modèles fournis par Conforma sont des points de départ génériques — à faire relire par un juriste avant
+        Les modèles fournis par Jalon sont des points de départ génériques — à faire relire par un juriste avant
         tout usage réel (voir le texte d&apos;avertissement inclus dans chaque modèle). Insérez des champs de
         fusion dans le texte d&apos;un modèle pour qu&apos;ils soient remplacés automatiquement à la génération :{" "}
         {AVAILABLE_MERGE_FIELDS.map((f) => (
@@ -84,7 +84,7 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className="text-[13.5px] font-semibold text-ink">Modèles fournis par Conforma</div>
+        <div className="text-[13.5px] font-semibold text-ink">Modèles fournis par Jalon</div>
         {DOCUMENT_CATEGORIES.map((category) => {
           const items = globalTemplates.filter((t) => t.category === category);
           if (items.length === 0) return null;
@@ -135,7 +135,7 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
                     <details key={t.id} className="border-t border-line py-2.5">
                       <summary className="cursor-pointer list-none text-[13px] text-ink font-medium">
                         {t.title}
-                        {t.forkedFromId && <span className="text-slate font-normal"> (adapté d&apos;un modèle Conforma)</span>}
+                        {t.forkedFromId && <span className="text-slate font-normal"> (adapté d&apos;un modèle Jalon)</span>}
                       </summary>
                       <div className="mt-2.5 flex flex-col gap-2.5">
                         <TemplateEditor templateId={t.id} title={t.title} bodyText={t.bodyText} />

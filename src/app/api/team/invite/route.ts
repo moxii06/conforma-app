@@ -57,8 +57,8 @@ export async function POST(request: Request) {
     await sendTransactionalEmail({
       to: member.email,
       toName: member.name,
-      subject: `Invitation à rejoindre ${organization.name} sur Conforma`,
-      text: `Bonjour ${member.name},\n\n${session.name || session.email} vous invite à rejoindre l'espace ${organization.name} sur Conforma.\n\nActivez votre compte ici : ${activationUrl}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
+      subject: `Invitation à rejoindre ${organization.name} sur Jalon`,
+      text: `Bonjour ${member.name},\n\n${session.name || session.email} vous invite à rejoindre l'espace ${organization.name} sur Jalon.\n\nActivez votre compte ici : ${activationUrl}\n\nÀ bientôt,\nL'équipe ${organization.name}`,
       senderName: organization.name,
       replyTo: session.email,
     });

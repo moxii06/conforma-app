@@ -1,6 +1,6 @@
 # Technical specification — Compliance CRM for training organizations (OFP)
 
-**Working name:** Conforma (placeholder — not final)
+**Working name:** Jalon (placeholder — not final)
 **Document purpose:** give a developer a clear picture of the product to build, its scope, and the constraints that shape the architecture. This is a specification to scope and estimate work, not a finished design document — technical choices below are proposals to validate with the developer, not fixed decisions.
 
 A clickable UI prototype (React/JSX, static mock data) exists separately and should be reviewed alongside this document — it shows the intended screens, information hierarchy, and interaction patterns for every module described below.

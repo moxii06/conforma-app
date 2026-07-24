@@ -22,7 +22,7 @@
 // Unlike AI/Brevo, this deliberately stays a PER-ORGANIZATION credential
 // (IntegrationCredential, provider "yousign" — already on /integrations)
 // rather than moving platform-level: the signature request has to reflect
-// the actual OFP as the contracting party, not Conforma, for the document
+// the actual OFP as the contracting party, not Jalon, for the document
 // to make legal sense to the person signing it. A Yousign ISV/reseller
 // partnership could remove that constraint later, but that's a commercial
 // step, not a code change.

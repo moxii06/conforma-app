@@ -4,7 +4,7 @@ import { getSessionContext, can } from "@/lib/tenant";
 import { draftEmailReply } from "@/lib/ai";
 
 // Rédaction assistée par IA — appel réel à OpenAI (src/lib/ai.ts), fonctionnalité
-// intégrée à la plateforme (clé Conforma, pas une clé par organisation).
+// intégrée à la plateforme (clé Jalon, pas une clé par organisation).
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });

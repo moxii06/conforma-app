@@ -58,7 +58,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     `Dernière activité : ${attendance.lastPingAt.toLocaleString("fr-FR")}\n` +
     `${attendance.leftAt ? `Déconnexion : ${attendance.leftAt.toLocaleString("fr-FR")}\n` : ""}` +
     `Durée de présence enregistrée : ${formatDuration(attendance.durationSeconds)}\n\n` +
-    `Durée mesurée par connexion effective au module de classe virtuelle Conforma (présence de session navigateur), et non par déclaration.\n\n` +
+    `Durée mesurée par connexion effective au module de classe virtuelle Jalon (présence de session navigateur), et non par déclaration.\n\n` +
     `Fait le ${new Date().toLocaleDateString("fr-FR")}.`;
 
   const document = await prisma.document.create({

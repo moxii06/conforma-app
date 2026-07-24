@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import { Milestone } from "lucide-react";
 
 // Same login form, same auth flow, for both audiences — role-based
 // redirect already happens server-side after auth (see /dashboard). The
@@ -41,9 +41,9 @@ export function LoginForm() {
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-3">
           <div className="w-8 h-8 rounded-md bg-seal flex items-center justify-center">
-            <ShieldCheck size={18} className="text-ink" strokeWidth={2.4} />
+            <Milestone size={18} className="text-ink" strokeWidth={2.4} />
           </div>
-          <div className="font-display text-xl text-ink tracking-wide">Conforma</div>
+          <div className="font-display text-xl text-ink tracking-wide">Jalon</div>
         </div>
         <div className="text-center text-[13px] text-slate mb-8">
           {isLearner ? "Espace apprenant" : "Espace organisme de formation"}

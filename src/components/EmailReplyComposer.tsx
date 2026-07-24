@@ -79,11 +79,11 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
           <div className="text-[11.5px] text-sage">Réponse envoyée via Gmail.</div>
         ) : result.sendError ? (
           <div className="text-[11.5px] text-rust">
-            Réponse enregistrée dans Conforma, mais l&apos;envoi via Gmail a échoué : {result.sendError}
+            Réponse enregistrée dans Jalon, mais l&apos;envoi via Gmail a échoué : {result.sendError}
           </div>
         ) : (
           <div className="text-[11.5px] text-slate">
-            Réponse enregistrée dans Conforma — pas d&apos;envoi réel, aucune boîte mail n&apos;est connectée (voir /integrations).
+            Réponse enregistrée dans Jalon — pas d&apos;envoi réel, aucune boîte mail n&apos;est connectée (voir /integrations).
           </div>
         )}
         <button onClick={() => { setOpen(false); setResult(null); }} className="text-[12px] text-slate hover:text-ink self-start">

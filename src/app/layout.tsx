@@ -13,7 +13,7 @@ const sansFont = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600
 const monoFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Conforma",
+  title: "Jalon",
   description: "Compliance CRM for French training organizations",
 };
 

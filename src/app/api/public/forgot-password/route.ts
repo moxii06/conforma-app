@@ -31,9 +31,9 @@ export async function POST(request: Request) {
       await sendTransactionalEmail({
         to: user.email,
         toName: user.name,
-        subject: "Réinitialisation de votre mot de passe Conforma",
+        subject: "Réinitialisation de votre mot de passe Jalon",
         text: `Bonjour ${user.name},\n\nUne réinitialisation de mot de passe a été demandée pour votre compte. Ce lien est valable 1 heure :\n${resetUrl}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet email.`,
-        senderName: organization?.name ?? "Conforma",
+        senderName: organization?.name ?? "Jalon",
       });
     } catch {
       // Non-fatal — same generic response either way, see comment above.

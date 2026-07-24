@@ -3,11 +3,11 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { SignupForm } from "@/components/SignupForm";
-import { ShieldCheck, Check } from "lucide-react";
+import { Milestone, Check } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Créer votre compte — Conforma",
+  title: "Créer votre compte — Jalon",
 };
 
 const PLAN_DETAILS: Record<string, { name: string; price: string; features: string[] }> = {
@@ -29,9 +29,9 @@ export default async function EssaiPage({ searchParams }: { searchParams: { plan
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-              <ShieldCheck size={16} className="text-ink" strokeWidth={2.4} />
+              <Milestone size={16} className="text-ink" strokeWidth={2.4} />
             </div>
-            <span className="font-display text-lg text-ink tracking-wide">Conforma</span>
+            <span className="font-display text-lg text-ink tracking-wide">Jalon</span>
           </Link>
           <Link href="/login" className="text-[13.5px] text-slate hover:text-ink">
             Déjà client ? Se connecter

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import { Milestone } from "lucide-react";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -28,9 +28,9 @@ export function ForgotPasswordForm() {
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-8">
           <div className="w-8 h-8 rounded-md bg-seal flex items-center justify-center">
-            <ShieldCheck size={18} className="text-ink" strokeWidth={2.4} />
+            <Milestone size={18} className="text-ink" strokeWidth={2.4} />
           </div>
-          <div className="font-display text-xl text-ink tracking-wide">Conforma</div>
+          <div className="font-display text-xl text-ink tracking-wide">Jalon</div>
         </div>
 
         <div className="bg-white border border-line rounded-card p-6">

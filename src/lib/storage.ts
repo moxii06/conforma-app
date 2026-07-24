@@ -1,7 +1,7 @@
 import { put, del } from "@vercel/blob";
 
 // Real file storage for LMS module content (video/document) — platform-
-// level, like AI/Brevo (Conforma hosts the files, not each OFP's own
+// level, like AI/Brevo (Jalon hosts the files, not each OFP's own
 // infrastructure), via Vercel Blob: one BLOB_READ_WRITE_TOKEN env var,
 // works identically in local dev and on Vercel (unlike writing to local
 // disk, which would silently break in production — serverless functions

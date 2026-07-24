@@ -1,4 +1,4 @@
-// Conforma — Phase 1 data model
+// Jalon — Phase 1 data model
 // Multi-tenancy strategy: shared schema, every tenant-scoped table carries
 // an `organizationId` foreign key + index. Enforce isolation at the query
 // layer (see src/lib/tenant.ts) until/unless Postgres RLS is added later —
@@ -25,9 +25,9 @@ model Organization {
   nextAuditDate DateTime?
   createdAt     DateTime  @default(now())
 
-  // Billing identity for the ORGANIZATION'S OWN Conforma subscription —
+  // Billing identity for the ORGANIZATION'S OWN Jalon subscription —
   // the org is the paying customer, so this is what a real invoice from
-  // Conforma to them would need (Stripe customer creation, French invoice
+  // Jalon to them would need (Stripe customer creation, French invoice
   // legal-mention requirements). Collected at signup (see /essai). Not to
   // be confused with the org's own Company/Contact records, which are
   // their end customers, a separate concern.
@@ -40,7 +40,7 @@ model Organization {
   // to ITS OWN clients (contracts, conventions, CGV — the French "mentions
   // légales" block: forme juridique + capital social + siège social + RCS +
   // représentant légal). Distinct from the billing fields above, which are
-  // about Conforma invoicing the org, not the org invoicing its clients.
+  // about Jalon invoicing the org, not the org invoicing its clients.
   // Editable from /profil (ADMIN_OF only) and merged into templates via
   // mergeTemplate.ts's AVAILABLE_MERGE_FIELDS.
   legalForm               String?
@@ -266,7 +266,7 @@ model RegulatoryWatch {
 // A trainer/subcontractor delivering training on the org's behalf — the
 // record the org keeps for Qualiopi indicator 17 (qualification of
 // external/internal staff) and indicator 19 (coordination/supervision of
-// intervenants), independent of whether they ever get a Conforma account.
+// intervenants), independent of whether they ever get a Jalon account.
 // Documents (contract, diploma, insurance...) reuse the existing Document
 // model via subcontractorId rather than a parallel table.
 // Client feedback: a formateur_externe should be assignable to a session
@@ -763,7 +763,7 @@ model Session {
 }
 
 // Electronic attendance for a REMOTE/HYBRID session, driven by the
-// learner's browser actually being on the Conforma-hosted meeting room page
+// learner's browser actually being on the Jalon-hosted meeting room page
 // (see /mon-espace/salle/[dossierId] and its heartbeat ping), not a staff
 // checkbox ticked from memory after the fact. durationSeconds accumulates
 // across reconnects — one row per (session, dossier) rather than one row
@@ -1007,7 +1007,7 @@ model Document {
 // scoped down here to a plain editable-text library, not the dynamic
 // merge-field personalization engine the full toolkit describes; that
 // remains a separate, bigger build). `organizationId: null` marks a
-// starter template Conforma ships to every org; an org "adapts" one by
+// starter template Jalon ships to every org; an org "adapts" one by
 // creating its own copy (`forkedFromId` points back at the original) which
 // they can then freely edit — the starter stays untouched as a reference.
 model DocumentTemplate {
@@ -1593,7 +1593,7 @@ model IntegrationCredential {
 }
 
 // ---------------------------------------------------------------------------
-// Public marketing site content — NOT tenant-scoped: this is Conforma's own
+// Public marketing site content — NOT tenant-scoped: this is Jalon's own
 // editorial content and visitor list, not an OFP's data.
 // ---------------------------------------------------------------------------
 

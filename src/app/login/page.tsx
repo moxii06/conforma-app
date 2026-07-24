@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { LoginForm } from "@/components/LoginForm";
 
 export const metadata: Metadata = {
-  title: "Connexion — Conforma",
+  title: "Connexion — Jalon",
 };
 
 export default async function LoginPage() {

@@ -1,6 +1,6 @@
-// AI is a Conforma-operated feature, not something each organization brings
+// AI is a Jalon-operated feature, not something each organization brings
 // their own key for — one OPENAI_API_KEY (platform env var, billed to
-// Conforma) powers it for every tenant, the same "platform owns the app
+// Jalon) powers it for every tenant, the same "platform owns the app
 // credentials, tenants just use the feature" pattern as the Gmail OAuth
 // client (GOOGLE_CLIENT_ID/SECRET). No per-org IntegrationCredential
 // lookup, unlike the other /integrations providers.

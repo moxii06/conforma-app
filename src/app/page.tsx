@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import {
   ShieldCheck,
+  Milestone,
   Users,
   Calendar,
   FileText,
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Conforma — Le CRM de conformité pour les organismes de formation",
+  title: "Jalon — Le CRM de conformité pour les organismes de formation",
   description:
     "CRM, planning, facturation et conformité Qualiopi/RGPD réunis dans un seul outil, pensé pour les organismes de formation indépendants et de petite taille.",
 };
@@ -99,9 +100,9 @@ export default function MarketingPage() {
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-              <ShieldCheck size={16} className="text-ink" strokeWidth={2.4} />
+              <Milestone size={16} className="text-ink" strokeWidth={2.4} />
             </div>
-            <span className="font-display text-lg text-ink tracking-wide">Conforma</span>
+            <span className="font-display text-lg text-ink tracking-wide">Jalon</span>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-[13.5px] text-slate">
             <a href="#fonctionnalites" className="hover:text-ink">Fonctionnalités</a>
@@ -141,7 +142,7 @@ export default function MarketingPage() {
           Arrêtez de reconstituer votre dossier Qualiopi la veille de l&apos;audit
         </h1>
         <p className="text-[17px] text-slate leading-relaxed max-w-xl mx-auto mb-9">
-          Conforma remplace le tableur, la boîte mail et le dossier partagé par un seul outil : CRM, planning,
+          Jalon remplace le tableur, la boîte mail et le dossier partagé par un seul outil : CRM, planning,
           facturation et preuves de conformité, tenus à jour par le travail que vous faites déjà — pas en plus.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -313,7 +314,7 @@ export default function MarketingPage() {
       {/* ---- Final CTA ---- */}
       <section className="border-t border-line bg-white">
         <div className="max-w-2xl mx-auto px-6 py-16 text-center">
-          <h2 className="font-display text-[26px] text-ink mb-3 text-balance">Prêt à essayer Conforma ?</h2>
+          <h2 className="font-display text-[26px] text-ink mb-3 text-balance">Prêt à essayer Jalon ?</h2>
           <p className="text-[13.5px] text-slate mb-7">14 jours d&apos;essai gratuit, sans carte bancaire. Résiliable à tout moment.</p>
           <Link
             href="/essai?plan=team"
@@ -330,7 +331,7 @@ export default function MarketingPage() {
         <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-[12.5px] text-slate">
             <ShieldCheck size={14} />
-            <span>Conforma — hébergement en France</span>
+            <span>Jalon — hébergement en France</span>
           </div>
           <div className="flex items-center gap-5">
             <Link href="/login?as=learner" className="text-[13px] text-slate hover:text-ink underline decoration-line hover:decoration-ink">

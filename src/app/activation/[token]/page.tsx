@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { Milestone } from "lucide-react";
 import { ActivationForm } from "@/components/ActivationForm";
 import { ROLE_LABELS } from "@/lib/tenant";
 
@@ -16,7 +16,7 @@ export default async function ActivationPage({ params }: { params: { token: stri
       <div className="max-w-md mx-auto flex flex-col gap-5">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-            <ShieldCheck size={16} className="text-ink" strokeWidth={2.4} />
+            <Milestone size={16} className="text-ink" strokeWidth={2.4} />
           </div>
           <div className="font-display text-lg text-ink">{user.organization.name}</div>
         </div>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ShieldCheck, ArrowLeft } from "lucide-react";
+import { ShieldCheck, ArrowLeft, Milestone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -14,7 +14,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const article = await prisma.newsArticle.findUnique({ where: { slug: params.slug } });
   if (!article) return {};
-  return { title: `${article.title} — Conforma`, description: article.excerpt };
+  return { title: `${article.title} — Jalon`, description: article.excerpt };
 }
 
 function renderInline(text: string, keyPrefix: string) {
@@ -61,9 +61,9 @@ export default async function ArticlePage({ params }: { params: { slug: string }
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-              <ShieldCheck size={16} className="text-ink" strokeWidth={2.4} />
+              <Milestone size={16} className="text-ink" strokeWidth={2.4} />
             </div>
-            <span className="font-display text-lg text-ink tracking-wide">Conforma</span>
+            <span className="font-display text-lg text-ink tracking-wide">Jalon</span>
           </Link>
           <Link href="/login" className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft">
             Se connecter
@@ -94,7 +94,7 @@ export default async function ArticlePage({ params }: { params: { slug: string }
         <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-[12.5px] text-slate">
             <ShieldCheck size={14} />
-            <span>Conforma — hébergement en France</span>
+            <span>Jalon — hébergement en France</span>
           </div>
           <Link href="/login" className="text-[13px] font-medium text-ink underline decoration-line hover:decoration-ink">
             Se connecter à mon espace
