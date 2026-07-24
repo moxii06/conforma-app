@@ -2,12 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/ui";
 import { requireSessionContext, ROLE_LABELS } from "@/lib/tenant";
 import { SignatureEditor } from "@/components/SignatureEditor";
+import { OrganizationLegalForm } from "@/components/OrganizationLegalForm";
+import { Role } from "@prisma/client";
 
 // Every role gets one — no permission gate beyond being logged in, unlike
 // most pages here which are feature-gated per PERMISSIONS.
 export default async function ProfilePage() {
   const session = await requireSessionContext();
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: session.userId } });
+  const [user, organization] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id: session.userId } }),
+    session.role === Role.ADMIN_OF
+      ? prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } })
+      : null,
+  ]);
 
   return (
     <>
@@ -28,6 +35,27 @@ export default async function ProfilePage() {
           </div>
           <SignatureEditor initialSignature={user.emailSignature ?? `Cordialement,<br>${user.name}`} />
         </div>
+
+        {organization && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink mb-1">Informations légales de l&apos;organisme</div>
+            <div className="text-[11.5px] text-slate mb-3">
+              Mentions légales à faire figurer sur vos documents (contrats, conventions, CGV). Reprises
+              automatiquement dans les documents générés depuis la bibliothèque de modèles via les champs
+              organization.legalForm, organization.shareCapital, etc.
+            </div>
+            <OrganizationLegalForm
+              initial={{
+                legalForm: organization.legalForm ?? "",
+                shareCapital: organization.shareCapital ?? "",
+                legalAddress: organization.legalAddress ?? "",
+                rcsCity: organization.rcsCity ?? "",
+                rcsNumber: organization.rcsNumber ?? "",
+                legalRepresentativeName: organization.legalRepresentativeName ?? "",
+              }}
+            />
+          </div>
+        )}
       </div>
     </>
   );

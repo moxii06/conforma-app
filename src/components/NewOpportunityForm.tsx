@@ -108,19 +108,22 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
           instead of drifting — two independent flex rows with different
           item counts don't share column boundaries. */}
       <div className="grid grid-cols-3 gap-2">
-        <input
-          required
-          placeholder="Intitulé de l'opportunité"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          className="col-span-2 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
-        />
+        <div className="col-span-2 flex flex-col gap-0.5">
+          <input
+            required
+            placeholder="Intitulé de l'opportunité"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          />
+          <div className="text-[10.5px] text-slate px-0.5">Ce que ce prospect envisage — ex. « Formation Excel niveau 2 », « Bilan de compétences »</div>
+        </div>
         <input
           placeholder="Montant (€)"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           inputMode="decimal"
-          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal h-fit"
         />
       </div>
 

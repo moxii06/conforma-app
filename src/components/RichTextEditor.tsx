@@ -49,8 +49,24 @@ export function RichTextEditor({
 
   function exec(command: string, arg?: string) {
     ref.current?.focus();
-    document.execCommand(command, false, arg);
+    // Firefox doesn't support hiliteColor — backColor is the fallback there.
+    // Chrome/Edge support both but only hiliteColor doesn't fight the text
+    // selection color, so try it first.
+    if (command === "hiliteColor" && !document.execCommand("hiliteColor", false, arg)) {
+      document.execCommand("backColor", false, arg);
+    } else {
+      document.execCommand(command, false, arg);
+    }
     onChange(ref.current?.innerHTML ?? "");
+  }
+
+  // Toolbar buttons are outside the contentEditable, so a plain click first
+  // fires mousedown -> the browser collapses/clears the current text
+  // selection before the click handler (and thus exec()) ever runs. By the
+  // time execCommand fires there's nothing selected left to highlight/bold.
+  // Preventing default on mousedown keeps the selection intact.
+  function preserveSelection(e: React.MouseEvent) {
+    e.preventDefault();
   }
 
   async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -82,16 +98,16 @@ export function RichTextEditor({
   return (
     <div className="border border-line rounded-md overflow-hidden bg-white">
       <div className="flex items-center gap-1 border-b border-line bg-[#F7F5F0] px-2 py-1.5">
-        <button type="button" onClick={() => exec("bold")} title="Gras" className="p-1.5 rounded hover:bg-white text-ink">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("bold")} title="Gras" className="p-1.5 rounded hover:bg-white text-ink">
           <Bold size={13} />
         </button>
-        <button type="button" onClick={() => exec("italic")} title="Italique" className="p-1.5 rounded hover:bg-white text-ink">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("italic")} title="Italique" className="p-1.5 rounded hover:bg-white text-ink">
           <Italic size={13} />
         </button>
-        <button type="button" onClick={() => exec("underline")} title="Souligné" className="p-1.5 rounded hover:bg-white text-ink">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("underline")} title="Souligné" className="p-1.5 rounded hover:bg-white text-ink">
           <Underline size={13} />
         </button>
-        <button type="button" onClick={() => exec("hiliteColor", "#FFF3A0")} title="Surligner" className="p-1.5 rounded hover:bg-white text-ink">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("hiliteColor", "#FFF3A0")} title="Surligner" className="p-1.5 rounded hover:bg-white text-ink">
           <Highlighter size={13} />
         </button>
         <div className="w-px h-4 bg-line mx-1" />

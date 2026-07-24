@@ -8,7 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 
 type Template = { id: string; title: string; category: string };
-type Mode = "needs_assessment" | "template" | "upload";
+type Mode = "template" | "upload";
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
@@ -18,14 +18,14 @@ function defaultMessage(contactFirstName: string, signatureHtml: string): string
   return `<p>Bonjour ${contactFirstName},</p><p>Veuillez trouver ci-joint le document.</p><p><br></p>${signatureHtml}`;
 }
 
-// Client feedback: the CRM's per-prospect action was a single-purpose
-// "Envoyer le recueil des besoins" button — replaced with a generic
-// "Envoyer" that still offers the recueil (the existing
-// NeedsAssessmentRequest flow, unchanged) as one option alongside sending
-// any other document, template or uploaded, the same way
-// SendDocumentDialog does for an enrolled learner's dossier — including
-// the rich-text document body + rich-text message (pre-filled with the
-// sender's signature) and real email attachment.
+// Client feedback: "recueil des besoins" used to be its own dedicated tab
+// with its own send flow — now it's just another entry in the template
+// library (it already is one — see prisma/lib/seed-base.ts's starter
+// templates), picked the same way as any other document. Selecting that
+// specific template swaps the submit target to the existing
+// NeedsAssessmentRequest flow (a fillable public link, not a static
+// PDF) instead of the generic document-send route — the interactive
+// position-test behavior is preserved, only the entry point is unified.
 export function SendProspectDocumentDialog({
   opportunityId,
   alreadySentNeedsAssessment,
@@ -41,7 +41,7 @@ export function SendProspectDocumentDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>("needs_assessment");
+  const [mode, setMode] = useState<Mode>("template");
   const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
@@ -54,6 +54,9 @@ export function SendProspectDocumentDialog({
   const [result, setResult] = useState<{ message: string; link?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedTemplate = templates.find((t) => t.id === templateId);
+  const isNeedsAssessment = mode === "template" && selectedTemplate?.category === "needs_assessment";
+
   async function handlePickTemplate(id: string) {
     setTemplateId(id);
     setError(null);
@@ -63,6 +66,8 @@ export function SendProspectDocumentDialog({
       setBodyResetKey((k) => k + 1);
       return;
     }
+    const template = templates.find((t) => t.id === id);
+    if (template?.category === "needs_assessment") return; // no preview needed — it's a link, not a document
     const res = await fetch(`/api/crm/opportunities/${opportunityId}/documents/preview-template?templateId=${id}`);
     if (!res.ok) {
       setError("Impossible de charger le modèle.");
@@ -76,7 +81,7 @@ export function SendProspectDocumentDialog({
   }
 
   function reset() {
-    setMode("needs_assessment");
+    setMode("template");
     setTemplateId("");
     setTitle("");
     setBodyHtml("");
@@ -89,7 +94,8 @@ export function SendProspectDocumentDialog({
     setError(null);
   }
 
-  async function handleSendNeedsAssessment() {
+  async function handleSendNeedsAssessment(e: React.FormEvent) {
+    e.preventDefault();
     setSending(true);
     setError(null);
     const res = await fetch(`/api/crm/opportunities/${opportunityId}/send-needs-assessment`, { method: "POST" });
@@ -192,13 +198,6 @@ export function SendProspectDocumentDialog({
             <div className="flex gap-1.5 flex-wrap">
               <button
                 type="button"
-                onClick={() => setMode("needs_assessment")}
-                className={`text-[12px] font-medium rounded-md px-2.5 py-1.5 border ${mode === "needs_assessment" ? "bg-ink text-white border-ink" : "border-line text-slate hover:text-ink"}`}
-              >
-                Recueil des besoins
-              </button>
-              <button
-                type="button"
                 onClick={() => setMode("template")}
                 className={`text-[12px] font-medium rounded-md px-2.5 py-1.5 border ${mode === "template" ? "bg-ink text-white border-ink" : "border-line text-slate hover:text-ink"}`}
               >
@@ -213,89 +212,97 @@ export function SendProspectDocumentDialog({
               </button>
             </div>
 
-            {mode === "needs_assessment" ? (
-              <div className="flex flex-col gap-2">
-                <div className="text-[12px] text-slate">
-                  {alreadySentNeedsAssessment ? "Un recueil a déjà été envoyé — renvoyer un nouveau lien ?" : "Envoie le test de positionnement standard à ce prospect."}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSendNeedsAssessment}
-                  disabled={sending}
-                  className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
-                >
-                  {sending ? "Envoi…" : alreadySentNeedsAssessment ? "Renvoyer le recueil" : "Envoyer le recueil"}
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleSendDocument} className="flex flex-col gap-3">
-                {mode === "template" && (
-                  <select
-                    value={templateId}
-                    onChange={(e) => handlePickTemplate(e.target.value)}
-                    required
-                    className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-                  >
-                    <option value="">Choisir un modèle…</option>
-                    {templates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
-                      </option>
-                    ))}
-                  </select>
-                )}
-
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Titre du document"
+            <form onSubmit={isNeedsAssessment ? handleSendNeedsAssessment : handleSendDocument} className="flex flex-col gap-3">
+              {mode === "template" && (
+                <select
+                  value={templateId}
+                  onChange={(e) => handlePickTemplate(e.target.value)}
                   required
                   className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-                />
+                >
+                  <option value="">Choisir un modèle…</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
+                    </option>
+                  ))}
+                </select>
+              )}
 
-                {mode === "template" ? (
+              {isNeedsAssessment ? (
+                <div className="text-[12px] text-slate">
+                  {alreadySentNeedsAssessment
+                    ? "Un recueil a déjà été envoyé — ceci renverra un nouveau lien."
+                    : "Envoie un lien vers un formulaire en ligne que le prospect complète lui-même — pas de pièce jointe."}
+                </div>
+              ) : (
+                <>
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Titre du document"
+                    required
+                    className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                  />
+
+                  {mode === "template" ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="text-[11px] text-slate uppercase tracking-wide">Contenu du document (PDF envoyé en pièce jointe)</div>
+                      <RichTextEditor
+                        html={bodyHtml}
+                        onChange={setBodyHtml}
+                        resetKey={bodyResetKey}
+                        placeholder="Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                      >
+                        {DOCUMENT_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {CATEGORY_LABELS[c]}
+                          </option>
+                        ))}
+                      </select>
+                      <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required className="text-[12px] text-ink" />
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-1">
-                    <div className="text-[11px] text-slate uppercase tracking-wide">Contenu du document (PDF envoyé en pièce jointe)</div>
-                    <RichTextEditor
-                      html={bodyHtml}
-                      onChange={setBodyHtml}
-                      resetKey={bodyResetKey}
-                      placeholder="Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."
-                    />
+                    <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
+                    <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" />
                   </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-                    >
-                      {DOCUMENT_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {CATEGORY_LABELS[c]}
-                        </option>
-                      ))}
-                    </select>
-                    <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required className="text-[12px] text-ink" />
-                  </div>
-                )}
+                </>
+              )}
 
-                <div className="flex flex-col gap-1">
-                  <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
-                  <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" />
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={sending || !title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
-                    className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-                  >
-                    {sending ? "Envoi…" : "Envoyer au client"}
-                  </button>
-                </div>
-              </form>
-            )}
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="submit"
+                  disabled={
+                    sending ||
+                    (mode === "template" && !templateId) ||
+                    (!isNeedsAssessment && (!title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)))
+                  }
+                  className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+                >
+                  {sending ? "Envoi…" : "Envoyer au client"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    reset();
+                  }}
+                  className="text-[12.5px] text-slate hover:text-ink"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </>
         )}

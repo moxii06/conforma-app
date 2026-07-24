@@ -11,6 +11,7 @@ import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
 import { OpportunityFilterBar } from "@/components/OpportunityFilterBar";
 import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
 import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
+import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   PROSPECT: "Prospect",
@@ -57,15 +58,14 @@ export default async function CrmPage({
   // Table is the default — a stacked list stays readable with a large
   // number of prospects in a way the Kanban board doesn't (client feedback:
   // "1 ligne = 1 prospect" should be the primary view, Pipeline a secondary
-  // visual option for whoever wants it).
-  const view = searchParams.view === "pipeline" ? "pipeline" : "table";
+  // visual option for whoever wants it). Archives is a third, explicit view:
+  // a contact archived (manually or auto-archived on reaching PAID) never
+  // appears in Table/Pipeline, only here — client feedback wanted a real
+  // "archives" tab rather than the previous "filter the table to Payé"
+  // workaround.
+  const view = searchParams.view === "pipeline" ? "pipeline" : searchParams.view === "archives" ? "archives" : "table";
   const stageFilter = searchParams.stage && searchParams.stage in PipelineStage ? (searchParams.stage as PipelineStage) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
-
-  // A contact reaching PAID gets auto-archived (see the opportunities PATCH
-  // route) — hidden from the default view since the deal is closed out, but
-  // still reachable by explicitly filtering the table to the Payé stage.
-  const hideArchivedContacts = !(view === "table" && stageFilter === PipelineStage.PAID);
 
   const [opportunities, contacts, courses, templates] = await Promise.all([
     prisma.opportunity.findMany({
@@ -73,10 +73,10 @@ export default async function CrmPage({
         organizationId,
         ...ownerFilter,
         ...(view === "table" && stageFilter ? { stage: stageFilter } : {}),
-        ...(hideArchivedContacts ? { contact: { archivedAt: null } } : {}),
+        contact: { archivedAt: view === "archives" ? { not: null } : null },
       },
       include: { contact: true, needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 } },
-      orderBy: view === "table" ? orderBy : { createdAt: "desc" },
+      orderBy: view === "archives" ? { contact: { archivedAt: "desc" } } : view === "table" ? orderBy : { createdAt: "desc" },
     }),
     prisma.contact.findMany({
       where: { organizationId },
@@ -118,11 +118,55 @@ export default async function CrmPage({
         >
           Pipeline
         </Link>
+        <Link
+          href="/crm?view=archives"
+          className={`px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+            view === "archives" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
+          }`}
+        >
+          Archives
+        </Link>
       </div>
       <div className="p-8 flex flex-col gap-4">
-        {canWrite && <NewOpportunityForm contacts={contacts} courses={courses} />}
+        {canWrite && view !== "archives" && <NewOpportunityForm contacts={contacts} courses={courses} />}
 
-        {view === "table" ? (
+        {view === "archives" ? (
+          <div className="bg-white border border-line rounded-card overflow-x-auto">
+            <table className="w-full border-collapse text-[12.5px]">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Prospect</th>
+                  <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Formation</th>
+                  <th className="text-right font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Montant</th>
+                  <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Étape</th>
+                  {canWrite && <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {opportunities.map((o) => (
+                  <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-[#F7F5F0]">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Link href={`/crm/contacts/${o.contactId}`} className="font-semibold text-ink hover:underline">
+                        {o.contact.firstName} {o.contact.lastName}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-slate max-w-[220px] truncate">{o.label}</td>
+                    <td className="px-4 py-3 text-ink font-mono tabular-nums text-right whitespace-nowrap">{formatAmount(o.amountCents)}</td>
+                    <td className="px-4 py-3">
+                      <Pill tone="neutral">{STAGE_LABELS[o.stage]}</Pill>
+                    </td>
+                    {canWrite && (
+                      <td className="px-4 py-3">
+                        <ArchiveContactButton contactId={o.contactId} archived />
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {opportunities.length === 0 && <div className="text-[12.5px] text-slate px-4 py-4">Aucun contact archivé.</div>}
+          </div>
+        ) : view === "table" ? (
           <>
             <OpportunityFilterBar />
             <div className="bg-white border border-line rounded-card overflow-x-auto">
@@ -163,6 +207,7 @@ export default async function CrmPage({
                                 contactFirstName={o.contact.firstName}
                                 signatureHtml={signatureHtml}
                               />
+                              <ArchiveContactButton contactId={o.contactId} archived={false} />
                               <DeleteOpportunityButton opportunityId={o.id} />
                             </div>
                           </td>
@@ -209,6 +254,7 @@ export default async function CrmPage({
                                 {lastRequest.status === "completed" ? "Recueil complété" : "Recueil envoyé, en attente"}
                               </div>
                             )}
+                            <ArchiveContactButton contactId={o.contactId} archived={false} />
                             <DeleteOpportunityButton opportunityId={o.id} />
                           </div>
                         )}
