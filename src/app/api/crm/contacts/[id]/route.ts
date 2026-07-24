@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { applyCompanyInfo, enrollmentCategorySchema } from "@/lib/enrollment";
 
-const schema = z.object({
-  firstName: z.string().min(1).optional(),
-  lastName: z.string().min(1).optional(),
-  email: z.string().email().optional(),
-  phone: z.string().nullable().optional(),
-});
+const schema = z
+  .object({
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+    phone: z.string().nullable().optional(),
+  })
+  .merge(enrollmentCategorySchema);
 
 // Client feedback: the contact record's own name/email/phone need to be
 // editable and kept accurate, since they feed the merge-tag engine
@@ -35,6 +38,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     if (existing) return NextResponse.json({ error: "Cet email est déjà utilisé par un autre contact." }, { status: 409 });
   }
 
+  if (parsed.data.company) {
+    await applyCompanyInfo(session.organizationId, contact.id, parsed.data.company);
+  }
+
   const updated = await prisma.contact.update({
     where: { id: contact.id },
     data: {
@@ -42,6 +49,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       lastName: parsed.data.lastName,
       email: parsed.data.email?.toLowerCase(),
       phone: parsed.data.phone === undefined ? undefined : parsed.data.phone || null,
+      defaultLearnerCategory: parsed.data.learnerCategory,
     },
   });
 

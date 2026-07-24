@@ -11,6 +11,8 @@ import { NewEmailComposer } from "@/components/NewEmailComposer";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { EditContactForm } from "@/components/EditContactForm";
+import { EditLearnerCategoryForm } from "@/components/EditLearnerCategoryForm";
+import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -97,7 +99,7 @@ export default async function ContactRecordPage({
     <>
       <PageHeader
         title={`${contact.firstName} ${contact.lastName}`}
-        subtitle={contact.company?.name ?? "Particulier"}
+        subtitle={contact.company?.name ?? LEARNER_CATEGORY_LABELS[contact.defaultLearnerCategory ?? "unset"]}
       />
       <Tabs basePath={`/crm/contacts/${contact.id}`} tabs={TABS} active={activeTab} />
       <div className="p-8 max-w-xl flex flex-col gap-4">
@@ -110,6 +112,11 @@ export default async function ContactRecordPage({
             <div className="bg-white border border-line rounded-card p-5">
               <div className="text-[13.5px] font-semibold text-ink mb-3">Coordonnées</div>
               <EditContactForm contact={{ id: contact.id, firstName: contact.firstName, lastName: contact.lastName, email: contact.email, phone: contact.phone }} />
+            </div>
+
+            <div className="bg-white border border-line rounded-card p-5">
+              <div className="text-[13.5px] font-semibold text-ink mb-3">Catégorie apprenant (BPF)</div>
+              <EditLearnerCategoryForm contactId={contact.id} learnerCategory={contact.defaultLearnerCategory} company={contact.company} />
             </div>
 
             {contact.company && (
