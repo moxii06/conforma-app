@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { verifyStripeWebhook } from "@/lib/stripe";
+import { advanceOpportunityStage } from "@/lib/pipeline";
 import type Stripe from "stripe";
 
 // Public endpoint — Stripe calls this directly, no Conforma session
@@ -43,6 +45,7 @@ export async function POST(request: Request, { params }: { params: { organizatio
       if (invoice && !alreadyRecorded) {
         const alreadyPaid = invoice.payments.reduce((sum, p) => sum + p.amountCents, 0);
         const newTotal = alreadyPaid + amountTotal;
+        const justCompleted = newTotal >= invoice.amountCents && invoice.status !== "PAID";
         await prisma.$transaction([
           prisma.payment.create({
             data: {
@@ -53,10 +56,11 @@ export async function POST(request: Request, { params }: { params: { organizatio
               recordedByName: "Stripe (rapprochement automatique)",
             },
           }),
-          ...(newTotal >= invoice.amountCents && invoice.status !== "PAID"
-            ? [prisma.invoice.update({ where: { id: invoice.id }, data: { status: "PAID" as const } })]
-            : []),
+          ...(justCompleted ? [prisma.invoice.update({ where: { id: invoice.id }, data: { status: "PAID" as const } })] : []),
         ]);
+        if (justCompleted) {
+          await advanceOpportunityStage(params.organizationId, invoice.contactId, PipelineStage.INVOICED, PipelineStage.PAID);
+        }
       }
     }
   }

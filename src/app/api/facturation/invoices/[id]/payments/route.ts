@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { advanceOpportunityStage } from "@/lib/pipeline";
 
 const schema = z.object({
   amountCents: z.number().int().positive(),
@@ -32,6 +34,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const alreadyPaid = invoice.payments.reduce((sum, p) => sum + p.amountCents, 0);
   const newTotal = alreadyPaid + parsed.data.amountCents;
+  const justCompleted = newTotal >= invoice.amountCents && invoice.status !== "PAID";
 
   const [payment] = await prisma.$transaction([
     prisma.payment.create({
@@ -44,10 +47,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
         recordedByName: auth.name || auth.email,
       },
     }),
-    ...(newTotal >= invoice.amountCents && invoice.status !== "PAID"
-      ? [prisma.invoice.update({ where: { id: invoice.id }, data: { status: "PAID" as const } })]
-      : []),
+    ...(justCompleted ? [prisma.invoice.update({ where: { id: invoice.id }, data: { status: "PAID" as const } })] : []),
   ]);
+
+  if (justCompleted) {
+    await advanceOpportunityStage(auth.organizationId, invoice.contactId, PipelineStage.INVOICED, PipelineStage.PAID);
+  }
 
   return NextResponse.json({ payment, totalPaidCents: newTotal, fullyPaid: newTotal >= invoice.amountCents }, { status: 201 });
 }

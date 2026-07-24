@@ -5,7 +5,7 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { NewQuoteForm } from "@/components/NewQuoteForm";
 import { NewInvoiceForm } from "@/components/NewInvoiceForm";
-import { DocStatusSelect } from "@/components/DocStatusSelect";
+import { DocStatusSelect, statusLabels } from "@/components/DocStatusSelect";
 import { DocFilterBar } from "@/components/DocFilterBar";
 import { RecordPaymentForm } from "@/components/RecordPaymentForm";
 import { CreatePaymentLinkButton } from "@/components/CreatePaymentLinkButton";
@@ -114,12 +114,12 @@ async function QuotesTab({
           <div key={q.id} className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="text-[13.5px] font-semibold text-ink truncate">{q.contact.firstName} {q.contact.lastName}</div>
-              <div className="text-[12px] text-slate mt-0.5 truncate">
+              <div className="text-[12px] text-slate mt-1.5 truncate">
                 {q.reference} · {formatAmount(q.amountCents)} · {format(q.createdAt, "d MMM yyyy", { locale: fr })}
               </div>
             </div>
             <div className="shrink-0">
-              {canWrite ? <DocStatusSelect kind="quotes" id={q.id} status={q.status} /> : <Pill tone={STATUS_TONE[q.status]}>{q.status}</Pill>}
+              {canWrite ? <DocStatusSelect kind="quotes" id={q.id} status={q.status} /> : <Pill tone={STATUS_TONE[q.status]}>{statusLabels("quotes")[q.status]}</Pill>}
             </div>
           </div>
         ))}
@@ -164,13 +164,13 @@ async function InvoicesTab({
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-[13.5px] font-semibold text-ink truncate">{inv.contact.firstName} {inv.contact.lastName}</div>
-                  <div className="text-[12px] text-slate mt-0.5 truncate">
+                  <div className="text-[12px] text-slate mt-1.5 truncate">
                     {inv.reference} · {formatAmount(inv.amountCents)}
                     {inv.einvoicingProvider && ` · ${inv.einvoicingProvider.toUpperCase()}`}
                   </div>
                 </div>
                 <div className="shrink-0">
-                  {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{inv.status}</Pill>}
+                  {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{statusLabels("invoices")[inv.status]}</Pill>}
                 </div>
               </div>
               {canWrite && inv.status !== "DRAFT" && (

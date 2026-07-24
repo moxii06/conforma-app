@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { DocStatus } from "@prisma/client";
+import { DocStatus, PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { advanceOpportunityStage } from "@/lib/pipeline";
 
 const schema = z.object({ status: z.nativeEnum(DocStatus) });
 
@@ -22,20 +23,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const updated = await prisma.quote.update({ where: { id: quote.id }, data: { status: parsed.data.status } });
 
-  // Sending a quote is a real pipeline milestone — advance the contact's
-  // still-PROSPECT opportunity to QUOTE_SENT so the CRM reflects it without
-  // someone having to remember to also click the stage dropdown over there.
-  // Only touches an opportunity still at PROSPECT (the stage right before
-  // this one) — never regresses or overwrites one that's already further
-  // along or belongs to an unrelated deal for the same contact.
+  // Sending or signing a quote are real pipeline milestones — advance the
+  // matching CRM opportunity automatically so it reflects it without
+  // someone having to remember to also click the stage dropdown over there
+  // (client feedback: signing a quote had no effect on the CRM at all).
   if (parsed.data.status === "SENT") {
-    const opportunity = await prisma.opportunity.findFirst({
-      where: { organizationId: session.organizationId, contactId: quote.contactId, stage: "PROSPECT" },
-      orderBy: { createdAt: "desc" },
-    });
-    if (opportunity) {
-      await prisma.opportunity.update({ where: { id: opportunity.id }, data: { stage: "QUOTE_SENT" } });
-    }
+    await advanceOpportunityStage(session.organizationId, quote.contactId, PipelineStage.PROSPECT, PipelineStage.QUOTE_SENT);
+  } else if (parsed.data.status === "SIGNED") {
+    await advanceOpportunityStage(session.organizationId, quote.contactId, PipelineStage.QUOTE_SENT, PipelineStage.CONTRACT_SIGNED);
   }
 
   return NextResponse.json(updated);
