@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 
 type Doc = { id: string; title: string };
 type NewDoc = { title: string; url: string };
@@ -37,6 +38,7 @@ export function InviteComposer({
   const [draftUrl, setDraftUrl] = useState("");
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState(defaultBody);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +95,7 @@ export function InviteComposer({
         newDocuments: newDocs,
         subject,
         body,
+        includeSignature,
       }),
     });
 
@@ -205,6 +208,7 @@ export function InviteComposer({
           rows={6}
           className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
         />
+        <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       </div>
 
       <div className="flex items-center gap-3">

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MERGE_TAGS, CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 
 // A brand-new outgoing email to this contact — distinct from
 // EmailReplyComposer, which only replies to an existing "in" message.
@@ -19,6 +20,7 @@ export function NewEmailComposer({ contactId, dossierId }: { contactId: string; 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ delivered: boolean } | null>(null);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const activeField = useRef<"subject" | "body">("body");
@@ -59,7 +61,7 @@ export function NewEmailComposer({ contactId, dossierId }: { contactId: string; 
     const res = await fetch(`/api/contacts/${contactId}/emails/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject, body, dossierId }),
+      body: JSON.stringify({ subject, body, dossierId, includeSignature }),
     });
     const data = await res.json().catch(() => ({}));
     setSending(false);
@@ -127,6 +129,7 @@ export function NewEmailComposer({ contactId, dossierId }: { contactId: string; 
         placeholder="Votre message…"
         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none bg-white"
       />
+      <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
         <button
           type="button"

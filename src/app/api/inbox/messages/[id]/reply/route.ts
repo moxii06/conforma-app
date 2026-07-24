@@ -5,8 +5,9 @@ import { getSessionContext, can } from "@/lib/tenant";
 import { sendGmailReply } from "@/lib/gmailSync";
 import { sendImapReply } from "@/lib/imapSync";
 import { fillMergeTags } from "@/lib/mergeTags";
+import { getPlainTextSignature, appendSignature } from "@/lib/emailSignature";
 
-const schema = z.object({ body: z.string().min(1).max(10000) });
+const schema = z.object({ body: z.string().min(1).max(10000), includeSignature: z.boolean().optional() });
 
 // Records a reply as a new "out" EmailMessage threaded via inReplyToId. If
 // the original message came in through a connected mailbox (Gmail or
@@ -36,11 +37,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (!parsed.success) return NextResponse.json({ error: "Réponse invalide." }, { status: 400 });
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
-  const filledBody = fillMergeTags(parsed.data.body, {
-    firstName: original.contact.firstName,
-    lastName: original.contact.lastName,
-    organizationName: organization.name,
-  });
+  const signature = parsed.data.includeSignature ? await getPlainTextSignature(session.userId) : "";
+  const filledBody = appendSignature(
+    fillMergeTags(parsed.data.body, {
+      firstName: original.contact.firstName,
+      lastName: original.contact.lastName,
+      organizationName: organization.name,
+    }),
+    signature
+  );
 
   const subject = original.subject.toLowerCase().startsWith("re:") ? original.subject : `Re: ${original.subject}`;
   const connection = original.mailboxConnection;

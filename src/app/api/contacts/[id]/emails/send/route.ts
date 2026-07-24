@@ -4,11 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags, type MergeTagContext } from "@/lib/mergeTags";
+import { getPlainTextSignature, appendSignature } from "@/lib/emailSignature";
 
 const schema = z.object({
   subject: z.string().min(1),
   body: z.string().min(1),
   dossierId: z.string().optional(),
+  includeSignature: z.boolean().optional(),
 });
 
 // A brand-new outgoing email to a contact — not a reply to anything (see
@@ -53,8 +55,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
   }
 
+  const signature = parsed.data.includeSignature ? await getPlainTextSignature(auth.userId) : "";
   const subject = fillMergeTags(parsed.data.subject, mergeCtx);
-  const filledBody = fillMergeTags(parsed.data.body, mergeCtx);
+  const filledBody = appendSignature(fillMergeTags(parsed.data.body, mergeCtx), signature);
 
   let delivered = false;
   try {

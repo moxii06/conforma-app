@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
+import { getPlainTextSignature, appendSignature } from "@/lib/emailSignature";
 
-const schema = z.object({ body: z.string().min(1) });
+const schema = z.object({ body: z.string().min(1), includeSignature: z.boolean().optional() });
 
 // Client feedback: staff need to reply to a complaint from right where they
 // see it, not have to go dig up the submitter's email in their own mailbox
@@ -51,6 +52,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       }
     : { firstName: firstName ?? "", lastName: rest.join(" "), organizationName: organization.name };
 
+  const signature = parsed.data.includeSignature ? await getPlainTextSignature(session.userId) : "";
+
   let delivered = false;
   let sendError: string | null = null;
   try {
@@ -58,7 +61,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       to: complaint.submittedByEmail,
       toName: complaint.submittedByName,
       subject: `Re: ${complaint.subject}`,
-      text: fillMergeTags(parsed.data.body, mergeCtx),
+      text: appendSignature(fillMergeTags(parsed.data.body, mergeCtx), signature),
       senderName: organization.name,
       replyTo: session.email,
     });

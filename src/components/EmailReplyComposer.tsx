@@ -4,11 +4,13 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 
 export function EmailReplyComposer({ messageId }: { messageId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
     const res = await fetch(`/api/inbox/messages/${messageId}/reply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: text }),
+      body: JSON.stringify({ body: text, includeSignature }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -103,6 +105,7 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
       />
       {aiNotice && <div className="text-[11.5px] text-slate">{aiNotice}</div>}
+      <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
         <button onClick={handleSend} disabled={loading || !text.trim()} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
           {loading ? "…" : "Envoyer"}

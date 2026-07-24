@@ -7,6 +7,7 @@ import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { MERGE_TAGS } from "@/lib/mergeTags";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 
 type Template = { id: string; title: string; category: string };
 
@@ -14,8 +15,11 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
 }
 
-function defaultMessage(contactFirstName: string, signatureHtml: string): string {
-  return `<p>Bonjour ${contactFirstName},</p><p>Veuillez trouver ci-joint le document.</p><p><br></p>${signatureHtml}`;
+// Signature is appended at send time (see includeSignature below) rather
+// than baked into the editable message — a plain greeting here, nothing to
+// accidentally edit or duplicate.
+function defaultMessage(contactFirstName: string): string {
+  return `<p>Bonjour ${contactFirstName},</p><p>Veuillez trouver ci-joint le document.</p>`;
 }
 
 // Client feedback: a single button that opens a dialog pre-filled with the
@@ -45,8 +49,9 @@ export function SendDocumentDialog({
   const [title, setTitle] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyResetKey, setBodyResetKey] = useState(0);
-  const [message, setMessage] = useState(() => defaultMessage(contactFirstName, signatureHtml));
+  const [message, setMessage] = useState(() => defaultMessage(contactFirstName));
   const [messageResetKey, setMessageResetKey] = useState(0);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [category, setCategory] = useState<string>("other");
   const [file, setFile] = useState<File | null>(null);
   const [requiresSignature, setRequiresSignature] = useState(false);
@@ -84,8 +89,9 @@ export function SendDocumentDialog({
     setTitle("");
     setBodyHtml("");
     setBodyResetKey((k) => k + 1);
-    setMessage(defaultMessage(contactFirstName, signatureHtml));
+    setMessage(defaultMessage(contactFirstName));
     setMessageResetKey((k) => k + 1);
+    setIncludeSignature(true);
     setCategory("other");
     setFile(null);
     setRequiresSignature(false);
@@ -103,7 +109,7 @@ export function SendDocumentDialog({
     formData.set("mode", mode);
     formData.set("title", title);
     formData.set("category", category);
-    formData.set("message", message);
+    formData.set("message", includeSignature ? message + signatureHtml : message);
     formData.set("requiresSignature", String(requiresSignature));
     if (mode === "template") {
       formData.set("templateId", templateId);
@@ -249,6 +255,7 @@ export function SendDocumentDialog({
             <div className="flex flex-col gap-1">
               <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
               <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
+              <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
             </div>
 
             <label className="flex items-center gap-2 text-[12px] text-ink">

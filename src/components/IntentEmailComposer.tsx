@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 
 type Intent = "follow_up" | "payment_reminder" | "quote_follow_up" | "custom";
 
@@ -26,6 +27,7 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ emailSent: boolean } | null>(null);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const activeField = useRef<"subject" | "body">("body");
@@ -84,7 +86,7 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
     const res = await fetch(`/api/crm/contacts/${contactId}/send-email`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject, body }),
+      body: JSON.stringify({ subject, body, includeSignature }),
     });
     const data = await res.json().catch(() => ({}));
     setSending(false);
@@ -167,6 +169,7 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
       />
       {notice && <div className="text-[11.5px] text-slate">{notice}</div>}
+      <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
         <button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim()} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
           {sending ? "…" : "Envoyer"}

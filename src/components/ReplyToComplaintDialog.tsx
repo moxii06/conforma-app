@@ -4,11 +4,13 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 
 export function ReplyToComplaintDialog({ complaintId }: { complaintId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ delivered: boolean; sendError: string | null } | null>(null);
@@ -31,7 +33,7 @@ export function ReplyToComplaintDialog({ complaintId }: { complaintId: string })
     const res = await fetch(`/api/complaints/${complaintId}/reply`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: text }),
+      body: JSON.stringify({ body: text, includeSignature }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -79,6 +81,7 @@ export function ReplyToComplaintDialog({ complaintId }: { complaintId: string })
         placeholder="Votre réponse…"
         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
       />
+      <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
         <button type="button" onClick={handleSend} disabled={loading || !text.trim()} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
           {loading ? "…" : "Envoyer"}

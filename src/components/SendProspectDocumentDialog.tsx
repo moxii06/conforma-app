@@ -7,6 +7,7 @@ import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 
 type Template = { id: string; title: string; category: string };
 type Mode = "template" | "upload";
@@ -15,8 +16,10 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
 }
 
-function defaultMessage(contactFirstName: string, signatureHtml: string): string {
-  return `<p>Bonjour ${contactFirstName},</p><p>Veuillez trouver ci-joint le document.</p><p><br></p>${signatureHtml}`;
+// Signature is appended at send time (see includeSignature below), not
+// baked into the editable message.
+function defaultMessage(contactFirstName: string): string {
+  return `<p>Bonjour ${contactFirstName},</p><p>Veuillez trouver ci-joint le document.</p>`;
 }
 
 // Client feedback: "recueil des besoins" used to be its own dedicated tab
@@ -47,8 +50,9 @@ export function SendProspectDocumentDialog({
   const [title, setTitle] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyResetKey, setBodyResetKey] = useState(0);
-  const [message, setMessage] = useState(() => defaultMessage(contactFirstName, signatureHtml));
+  const [message, setMessage] = useState(() => defaultMessage(contactFirstName));
   const [messageResetKey, setMessageResetKey] = useState(0);
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [category, setCategory] = useState<string>("other");
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
@@ -87,8 +91,9 @@ export function SendProspectDocumentDialog({
     setTitle("");
     setBodyHtml("");
     setBodyResetKey((k) => k + 1);
-    setMessage(defaultMessage(contactFirstName, signatureHtml));
+    setMessage(defaultMessage(contactFirstName));
     setMessageResetKey((k) => k + 1);
+    setIncludeSignature(true);
     setCategory("other");
     setFile(null);
     setResult(null);
@@ -121,7 +126,7 @@ export function SendProspectDocumentDialog({
     formData.set("mode", mode);
     formData.set("title", title);
     formData.set("category", category);
-    formData.set("message", message);
+    formData.set("message", includeSignature ? message + signatureHtml : message);
     if (mode === "template") {
       formData.set("templateId", templateId);
       formData.set("bodyText", bodyHtml);
@@ -276,6 +281,7 @@ export function SendProspectDocumentDialog({
                   <div className="flex flex-col gap-1">
                     <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
                     <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={CONTACT_ONLY_MERGE_TAGS} />
+                    <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
                   </div>
                 </>
               )}

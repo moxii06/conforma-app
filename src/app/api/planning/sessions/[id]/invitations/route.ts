@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, canManageSessionInvitations } from "@/lib/tenant";
 import { createSessionInvitation } from "@/lib/sessionInvitations";
+import { getPlainTextSignature, appendSignature } from "@/lib/emailSignature";
 
 const schema = z.object({
   dossierId: z.string().min(1),
@@ -10,6 +11,7 @@ const schema = z.object({
   newDocuments: z.array(z.object({ title: z.string().min(1), url: z.string().url() })).default([]),
   subject: z.string().min(1).optional(),
   body: z.string().min(1).optional(),
+  includeSignature: z.boolean().optional(),
 });
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -28,12 +30,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const requestBody = await request.json().catch(() => null);
   const parsed = schema.safeParse(requestBody);
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
-  const { dossierId, attachDocumentIds, newDocuments, subject, body } = parsed.data;
+  const { dossierId, attachDocumentIds, newDocuments, subject, includeSignature } = parsed.data;
+  let { body } = parsed.data;
 
   const dossier = await prisma.dossier.findFirst({
     where: { id: dossierId, organizationId: auth.organizationId, sessionId: session.id },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable pour cette session." }, { status: 404 });
+
+  if (body && includeSignature) {
+    body = appendSignature(body, await getPlainTextSignature(auth.userId));
+  }
 
   try {
     const { invitation, meetingLink } = await createSessionInvitation({

@@ -4,10 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can, canAccessContact } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
+import { getPlainTextSignature, appendSignature } from "@/lib/emailSignature";
 
 const schema = z.object({
   subject: z.string().min(1),
   body: z.string().min(1),
+  includeSignature: z.boolean().optional(),
 });
 
 // Generic "send an email to this contact" action for the unified CRM
@@ -52,6 +54,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   });
 
   const mergeCtx = { firstName: contact.firstName, lastName: contact.lastName, organizationName: organization.name };
+  const signature = parsed.data.includeSignature ? await getPlainTextSignature(auth.userId) : "";
 
   let emailSent = false;
   try {
@@ -59,7 +62,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       to: contact.email,
       toName: `${contact.firstName} ${contact.lastName}`,
       subject: fillMergeTags(parsed.data.subject, mergeCtx),
-      text: fillMergeTags(parsed.data.body, mergeCtx),
+      text: appendSignature(fillMergeTags(parsed.data.body, mergeCtx), signature),
       senderName: organization.name,
       replyTo: auth.email,
     });
