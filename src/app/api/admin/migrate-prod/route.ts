@@ -20,6 +20,7 @@ const MIGRATIONS = [
   "20260724114352_document_user_relation",
   "20260724121126_document_archive_task_dismissal",
   "20260724123556_org_chart_snapshot",
+  "20260724142044_satisfaction_surveys",
 ];
 
 export async function POST(request: Request) {

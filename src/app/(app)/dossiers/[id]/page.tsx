@@ -19,6 +19,7 @@ import { SendOutreachButtons } from "@/components/SendOutreachButtons";
 import { MarkContractSignedButton } from "@/components/MarkContractSignedButton";
 import { AccommodationForm } from "@/components/AccommodationForm";
 import { AccommodationStatusForm } from "@/components/AccommodationStatusForm";
+import { SendSatisfactionSurveyButton } from "@/components/SendSatisfactionSurveyButton";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -85,6 +86,18 @@ export default async function DossierPage({ params, searchParams }: { params: { 
     if (documentHrefByStep[doc.category]) continue; // already have the most recent one for this category
     documentHrefByStep[doc.category] = doc.fileUrl ?? `/api/documents/generated/${doc.id}`;
   }
+
+  // eval_hot/eval_cold have no Document row — their "document" is a
+  // completed SatisfactionSurveyResponse, viewed on a small staff-facing
+  // results page instead of a generated file.
+  const surveyResponses = await prisma.satisfactionSurveyResponse.findMany({
+    where: { dossierId: dossier.id, status: "completed" },
+    include: { survey: { select: { kind: true } } },
+  });
+  for (const r of surveyResponses) {
+    documentHrefByStep[`eval_${r.survey.kind}`] = `/dossiers/${dossier.id}/satisfaction/${r.survey.kind}`;
+  }
+
   const canConvocation = canManageSessionInvitations(role, userId, dossier.session);
 
   // Client feedback: anticipate the same contact attending several
@@ -241,6 +254,8 @@ async function InfoTab({
                 signatureHtml={signatureHtml}
               />
             )}
+            {canManageOutreach && <SendSatisfactionSurveyButton dossierId={dossier.id} kind="hot" />}
+            {canManageOutreach && <SendSatisfactionSurveyButton dossierId={dossier.id} kind="cold" />}
           </div>
           {outreaches.length > 0 && (
             <div className="mt-3.5 pt-3.5 border-t border-line flex flex-col gap-2">

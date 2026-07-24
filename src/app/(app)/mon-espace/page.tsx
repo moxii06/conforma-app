@@ -96,6 +96,7 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
       },
       elearningProgress: true,
       quizAttempts: true,
+      satisfactionSurveyResponses: { where: { status: "sent" }, include: { survey: { select: { kind: true } } } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -107,12 +108,14 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
   return (
     <div className="flex flex-col gap-5">
       {dossiers.map((d) => {
+        const pendingSurveyByKind: Record<string, string> = {};
+        for (const r of d.satisfactionSurveyResponses) pendingSurveyByKind[r.survey.kind] = r.token;
         const steps = [
           { label: "Recueil des besoins", done: d.needsAssessmentDone },
           { label: "Convention signée", done: d.contractSigned },
           { label: "Convocation reçue", done: d.convocationSent },
-          { label: "Évaluation à chaud", done: d.evaluationHotDone },
-          { label: "Évaluation à froid", done: d.evaluationColdDone },
+          { label: "Évaluation à chaud", done: d.evaluationHotDone, pendingToken: pendingSurveyByKind.hot },
+          { label: "Évaluation à froid", done: d.evaluationColdDone, pendingToken: pendingSurveyByKind.cold },
         ];
         return (
           <div key={d.id} className="bg-white border border-line rounded-card p-5">
@@ -132,9 +135,16 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
 
             <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-1.5">Parcours</div>
             {steps.map((s, i) => (
-              <div key={i} className="flex items-center gap-2 py-1.5">
-                {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-[#B9B6AA]" />}
-                <span className="text-[12.5px] text-ink">{s.label}</span>
+              <div key={i} className="flex items-center justify-between gap-2 py-1.5">
+                <div className="flex items-center gap-2">
+                  {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-[#B9B6AA]" />}
+                  <span className="text-[12.5px] text-ink">{s.label}</span>
+                </div>
+                {!s.done && s.pendingToken && (
+                  <Link href={`/satisfaction/${s.pendingToken}`} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink">
+                    Répondre
+                  </Link>
+                )}
               </div>
             ))}
 

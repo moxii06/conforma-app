@@ -15,6 +15,7 @@ import { EnrollLearnerPanel } from "@/components/EnrollLearnerPanel";
 import { EditCourseForm } from "@/components/EditCourseForm";
 import { ArchiveCourseButton } from "@/components/ArchiveCourseButton";
 import { AutomationRulesPanel } from "@/components/AutomationRulesPanel";
+import { SatisfactionSurveyEditor } from "@/components/SatisfactionSurveyEditor";
 
 const TYPE_LABELS: Record<string, string> = { video: "Vidéo", document: "Document", quiz: "Quiz" };
 
@@ -31,6 +32,7 @@ const courseInclude = {
   responsibleUsers: true,
   subcontractors: true,
   automationRules: { orderBy: { createdAt: "asc" as const } },
+  satisfactionSurveys: { include: { questions: { orderBy: { order: "asc" as const } } } },
   _count: { select: { sessions: true } },
 };
 
@@ -158,6 +160,36 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
           {canManage && (
             <div className="border-t border-line pt-3 mb-3">
               <AutomationRulesPanel courseId={course.id} rules={course.automationRules} />
+            </div>
+          )}
+
+          {canManage && (
+            <div className="border-t border-line pt-3 mb-3 flex flex-col gap-3">
+              <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Enquêtes de satisfaction</div>
+              <SatisfactionSurveyEditor
+                courseId={course.id}
+                kind="hot"
+                initialQuestions={
+                  course.satisfactionSurveys.find((s) => s.kind === "hot")?.questions.map((q) => ({
+                    id: q.id,
+                    type: q.type,
+                    prompt: q.prompt,
+                    options: q.options as { id: string; text: string }[] | null,
+                  })) ?? []
+                }
+              />
+              <SatisfactionSurveyEditor
+                courseId={course.id}
+                kind="cold"
+                initialQuestions={
+                  course.satisfactionSurveys.find((s) => s.kind === "cold")?.questions.map((q) => ({
+                    id: q.id,
+                    type: q.type,
+                    prompt: q.prompt,
+                    options: q.options as { id: string; text: string }[] | null,
+                  })) ?? []
+                }
+              />
             </div>
           )}
 

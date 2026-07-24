@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { createSessionInvitation } from "@/lib/sessionInvitations";
 import { fillMergeTags, type MergeTagContext } from "@/lib/automationRules";
+import { sendSatisfactionSurvey } from "@/lib/satisfactionSurveys";
 import { getCourseCompletion } from "@/lib/lms";
 import type { Contact, Course, Session, Organization } from "@prisma/client";
 
@@ -35,12 +36,14 @@ export async function GET(request: Request) {
     }
   }
 
+  const origin = new URL(request.url).origin;
+
   const rules = await prisma.automationRule.findMany({
     where: { active: true, sendEmail: true },
     include: { organization: true, course: true },
   });
 
-  let sent = 0;
+  let sent = await sendHotSatisfactionSurveys(origin);
   for (const rule of rules) {
     if (rule.trigger === "needs_assessment_incomplete") {
       sent += await sendGenericReminder(rule, {
@@ -65,7 +68,7 @@ export async function GET(request: Request) {
     } else if (rule.trigger === "rolling_duration_expiring") {
       sent += await sendRollingDurationReminders(rule);
     } else if (rule.trigger === "satisfaction_not_collected") {
-      sent += await sendSatisfactionReminders(rule);
+      sent += await sendSatisfactionReminders(rule, origin);
     }
   }
 
@@ -219,7 +222,7 @@ async function sendRollingDurationReminders(rule: Rule) {
   return sent;
 }
 
-async function sendSatisfactionReminders(rule: Rule) {
+async function sendSatisfactionReminders(rule: Rule, origin: string) {
   const now = new Date();
   const dossiers = await prisma.dossier.findMany({
     where: {
@@ -228,26 +231,49 @@ async function sendSatisfactionReminders(rule: Rule) {
       satisfactionAutoReminderSentAt: null,
       session: { courseId: rule.courseId, mode: "FIXED_DATE", endsAt: { lt: now } },
     },
-    include: { contact: true, session: true },
+    include: { contact: true, session: { include: { course: true } } },
   });
+
+  // A real cold survey (with at least one question) takes priority over
+  // the generic "your opinion matters" nudge — same trigger/delay, but the
+  // email now carries an actual link to the questionnaire instead of just
+  // a reminder to go find one.
+  const coldSurvey = await prisma.satisfactionSurvey.findUnique({
+    where: { courseId_kind: { courseId: rule.courseId, kind: "cold" } },
+    include: { questions: { select: { id: true }, take: 1 } },
+  });
+  const hasColdSurvey = Boolean(coldSurvey && coldSurvey.questions.length > 0);
 
   let sent = 0;
   for (const d of dossiers) {
     if (now < addDays(d.session.endsAt, rule.afterDays)) continue;
-    const ctx = mergeContext(d.contact, rule.course, d.session, rule.organization);
-    try {
-      await sendTransactionalEmail({
-        to: d.contact.email,
-        toName: `${d.contact.firstName} ${d.contact.lastName}`,
-        subject: rule.emailSubject ? fillMergeTags(rule.emailSubject, ctx) : `${rule.organization.name} — votre avis nous intéresse`,
-        text: rule.emailBody
-          ? fillMergeTags(rule.emailBody, ctx)
-          : `Bonjour ${d.contact.firstName},\n\nMerci de nous faire part de votre avis sur la formation "${rule.course.title}".\n\nÀ bientôt,\nL'équipe ${rule.organization.name}`,
-        senderName: rule.organization.name,
+
+    if (hasColdSurvey && coldSurvey) {
+      await sendSatisfactionSurvey({
+        organization: rule.organization,
+        dossier: d,
+        contact: d.contact,
+        courseTitle: rule.course.title,
+        surveyId: coldSurvey.id,
+        origin,
       });
-    } catch {
-      // Non-fatal — still stamped below.
+    } else {
+      const ctx = mergeContext(d.contact, rule.course, d.session, rule.organization);
+      try {
+        await sendTransactionalEmail({
+          to: d.contact.email,
+          toName: `${d.contact.firstName} ${d.contact.lastName}`,
+          subject: rule.emailSubject ? fillMergeTags(rule.emailSubject, ctx) : `${rule.organization.name} — votre avis nous intéresse`,
+          text: rule.emailBody
+            ? fillMergeTags(rule.emailBody, ctx)
+            : `Bonjour ${d.contact.firstName},\n\nMerci de nous faire part de votre avis sur la formation "${rule.course.title}".\n\nÀ bientôt,\nL'équipe ${rule.organization.name}`,
+          senderName: rule.organization.name,
+        });
+      } catch {
+        // Non-fatal — still stamped below.
+      }
     }
+
     await prisma.$transaction([
       prisma.dossier.update({ where: { id: d.id }, data: { satisfactionAutoReminderSentAt: new Date() } }),
       prisma.clientOutreach.create({
@@ -262,6 +288,49 @@ async function sendSatisfactionReminders(rule: Rule) {
       }),
     ]);
     sent++;
+  }
+  return sent;
+}
+
+// Unlike the cold trigger (per-course AutomationRule with a configurable
+// delay), the hot survey has nothing to configure — client feedback: it
+// should just go out automatically the moment a FIXED_DATE session ends,
+// for every course that has a hot survey defined. sendSatisfactionSurvey's
+// own idempotency (reuses an existing response row) is the only guard
+// needed against re-sending on the next day's cron run.
+async function sendHotSatisfactionSurveys(origin: string) {
+  const now = new Date();
+  const surveys = await prisma.satisfactionSurvey.findMany({
+    where: { kind: "hot" },
+    include: { course: true, organization: true, questions: { select: { id: true }, take: 1 } },
+  });
+
+  let sent = 0;
+  for (const survey of surveys) {
+    if (survey.questions.length === 0) continue;
+    const dossiers = await prisma.dossier.findMany({
+      where: {
+        organizationId: survey.organizationId,
+        evaluationHotDone: false,
+        session: { courseId: survey.courseId, mode: "FIXED_DATE", endsAt: { lt: now } },
+      },
+      include: { contact: true },
+    });
+    for (const d of dossiers) {
+      const existing = await prisma.satisfactionSurveyResponse.findUnique({
+        where: { surveyId_dossierId: { surveyId: survey.id, dossierId: d.id } },
+      });
+      if (existing) continue;
+      await sendSatisfactionSurvey({
+        organization: survey.organization,
+        dossier: d,
+        contact: d.contact,
+        courseTitle: survey.course.title,
+        surveyId: survey.id,
+        origin,
+      });
+      sent++;
+    }
   }
   return sent;
 }

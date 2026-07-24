@@ -81,6 +81,8 @@ model Organization {
   resultIndicators    ResultIndicator[]
   dashboardTaskDismissals DashboardTaskDismissal[]
   orgChartSnapshots OrgChartSnapshot[]
+  satisfactionSurveys SatisfactionSurvey[]
+  satisfactionSurveyResponses SatisfactionSurveyResponse[]
 
   // Which version of the RNQ this org is currently auditing itself against
   // (see QualiopiReferentielVersion) — nullable only until the backfill
@@ -544,6 +546,7 @@ model Dossier {
   quotes             Quote[]
   invoices           Invoice[]
   clientOutreaches   ClientOutreach[]
+  satisfactionSurveyResponses SatisfactionSurveyResponse[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -593,6 +596,7 @@ model Course {
   // people at once.
   subcontractors    Subcontractor[]   @relation("CourseSubcontractors")
   automationRules   AutomationRule[]
+  satisfactionSurveys SatisfactionSurvey[]
 
   @@index([organizationId])
 }
@@ -628,6 +632,66 @@ model AutomationRule {
 
   @@index([organizationId])
   @@index([courseId])
+}
+
+// Client feedback: "évaluation à chaud/à froid" needs to be a real
+// questionnaire (sent, answered, stored) rather than a checkbox staff
+// tick by hand — mirrors direct competitors (Digiforma/Dendreo), where a
+// satisfaction survey is a first-class product, not a manual step. One
+// survey per (course, kind) — kind is "hot" (sent at session end) or
+// "cold" (sent per the existing satisfaction_not_collected AutomationRule
+// delay) — questions are fully custom per course, same JSON-options
+// pattern as QuizQuestion so a single form renderer handles both.
+model SatisfactionSurvey {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  course         Course       @relation(fields: [courseId], references: [id])
+  courseId       String
+  kind           String // hot | cold
+  questions      SatisfactionSurveyQuestion[]
+  responses      SatisfactionSurveyResponse[]
+  createdAt      DateTime     @default(now())
+
+  @@unique([courseId, kind])
+  @@index([organizationId])
+}
+
+model SatisfactionSurveyQuestion {
+  id       String             @id @default(cuid())
+  survey   SatisfactionSurvey @relation(fields: [surveyId], references: [id])
+  surveyId String
+  order    Int
+  // rating (1-5) | single_choice | multiple_choice | text
+  type     String
+  prompt   String
+  // [{ id, text }] for single_choice/multiple_choice — no "correct" flag,
+  // unlike QuizQuestion, since satisfaction has no right answer.
+  options  Json?
+
+  @@index([surveyId])
+}
+
+model SatisfactionSurveyResponse {
+  id             String             @id @default(cuid())
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  organizationId String
+  survey         SatisfactionSurvey @relation(fields: [surveyId], references: [id])
+  surveyId       String
+  dossier        Dossier            @relation(fields: [dossierId], references: [id])
+  dossierId      String
+  // Public-link access, same pattern as NeedsAssessmentRequest — works
+  // whether the learner has a mon-espace account or not (client feedback:
+  // must work both ways).
+  token       String    @unique
+  status      String    @default("sent") // sent | completed
+  answers     Json? // { [questionId]: string | string[] }
+  sentAt      DateTime  @default(now())
+  completedAt DateTime?
+
+  @@unique([surveyId, dossierId])
+  @@index([organizationId])
+  @@index([dossierId])
 }
 
 enum SessionFormat {
