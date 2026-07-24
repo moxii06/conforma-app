@@ -802,16 +802,17 @@ optional once real customer data is involved.
   `prisma migrate dev` setup instead, none of the hand-authoring above is
   needed** — this is only a workaround for this specific Windows dev
   environment, not a permanent project convention.
-- `src/app/api/admin/migrate-prod` is a secret-gated (`MIGRATE_PROD_SECRET`)
-  fallback route added early on for applying a migration to production
-  without local database access, with a `MIGRATIONS` array that's been kept
-  updated ever since as new migrations were added. In practice, every
-  migration observed in this project so far was already applied
-  automatically by the standard build-step `prisma migrate deploy` described
-  above — this route's actual necessity hasn't been re-confirmed in a long
-  time. Before relying on it, check whether it's still needed at all; if not,
-  it (and `MIGRATE_PROD_SECRET`) should be deleted rather than kept "just in
-  case" — it's a live route that can run arbitrary SQL against production.
+- `src/app/api/admin/migrate-prod` — a secret-gated fallback route for
+  applying a migration to production without local database access — has
+  been **removed** (and `MIGRATE_PROD_SECRET` deleted from Vercel). It was
+  never actually needed: the standard build-step `prisma migrate deploy`
+  described above was confirmed applying every migration automatically
+  throughout this project's build-out, and the route itself was never once
+  invoked. If a future situation genuinely needs a manual migration path
+  (e.g. `DATABASE_URL` becomes unreachable from any local machine), recreate
+  something similar rather than reaching for a standing route — it's a live
+  SQL-execution surface and shouldn't exist longer than the specific problem
+  it's solving.
 - **Where the permission model actually lives**: `src/lib/tenant.ts`'s
   `PERMISSIONS` matrix (`can(role, feature)`) is the single source of truth
   for coarse "does this role see this section at all" access — the Sidebar,
