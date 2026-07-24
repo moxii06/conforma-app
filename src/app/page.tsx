@@ -16,6 +16,7 @@ import {
   Mail,
   FolderOpen,
 } from "lucide-react";
+import { BookDemoButton } from "@/components/BookDemoButton";
 
 export const metadata: Metadata = {
   title: "Jalon — Le CRM de conformité pour les organismes de formation",
@@ -161,6 +162,9 @@ export default function MarketingPage() {
           </a>
         </div>
         <div className="text-[12.5px] text-slate mt-4">14 jours d&apos;essai gratuit — sans carte bancaire.</div>
+        <BookDemoButton className="text-[12.5px] text-slate underline decoration-line hover:text-ink hover:decoration-ink mt-2 inline-block">
+          Ou réservez une démo avec l&apos;équipe
+        </BookDemoButton>
       </section>
 
       {/* ---- Replaces ---- */}
@@ -316,13 +320,18 @@ export default function MarketingPage() {
         <div className="max-w-2xl mx-auto px-6 py-16 text-center">
           <h2 className="font-display text-[26px] text-ink mb-3 text-balance">Prêt à essayer Jalon ?</h2>
           <p className="text-[13.5px] text-slate mb-7">14 jours d&apos;essai gratuit, sans carte bancaire. Résiliable à tout moment.</p>
-          <Link
-            href="/essai?plan=team"
-            className="inline-flex items-center gap-1.5 bg-ink text-white text-[14px] font-medium rounded-md px-5 py-2.5 hover:bg-ink-soft"
-          >
-            Commencer l&apos;essai gratuit
-            <ArrowRight size={15} />
-          </Link>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/essai?plan=team"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-ink text-white text-[14px] font-medium rounded-md px-5 py-2.5 hover:bg-ink-soft"
+            >
+              Commencer l&apos;essai gratuit
+              <ArrowRight size={15} />
+            </Link>
+            <BookDemoButton className="w-full sm:w-auto bg-white border border-line text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:border-ink-soft">
+              Réserver une démo
+            </BookDemoButton>
+          </div>
         </div>
       </section>
 
