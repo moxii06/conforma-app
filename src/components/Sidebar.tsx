@@ -80,7 +80,13 @@ const NAV_GROUPS: { label: string | null; items: { href: string; label: string; 
   },
 ];
 
-export async function Sidebar({ user }: { user: SessionContext }) {
+export async function Sidebar({
+  user,
+  organization,
+}: {
+  user: SessionContext;
+  organization?: { name: string; logoUrl: string | null; brandColor: string | null };
+}) {
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => can(user.role, item.feature) !== "none"),
@@ -90,19 +96,37 @@ export async function Sidebar({ user }: { user: SessionContext }) {
       ? await getDashboardTasks(user.organizationId, user.role, user.userId)
       : [];
 
+  // Marque blanche: a LEARNER is the OFP's own customer, not Jalon's — the
+  // public token pages (formulaire/satisfaction/activation) already carry
+  // the org's identity instead of Jalon's, this brings the authenticated
+  // portal in line. Staff keep the regular Jalon chrome unchanged, since
+  // they ARE Jalon's customers and it's useful for them to know what tool
+  // they're using.
+  const isLearnerPortal = user.role === "LEARNER" && organization;
+  const brandName = isLearnerPortal ? organization.name : "Jalon";
+  const brandSubtitle = isLearnerPortal ? "Votre espace de formation" : "pour les organismes de formation";
+
   return (
     <div className="w-60 h-screen bg-ink text-white flex flex-col shrink-0">
       <div className="px-5 pt-6 pb-4 border-b border-ink-soft shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-              <Milestone size={17} className="text-ink" strokeWidth={2.4} />
-            </div>
-            <div className="font-display text-lg tracking-wide">Jalon</div>
+          <div className="flex items-center gap-2.5 min-w-0">
+            {isLearnerPortal && organization.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={organization.logoUrl} alt={organization.name} className="w-7 h-7 rounded-md object-contain shrink-0" />
+            ) : (
+              <div
+                className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${isLearnerPortal && organization.brandColor ? "" : "bg-seal"}`}
+                style={isLearnerPortal && organization.brandColor ? { backgroundColor: organization.brandColor } : undefined}
+              >
+                <Milestone size={17} className="text-ink" strokeWidth={2.4} />
+              </div>
+            )}
+            <div className="font-display text-lg tracking-wide truncate">{brandName}</div>
           </div>
           {can(user.role, "dashboard") !== "none" && <NotificationBell tasks={tasks} userId={user.userId} />}
         </div>
-        <div className="text-xs text-white/60 mt-1 pl-9">pour les organismes de formation</div>
+        <div className="text-xs text-white/60 mt-1 pl-9">{brandSubtitle}</div>
       </div>
       {/* min-h-0 overrides the flex-item default of min-height:auto, which
           is what let 14 nav items push this taller than the viewport and

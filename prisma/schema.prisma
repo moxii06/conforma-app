@@ -50,6 +50,19 @@ model Organization {
   rcsNumber               String?
   legalRepresentativeName String?
 
+  // Marque blanche — what an OFP's own learners see never needs to say
+  // "Jalon": the public token pages (recueil des besoins, satisfaction,
+  // activation) already show organization.name instead of the platform
+  // name. logoUrl/brandColor extend that to a real visual identity —
+  // replacing the generic Milestone-icon mark and its fixed seal color —
+  // applied there and in the authenticated learner portal (Sidebar, when
+  // role is LEARNER; staff keep the regular Jalon-branded chrome, since
+  // they're Jalon's own customers). A dedicated subdomain per OFP is a
+  // further step the roadmap calls for but isn't implemented yet — it
+  // needs a real domain to route from, which doesn't exist yet.
+  logoUrl    String?
+  brandColor String?
+
   users               User[]
   contacts            Contact[]
   companies           Company[]

@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/ui";
 import { requireSessionContext, ROLE_LABELS } from "@/lib/tenant";
 import { SignatureEditor } from "@/components/SignatureEditor";
 import { OrganizationLegalForm } from "@/components/OrganizationLegalForm";
+import { OrganizationBrandingForm } from "@/components/OrganizationBrandingForm";
 import { Role } from "@prisma/client";
 
 // Every role gets one — no permission gate beyond being logged in, unlike
@@ -35,6 +36,18 @@ export default async function ProfilePage() {
           </div>
           <SignatureEditor initialSignature={user.emailSignature ?? `Cordialement,<br>${user.name}`} />
         </div>
+
+        {organization && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink mb-1">Marque</div>
+            <div className="text-[11.5px] text-slate mb-3">
+              Logo et couleur affichés à la place de ceux de Jalon dans l&apos;espace de vos apprenants et sur les
+              pages publiques qu&apos;ils reçoivent (recueil des besoins, évaluations, activation de compte) — vos
+              apprenants n&apos;ont pas besoin de savoir que vous utilisez Jalon.
+            </div>
+            <OrganizationBrandingForm initial={{ logoUrl: organization.logoUrl, brandColor: organization.brandColor }} />
+          </div>
+        )}
 
         {organization && (
           <div className="bg-white border border-line rounded-card p-5">

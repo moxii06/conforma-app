@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import { Milestone } from "lucide-react";
+import { BrandedLogo } from "@/components/BrandedLogo";
 import { ActivationForm } from "@/components/ActivationForm";
 import { ROLE_LABELS } from "@/lib/tenant";
 
@@ -14,12 +14,7 @@ export default async function ActivationPage({ params }: { params: { token: stri
   return (
     <div className="min-h-screen bg-paper px-4 py-10">
       <div className="max-w-md mx-auto flex flex-col gap-5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-            <Milestone size={16} className="text-ink" strokeWidth={2.4} />
-          </div>
-          <div className="font-display text-lg text-ink">{user.organization.name}</div>
-        </div>
+        <BrandedLogo name={user.organization.name} logoUrl={user.organization.logoUrl} brandColor={user.organization.brandColor} size={28} />
 
         <div className="bg-white border border-line rounded-card p-5">
           {user.status !== "invited" ? (

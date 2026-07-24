@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { SatisfactionSurveyForm } from "@/components/SatisfactionSurveyForm";
 import { SURVEY_KIND_LABELS, type SurveyKind } from "@/lib/satisfactionSurveys";
-import { Milestone } from "lucide-react";
+import { BrandedLogo } from "@/components/BrandedLogo";
 
 export default async function SatisfactionSurveyPublicPage({ params }: { params: { token: string } }) {
   const response = await prisma.satisfactionSurveyResponse.findUnique({
@@ -20,12 +20,7 @@ export default async function SatisfactionSurveyPublicPage({ params }: { params:
   return (
     <div className="min-h-screen bg-paper px-4 py-10">
       <div className="max-w-xl mx-auto flex flex-col gap-5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-seal flex items-center justify-center">
-            <Milestone size={16} className="text-ink" strokeWidth={2.4} />
-          </div>
-          <div className="font-display text-lg text-ink">{organization.name}</div>
-        </div>
+        <BrandedLogo name={organization.name} logoUrl={organization.logoUrl} brandColor={organization.brandColor} size={28} />
 
         <div className="bg-white border border-line rounded-card p-5">
           <div className="text-[13.5px] font-semibold text-ink mb-1">{kindLabel}</div>
