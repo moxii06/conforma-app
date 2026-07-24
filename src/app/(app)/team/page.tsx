@@ -7,7 +7,10 @@ import { SubcontractorForm } from "@/components/SubcontractorForm";
 import { SubcontractorStatusSelect } from "@/components/SubcontractorStatusSelect";
 import { MemberRoleSelect } from "@/components/MemberRoleSelect";
 import { PrintButton } from "@/components/PrintButton";
+import { ArchiveOrgChartButton } from "@/components/ArchiveOrgChartButton";
+import { OrgChartView } from "@/components/OrgChartView";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
+import { buildOrgChartGroups, SUBCONTRACTOR_TYPE_LABELS } from "@/lib/orgChart";
 import { Tabs } from "@/components/Tabs";
 import { Role } from "@prisma/client";
 import { redirect } from "next/navigation";
@@ -17,12 +20,6 @@ import { fr } from "date-fns/locale";
 
 const ACCESS_TONE = { full: "good", limited: "warn", none: "neutral" } as const;
 const ACCESS_LABEL = { full: "Complet", limited: "Limité", none: "Aucun" } as const;
-const SUBCONTRACTOR_TYPE_LABELS: Record<string, string> = {
-  formateur_externe: "Formateur externe",
-  sous_traitant_pedagogique: "Sous-traitant pédagogique",
-  prestataire_technique: "Prestataire technique",
-  autre: "Autre",
-};
 const SUBCONTRACTOR_STATUS_LABELS: Record<string, string> = { active: "Actif", expired: "Expiré", terminated: "Terminé" };
 
 // Client feedback: a formateur specifically needs contrat/CV/diplôme/NDA
@@ -52,13 +49,18 @@ export default async function TeamPage({ searchParams }: { searchParams: { tab?:
   if (can(session.role, "team") !== "full") redirect("/dashboard");
   const activeTab = searchParams.tab ?? TABS[0].key;
 
-  const [allMembers, organization, subcontractors] = await Promise.all([
+  const [allMembers, organization, subcontractors, orgChartSnapshots] = await Promise.all([
     prisma.user.findMany({ where: { organizationId: session.organizationId }, orderBy: { createdAt: "asc" } }),
     prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } }),
     prisma.subcontractor.findMany({
       where: { organizationId: session.organizationId },
       include: { documents: true, linkedUser: { select: { id: true, name: true, status: true } } },
       orderBy: { createdAt: "asc" },
+    }),
+    prisma.orgChartSnapshot.findMany({
+      where: { organizationId: session.organizationId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
     }),
   ]);
 
@@ -76,7 +78,12 @@ export default async function TeamPage({ searchParams }: { searchParams: { tab?:
         {activeTab === "prestataires" ? (
           <SubcontractorsTab subcontractors={subcontractors} />
         ) : activeTab === "organigramme" ? (
-          <OrgChartTab organizationName={organization.name} members={members} subcontractors={subcontractors} />
+          <OrgChartTab
+            organizationName={organization.name}
+            members={members}
+            subcontractors={subcontractors}
+            snapshots={orgChartSnapshots}
+          />
         ) : activeTab === "permissions" ? (
           <PermissionsTab />
         ) : (
@@ -246,79 +253,58 @@ function SubcontractorsTab({ subcontractors }: { subcontractors: SubcontractorRo
 
 type OrgChartMember = { id: string; name: string; role: Role };
 type OrgChartSubcontractor = { id: string; name: string; type: string };
+type OrgChartSnapshotRow = { id: string; createdAt: Date; createdByName: string };
 
 function OrgChartTab({
   organizationName,
   members,
   subcontractors,
+  snapshots,
 }: {
   organizationName: string;
   members: OrgChartMember[];
   subcontractors: OrgChartSubcontractor[];
+  snapshots: OrgChartSnapshotRow[];
 }) {
-  const roleGroups = Object.values(Role)
-    .filter((r) => r !== Role.LEARNER)
-    .map((role) => ({ key: role, label: ROLE_LABELS[role], people: members.filter((m) => m.role === role) }))
-    .filter((g) => g.people.length > 0);
-
-  const typeGroups = Object.entries(SUBCONTRACTOR_TYPE_LABELS)
-    .map(([key, label]) => ({ key, label, people: subcontractors.filter((s) => s.type === key) }))
-    .filter((g) => g.people.length > 0);
+  const groups = buildOrgChartGroups(members, subcontractors);
 
   return (
-    <div className="bg-white border border-line rounded-card p-6">
-      <div className="flex items-center justify-between mb-6 print:hidden">
-        <div className="text-[13.5px] font-semibold text-ink">Organigramme</div>
-        <PrintButton />
+    <>
+      <div className="bg-white border border-line rounded-card p-6">
+        <div className="flex items-center justify-between mb-6 print:hidden">
+          <div className="text-[13.5px] font-semibold text-ink">Organigramme</div>
+          <div className="flex items-center gap-4">
+            <ArchiveOrgChartButton />
+            <PrintButton />
+          </div>
+        </div>
+
+        <OrgChartView organizationName={organizationName} groups={groups} />
       </div>
 
-      <div className="flex flex-col items-center gap-5">
-        <div className="text-[13.5px] font-semibold text-ink px-4 py-2 border-2 border-ink rounded-md">{organizationName}</div>
-        <div className="w-px h-5 bg-line" />
-
-        <div className="text-[11px] text-slate uppercase tracking-wide font-semibold">Équipe interne</div>
-        {roleGroups.length > 0 ? (
-          <div className="flex flex-wrap justify-center gap-4 w-full">
-            {roleGroups.map((g) => (
-              <div key={g.key} className="bg-[#FAF9F6] border border-line rounded-md p-3 min-w-[180px] flex flex-col gap-1.5">
-                <div className="text-[11.5px] font-semibold text-ink">
-                  {g.label} <span className="text-slate font-normal">({g.people.length})</span>
-                </div>
-                {g.people.map((p) => (
-                  <div key={p.id} className="text-[12px] text-ink">
-                    {p.name}
-                  </div>
-                ))}
-              </div>
+      <div className="bg-white border border-line rounded-card p-5 print:hidden">
+        <div className="text-[13.5px] font-semibold text-ink mb-3.5">Versions archivées ({snapshots.length})</div>
+        {snapshots.length > 0 ? (
+          <div className="flex flex-col gap-1">
+            {snapshots.map((s) => (
+              <Link
+                key={s.id}
+                href={`/team/org-chart/${s.id}`}
+                className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
+              >
+                <span className="text-[12.5px] text-ink">{format(s.createdAt, "d MMM yyyy, HH:mm", { locale: fr })}</span>
+                <span className="text-[11.5px] text-slate">archivé par {s.createdByName}</span>
+              </Link>
             ))}
           </div>
         ) : (
-          <div className="text-[12px] text-slate">Aucun membre.</div>
-        )}
-
-        <div className="w-full border-t border-line my-1" />
-
-        <div className="text-[11px] text-slate uppercase tracking-wide font-semibold">Sous-traitants & prestataires</div>
-        {typeGroups.length > 0 ? (
-          <div className="flex flex-wrap justify-center gap-4 w-full">
-            {typeGroups.map((g) => (
-              <div key={g.key} className="bg-[#FAF9F6] border border-line rounded-md p-3 min-w-[180px] flex flex-col gap-1.5">
-                <div className="text-[11.5px] font-semibold text-ink">
-                  {g.label} <span className="text-slate font-normal">({g.people.length})</span>
-                </div>
-                {g.people.map((p) => (
-                  <div key={p.id} className="text-[12px] text-ink">
-                    {p.name}
-                  </div>
-                ))}
-              </div>
-            ))}
+          <div className="text-[12px] text-slate">
+            Aucune version archivée — utilisez « Archiver cette version » ci-dessus pour garder une trace datée de
+            l&apos;organigramme (utile pour les audits Qualiopi).
           </div>
-        ) : (
-          <div className="text-[12px] text-slate">Aucun sous-traitant enregistré.</div>
         )}
       </div>
-    </div>
+    </>
   );
 }
 

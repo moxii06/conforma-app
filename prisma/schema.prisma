@@ -80,6 +80,7 @@ model Organization {
   qualityRisks        QualityRisk[]
   resultIndicators    ResultIndicator[]
   dashboardTaskDismissals DashboardTaskDismissal[]
+  orgChartSnapshots OrgChartSnapshot[]
 
   // Which version of the RNQ this org is currently auditing itself against
   // (see QualiopiReferentielVersion) — nullable only until the backfill
@@ -349,6 +350,23 @@ model DashboardTaskDismissal {
 
   @@unique([organizationId, kind, entityId])
   @@index([organizationId])
+}
+
+// A dated, frozen copy of the org chart (who was on the team, in which
+// role, and which subcontractors were tracked, grouped exactly like the
+// live "Organigramme" tab) — client feedback: the live view always
+// reflects today's team, but a Qualiopi audit may ask "who was on staff
+// as of [past date]", so staff can snapshot the current grouping on demand
+// and pull it back up later instead of reconstructing it from memory.
+model OrgChartSnapshot {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  createdAt      DateTime     @default(now())
+  createdByName  String
+  data           Json
+
+  @@index([organizationId, createdAt])
 }
 
 enum Role {
