@@ -3,10 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 
 // Marks a "contract" ClientOutreach as acknowledged (i.e. signed) — the
-// only manual close-out in this scaffold since there's no e-signature
-// provider (Yousign) actually wired up yet. Also flips Dossier.contractSigned
-// so the existing "Parcours de formation" step tracker on the Info tab
-// reflects it immediately, instead of drifting from this record.
+// manual close-out for the original fixed "Envoyer le contrat" flow. The
+// newer generic SendDocumentDialog path (any document, category
+// "convention", "Demander une signature électronique" checked) now closes
+// itself automatically via Yousign or the internal stub — see
+// syncParcoursFromSignedDocument in lib/documentSending.ts — but this
+// older flow predates that and still needs a manual click here. Also
+// flips Dossier.contractSigned so the "Parcours de formation" step
+// tracker on the Info tab reflects it immediately either way.
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });

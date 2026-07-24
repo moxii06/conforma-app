@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
-import { notifyDocumentSigned } from "@/lib/documentSending";
+import { notifyDocumentSigned, syncParcoursFromSignedDocument } from "@/lib/documentSending";
 
 // The learner's side of the signature workflow (mon-espace's "Mes
 // documents" tab) — a stub click-to-sign for organizations with no Yousign
@@ -37,6 +37,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   });
 
   await notifyDocumentSigned(signed, session.organizationId);
+  await syncParcoursFromSignedDocument(signed);
 
   return NextResponse.json(signed);
 }

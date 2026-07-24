@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyYousignWebhook } from "@/lib/yousign";
-import { notifyDocumentSigned } from "@/lib/documentSending";
+import { notifyDocumentSigned, syncParcoursFromSignedDocument } from "@/lib/documentSending";
 
 // Receiver for the webhook subscription staff create themselves in the
 // Youtrust app (see /integrations — the exact URL to paste is shown there,
@@ -42,6 +42,7 @@ export async function POST(request: Request, { params }: { params: { organizatio
   });
 
   await notifyDocumentSigned(signed, params.organizationId);
+  await syncParcoursFromSignedDocument(signed);
 
   return NextResponse.json({ ok: true });
 }

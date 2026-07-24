@@ -75,3 +75,20 @@ export async function notifyDocumentSigned(document: { id: string; title: string
     // Non-fatal — the signature itself is recorded either way.
   }
 }
+
+// Same audit-UX principle as the needs-assessment public route (see
+// /api/public/needs-assessment/[token]): a Dossier's "Parcours de
+// formation" checklist step should flip itself the moment the underlying
+// event actually happens, not wait for staff to notice and toggle it by
+// hand. "Convention signée" used to be the one step still requiring a
+// manual click (the old /api/client-outreach/[id] PATCH route, from
+// before Yousign was wired for real) — this closes that gap for the
+// generic SendDocumentDialog path: any "convention"-category Document
+// reaching signatureStatus "signed" (stub or real Yousign) marks the
+// dossier's contract step done too. Silently a no-op for every other
+// document category, so it's safe to call unconditionally from both
+// signature-completion routes.
+export async function syncParcoursFromSignedDocument(document: { category: string; dossierId: string | null }): Promise<void> {
+  if (document.category !== "convention" || !document.dossierId) return;
+  await prisma.dossier.update({ where: { id: document.dossierId }, data: { contractSigned: true } });
+}
