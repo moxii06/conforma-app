@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bold, Italic, Underline, Highlighter, Image as ImageIcon, Loader2 } from "lucide-react";
+import { MERGE_TAGS } from "@/lib/mergeTags";
 
 const FONT_OPTIONS = [
   { value: "Helvetica, Arial, sans-serif", label: "Sans" },
@@ -24,6 +25,7 @@ export function RichTextEditor({
   placeholder,
   allowImages = false,
   onUploadImage,
+  mergeTags,
 }: {
   html: string;
   onChange: (html: string) => void;
@@ -34,6 +36,10 @@ export function RichTextEditor({
   // draws text only and would silently drop an inserted image.
   allowImages?: boolean;
   onUploadImage?: (file: File) => Promise<string>;
+  // Passed by composers sending to a specific learner/contact — see
+  // lib/mergeTags.ts. Omit to hide the tag row entirely (e.g. SignatureEditor,
+  // which isn't addressed to any one recipient).
+  mergeTags?: typeof MERGE_TAGS;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,6 +63,16 @@ export function RichTextEditor({
     } else {
       document.execCommand(command, false, arg);
     }
+    onChange(ref.current?.innerHTML ?? "");
+  }
+
+  // Same document.execCommand path as bold/italic/etc — inserts at the
+  // current caret position exactly like typing would, so it composes
+  // naturally with preserveSelection below (no custom range math needed,
+  // unlike the plain <textarea> composers' insertTagAtCursor).
+  function insertTag(tag: string) {
+    ref.current?.focus();
+    document.execCommand("insertText", false, tag);
     onChange(ref.current?.innerHTML ?? "");
   }
 
@@ -144,6 +160,21 @@ export function RichTextEditor({
           </>
         )}
       </div>
+      {mergeTags && mergeTags.length > 0 && (
+        <div className="flex flex-wrap gap-1 border-b border-line bg-[#F7F5F0] px-2 py-1.5">
+          {mergeTags.map((m) => (
+            <button
+              key={m.tag}
+              type="button"
+              onMouseDown={preserveSelection}
+              onClick={() => insertTag(m.tag)}
+              className="text-[11px] bg-white hover:bg-[#EFEDE7] text-ink rounded-full px-2 py-0.5"
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div
         ref={ref}
         contentEditable

@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
+import { MERGE_TAGS } from "@/lib/mergeTags";
 
 type Template = { id: string; title: string; category: string };
 
@@ -247,7 +248,7 @@ export function SendDocumentDialog({
 
             <div className="flex flex-col gap-1">
               <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
-              <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" />
+              <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
             </div>
 
             <label className="flex items-center gap-2 text-[12px] text-ink">

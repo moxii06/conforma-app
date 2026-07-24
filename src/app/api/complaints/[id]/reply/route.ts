@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { fillMergeTags } from "@/lib/mergeTags";
 
 const schema = z.object({ body: z.string().min(1) });
 
@@ -17,7 +18,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
-  const complaint = await prisma.complaint.findFirst({ where: { id: params.id, organizationId: session.organizationId } });
+  const complaint = await prisma.complaint.findFirst({
+    where: { id: params.id, organizationId: session.organizationId },
+    include: { dossier: { include: { contact: true, session: { include: { course: true } } } } },
+  });
   if (!complaint) return NextResponse.json({ error: "Réclamation introuvable." }, { status: 404 });
   if (!complaint.submittedByEmail) {
     return NextResponse.json({ error: "Aucun email connu pour ce demandeur." }, { status: 400 });
@@ -29,6 +33,24 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
 
+  // A complaint isn't always tied to a Dossier (e.g. a prospect's
+  // question) — when it is, merge tags use the real Contact/Course; when
+  // not, [Prénom]/[Nom] fall back to a naive split of the free-text
+  // submittedByName (no Formation/Date de session to fill in that case).
+  const [firstName, ...rest] = complaint.submittedByName.trim().split(/\s+/);
+  const mergeCtx = complaint.dossier
+    ? {
+        firstName: complaint.dossier.contact.firstName,
+        lastName: complaint.dossier.contact.lastName,
+        courseTitle: complaint.dossier.session.course.title,
+        sessionDateLabel:
+          complaint.dossier.session.mode === "ROLLING"
+            ? "formation en continu"
+            : complaint.dossier.session.startsAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
+        organizationName: organization.name,
+      }
+    : { firstName: firstName ?? "", lastName: rest.join(" "), organizationName: organization.name };
+
   let delivered = false;
   let sendError: string | null = null;
   try {
@@ -36,7 +58,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       to: complaint.submittedByEmail,
       toName: complaint.submittedByName,
       subject: `Re: ${complaint.subject}`,
-      text: parsed.data.body,
+      text: fillMergeTags(parsed.data.body, mergeCtx),
       senderName: organization.name,
       replyTo: session.email,
     });

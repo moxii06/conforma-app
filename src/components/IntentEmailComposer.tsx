@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
+import { MergeTagButtons } from "@/components/MergeTagButtons";
 
 type Intent = "follow_up" | "payment_reminder" | "quote_follow_up" | "custom";
 
@@ -24,6 +26,29 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ emailSent: boolean } | null>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const activeField = useRef<"subject" | "body">("body");
+
+  function insertTag(tag: string) {
+    if (activeField.current === "subject" && subjectRef.current) {
+      const el = subjectRef.current;
+      const { text, cursor } = insertTagAtCursor(el, subject, tag);
+      setSubject(text);
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(cursor, cursor);
+      });
+    } else if (bodyRef.current) {
+      const el = bodyRef.current;
+      const { text, cursor } = insertTagAtCursor(el, body, tag);
+      setBody(text);
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(cursor, cursor);
+      });
+    }
+  }
 
   const availableIntents: Intent[] = [
     "follow_up",
@@ -123,15 +148,20 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
           className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
         />
       )}
+      <MergeTagButtons tags={CONTACT_ONLY_MERGE_TAGS} onInsert={insertTag} />
       <input
+        ref={subjectRef}
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
+        onFocus={() => (activeField.current = "subject")}
         placeholder="Objet"
         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
       />
       <textarea
+        ref={bodyRef}
         value={body}
         onChange={(e) => setBody(e.target.value)}
+        onFocus={() => (activeField.current = "body")}
         rows={6}
         placeholder="Message…"
         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"

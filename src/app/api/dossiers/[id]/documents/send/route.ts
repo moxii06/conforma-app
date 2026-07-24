@@ -5,6 +5,7 @@ import { getSessionContext } from "@/lib/tenant";
 import { buildDocumentAttachment } from "@/lib/documentSending";
 import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { fillMergeTags } from "@/lib/mergeTags";
 
 // Client feedback: sending a document should produce a real email — the
 // chosen file (a generated PDF from a library template, or something
@@ -22,7 +23,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const dossier = await prisma.dossier.findFirst({
     where: { id: params.id, organizationId: auth.organizationId },
-    include: { contact: true, session: true },
+    include: { contact: true, session: { include: { course: true } } },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   if (auth.role === Role.TRAINER && dossier.session.trainerId !== auth.userId) {
@@ -87,9 +88,21 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const signatureNote = requiresSignature
     ? `<p><br></p><p>Ce document attend votre signature électronique — rendez-vous dans votre espace personnel, onglet « Mes documents », pour le signer.</p>`
     : "";
-  const messageHtml =
+  const mergeCtx = {
+    firstName: dossier.contact.firstName,
+    lastName: dossier.contact.lastName,
+    courseTitle: dossier.session.course.title,
+    sessionDateLabel:
+      dossier.session.mode === "ROLLING"
+        ? "formation en continu"
+        : dossier.session.startsAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
+    organizationName: organization.name,
+  };
+  const messageHtml = fillMergeTags(
     (sanitizeRichText(messageHtmlRaw) || `<p>Bonjour ${dossier.contact.firstName},</p><p>Veuillez trouver ci-joint : ${title}.</p>`) +
-    signatureNote;
+      signatureNote,
+    mergeCtx
+  );
 
   let emailSent = false;
   try {

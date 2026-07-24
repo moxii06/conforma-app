@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
+import { MergeTagButtons } from "@/components/MergeTagButtons";
 
 export function ReplyToComplaintDialog({ complaintId }: { complaintId: string }) {
   const router = useRouter();
@@ -10,6 +12,17 @@ export function ReplyToComplaintDialog({ complaintId }: { complaintId: string })
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ delivered: boolean; sendError: string | null } | null>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertTag(tag: string) {
+    const el = textRef.current;
+    const { text: next, cursor } = insertTagAtCursor(el, text, tag);
+    setText(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(cursor, cursor);
+    });
+  }
 
   async function handleSend() {
     if (!text.trim()) return;
@@ -57,7 +70,9 @@ export function ReplyToComplaintDialog({ complaintId }: { complaintId: string })
 
   return (
     <div className="flex flex-col gap-2">
+      <MergeTagButtons tags={CONTACT_ONLY_MERGE_TAGS} onInsert={insertTag} />
       <textarea
+        ref={textRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={4}

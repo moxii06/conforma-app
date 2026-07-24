@@ -4,6 +4,7 @@ import { getSessionContext, can, canManageOpportunity } from "@/lib/tenant";
 import { buildDocumentAttachment } from "@/lib/documentSending";
 import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { fillMergeTags } from "@/lib/mergeTags";
 
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/send — see
 // that route's comment for the real-attachment + rich-message rationale.
@@ -75,7 +76,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
     },
   });
 
-  const messageHtml = sanitizeRichText(messageHtmlRaw) || `<p>Bonjour ${opportunity.contact.firstName},</p><p>Veuillez trouver ci-joint : ${title}.</p>`;
+  const messageHtml = fillMergeTags(
+    sanitizeRichText(messageHtmlRaw) || `<p>Bonjour ${opportunity.contact.firstName},</p><p>Veuillez trouver ci-joint : ${title}.</p>`,
+    { firstName: opportunity.contact.firstName, lastName: opportunity.contact.lastName, organizationName: organization.name }
+  );
 
   let emailSent = false;
   try {

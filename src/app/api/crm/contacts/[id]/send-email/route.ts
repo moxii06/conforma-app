@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can, canAccessContact } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { fillMergeTags } from "@/lib/mergeTags";
 
 const schema = z.object({
   subject: z.string().min(1),
@@ -50,13 +51,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
     },
   });
 
+  const mergeCtx = { firstName: contact.firstName, lastName: contact.lastName, organizationName: organization.name };
+
   let emailSent = false;
   try {
     await sendTransactionalEmail({
       to: contact.email,
       toName: `${contact.firstName} ${contact.lastName}`,
-      subject: parsed.data.subject,
-      text: parsed.data.body,
+      subject: fillMergeTags(parsed.data.subject, mergeCtx),
+      text: fillMergeTags(parsed.data.body, mergeCtx),
       senderName: organization.name,
       replyTo: auth.email,
     });

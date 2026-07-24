@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
+import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
 
 type Template = { id: string; title: string; category: string };
 type Mode = "template" | "upload";
@@ -274,7 +275,7 @@ export function SendProspectDocumentDialog({
 
                   <div className="flex flex-col gap-1">
                     <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
-                    <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" />
+                    <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={CONTACT_ONLY_MERGE_TAGS} />
                   </div>
                 </>
               )}

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
+import { MergeTagButtons } from "@/components/MergeTagButtons";
 
 export function EmailReplyComposer({ messageId }: { messageId: string }) {
   const router = useRouter();
@@ -12,6 +14,17 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [result, setResult] = useState<{ delivered: boolean; sendError: string | null } | null>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertTag(tag: string) {
+    const el = textRef.current;
+    const { text: next, cursor } = insertTagAtCursor(el, text, tag);
+    setText(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(cursor, cursor);
+    });
+  }
 
   async function handleAiAssist() {
     setAiLoading(true);
@@ -80,7 +93,9 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
 
   return (
     <div className="flex flex-col gap-2 mt-1">
+      <MergeTagButtons tags={CONTACT_ONLY_MERGE_TAGS} onInsert={insertTag} />
       <textarea
+        ref={textRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={4}

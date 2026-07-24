@@ -2,7 +2,9 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AUTOMATION_TRIGGER_LABELS, AUTOMATION_TRIGGER_VALUES, MERGE_TAGS } from "@/lib/automationRules";
+import { AUTOMATION_TRIGGER_LABELS, AUTOMATION_TRIGGER_VALUES } from "@/lib/automationRules";
+import { insertTagAtCursor } from "@/lib/mergeTags";
+import { MergeTagButtons } from "@/components/MergeTagButtons";
 
 type Rule = {
   id: string;
@@ -52,23 +54,19 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
   function insertTag(tag: string) {
     if (activeField.current === "subject" && subjectRef.current) {
       const el = subjectRef.current;
-      const start = el.selectionStart ?? emailSubject.length;
-      const end = el.selectionEnd ?? emailSubject.length;
-      const next = emailSubject.slice(0, start) + tag + emailSubject.slice(end);
-      setEmailSubject(next);
+      const { text, cursor } = insertTagAtCursor(el, emailSubject, tag);
+      setEmailSubject(text);
       requestAnimationFrame(() => {
         el.focus();
-        el.setSelectionRange(start + tag.length, start + tag.length);
+        el.setSelectionRange(cursor, cursor);
       });
     } else if (bodyRef.current) {
       const el = bodyRef.current;
-      const start = el.selectionStart ?? emailBody.length;
-      const end = el.selectionEnd ?? emailBody.length;
-      const next = emailBody.slice(0, start) + tag + emailBody.slice(end);
-      setEmailBody(next);
+      const { text, cursor } = insertTagAtCursor(el, emailBody, tag);
+      setEmailBody(text);
       requestAnimationFrame(() => {
         el.focus();
-        el.setSelectionRange(start + tag.length, start + tag.length);
+        el.setSelectionRange(cursor, cursor);
       });
     }
   }
@@ -192,18 +190,7 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
 
           {sendEmail && (
             <div className="flex flex-col gap-1.5 border border-line rounded-md p-2 bg-white">
-              <div className="flex flex-wrap gap-1">
-                {MERGE_TAGS.map((m) => (
-                  <button
-                    key={m.tag}
-                    type="button"
-                    onClick={() => insertTag(m.tag)}
-                    className="text-[11px] bg-[#EFEDE7] hover:bg-[#E6E3DA] text-ink rounded-full px-2 py-0.5"
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+              <MergeTagButtons onInsert={insertTag} />
               <input
                 ref={subjectRef}
                 value={emailSubject}

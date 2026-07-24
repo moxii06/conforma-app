@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendGmailReply } from "@/lib/gmailSync";
 import { sendImapReply } from "@/lib/imapSync";
+import { fillMergeTags } from "@/lib/mergeTags";
 
 const schema = z.object({ body: z.string().min(1).max(10000) });
 
@@ -23,16 +24,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const original = await prisma.emailMessage.findFirst({
     where: { id: params.id, organizationId: session.organizationId },
-    include: { mailboxConnection: true },
+    include: { mailboxConnection: true, contact: true },
   });
   if (!original) return NextResponse.json({ error: "Message introuvable." }, { status: 404 });
-  if (!original.contactId) {
+  if (!original.contactId || !original.contact) {
     return NextResponse.json({ error: "Ce message n'est pas encore rattaché à un contact." }, { status: 400 });
   }
 
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Réponse invalide." }, { status: 400 });
+
+  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
+  const filledBody = fillMergeTags(parsed.data.body, {
+    firstName: original.contact.firstName,
+    lastName: original.contact.lastName,
+    organizationName: organization.name,
+  });
 
   const subject = original.subject.toLowerCase().startsWith("re:") ? original.subject : `Re: ${original.subject}`;
   const connection = original.mailboxConnection;
@@ -44,14 +52,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       sendResult = await sendGmailReply(connection.id, {
         to: original.fromAddress,
         subject,
-        body: parsed.data.body,
+        body: filledBody,
         threadId: original.externalThreadId,
       });
     } else if (connection?.provider === "imap") {
       sendResult = await sendImapReply(connection.id, {
         to: original.fromAddress,
         subject,
-        body: parsed.data.body,
+        body: filledBody,
         inReplyTo: original.externalThreadId,
       });
     }
@@ -66,8 +74,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       contactId: original.contactId,
       fromAddress: connection?.accountEmail ?? session.email,
       subject,
-      snippet: parsed.data.body.slice(0, 140),
-      body: parsed.data.body,
+      snippet: filledBody.slice(0, 140),
+      body: filledBody,
       receivedAt: new Date(),
       direction: "out",
       inReplyToId: original.id,
