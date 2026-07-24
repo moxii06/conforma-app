@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LearnerCategoryFields, EMPTY_COMPANY_FIELDS, toCompanyInput, type CompanyFieldsState } from "@/components/LearnerCategoryFields";
 
 type Contact = { id: string; firstName: string; lastName: string; email: string };
 type Course = { id: string; title: string };
@@ -17,6 +18,8 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [courseOfInterestId, setCourseOfInterestId] = useState("");
+  const [learnerCategory, setLearnerCategory] = useState("");
+  const [company, setCompany] = useState<CompanyFieldsState>(EMPTY_COMPANY_FIELDS);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,10 +29,17 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
     setError(null);
 
     const amountCents = amount ? Math.round(parseFloat(amount) * 100) : undefined;
+    const shared = {
+      label,
+      amountCents,
+      courseOfInterestId: courseOfInterestId || undefined,
+      learnerCategory: learnerCategory || undefined,
+      company: toCompanyInput(learnerCategory, company),
+    };
     const body =
       mode === "existing"
-        ? { contactMode: "existing", contactId, label, amountCents, courseOfInterestId: courseOfInterestId || undefined }
-        : { contactMode: "new", firstName, lastName, email, label, amountCents, courseOfInterestId: courseOfInterestId || undefined };
+        ? { contactMode: "existing", contactId, ...shared }
+        : { contactMode: "new", firstName, lastName, email, ...shared };
 
     const res = await fetch("/api/crm/opportunities", {
       method: "POST",
@@ -49,6 +59,8 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
     setFirstName("");
     setLastName("");
     setEmail("");
+    setLearnerCategory("");
+    setCompany(EMPTY_COMPANY_FIELDS);
     setOpen(false);
     router.refresh();
   }
@@ -141,6 +153,8 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
           ))}
         </select>
       )}
+
+      <LearnerCategoryFields category={learnerCategory} onCategoryChange={setLearnerCategory} company={company} onCompanyChange={setCompany} />
 
       <div className="flex items-center gap-2.5">
         <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">

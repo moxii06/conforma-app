@@ -60,7 +60,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       contact.id,
       session,
       parsed.data.accessDurationDays,
-      parsed.data.learnerCategory
+      parsed.data.learnerCategory ?? contact.defaultLearnerCategory
     );
     return NextResponse.json(dossier, { status: 201 });
   } catch (err) {

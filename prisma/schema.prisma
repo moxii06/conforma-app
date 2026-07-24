@@ -416,6 +416,14 @@ model Contact {
   company        Company?     @relation(fields: [companyId], references: [id])
   companyId      String?
   createdAt      DateTime     @default(now())
+  // Client feedback: category (and company, via companyId above) should be
+  // capturable the moment a new contact exists — even before any formation
+  // enrollment — e.g. from the CRM "Nouveau prospect" form. Dossier has its
+  // own learnerCategory (the one actually used for BPF reporting once
+  // enrolled); this is only the carried-forward default a later enrollment
+  // falls back to when the caller doesn't specify one explicitly — see
+  // resolveContact in lib/enrollment.ts.
+  defaultLearnerCategory String? // employee | jobseeker | individual | apprentice
   // Set automatically when one of their opportunities reaches PAID (client
   // feedback: a paid deal means the relationship is closed out, not still
   // an active prospect to keep chasing) — hides them from the default CRM

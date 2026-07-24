@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const opportunity = await prisma.opportunity.findFirst({
     where: { id: parsed.data.opportunityId, organizationId: auth.organizationId },
-    include: { needsAssessmentRequests: { where: { status: "completed" }, take: 1 } },
+    include: { needsAssessmentRequests: { where: { status: "completed" }, take: 1 }, contact: true },
   });
   if (!opportunity) return NextResponse.json({ error: "Opportunité introuvable." }, { status: 404 });
   if (opportunity.stage !== "CONTRACT_SIGNED") {
@@ -49,7 +49,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         sessionId: session.id,
         contractSigned: true,
         needsAssessmentDone: opportunity.needsAssessmentRequests.length > 0,
-        learnerCategory: parsed.data.learnerCategory || null,
+        learnerCategory: parsed.data.learnerCategory || opportunity.contact.defaultLearnerCategory || null,
       },
     }),
     prisma.opportunity.update({ where: { id: opportunity.id }, data: { stage: "SESSION_SCHEDULED" } }),

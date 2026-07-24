@@ -3,25 +3,30 @@ import { z } from "zod";
 import { PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { applyCompanyInfo, enrollmentCategorySchema } from "@/lib/enrollment";
 
 const schema = z.discriminatedUnion("contactMode", [
-  z.object({
-    contactMode: z.literal("existing"),
-    contactId: z.string().min(1),
-    label: z.string().min(1),
-    amountCents: z.number().int().positive().optional(),
-    courseOfInterestId: z.string().optional(),
-  }),
-  z.object({
-    contactMode: z.literal("new"),
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    email: z.string().email(),
-    phone: z.string().optional(),
-    label: z.string().min(1),
-    amountCents: z.number().int().positive().optional(),
-    courseOfInterestId: z.string().optional(),
-  }),
+  z
+    .object({
+      contactMode: z.literal("existing"),
+      contactId: z.string().min(1),
+      label: z.string().min(1),
+      amountCents: z.number().int().positive().optional(),
+      courseOfInterestId: z.string().optional(),
+    })
+    .merge(enrollmentCategorySchema),
+  z
+    .object({
+      contactMode: z.literal("new"),
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
+      email: z.string().email(),
+      phone: z.string().optional(),
+      label: z.string().min(1),
+      amountCents: z.number().int().positive().optional(),
+      courseOfInterestId: z.string().optional(),
+    })
+    .merge(enrollmentCategorySchema),
 ]);
 
 export async function POST(request: Request) {
@@ -43,6 +48,9 @@ export async function POST(request: Request) {
     });
     if (!contact) return NextResponse.json({ error: "Contact introuvable." }, { status: 404 });
     contactId = contact.id;
+    if (data.learnerCategory) {
+      await prisma.contact.update({ where: { id: contactId }, data: { defaultLearnerCategory: data.learnerCategory } });
+    }
   } else {
     const email = data.email.toLowerCase().trim();
     const existing = await prisma.contact.findFirst({
@@ -50,6 +58,9 @@ export async function POST(request: Request) {
     });
     if (existing) {
       contactId = existing.id;
+      if (data.learnerCategory) {
+        await prisma.contact.update({ where: { id: contactId }, data: { defaultLearnerCategory: data.learnerCategory } });
+      }
     } else {
       const created = await prisma.contact.create({
         data: {
@@ -58,10 +69,15 @@ export async function POST(request: Request) {
           lastName: data.lastName,
           email,
           phone: data.phone,
+          defaultLearnerCategory: data.learnerCategory || null,
         },
       });
       contactId = created.id;
     }
+  }
+
+  if (data.company) {
+    await applyCompanyInfo(session.organizationId, contactId, data.company);
   }
 
   let courseOfInterestId: string | undefined;

@@ -98,7 +98,7 @@ export async function POST(request: Request) {
           contact.id,
           enrollSession,
           learner.accessDurationDays,
-          learner.learnerCategory
+          learner.learnerCategory ?? contact.defaultLearnerCategory
         );
         enrolledCount++;
       } catch (err) {
