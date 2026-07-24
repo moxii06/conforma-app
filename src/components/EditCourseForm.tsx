@@ -8,14 +8,17 @@ type Member = { id: string; name: string };
 export function EditCourseForm({
   courseId,
   members,
+  subcontractors,
   initial,
 }: {
   courseId: string;
   members: Member[];
+  subcontractors: Member[];
   initial: {
     title: string;
     description: string | null;
     responsibleUserIds: string[];
+    subcontractorIds: string[];
     durationHours: number | null;
     priceCents: number | null;
   };
@@ -25,6 +28,7 @@ export function EditCourseForm({
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description ?? "");
   const [responsibleIds, setResponsibleIds] = useState<Set<string>>(new Set(initial.responsibleUserIds));
+  const [subcontractorIds, setSubcontractorIds] = useState<Set<string>>(new Set(initial.subcontractorIds));
   const [durationHours, setDurationHours] = useState(initial.durationHours != null ? String(initial.durationHours) : "");
   const [price, setPrice] = useState(initial.priceCents != null ? String(initial.priceCents / 100) : "");
   const [loading, setLoading] = useState(false);
@@ -32,6 +36,15 @@ export function EditCourseForm({
 
   function toggleResponsible(id: string) {
     setResponsibleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSubcontractor(id: string) {
+    setSubcontractorIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -50,6 +63,7 @@ export function EditCourseForm({
         title,
         description: description || null,
         responsibleUserIds: Array.from(responsibleIds),
+        subcontractorIds: Array.from(subcontractorIds),
         durationHours: durationHours ? parseInt(durationHours, 10) : null,
         priceCents: price ? Math.round(parseFloat(price) * 100) : null,
       }),
@@ -115,6 +129,19 @@ export function EditCourseForm({
               <label key={m.id} className="flex items-center gap-1.5 text-[12.5px] text-ink">
                 <input type="checkbox" checked={responsibleIds.has(m.id)} onChange={() => toggleResponsible(m.id)} className="accent-sage" />
                 {m.name}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      {subcontractors.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <div className="text-[11px] text-slate uppercase tracking-wide">Prestataires externes</div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {subcontractors.map((s) => (
+              <label key={s.id} className="flex items-center gap-1.5 text-[12.5px] text-ink">
+                <input type="checkbox" checked={subcontractorIds.has(s.id)} onChange={() => toggleSubcontractor(s.id)} className="accent-sage" />
+                {s.name}
               </label>
             ))}
           </div>

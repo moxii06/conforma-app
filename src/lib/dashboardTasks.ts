@@ -145,6 +145,17 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   // once and branch in-code rather than two near-duplicate Prisma queries.
   if (canSeeTrainer) {
     const now = new Date();
+    // Client feedback: staff should be able to set a per-course "relance"
+    // rule instead of only relying on the fixed thresholds above — when a
+    // course has an active rule for this trigger, its afterDays (counted
+    // from enrollment) replaces the generic FIXED/ROLLING deadline for the
+    // needs-assessment check specifically. contractSigned keeps using the
+    // generic clock either way, since no rule exists for it yet.
+    const needsAssessmentRules = await prisma.automationRule.findMany({
+      where: { organizationId, trigger: "needs_assessment_incomplete", active: true },
+    });
+    const ruleByCourseId = new Map(needsAssessmentRules.map((r) => [r.courseId, r]));
+
     const incompleteDossiers = await prisma.dossier.findMany({
       where: {
         organizationId,
@@ -155,27 +166,12 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     });
     for (const d of incompleteDossiers) {
       const isRolling = d.session.mode === "ROLLING";
-      const deadline = isRolling
+      const genericDeadline = isRolling
         ? addDays(d.createdAt, ROLLING_PREP_DEADLINE_DAYS)
         : addDays(d.session.startsAt, -FIXED_SESSION_PREP_WARNING_DAYS);
-      if (now < deadline) continue;
-      const overdue = isRolling || now >= d.session.startsAt;
       const contactName = `${d.contact.firstName} ${d.contact.lastName}`;
 
-      if (!d.needsAssessmentDone) {
-        results.push({
-          id: d.id,
-          kind: "dossier_prep_needs_assessment",
-          label: isRolling
-            ? "Recueil des besoins toujours manquant depuis l'inscription"
-            : `Recueil des besoins manquant — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
-          contactName,
-          since: deadline,
-          href: `/dossiers/${d.id}`,
-          overdue,
-        });
-      }
-      if (!d.contractSigned) {
+      if (!d.contractSigned && now >= genericDeadline) {
         results.push({
           id: d.id,
           kind: "dossier_prep_contract",
@@ -183,10 +179,30 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
             ? "Convention toujours non signée depuis l'inscription"
             : `Convention non signée — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
           contactName,
-          since: deadline,
+          since: genericDeadline,
           href: `/dossiers/${d.id}`,
-          overdue,
+          overdue: isRolling || now >= d.session.startsAt,
         });
+      }
+
+      if (!d.needsAssessmentDone) {
+        const rule = ruleByCourseId.get(d.session.courseId);
+        const deadline = rule ? addDays(d.createdAt, rule.afterDays) : genericDeadline;
+        if (now >= deadline) {
+          results.push({
+            id: d.id,
+            kind: "dossier_prep_needs_assessment",
+            label: rule
+              ? `Recueil des besoins non complété — relance après ${rule.afterDays} j (règle formation)`
+              : isRolling
+                ? "Recueil des besoins toujours manquant depuis l'inscription"
+                : `Recueil des besoins manquant — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
+            contactName,
+            since: deadline,
+            href: `/dossiers/${d.id}`,
+            overdue: rule ? true : isRolling || now >= d.session.startsAt,
+          });
+        }
       }
     }
   }

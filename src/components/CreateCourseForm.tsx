@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PersonPicker, type LearnerInput } from "@/components/PersonPicker";
 import { SuggestedLearners } from "@/components/SuggestedLearners";
+import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
 import { X } from "lucide-react";
 
 type Member = { id: string; name: string };
@@ -14,12 +15,14 @@ type PendingLearner = { key: string; label: string; input: LearnerInput & { acce
 // a full-width bar — moved to a small button in the page header (via
 // PageHeader's `action` slot) that opens this as a modal instead, same
 // pattern as SendDocumentDialog/SendProspectDocumentDialog.
-export function CreateCourseForm({ members }: { members: Member[] }) {
+export function CreateCourseForm({ members, subcontractors }: { members: Member[]; subcontractors: Member[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [responsibleIds, setResponsibleIds] = useState<Set<string>>(new Set());
+  const [subcontractorIds, setSubcontractorIds] = useState<Set<string>>(new Set());
+  const [durationHours, setDurationHours] = useState("");
   const [learners, setLearners] = useState<PendingLearner[]>([]);
   const [accessDurationDays, setAccessDurationDays] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,10 +48,21 @@ export function CreateCourseForm({ members }: { members: Member[] }) {
     });
   }
 
+  function toggleSubcontractor(id: string) {
+    setSubcontractorIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   function reset() {
     setTitle("");
     setDescription("");
     setResponsibleIds(new Set());
+    setSubcontractorIds(new Set());
+    setDurationHours("");
     setLearners([]);
     setAccessDurationDays("");
     setError(null);
@@ -65,6 +79,8 @@ export function CreateCourseForm({ members }: { members: Member[] }) {
         title,
         description: description || undefined,
         responsibleUserIds: Array.from(responsibleIds),
+        subcontractorIds: Array.from(subcontractorIds),
+        durationHours: durationHours ? parseInt(durationHours, 10) : undefined,
         initialLearners: learners.map((l) => l.input),
       }),
     });
@@ -119,6 +135,14 @@ export function CreateCourseForm({ members }: { members: Member[] }) {
             rows={2}
             className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
           />
+          <input
+            value={durationHours}
+            onChange={(e) => setDurationHours(e.target.value)}
+            type="number"
+            min={1}
+            placeholder="Durée de la formation (heures)"
+            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
+          />
           {members.length > 0 && (
             <div className="flex flex-col gap-1">
               <div className="text-[11px] text-slate uppercase tracking-wide">Responsables / personnes concernées</div>
@@ -132,6 +156,19 @@ export function CreateCourseForm({ members }: { members: Member[] }) {
               </div>
             </div>
           )}
+          {subcontractors.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <div className="text-[11px] text-slate uppercase tracking-wide">Prestataires externes</div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {subcontractors.map((s) => (
+                  <label key={s.id} className="flex items-center gap-1.5 text-[12.5px] text-ink">
+                    <input type="checkbox" checked={subcontractorIds.has(s.id)} onChange={() => toggleSubcontractor(s.id)} className="accent-sage" />
+                    {s.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <div className="text-[11px] text-slate uppercase tracking-wide">Apprenants à inscrire (optionnel)</div>
             {learners.length > 0 && (
@@ -139,6 +176,9 @@ export function CreateCourseForm({ members }: { members: Member[] }) {
                 {learners.map((l) => (
                   <span key={l.key} className="inline-flex items-center gap-1 bg-white border border-line rounded-full pl-2.5 pr-1.5 py-1 text-[11.5px] text-ink">
                     {l.label}
+                    {l.input.learnerCategory && (
+                      <span className="text-slate">· {LEARNER_CATEGORY_LABELS[l.input.learnerCategory]}</span>
+                    )}
                     {l.input.accessDurationDays && <span className="text-slate">· {l.input.accessDurationDays}j</span>}
                     <button type="button" onClick={() => removeLearner(l.key)} className="text-slate hover:text-rust">
                       <X size={12} />

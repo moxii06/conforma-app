@@ -7,6 +7,7 @@ const schema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   responsibleUserIds: z.array(z.string()).optional(),
+  subcontractorIds: z.array(z.string()).optional(),
   archived: z.boolean().optional(),
   durationHours: z.number().int().positive().nullable().optional(),
   priceCents: z.number().int().positive().nullable().optional(),
@@ -40,6 +41,14 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       return NextResponse.json({ error: "Responsable introuvable." }, { status: 404 });
     }
   }
+  if (data.subcontractorIds) {
+    const count = await prisma.subcontractor.count({
+      where: { id: { in: data.subcontractorIds }, organizationId: session.organizationId },
+    });
+    if (count !== data.subcontractorIds.length) {
+      return NextResponse.json({ error: "Prestataire introuvable." }, { status: 404 });
+    }
+  }
 
   const updated = await prisma.course.update({
     where: { id: existing.id },
@@ -47,11 +56,12 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       ...(data.title !== undefined ? { title: data.title } : {}),
       ...(data.description !== undefined ? { description: data.description || null } : {}),
       ...(data.responsibleUserIds ? { responsibleUsers: { set: data.responsibleUserIds.map((id) => ({ id })) } } : {}),
+      ...(data.subcontractorIds ? { subcontractors: { set: data.subcontractorIds.map((id) => ({ id })) } } : {}),
       ...(data.archived !== undefined ? { archivedAt: data.archived ? new Date() : null } : {}),
       ...(data.durationHours !== undefined ? { durationHours: data.durationHours } : {}),
       ...(data.priceCents !== undefined ? { priceCents: data.priceCents } : {}),
     },
-    include: { responsibleUsers: true },
+    include: { responsibleUsers: true, subcontractors: true },
   });
 
   return NextResponse.json(updated);

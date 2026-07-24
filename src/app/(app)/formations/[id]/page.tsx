@@ -14,6 +14,7 @@ import { ReplaceModuleFileForm } from "@/components/ReplaceModuleFileForm";
 import { EnrollLearnerPanel } from "@/components/EnrollLearnerPanel";
 import { EditCourseForm } from "@/components/EditCourseForm";
 import { ArchiveCourseButton } from "@/components/ArchiveCourseButton";
+import { AutomationRulesPanel } from "@/components/AutomationRulesPanel";
 
 const TYPE_LABELS: Record<string, string> = { video: "Vidéo", document: "Document", quiz: "Quiz" };
 
@@ -28,6 +29,8 @@ const courseInclude = {
   },
   sessions: { include: { dossiers: { include: { contact: true } } } },
   responsibleUsers: true,
+  subcontractors: true,
+  automationRules: { orderBy: { createdAt: "asc" as const } },
   _count: { select: { sessions: true } },
 };
 
@@ -41,11 +44,18 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
   if (can(role, "planning") === "none" || role === "LEARNER") redirect("/formations");
   const canManage = can(role, "planning") === "full";
 
-  const [course, members] = await Promise.all([
+  const [course, members, subcontractors] = await Promise.all([
     prisma.course.findFirst({ where: { id: params.id, organizationId }, include: courseInclude }),
     canManage
       ? prisma.user.findMany({
           where: { organizationId, status: "active", role: { not: "LEARNER" } },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    canManage
+      ? prisma.subcontractor.findMany({
+          where: { organizationId, status: "active" },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         })
@@ -76,6 +86,11 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
                   Responsable{course.responsibleUsers.length > 1 ? "s" : ""} : {course.responsibleUsers.map((u) => u.name).join(", ")}
                 </div>
               )}
+              {course.subcontractors.length > 0 && (
+                <div className="text-[11px] text-slate mt-0.5">
+                  Prestataire{course.subcontractors.length > 1 ? "s" : ""} : {course.subcontractors.map((s) => s.name).join(", ")}
+                </div>
+              )}
               {(course.durationHours != null || course.priceCents != null) && (
                 <div className="text-[11px] text-slate mt-0.5">
                   {course.durationHours != null ? `${course.durationHours} h` : "Durée non renseignée"}
@@ -97,10 +112,12 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
               <EditCourseForm
                 courseId={course.id}
                 members={members}
+                subcontractors={subcontractors}
                 initial={{
                   title: course.title,
                   description: course.description,
                   responsibleUserIds: course.responsibleUsers.map((u) => u.id),
+                  subcontractorIds: course.subcontractors.map((s) => s.id),
                   durationHours: course.durationHours,
                   priceCents: course.priceCents,
                 }}
@@ -137,6 +154,12 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
               <div className="text-[11.5px] text-slate">Aucun apprenant inscrit pour l&apos;instant.</div>
             )}
           </div>
+
+          {canManage && (
+            <div className="border-t border-line pt-3 mb-3">
+              <AutomationRulesPanel courseId={course.id} rules={course.automationRules} />
+            </div>
+          )}
 
           {course.elearningModules.length > 0 && (
             <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-1.5">Modules e-learning</div>

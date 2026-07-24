@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { applyCompanyInfo, enrollmentCategorySchema } from "@/lib/enrollment";
 
-const schema = z.object({ opportunityId: z.string().min(1) });
+const schema = z.object({ opportunityId: z.string().min(1) }).merge(enrollmentCategorySchema);
 
 // Enrolling a prospect into a session is the missing link between CRM and
 // Planning: turns a CONTRACT_SIGNED Opportunity into an actual Dossier
@@ -36,6 +37,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const existing = await prisma.dossier.findFirst({ where: { contactId: opportunity.contactId, sessionId: session.id } });
   if (existing) return NextResponse.json({ error: "Ce contact est déjà inscrit à cette session." }, { status: 409 });
 
+  if (parsed.data.company) {
+    await applyCompanyInfo(auth.organizationId, opportunity.contactId, parsed.data.company);
+  }
+
   const [dossier] = await prisma.$transaction([
     prisma.dossier.create({
       data: {
@@ -44,6 +49,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         sessionId: session.id,
         contractSigned: true,
         needsAssessmentDone: opportunity.needsAssessmentRequests.length > 0,
+        learnerCategory: parsed.data.learnerCategory || null,
       },
     }),
     prisma.opportunity.update({ where: { id: opportunity.id }, data: { stage: "SESSION_SCHEDULED" } }),

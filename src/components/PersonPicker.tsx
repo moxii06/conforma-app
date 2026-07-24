@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Search, UserPlus } from "lucide-react";
+import { LearnerCategoryFields, EMPTY_COMPANY_FIELDS, toCompanyInput, type CompanyFieldsState } from "@/components/LearnerCategoryFields";
+
+type CategoryPayload = { learnerCategory?: string; company?: ReturnType<typeof toCompanyInput> };
 
 export type LearnerInput =
-  | { contactId: string }
-  | { firstName: string; lastName: string; email: string; phone?: string };
+  | ({ contactId: string } & CategoryPayload)
+  | ({ firstName: string; lastName: string; email: string; phone?: string } & CategoryPayload);
 
 type ContactHit = { id: string; firstName: string; lastName: string; email: string };
 
@@ -24,6 +27,17 @@ export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, lab
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [category, setCategory] = useState("");
+  const [company, setCompany] = useState<CompanyFieldsState>(EMPTY_COMPANY_FIELDS);
+
+  function categoryPayload(): CategoryPayload {
+    return { learnerCategory: category || undefined, company: toCompanyInput(category, company) };
+  }
+
+  function resetCategory() {
+    setCategory("");
+    setCompany(EMPTY_COMPANY_FIELDS);
+  }
 
   useEffect(() => {
     if (mode !== "existing" || query.trim().length < 2) {
@@ -41,21 +55,29 @@ export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, lab
   }, [query, mode]);
 
   function pickExisting(c: ContactHit) {
-    onSelect({ contactId: c.id }, `${c.firstName} ${c.lastName}`);
+    onSelect({ contactId: c.id, ...categoryPayload() }, `${c.firstName} ${c.lastName}`);
     setQuery("");
     setResults([]);
+    resetCategory();
   }
 
   function submitNew() {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) return;
     onSelect(
-      { firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: phone.trim() || undefined },
+      {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        ...categoryPayload(),
+      },
       `${firstName.trim()} ${lastName.trim()}`
     );
     setFirstName("");
     setLastName("");
     setEmail("");
     setPhone("");
+    resetCategory();
   }
 
   return (
@@ -76,6 +98,8 @@ export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, lab
           Nouvel apprenant
         </button>
       </div>
+
+      <LearnerCategoryFields category={category} onCategoryChange={setCategory} company={company} onCompanyChange={setCompany} />
 
       {mode === "existing" ? (
         <div className="relative">

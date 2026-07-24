@@ -101,6 +101,7 @@ model Organization {
   secureReports         SecureReport[]
   regulatoryWatchItems  RegulatoryWatch[]
   subcontractors        Subcontractor[]
+  automationRules       AutomationRule[]
 }
 
 // Confidential — situation de handicap is sensitive personal data under
@@ -302,6 +303,7 @@ model Subcontractor {
   linkedUserId String? @unique
 
   documents Document[]
+  courses   Course[] @relation("CourseSubcontractors")
 
   createdAt DateTime @default(now())
 
@@ -384,6 +386,16 @@ model Company {
   organizationId String
   name           String
   siret          String?
+  address        String?
+  // Client feedback: when a training is company-funded (learnerCategory
+  // employee/apprentice — see Dossier below), the OFP needs a named
+  // point of contact at the company, not just its identity — stored
+  // directly here rather than a separate contact-person table, same
+  // pattern as Subcontractor's own contactEmail/contactPhone.
+  responsableFirstName String?
+  responsableLastName  String?
+  responsableEmail     String?
+  responsablePhone     String?
 
   contacts Contact[]
 
@@ -457,8 +469,18 @@ model Dossier {
 
   createdAt DateTime @default(now())
 
-  // BPF §5.13 groups learner hours by legal status category.
+  // BPF §5.13 groups learner hours by legal status category. Client
+  // feedback: this should be captured right when the learner is enrolled
+  // (any entry point — course catalog, planning, course creation), not
+  // only editable after the fact from the dossier — see lib/enrollment.ts.
+  // Null = "non renseigné", a real, expected state until staff fills it in.
   learnerCategory String? // employee | jobseeker | individual | apprentice
+
+  // Idempotency guard for the automation-rule cron (see
+  // /api/cron/automation-rules): stamped the first time an automatic
+  // "recueil des besoins" reminder email goes out for this dossier, so a
+  // rule never re-sends the same nudge on a later run.
+  needsAssessmentAutoReminderSentAt DateTime?
 
   documents          Document[]
   qualiopiEvidence   QualiopiIndicatorEvidence[]
@@ -513,8 +535,43 @@ model Course {
   // session — a course can have several sessions with different trainers
   // while keeping the same responsible person(s) throughout.
   responsibleUsers  User[]            @relation("CourseResponsibles")
+  // External providers (formateurs externes/prestataires) delivering this
+  // training — distinct from responsibleUsers (internal staff accountable
+  // for it) and Session.trainerId (an internal trainer delivering one
+  // specific session). A course can lean on both internal and external
+  // people at once.
+  subcontractors    Subcontractor[]   @relation("CourseSubcontractors")
+  automationRules   AutomationRule[]
 
   @@index([organizationId])
+}
+
+// Client feedback: at course creation (or later), staff should be able to
+// set up "relance" rules instead of relying only on the app's fixed global
+// thresholds — e.g. "after N days, flag/relance if the recueil des besoins
+// still isn't done." Scoped to a single course rather than global so
+// different formations can have different follow-up cadences. `trigger` is
+// a free string (one value supported today: needs_assessment_incomplete)
+// rather than an enum, so new trigger kinds don't need a migration.
+model AutomationRule {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  course         Course       @relation(fields: [courseId], references: [id])
+  courseId       String
+
+  trigger   String // "needs_assessment_incomplete" for now
+  afterDays Int
+  // Task-only by default (shows up in the dashboard's "À faire"); an OFP
+  // opts a rule into also sending an automatic reminder email to the
+  // learner, tracked separately per rule since not every OFP wants
+  // unattended emails going out on their behalf.
+  sendEmail Boolean @default(false)
+  active    Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([courseId])
 }
 
 enum SessionFormat {

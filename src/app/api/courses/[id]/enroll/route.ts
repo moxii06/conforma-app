@@ -2,18 +2,29 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { resolveContact, resolveEnrollmentSession, createDossier, EnrollmentError } from "@/lib/enrollment";
+import {
+  resolveContact,
+  resolveEnrollmentSession,
+  createDossier,
+  applyCompanyInfo,
+  enrollmentCategorySchema,
+  EnrollmentError,
+} from "@/lib/enrollment";
 
 const schema = z.union([
-  z.object({ contactId: z.string().min(1), sessionId: z.string().optional(), accessDurationDays: z.number().int().positive().optional() }),
-  z.object({
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    email: z.string().email(),
-    phone: z.string().optional(),
-    sessionId: z.string().optional(),
-    accessDurationDays: z.number().int().positive().optional(),
-  }),
+  z
+    .object({ contactId: z.string().min(1), sessionId: z.string().optional(), accessDurationDays: z.number().int().positive().optional() })
+    .merge(enrollmentCategorySchema),
+  z
+    .object({
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
+      email: z.string().email(),
+      phone: z.string().optional(),
+      sessionId: z.string().optional(),
+      accessDurationDays: z.number().int().positive().optional(),
+    })
+    .merge(enrollmentCategorySchema),
 ]);
 
 // The direct, CRM-independent enrollment path from "Catalogue de
@@ -41,7 +52,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
       "contactId" in parsed.data ? { contactId: parsed.data.contactId } : parsed.data
     );
     const session = await resolveEnrollmentSession(auth.organizationId, course.id, parsed.data.sessionId);
-    const dossier = await createDossier(auth.organizationId, contact.id, session, parsed.data.accessDurationDays);
+    if (parsed.data.company) {
+      await applyCompanyInfo(auth.organizationId, contact.id, parsed.data.company);
+    }
+    const dossier = await createDossier(
+      auth.organizationId,
+      contact.id,
+      session,
+      parsed.data.accessDurationDays,
+      parsed.data.learnerCategory
+    );
     return NextResponse.json(dossier, { status: 201 });
   } catch (err) {
     if (err instanceof EnrollmentError) {

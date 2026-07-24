@@ -51,7 +51,7 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
   const activeTab = searchParams.tab === "archivees" ? "archivees" : "catalogue";
   const q = searchParams.q?.trim();
 
-  const [courses, members, sessionsInProgress, activeLearnerCount] = await Promise.all([
+  const [courses, members, subcontractors, sessionsInProgress, activeLearnerCount] = await Promise.all([
     prisma.course.findMany({
       where: {
         organizationId,
@@ -75,6 +75,13 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
+    canManage
+      ? prisma.subcontractor.findMany({
+          where: { organizationId, status: "active" },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
     // Same definition as the dashboard metric: only fixed-date sessions
     // currently within their scheduled window — a rolling session has no
     // real start/end, so it would otherwise always count as "in progress."
@@ -93,7 +100,7 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
       <PageHeader
         title="Catalogue de formations"
         subtitle="Cours et modules e-learning associés"
-        action={activeTab === "catalogue" && canManage ? <CreateCourseForm members={members} /> : undefined}
+        action={activeTab === "catalogue" && canManage ? <CreateCourseForm members={members} subcontractors={subcontractors} /> : undefined}
       />
       <Tabs basePath="/formations" tabs={TABS} active={activeTab} />
       <div className="p-8 flex flex-col gap-4 max-w-2xl">

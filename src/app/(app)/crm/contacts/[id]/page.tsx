@@ -8,6 +8,7 @@ import { requireSessionContext, can, canAccessContact } from "@/lib/tenant";
 import { IntentEmailComposer } from "@/components/IntentEmailComposer";
 import { EmailReplyComposer } from "@/components/EmailReplyComposer";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
+import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -33,6 +34,7 @@ const OUTREACH_LABELS: Record<string, string> = {
   contract: "Contrat",
   platform_access: "Accès plateforme",
   message: "Email",
+  needs_assessment_reminder: "Rappel recueil des besoins (auto)",
 };
 
 function formatAmount(cents: number | null) {
@@ -104,8 +106,14 @@ export default async function ContactRecordPage({
               <div className="text-[13.5px] font-semibold text-ink mb-3">Coordonnées</div>
               <div className="text-[13px] text-ink">{contact.email}</div>
               {contact.phone && <div className="text-[13px] text-ink mt-1">{contact.phone}</div>}
-              {contact.company?.siret && <div className="text-[12px] text-slate mt-1">SIRET {contact.company.siret}</div>}
             </div>
+
+            {contact.company && (
+              <div className="bg-white border border-line rounded-card p-5">
+                <div className="text-[13.5px] font-semibold text-ink mb-3">Société</div>
+                <EditCompanyForm company={contact.company} />
+              </div>
+            )}
 
             <div className="bg-white border border-line rounded-card p-5">
               <div className="text-[13.5px] font-semibold text-ink mb-3">Opportunités</div>
