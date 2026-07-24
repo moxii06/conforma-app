@@ -185,7 +185,7 @@ export default async function DashboardPage() {
         </div>
 
         {canSeeMoney && (
-          <div className="bg-white border border-line rounded-card p-4">
+          <div className="bg-white border border-line rounded-card p-4 max-w-md">
             <div className="text-[12.5px] text-slate mb-3">Paiements encaissés par mois (6 derniers mois)</div>
             <BarChart
               data={monthBuckets.map((m) => ({ label: m.label, value: m.value }))}
