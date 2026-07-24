@@ -41,11 +41,12 @@ function buildOrderBy(sort?: string): Prisma.OpportunityOrderByWithRelationInput
   }
 }
 
-export default async function CrmPage({
-  searchParams,
-}: {
-  searchParams: { view?: string; stage?: string; sort?: string };
-}) {
+export default async function CrmPage(
+  props: {
+    searchParams: Promise<{ view?: string; stage?: string; sort?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "crm") === "none") redirect("/dashboard");
   const canWrite = can(role, "crm") !== "none";

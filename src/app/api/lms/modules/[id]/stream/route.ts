@@ -21,7 +21,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 // Range support is required, not optional: without honoring Range
 // requests, the <video> element can't seek without re-downloading from the
 // start, and Safari/iOS won't play at all.
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 

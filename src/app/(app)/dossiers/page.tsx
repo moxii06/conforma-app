@@ -20,7 +20,10 @@ const STATUS_FILTER_WHERE: Record<string, Prisma.DossierWhereInput> = {
   eval_cold_missing: { evaluationColdDone: false },
 };
 
-export default async function DossiersPage({ searchParams }: { searchParams: { q?: string; page?: string; status?: string } }) {
+export default async function DossiersPage(
+  props: { searchParams: Promise<{ q?: string; page?: string; status?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "dossiers") === "none") redirect("/dashboard");
   // Spec §2: "Trainer: their own sessions" extends to the dossiers enrolled

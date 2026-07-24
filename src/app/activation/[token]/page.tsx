@@ -4,7 +4,8 @@ import { BrandedLogo } from "@/components/BrandedLogo";
 import { ActivationForm } from "@/components/ActivationForm";
 import { ROLE_LABELS } from "@/lib/tenant";
 
-export default async function ActivationPage({ params }: { params: { token: string } }) {
+export default async function ActivationPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const user = await prisma.user.findUnique({
     where: { activationToken: params.token },
     include: { organization: true },

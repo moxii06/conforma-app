@@ -8,7 +8,8 @@ import { fillMergeTags } from "@/lib/mergeTags";
 
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/send — see
 // that route's comment for the real-attachment + rich-message rationale.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "crm") === "none") {

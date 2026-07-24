@@ -10,7 +10,8 @@ const schema = z.object({ password: z.string().min(8) });
 // their own password and become able to sign in — no session required,
 // the token itself is the access control, same pattern as the public
 // needs-assessment form.
-export async function POST(request: Request, { params }: { params: { token: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const user = await prisma.user.findUnique({ where: { activationToken: params.token } });
   if (!user || user.status !== "invited") {
     return NextResponse.json({ error: "Lien d'activation invalide ou déjà utilisé." }, { status: 404 });

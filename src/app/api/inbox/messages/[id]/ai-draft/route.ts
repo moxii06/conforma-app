@@ -5,7 +5,8 @@ import { draftEmailReply } from "@/lib/ai";
 
 // Rédaction assistée par IA — appel réel à OpenAI (src/lib/ai.ts), fonctionnalité
 // intégrée à la plateforme (clé Jalon, pas une clé par organisation).
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "inbox") === "none") {

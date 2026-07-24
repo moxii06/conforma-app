@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 // pattern as /api/public/needs-assessment/[token]. Works whether the
 // learner has a mon-espace account or not (client feedback: must work
 // both ways — email link, and also reachable from mon-espace when logged in).
-export async function POST(request: Request, { params }: { params: { token: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const response = await prisma.satisfactionSurveyResponse.findUnique({
     where: { token: params.token },
     include: { survey: { include: { questions: true } } },

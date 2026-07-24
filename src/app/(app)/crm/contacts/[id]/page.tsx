@@ -57,13 +57,14 @@ const TABS = [
   { key: "documents", label: "Documents & envois" },
 ];
 
-export default async function ContactRecordPage({
-  params,
-  searchParams,
-}: {
-  params: { id: string };
-  searchParams: { tab?: string };
-}) {
+export default async function ContactRecordPage(
+  props: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<{ tab?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "crm") === "none") redirect("/dashboard");
   const activeTab = searchParams.tab ?? "info";

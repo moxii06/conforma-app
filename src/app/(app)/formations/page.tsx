@@ -39,7 +39,8 @@ function summarizeSessions(sessions: SessionSummary[]): { pillLabel: string | nu
   return { pillLabel, pillTone, secondary };
 }
 
-export default async function FormationsPage({ searchParams }: { searchParams: { tab?: string; q?: string } }) {
+export default async function FormationsPage(props: { searchParams: Promise<{ tab?: string; q?: string }> }) {
+  const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none") redirect("/dashboard");
   // A learner gets a completely different page here, not just a read-only

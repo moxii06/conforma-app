@@ -47,7 +47,8 @@ const CRITERION_LABELS: Record<number, string> = {
   7: "Recueil et prise en compte des appréciations",
 };
 
-export default async function QualiopiPage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function QualiopiPage(props: { searchParams: Promise<{ tab?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await requireSessionContext();
   if (can(session.role, "qualiopi") === "none") redirect("/dashboard");
   const activeTab = searchParams.tab ?? "indicateurs";

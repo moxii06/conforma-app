@@ -18,7 +18,8 @@ async function loadTeamScopedDocument(id: string, organizationId: string) {
 
 const patchSchema = z.object({ archived: z.boolean() });
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "team") !== "full") {
@@ -39,7 +40,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   return NextResponse.json(updated);
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "team") !== "full") {

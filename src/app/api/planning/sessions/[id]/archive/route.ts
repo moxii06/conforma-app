@@ -9,7 +9,8 @@ const schema = z.object({ archived: z.boolean() });
 // out of the "Liste" view once endsAt passed, with no dedicated place to
 // browse them again. This is independent of SessionStatus (a cancelled
 // session and a completed one can each be archived on their own timeline).
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "planning") !== "full") {

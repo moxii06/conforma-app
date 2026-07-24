@@ -13,7 +13,8 @@ const schema = z.object({
 // Only "exploited" gets an exploitedAt timestamp — that field is what
 // distinguishes a real "we acted on this" trail from a status label that
 // could just be typed in without anything actually changing.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "qualiopi") !== "full") {

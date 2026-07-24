@@ -32,7 +32,8 @@ const schema = z.union([
 // CONTRACT_SIGNED Opportunity), this lets staff add a learner straight from
 // the course — either an already-known Contact or someone typed in on the
 // spot — without a sales pipeline in between.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "planning") !== "full") {

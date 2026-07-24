@@ -9,7 +9,8 @@ function formatAmount(cents: number) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
 
-export default async function BpfPage({ searchParams }: { searchParams: { year?: string } }) {
+export default async function BpfPage(props: { searchParams: Promise<{ year?: string }> }) {
+  const searchParams = await props.searchParams;
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "bpf") === "none") redirect("/dashboard");
 

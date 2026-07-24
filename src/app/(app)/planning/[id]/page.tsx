@@ -31,7 +31,8 @@ function mapLinkFor(location: string | null) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
 }
 
-export default async function SessionDetailPage({ params }: { params: { id: string } }) {
+export default async function SessionDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireSessionContext();
   if (can(auth.role, "planning") === "none") redirect("/dashboard");
 

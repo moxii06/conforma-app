@@ -23,7 +23,8 @@ const TABS = [
   { key: "archives", label: "Archives" },
 ];
 
-export default async function PlanningPage({ searchParams }: { searchParams: { tab?: string; month?: string } }) {
+export default async function PlanningPage(props: { searchParams: Promise<{ tab?: string; month?: string }> }) {
+  const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none") redirect("/dashboard");
   const canCreate = can(role, "planning") === "full";

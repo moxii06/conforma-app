@@ -10,7 +10,8 @@ import { notifyDocumentSigned, syncParcoursFromSignedDocument } from "@/lib/docu
 // and it's the webhook at /api/webhooks/yousign/[organizationId] that
 // flips signatureStatus to "signed", not this route — this one only
 // handles documents that were never sent to Yousign in the first place.
-export async function POST(_request: Request, { params }: { params: { id: string } }) {
+export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (session.role !== "LEARNER") {

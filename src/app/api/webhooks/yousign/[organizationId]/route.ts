@@ -14,7 +14,8 @@ import { notifyDocumentSigned, syncParcoursFromSignedDocument } from "@/lib/docu
 // and https://developers.yousign.com/reference/approver-events (now hosted
 // at developers.youtrust.com after the July 2026 rename) — not yet
 // exercised against a live event in this environment.
-export async function POST(request: Request, { params }: { params: { organizationId: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ organizationId: string }> }) {
+  const params = await props.params;
   const rawBody = await request.text();
   const signature = request.headers.get("x-yousign-signature-256");
   const valid = await verifyYousignWebhook(params.organizationId, rawBody, signature);

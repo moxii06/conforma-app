@@ -4,7 +4,8 @@ import { authorizeLearnerAttendance, recordJoin } from "@/lib/attendance";
 
 const schema = z.object({ dossierId: z.string().min(1) });
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });

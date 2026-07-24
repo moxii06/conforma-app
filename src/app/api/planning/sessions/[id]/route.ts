@@ -19,7 +19,8 @@ const schema = z.object({
 // "validate it" (status: DRAFT -> VALIDATED, the point at which the
 // Planning detail page starts prompting to send convocations) — both are
 // just Session field updates, no need for two routes.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "planning") !== "full") {

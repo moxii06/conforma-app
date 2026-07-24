@@ -12,7 +12,8 @@ const schema = z.object({ body: z.string().min(1), includeSignature: z.boolean()
 // see it, not have to go dig up the submitter's email in their own mailbox
 // first. Best-effort like the other outreach sends here — a failed send
 // doesn't block anything, the complaint's own status/notes are unaffected.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "dossiers") === "none") {

@@ -7,7 +7,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 // granting it. Deletes real progress data along with access; there's no
 // separate "assigned but hidden" state in this scope, so revoking is
 // destructive by design — the UI should confirm before calling this.
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "planning") !== "full") {

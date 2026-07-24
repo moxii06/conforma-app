@@ -9,7 +9,8 @@ import { VirtualClassRoom } from "@/components/VirtualClassRoom";
 const JOIN_WINDOW_BEFORE_MS = 15 * 60 * 1000;
 const JOIN_WINDOW_AFTER_MS = 30 * 60 * 1000;
 
-export default async function SalleVirtuellePage({ params }: { params: { dossierId: string } }) {
+export default async function SalleVirtuellePage(props: { params: Promise<{ dossierId: string }> }) {
+  const params = await props.params;
   const session = await requireSessionContext();
   if (session.role !== "LEARNER") redirect("/mon-espace");
 

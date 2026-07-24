@@ -21,7 +21,8 @@ const schema = z.object({
 // an EmailMessage (direction "out", no mailboxConnectionId since it goes
 // out via Brevo rather than a connected mailbox) so it appears inline with
 // any real inbound/outbound thread already there.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "inbox") === "none") {

@@ -22,7 +22,8 @@ const schema = z.discriminatedUnion("action", [
 // implemented — there's no scheduled job runner in this scaffold; a real
 // deployment needs a cron/worker to sweep `EmailMessage` rows with
 // `contactId: null` past the retention window.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "inbox") === "none") {

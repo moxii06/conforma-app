@@ -11,7 +11,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 // older flow predates that and still needs a manual click here. Also
 // flips Dossier.contractSigned so the "Parcours de formation" step
 // tracker on the Info tab reflects it immediately either way.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "dossiers") === "none") {

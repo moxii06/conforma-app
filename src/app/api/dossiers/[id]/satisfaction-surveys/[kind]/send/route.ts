@@ -8,7 +8,8 @@ import { SURVEY_KIND_VALUES, sendSatisfactionSurvey } from "@/lib/satisfactionSu
 // session end, cold per the existing satisfaction_not_collected rule) —
 // staff can trigger either one on demand, e.g. for a ROLLING session
 // (no fixed endsAt to trigger off of) or to resend after a bounce.
-export async function POST(request: Request, { params }: { params: { id: string; kind: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string; kind: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "dossiers") === "none") {

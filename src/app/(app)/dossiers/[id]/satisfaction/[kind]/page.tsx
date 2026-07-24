@@ -7,7 +7,8 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { SURVEY_KIND_LABELS, type SurveyKind } from "@/lib/satisfactionSurveys";
 
-export default async function SatisfactionResultsPage({ params }: { params: { id: string; kind: string } }) {
+export default async function SatisfactionResultsPage(props: { params: Promise<{ id: string; kind: string }> }) {
+  const params = await props.params;
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "dossiers") === "none") redirect("/dashboard");
 

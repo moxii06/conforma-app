@@ -7,7 +7,8 @@ const schema = z.object({ responseText: z.string().min(1).max(10000) });
 // Deliberately unauthenticated — the token itself is the capability
 // (random 40-hex-char, unguessable). No organizationId check is possible
 // or needed here since the prospect has no Jalon account at all.
-export async function POST(request: Request, { params }: { params: { token: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Réponse invalide." }, { status: 400 });

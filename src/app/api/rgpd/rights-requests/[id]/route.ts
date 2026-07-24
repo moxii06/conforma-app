@@ -12,7 +12,8 @@ const schema = z.object({
 // Client feedback: a rights request just sat there with no owner and no way
 // to track progress beyond open/closed — this adds an assignee and a
 // three-step status, same shape as EmailMessage's assignment field.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!canWriteRgpd(session.role)) {

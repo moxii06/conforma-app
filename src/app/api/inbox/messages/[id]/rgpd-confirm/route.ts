@@ -14,7 +14,8 @@ const schema = z.object({
 // classifyEmailForRgpd() in ai.ts and gmailSync.ts/imapSync.ts, which only
 // ever set a suggestion, never create the compliance record themselves).
 // Deadline defaults to the same 1-month rule as the manual /rgpd form.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!canWriteRgpd(auth.role)) {

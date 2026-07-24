@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { NeedsAssessmentForm } from "@/components/NeedsAssessmentForm";
 import { BrandedLogo } from "@/components/BrandedLogo";
 
-export default async function NeedsAssessmentPublicPage({ params }: { params: { token: string } }) {
+export default async function NeedsAssessmentPublicPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const request = await prisma.needsAssessmentRequest.findUnique({
     where: { token: params.token },
     include: { organization: true, contact: true },

@@ -16,7 +16,8 @@ const schema = z.object({
 // Client feedback: staff need to correct/complete a company's info (and its
 // named responsable) after the fact, not only capture it once at enrollment
 // — same record used across every learner from that company.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "crm") === "none") {

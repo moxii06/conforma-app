@@ -9,7 +9,8 @@ import { extractProspectInfo } from "@/lib/ai";
 // (InboxMessageActions' splitName()) can't do since it only has the
 // "From" header's display name to work with. Platform-level feature (see
 // src/lib/ai.ts) — no per-organization key needed.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "inbox") === "none") {

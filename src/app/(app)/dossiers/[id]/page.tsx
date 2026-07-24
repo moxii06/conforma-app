@@ -37,7 +37,11 @@ const BASE_TABS = [
   { key: "preuves-qualiopi", label: "Preuves Qualiopi" },
 ];
 
-export default async function DossierPage({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string } }) {
+export default async function DossierPage(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "dossiers") === "none") redirect("/dashboard");
   const canEditCategory = can(role, "dossiers") === "full";

@@ -17,7 +17,8 @@ const schema = z
 // editable and kept accurate, since they feed the merge-tag engine
 // (Prénom/Nom/...) used across every document/email personalization —
 // same reasoning as EditCompanyForm for the company side.
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "crm") === "none") {

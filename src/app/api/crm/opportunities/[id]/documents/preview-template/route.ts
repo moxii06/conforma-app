@@ -6,7 +6,8 @@ import { mergeTemplate } from "@/lib/mergeTemplate";
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/preview-template
 // — a prospect doesn't have a Dossier (or a session) yet, so this merges
 // against the Contact only; every session.* merge field resolves to "".
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.role, "crm") === "none") {

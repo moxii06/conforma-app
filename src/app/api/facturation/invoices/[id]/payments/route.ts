@@ -15,7 +15,8 @@ const schema = z.object({
 // to or past the invoice's amountCents auto-flips its status to PAID
 // (mirrors what manually picking "Payé" in DocStatusSelect would do); a
 // partial one leaves the status as-is, just visible as progress in the UI.
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "invoicing") === "none") {
@@ -58,7 +59,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
 }
 
 // Listing is used by the invoice row's expandable payment history.
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "invoicing") === "none") {

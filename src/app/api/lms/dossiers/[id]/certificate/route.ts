@@ -9,7 +9,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 // a "yes I finished" claim, and only issues the certificate if every module
 // in the course actually clears that bar. Idempotent: re-generating returns
 // the existing certificate document instead of piling up duplicates.
-export async function POST(_request: Request, { params }: { params: { id: string } }) {
+export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 

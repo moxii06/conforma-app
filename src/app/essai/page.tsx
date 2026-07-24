@@ -16,7 +16,8 @@ const PLAN_DETAILS: Record<string, { name: string; price: string; features: stri
   growth: { name: "Growth", price: "189 €/mois", features: ["Utilisateurs illimités", "Module RGPD / DPIA complet", "Futures intégrations OPCO"] },
 };
 
-export default async function EssaiPage({ searchParams }: { searchParams: { plan?: string } }) {
+export default async function EssaiPage(props: { searchParams: Promise<{ plan?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await getServerSession(authOptions);
   if (session) redirect("/dashboard");
 
