@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { SUBCONTRACTOR_DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 
 export function AddSubcontractorDocumentForm({ subcontractorId }: { subcontractorId: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState<string>("subcontractor_contract");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +19,7 @@ export function AddSubcontractorDocumentForm({ subcontractorId }: { subcontracto
     const res = await fetch(`/api/subcontractors/${subcontractorId}/documents`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, url }),
+      body: JSON.stringify({ title, url, category }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -31,9 +33,14 @@ export function AddSubcontractorDocumentForm({ subcontractorId }: { subcontracto
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-1.5">
-      <input required placeholder="Titre (contrat, diplôme...)" value={title} onChange={(e) => setTitle(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal w-40" />
-      <input required placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal flex-1" />
+    <form onSubmit={handleSubmit} className="flex items-center gap-1.5 flex-wrap">
+      <select value={category} onChange={(e) => setCategory(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal">
+        {SUBCONTRACTOR_DOCUMENT_CATEGORIES.map((c) => (
+          <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+        ))}
+      </select>
+      <input required placeholder="Titre" value={title} onChange={(e) => setTitle(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal w-32" />
+      <input required placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal flex-1 min-w-[140px]" />
       <button type="submit" disabled={loading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60 shrink-0">
         {loading ? "…" : "Ajouter"}
       </button>

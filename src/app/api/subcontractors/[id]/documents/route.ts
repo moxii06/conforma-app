@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { SUBCONTRACTOR_DOCUMENT_CATEGORIES } from "@/lib/documentCategories";
 
-const schema = z.object({ title: z.string().min(1), url: z.string().url() });
+const schema = z.object({
+  title: z.string().min(1),
+  url: z.string().url(),
+  category: z.enum(SUBCONTRACTOR_DOCUMENT_CATEGORIES).default("other"),
+});
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getSessionContext();
@@ -25,6 +30,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       subcontractorId: subcontractor.id,
       title: parsed.data.title,
       fileUrl: parsed.data.url,
+      category: parsed.data.category,
     },
   });
 

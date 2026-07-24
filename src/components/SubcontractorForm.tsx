@@ -15,8 +15,12 @@ export function SubcontractorForm() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState("formateur_externe");
+  const [isIndividual, setIsIndividual] = useState(false);
+  const [legalForm, setLegalForm] = useState("");
   const [siret, setSiret] = useState("");
+  const [address, setAddress] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [qualifications, setQualifications] = useState("");
   const [contractEndDate, setContractEndDate] = useState("");
   const [qualificationExpiryDate, setQualificationExpiryDate] = useState("");
@@ -33,8 +37,12 @@ export function SubcontractorForm() {
       body: JSON.stringify({
         name,
         type,
+        isIndividual,
+        legalForm: !isIndividual && legalForm ? legalForm : undefined,
         siret: siret || undefined,
+        address: address || undefined,
         contactEmail: contactEmail || undefined,
+        contactPhone: contactPhone || undefined,
         qualifications: qualifications || undefined,
         contractEndDate: contractEndDate || undefined,
         qualificationExpiryDate: qualificationExpiryDate || undefined,
@@ -47,8 +55,11 @@ export function SubcontractorForm() {
       return;
     }
     setName("");
+    setLegalForm("");
     setSiret("");
+    setAddress("");
     setContactEmail("");
+    setContactPhone("");
     setQualifications("");
     setContractEndDate("");
     setQualificationExpiryDate("");
@@ -80,9 +91,20 @@ export function SubcontractorForm() {
           ))}
         </select>
       </div>
+      <label className="flex items-center gap-1.5 text-[12px] text-ink">
+        <input type="checkbox" checked={isIndividual} onChange={(e) => setIsIndividual(e.target.checked)} className="accent-sage" />
+        Entreprise individuelle / auto-entrepreneur
+      </label>
       <div className="flex items-center gap-2">
+        {!isIndividual && (
+          <input value={legalForm} onChange={(e) => setLegalForm(e.target.value)} placeholder="Forme juridique (SARL, SAS…)" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink flex-1" />
+        )}
         <input value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="SIRET (optionnel)" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink flex-1" />
+      </div>
+      <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Adresse (optionnel)" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink" />
+      <div className="flex items-center gap-2">
         <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="Email de contact" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink flex-1" />
+        <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="Téléphone" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink flex-1" />
       </div>
       <input
         value={qualifications}
