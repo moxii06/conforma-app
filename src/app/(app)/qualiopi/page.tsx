@@ -356,7 +356,7 @@ async function AuditPrepTab({ organizationId, canEdit }: { organizationId: strin
           href="/api/qualiopi/export"
           className="text-[12.5px] font-medium text-ink underline decoration-line hover:decoration-ink"
         >
-          Exporter la checklist
+          Télécharger le dossier de préparation audit (PDF)
         </a>
       </div>
       <div className="bg-white border border-line rounded-card p-5">
