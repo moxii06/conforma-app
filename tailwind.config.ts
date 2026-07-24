@@ -20,6 +20,17 @@ const config: Config = {
         rust: "#8E4433",
         slate: "#6A6D74",
         line: "#E2DFD6",
+        // Four neutrals that kept reappearing as identical raw hex arbitrary
+        // values across ~25 components (inset panels, hover rows, chips,
+        // progress tracks, muted icons) instead of a shared token — audit
+        // pass, see "Audit de cohérence des composants". Also reconciles
+        // two near-duplicate near-white panel shades (#FAF9F6 and #F7F5F0)
+        // that different components had each landed on separately for the
+        // same "barely-there panel wash" role into the single `mist` token.
+        linen: "#EFEDE7",
+        pebble: "#E6E3DA",
+        ash: "#B9B6AA",
+        mist: "#FAF9F6",
       },
       fontFamily: {
         display: ["var(--font-display)", "Georgia", "serif"],

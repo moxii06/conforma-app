@@ -87,7 +87,7 @@ export function EditCourseForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-[#EFEDE7] border border-line rounded-md p-3.5 flex flex-col gap-2.5">
+    <form onSubmit={handleSubmit} className="bg-linen border border-line rounded-md p-3.5 flex flex-col gap-2.5">
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}

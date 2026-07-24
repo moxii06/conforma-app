@@ -25,7 +25,7 @@ export function MetricCard({
 }
 
 const PILL_STYLES: Record<string, string> = {
-  neutral: "bg-[#E6E3DA] text-slate",
+  neutral: "bg-pebble text-slate",
   warn: "bg-[#EDDFC6] text-seal-dark",
   danger: "bg-[#E9D8D3] text-rust",
   good: "bg-[#DEE5E0] text-sage",

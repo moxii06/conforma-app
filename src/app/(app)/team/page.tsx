@@ -290,7 +290,7 @@ function OrgChartTab({
               <Link
                 key={s.id}
                 href={`/team/org-chart/${s.id}`}
-                className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
+                className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
               >
                 <span className="text-[12.5px] text-ink">{format(s.createdAt, "d MMM yyyy, HH:mm", { locale: fr })}</span>
                 <span className="text-[11.5px] text-slate">archivé par {s.createdByName}</span>

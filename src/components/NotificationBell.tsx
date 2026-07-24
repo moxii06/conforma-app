@@ -81,7 +81,7 @@ export function NotificationBell({ tasks, userId }: { tasks: DashboardTask[]; us
                   key={taskKey(t)}
                   href={t.href}
                   onClick={() => setOpen(false)}
-                  className="flex flex-col gap-0.5 px-3.5 py-2 hover:bg-[#EFEDE7]"
+                  className="flex flex-col gap-0.5 px-3.5 py-2 hover:bg-linen"
                 >
                   <div className="text-[12px] text-ink font-medium">{t.contactName}</div>
                   <div className="text-[11.5px] text-slate">

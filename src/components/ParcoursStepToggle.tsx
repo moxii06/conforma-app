@@ -56,9 +56,9 @@ export function ParcoursStepToggle({
         onClick={toggle}
         disabled={saving}
         title={done ? "Marquer comme non fait" : "Marquer comme fait"}
-        className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:bg-[#F7F5F0] disabled:opacity-60 -my-2 py-2"
+        className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:bg-mist disabled:opacity-60 -my-2 py-2"
       >
-        {done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#B9B6AA]" />}
+        {done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-ash" />}
         <div className={`text-[13px] truncate ${done ? "text-ink" : "text-slate"}`}>{label}</div>
       </button>
       {done && documentHref && (

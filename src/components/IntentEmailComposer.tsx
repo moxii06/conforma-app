@@ -125,7 +125,7 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
   }
 
   return (
-    <div className="flex flex-col gap-2.5 bg-[#EFEDE7] border border-line rounded-md p-3">
+    <div className="flex flex-col gap-2.5 bg-linen border border-line rounded-md p-3">
       <div className="flex items-center gap-2.5">
         <select
           value={intent}

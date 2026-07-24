@@ -39,7 +39,7 @@ export function EditMemberForm({ memberId, initial }: { memberId: string; initia
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 bg-[#EFEDE7] border border-line rounded-md p-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 bg-linen border border-line rounded-md p-3">
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom" required className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft" />
       <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email" required className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft" />
       <div className="flex items-center gap-2.5">

@@ -60,7 +60,7 @@ async function LearnerDocumentsTab({ userId, organizationId }: { userId: string;
   return (
     <div className="bg-white border border-line rounded-card">
       {documents.map((doc) => (
-        <div key={doc.id} className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-[#EFEDE7]">
+        <div key={doc.id} className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-linen">
           <a
             href={doc.bodyText ? `/api/documents/generated/${doc.id}` : doc.fileUrl ?? "#"}
             target="_blank"
@@ -168,7 +168,7 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
               {steps.map((s, si) => (
                 <div key={si} className="flex items-center justify-between gap-2 py-1.5">
                   <div className="flex items-center gap-2">
-                    {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-[#B9B6AA]" />}
+                    {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-ash" />}
                     <span className="text-[12.5px] text-ink">{s.label}</span>
                   </div>
                   {!s.done && s.pendingToken && (
@@ -189,7 +189,7 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
                       <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">E-learning</div>
                       <div className="text-[11px] text-slate">{progress.completedCount}/{progress.total} modules terminés</div>
                     </div>
-                    <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden mb-2.5">
+                    <div className="h-1.5 bg-pebble rounded-full overflow-hidden mb-2.5">
                       <div className="h-full bg-sage" style={{ width: `${progress.totalPercent}%` }} />
                     </div>
                     <Link

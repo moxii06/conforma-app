@@ -15,7 +15,7 @@ export function MergeTagButtons({ tags = MERGE_TAGS, onInsert }: { tags?: typeof
           key={m.tag}
           type="button"
           onClick={() => onInsert(m.tag)}
-          className="text-[11px] bg-[#EFEDE7] hover:bg-[#E6E3DA] text-ink rounded-full px-2 py-0.5"
+          className="text-[11px] bg-linen hover:bg-pebble text-ink rounded-full px-2 py-0.5"
         >
           {m.label}
         </button>

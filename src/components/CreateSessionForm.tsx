@@ -99,10 +99,10 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-line rounded-card p-4 flex flex-col gap-3 max-w-xl">
       <div className="flex items-center gap-2 text-[12.5px]">
-        <button type="button" onClick={() => setCourseMode("existing")} disabled={courses.length === 0} className={`px-2.5 py-1 rounded-md ${courseMode === "existing" ? "bg-ink text-white" : "bg-[#E6E3DA] text-slate"}`}>
+        <button type="button" onClick={() => setCourseMode("existing")} disabled={courses.length === 0} className={`px-2.5 py-1 rounded-md ${courseMode === "existing" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
           Cours existant
         </button>
-        <button type="button" onClick={() => setCourseMode("new")} className={`px-2.5 py-1 rounded-md ${courseMode === "new" ? "bg-ink text-white" : "bg-[#E6E3DA] text-slate"}`}>
+        <button type="button" onClick={() => setCourseMode("new")} className={`px-2.5 py-1 rounded-md ${courseMode === "new" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
           Nouveau cours
         </button>
       </div>
@@ -118,10 +118,10 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
       )}
 
       <div className="flex items-center gap-2 text-[12.5px]">
-        <button type="button" onClick={() => setMode("FIXED_DATE")} className={`px-2.5 py-1 rounded-md ${mode === "FIXED_DATE" ? "bg-ink text-white" : "bg-[#E6E3DA] text-slate"}`}>
+        <button type="button" onClick={() => setMode("FIXED_DATE")} className={`px-2.5 py-1 rounded-md ${mode === "FIXED_DATE" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
           Date fixe
         </button>
-        <button type="button" onClick={() => setMode("ROLLING")} className={`px-2.5 py-1 rounded-md ${mode === "ROLLING" ? "bg-ink text-white" : "bg-[#E6E3DA] text-slate"}`}>
+        <button type="button" onClick={() => setMode("ROLLING")} className={`px-2.5 py-1 rounded-md ${mode === "ROLLING" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
           En continu (bande passante)
         </button>
       </div>

@@ -110,7 +110,7 @@ export function NewEmailComposer({ contactId, dossierId }: { contactId: string; 
   }
 
   return (
-    <div className="flex flex-col gap-2 border border-line rounded-md p-3 bg-[#FAF9F6] mb-3">
+    <div className="flex flex-col gap-2 border border-line rounded-md p-3 bg-mist mb-3">
       <MergeTagButtons tags={tags} onInsert={insertTag} />
       <input
         ref={subjectRef}

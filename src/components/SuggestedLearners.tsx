@@ -52,7 +52,7 @@ export function SuggestedLearners({
             key={s.id}
             type="button"
             onClick={() => onAdd(s.id, `${s.firstName} ${s.lastName}`)}
-            className="inline-flex items-center gap-1.5 bg-[#EFEDE7] border border-line rounded-full pl-2.5 pr-3 py-1 text-[11.5px] text-ink hover:border-ink-soft"
+            className="inline-flex items-center gap-1.5 bg-linen border border-line rounded-full pl-2.5 pr-3 py-1 text-[11.5px] text-ink hover:border-ink-soft"
             title={`Intéressé·e par « ${s.matchedLabel} »`}
           >
             <UserPlus size={12} />

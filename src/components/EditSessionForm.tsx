@@ -88,7 +88,7 @@ export function EditSessionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-[#EFEDE7] border border-line rounded-md p-3.5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-linen border border-line rounded-md p-3.5">
       {/* Client feedback: the only way out of edit mode was a small text
           link at the very bottom, easy to miss once the form fills the
           space where the session summary used to be. This arrow gives an

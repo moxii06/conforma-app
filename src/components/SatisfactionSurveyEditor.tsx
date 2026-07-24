@@ -77,7 +77,7 @@ export function SatisfactionSurveyEditor({
   }
 
   return (
-    <div className="flex flex-col gap-3 bg-[#EFEDE7] border border-line rounded-md p-3.5">
+    <div className="flex flex-col gap-3 bg-linen border border-line rounded-md p-3.5">
       <div className="flex items-center justify-between">
         <div className="text-[12.5px] font-semibold text-ink">{SURVEY_KIND_LABELS[kind]}</div>
         {questions.length === 0 && (

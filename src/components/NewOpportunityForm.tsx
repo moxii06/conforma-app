@@ -82,7 +82,7 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
         <button
           type="button"
           onClick={() => setMode("existing")}
-          className={`px-2.5 py-1 rounded-md ${mode === "existing" ? "bg-ink text-white" : "bg-[#E6E3DA] text-slate"}`}
+          className={`px-2.5 py-1 rounded-md ${mode === "existing" ? "bg-ink text-white" : "bg-pebble text-slate"}`}
           disabled={contacts.length === 0}
         >
           Contact existant
@@ -90,7 +90,7 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
         <button
           type="button"
           onClick={() => setMode("new")}
-          className={`px-2.5 py-1 rounded-md ${mode === "new" ? "bg-ink text-white" : "bg-[#E6E3DA] text-slate"}`}
+          className={`px-2.5 py-1 rounded-md ${mode === "new" ? "bg-ink text-white" : "bg-pebble text-slate"}`}
         >
           Nouveau contact
         </button>

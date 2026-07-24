@@ -154,7 +154,7 @@ export default async function CourseDetailPage({ params }: { params: { id: strin
                   <Link
                     key={d.id}
                     href={`/dossiers/${d.id}`}
-                    className="inline-block bg-[#EFEDE7] border border-line rounded-full px-2.5 py-1 text-[11.5px] text-ink hover:border-ink-soft"
+                    className="inline-block bg-linen border border-line rounded-full px-2.5 py-1 text-[11.5px] text-ink hover:border-ink-soft"
                   >
                     {d.contactName}
                   </Link>

@@ -213,7 +213,7 @@ export default function MarketingPage() {
             const Icon = f.icon;
             return (
               <div key={f.title} className="bg-white border border-line rounded-card p-5">
-                <div className="w-8 h-8 rounded-md bg-[#E6E3DA] flex items-center justify-center mb-3.5">
+                <div className="w-8 h-8 rounded-md bg-pebble flex items-center justify-center mb-3.5">
                   <Icon size={16} className="text-ink" />
                 </div>
                 <div className="text-[13.5px] font-semibold text-ink mb-1.5">{f.title}</div>

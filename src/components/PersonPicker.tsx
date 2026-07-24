@@ -123,7 +123,7 @@ export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, lab
                   key={c.id}
                   type="button"
                   onClick={() => pickExisting(c)}
-                  className="w-full text-left px-2.5 py-1.5 text-[12.5px] text-ink hover:bg-[#EFEDE7]"
+                  className="w-full text-left px-2.5 py-1.5 text-[12.5px] text-ink hover:bg-linen"
                 >
                   {c.firstName} {c.lastName} <span className="text-slate">{c.email}</span>
                 </button>

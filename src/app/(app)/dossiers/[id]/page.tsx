@@ -224,7 +224,7 @@ async function InfoTab({
           ) : (
             <div key={s.key} className="flex items-center justify-between gap-2.5 py-2 border-t border-line first:border-t-0">
               <div className="flex items-center gap-2.5">
-                {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-[#B9B6AA]" />}
+                {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-ash" />}
                 <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
               </div>
               {s.done && documentHrefByStep[s.docCategory] && (

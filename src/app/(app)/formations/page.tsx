@@ -257,7 +257,7 @@ function LearnerCourseCard({
             <div className="text-[11px] text-slate uppercase tracking-wide font-semibold">Progression</div>
             <div className="text-[11px] text-slate">{progress!.completedCount}/{progress!.total} modules</div>
           </div>
-          <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden mb-3.5">
+          <div className="h-1.5 bg-pebble rounded-full overflow-hidden mb-3.5">
             <div className="h-full bg-sage" style={{ width: `${progress!.totalPercent}%` }} />
           </div>
           <div className="flex items-center gap-3 flex-wrap">

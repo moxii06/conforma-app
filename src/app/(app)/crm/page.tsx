@@ -144,7 +144,7 @@ export default async function CrmPage({
               </thead>
               <tbody>
                 {opportunities.map((o) => (
-                  <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-[#F7F5F0]">
+                  <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-mist">
                     <td className="px-4 py-3 whitespace-nowrap">
                       <Link href={`/crm/contacts/${o.contactId}`} className="font-semibold text-ink hover:underline">
                         {o.contact.firstName} {o.contact.lastName}
@@ -185,7 +185,7 @@ export default async function CrmPage({
                   {opportunities.map((o) => {
                     const lastRequest = o.needsAssessmentRequests[0];
                     return (
-                      <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-[#F7F5F0]">
+                      <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-mist">
                         <td className="px-4 py-3 whitespace-nowrap">
                           <Link href={`/crm/contacts/${o.contactId}`} className="font-semibold text-ink hover:underline">
                             {o.contact.firstName} {o.contact.lastName}

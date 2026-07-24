@@ -75,7 +75,7 @@ export function LearnerCategoryFields({
       </select>
 
       {isCompanyFunded && (
-        <div className="flex flex-col gap-1.5 border border-line rounded-md p-2 bg-[#FAF9F6]">
+        <div className="flex flex-col gap-1.5 border border-line rounded-md p-2 bg-mist">
           <div className="text-[11px] font-medium text-slate">Entreprise</div>
           <div className="flex gap-1.5">
             <input

@@ -49,7 +49,7 @@ export function AssignSupportItemForm({
   }
 
   return (
-    <div className="flex flex-col gap-1.5 bg-[#EFEDE7] border border-line rounded-md p-2.5">
+    <div className="flex flex-col gap-1.5 bg-linen border border-line rounded-md p-2.5">
       <div className="flex items-center gap-1.5">
         <select value={assignedToUserId} onChange={(e) => setAssignedToUserId(e.target.value)} className="bg-white border border-line rounded-md px-2 py-1 text-[12px] text-ink flex-1">
           <option value="">Non assigné</option>

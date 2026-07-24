@@ -79,7 +79,7 @@ export function EditSubcontractorForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 bg-[#EFEDE7] border border-line rounded-md p-3">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 bg-linen border border-line rounded-md p-3">
       <div className="flex items-center gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom" required className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink flex-1 focus:outline-none focus:border-ink-soft" />
         <select value={type} onChange={(e) => setType(e.target.value)} className="bg-white border border-line rounded-md px-2 py-1.5 text-[12px] text-ink">

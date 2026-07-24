@@ -162,7 +162,7 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
       </div>
 
       {adding && (
-        <div className="flex flex-col gap-1.5 mt-2 border border-line rounded-md p-2.5 bg-[#FAF9F6]">
+        <div className="flex flex-col gap-1.5 mt-2 border border-line rounded-md p-2.5 bg-mist">
           <select
             value={trigger}
             onChange={(e) => setTrigger(e.target.value)}

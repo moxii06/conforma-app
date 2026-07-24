@@ -213,7 +213,7 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
         {tasks.slice(0, 8).map((t) => (
           <div
             key={`${t.kind}-${t.id}`}
-            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
+            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
           >
             <Link href={t.href} className="min-w-0 flex-1">
               <span className="text-[12.5px] text-ink font-medium">{t.contactName}</span>
@@ -248,7 +248,7 @@ function ComplaintsWidget({
           <Link
             key={c.id}
             href="/support"
-            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
+            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
           >
             <div className="min-w-0">
               <span className="text-[12.5px] text-ink font-medium truncate">{c.subject}</span>
@@ -283,7 +283,7 @@ function SecureReportsWidget({
           <Link
             key={r.id}
             href="/support"
-            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-[#EFEDE7] -mx-1 px-1 rounded"
+            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
           >
             <div className="min-w-0">
               <span className="text-[12.5px] text-ink font-medium truncate">{r.description.slice(0, 60)}{r.description.length > 60 ? "…" : ""}</span>

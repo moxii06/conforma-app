@@ -113,7 +113,7 @@ export function RichTextEditor({
 
   return (
     <div className="border border-line rounded-md overflow-hidden bg-white">
-      <div className="flex items-center gap-1 border-b border-line bg-[#F7F5F0] px-2 py-1.5">
+      <div className="flex items-center gap-1 border-b border-line bg-mist px-2 py-1.5">
         <button type="button" onMouseDown={preserveSelection} onClick={() => exec("bold")} title="Gras" className="p-1.5 rounded hover:bg-white text-ink">
           <Bold size={13} />
         </button>
@@ -161,14 +161,14 @@ export function RichTextEditor({
         )}
       </div>
       {mergeTags && mergeTags.length > 0 && (
-        <div className="flex flex-wrap gap-1 border-b border-line bg-[#F7F5F0] px-2 py-1.5">
+        <div className="flex flex-wrap gap-1 border-b border-line bg-mist px-2 py-1.5">
           {mergeTags.map((m) => (
             <button
               key={m.tag}
               type="button"
               onMouseDown={preserveSelection}
               onClick={() => insertTag(m.tag)}
-              className="text-[11px] bg-white hover:bg-[#EFEDE7] text-ink rounded-full px-2 py-0.5"
+              className="text-[11px] bg-white hover:bg-linen text-ink rounded-full px-2 py-0.5"
             >
               {m.label}
             </button>
