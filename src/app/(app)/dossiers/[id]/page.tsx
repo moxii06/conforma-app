@@ -13,6 +13,7 @@ import { CreateRightsRequestButton } from "@/components/CreateRightsRequestButto
 import { PlanRetentionForm } from "@/components/PlanRetentionForm";
 import { ParcoursStepToggle } from "@/components/ParcoursStepToggle";
 import { EmailReplyComposer } from "@/components/EmailReplyComposer";
+import { NewEmailComposer } from "@/components/NewEmailComposer";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { SendOutreachButtons } from "@/components/SendOutreachButtons";
 import { MarkContractSignedButton } from "@/components/MarkContractSignedButton";
@@ -85,7 +86,7 @@ export default async function DossierPage({ params, searchParams }: { params: { 
       <Tabs basePath={`/dossiers/${dossier.id}`} tabs={TABS} active={activeTab} />
       <div className="p-8 max-w-xl">
         {activeTab === "emails" ? (
-          <EmailsTab contactId={dossier.contactId} canManageEmail={canManageEmail} members={members} />
+          <EmailsTab contactId={dossier.contactId} dossierId={dossier.id} canManageEmail={canManageEmail} members={members} />
         ) : activeTab === "documents" ? (
           <DocumentsTab
             dossierId={dossier.id}
@@ -235,10 +236,12 @@ async function InfoTab({
 
 async function EmailsTab({
   contactId,
+  dossierId,
   canManageEmail,
   members,
 }: {
   contactId: string;
+  dossierId: string;
   canManageEmail: boolean;
   members: { id: string; name: string }[];
 }) {
@@ -247,6 +250,7 @@ async function EmailsTab({
   return (
     <div className="bg-white border border-line rounded-card p-5">
       <div className="text-[13.5px] font-semibold text-ink mb-3.5">Échanges par email</div>
+      {canManageEmail && <NewEmailComposer contactId={contactId} dossierId={dossierId} />}
       {emails.map((m) => (
         <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-3">

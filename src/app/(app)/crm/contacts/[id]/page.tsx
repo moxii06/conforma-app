@@ -7,6 +7,7 @@ import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can, canAccessContact } from "@/lib/tenant";
 import { IntentEmailComposer } from "@/components/IntentEmailComposer";
 import { EmailReplyComposer } from "@/components/EmailReplyComposer";
+import { NewEmailComposer } from "@/components/NewEmailComposer";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { format } from "date-fns";
@@ -206,6 +207,7 @@ async function EmailsTab({
   return (
     <div className="bg-white border border-line rounded-card p-5">
       <div className="text-[13.5px] font-semibold text-ink mb-3.5">Échanges par email</div>
+      {canManageEmail && <NewEmailComposer contactId={contactId} />}
       {emails.map((m) => (
         <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1.5">
           <div className="flex items-center justify-between gap-3">
