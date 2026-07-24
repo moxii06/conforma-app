@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       description: parsed.data.description,
       category: parsed.data.category ?? "other",
       submittedByName: session.name || session.email,
+      submittedByEmail: session.email,
     },
   });
 
