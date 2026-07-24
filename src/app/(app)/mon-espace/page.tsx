@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { MetricCard, PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -105,9 +105,33 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
     return <div className="text-[12.5px] text-slate">Aucun dossier ne vous est encore associé.</div>;
   }
 
+  // Client feedback: a learner in several formations at once had to scroll
+  // through every dossier's full checklist to tell what still needed
+  // attention — a summary strip plus pushing finished dossiers below the
+  // ones still in progress gives that "where do I stand overall" answer
+  // immediately, without hiding any dossier's detail. Only worth showing
+  // once there's actually more than one to consolidate.
+  const dossiersWithDone = dossiers.map((d) => {
+    const stepsDone = d.needsAssessmentDone && d.contractSigned && d.convocationSent && d.evaluationHotDone && d.evaluationColdDone;
+    const elearningDone =
+      d.session.course.elearningModules.length === 0 ||
+      buildCourseProgress(d.session.course.elearningModules, d.elearningProgress, d.quizAttempts).allCompleted;
+    return { dossier: d, done: stepsDone && elearningDone };
+  });
+  const doneCount = dossiersWithDone.filter((x) => x.done).length;
+  const ordered = [...dossiersWithDone].sort((a, b) => Number(a.done) - Number(b.done));
+
   return (
     <div className="flex flex-col gap-5">
-      {dossiers.map((d) => {
+      {dossiers.length > 1 && (
+        <div className="flex gap-3.5">
+          <MetricCard label="Formations" value={String(dossiers.length)} />
+          <MetricCard label="Terminées" value={String(doneCount)} tone="sage" />
+          <MetricCard label="En cours" value={String(dossiers.length - doneCount)} />
+        </div>
+      )}
+      {ordered.map(({ dossier: d, done }, i) => {
+        const isFirstDone = done && i > 0 && !ordered[i - 1].done;
         const pendingSurveyByKind: Record<string, string> = {};
         for (const r of d.satisfactionSurveyResponses) pendingSurveyByKind[r.survey.kind] = r.token;
         const steps = [
@@ -118,58 +142,66 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
           { label: "Évaluation à froid", done: d.evaluationColdDone, pendingToken: pendingSurveyByKind.cold },
         ];
         return (
-          <div key={d.id} className="bg-white border border-line rounded-card p-5">
-            <div className="text-[13.5px] font-semibold text-ink mb-0.5">{d.session.course.title}</div>
-            <div className="text-[12px] text-slate mb-3.5">
-              {format(d.session.startsAt, "EEEE d MMMM yyyy", { locale: fr })} · {FORMAT_LABELS[d.session.format]}
-            </div>
-
-            {(d.session.format === "REMOTE" || d.session.format === "HYBRID") && d.session.meetingLink && (
-              <Link
-                href={`/mon-espace/salle/${d.id}`}
-                className="inline-block mb-3.5 text-[12.5px] font-medium text-ink underline decoration-line hover:decoration-ink"
-              >
-                Rejoindre la classe virtuelle
-              </Link>
+          <div key={d.id}>
+            {isFirstDone && (
+              <div className="text-[11px] font-semibold text-slate uppercase tracking-wide mb-2 pt-1">Formations terminées</div>
             )}
-
-            <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-1.5">Parcours</div>
-            {steps.map((s, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 py-1.5">
-                <div className="flex items-center gap-2">
-                  {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-[#B9B6AA]" />}
-                  <span className="text-[12.5px] text-ink">{s.label}</span>
-                </div>
-                {!s.done && s.pendingToken && (
-                  <Link href={`/satisfaction/${s.pendingToken}`} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink">
-                    Répondre
-                  </Link>
-                )}
+            <div className="bg-white border border-line rounded-card p-5">
+              <div className="flex items-center justify-between gap-3 mb-0.5">
+                <div className="text-[13.5px] font-semibold text-ink">{d.session.course.title}</div>
+                {done && <Pill tone="sage">Terminée</Pill>}
               </div>
-            ))}
+              <div className="text-[12px] text-slate mb-3.5">
+                {format(d.session.startsAt, "EEEE d MMMM yyyy", { locale: fr })} · {FORMAT_LABELS[d.session.format]}
+              </div>
 
-            {d.session.course.elearningModules.length > 0 && (() => {
-              const progress = buildCourseProgress(d.session.course.elearningModules, d.elearningProgress, d.quizAttempts);
-              const ctaLabel =
-                !d.firstAccessedAt ? "Commencer ma formation" : progress.allCompleted ? "Revoir ma formation" : "Continuer ma formation";
-              return (
-                <>
-                  <div className="flex items-center justify-between mt-3.5 mb-1.5">
-                    <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">E-learning</div>
-                    <div className="text-[11px] text-slate">{progress.completedCount}/{progress.total} modules terminés</div>
+              {(d.session.format === "REMOTE" || d.session.format === "HYBRID") && d.session.meetingLink && (
+                <Link
+                  href={`/mon-espace/salle/${d.id}`}
+                  className="inline-block mb-3.5 text-[12.5px] font-medium text-ink underline decoration-line hover:decoration-ink"
+                >
+                  Rejoindre la classe virtuelle
+                </Link>
+              )}
+
+              <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-1.5">Parcours</div>
+              {steps.map((s, si) => (
+                <div key={si} className="flex items-center justify-between gap-2 py-1.5">
+                  <div className="flex items-center gap-2">
+                    {s.done ? <CheckCircle2 size={14} className="text-sage" /> : <Circle size={14} className="text-[#B9B6AA]" />}
+                    <span className="text-[12.5px] text-ink">{s.label}</span>
                   </div>
-                  <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden mb-2.5">
-                    <div className="h-full bg-sage" style={{ width: `${progress.totalPercent}%` }} />
-                  </div>
-                  <Link
-                    href={`/mon-espace/formation/${d.id}`}
-                    className="inline-block bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft"
-                  >
-                    {ctaLabel}
-                  </Link>
-                </>
-              );
-            })()}
+                  {!s.done && s.pendingToken && (
+                    <Link href={`/satisfaction/${s.pendingToken}`} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink">
+                      Répondre
+                    </Link>
+                  )}
+                </div>
+              ))}
+
+              {d.session.course.elearningModules.length > 0 && (() => {
+                const progress = buildCourseProgress(d.session.course.elearningModules, d.elearningProgress, d.quizAttempts);
+                const ctaLabel =
+                  !d.firstAccessedAt ? "Commencer ma formation" : progress.allCompleted ? "Revoir ma formation" : "Continuer ma formation";
+                return (
+                  <>
+                    <div className="flex items-center justify-between mt-3.5 mb-1.5">
+                      <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">E-learning</div>
+                      <div className="text-[11px] text-slate">{progress.completedCount}/{progress.total} modules terminés</div>
+                    </div>
+                    <div className="h-1.5 bg-[#E6E3DA] rounded-full overflow-hidden mb-2.5">
+                      <div className="h-full bg-sage" style={{ width: `${progress.totalPercent}%` }} />
+                    </div>
+                    <Link
+                      href={`/mon-espace/formation/${d.id}`}
+                      className="inline-block bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft"
+                    >
+                      {ctaLabel}
+                    </Link>
+                  </>
+                );
+              })()}
+            </div>
           </div>
         );
       })}
