@@ -19,17 +19,26 @@ export function BookDemoButton({ className, children }: { className?: string; ch
 
   return (
     <>
+      <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet" />
       <Script src="https://assets.calendly.com/assets/external/widget.js" strategy="afterInteractive" />
-      <button
-        type="button"
-        onClick={() => {
-          if (window.Calendly) window.Calendly.initPopupWidget({ url: CALENDLY_URL });
-          else window.open(CALENDLY_URL, "_blank", "noopener,noreferrer");
+      {/* A real <a href> so the button still works (opens Calendly directly)
+          if the popup script is blocked by an ad/tracker blocker — Calendly's
+          widget.js is a common blocklist target. The popup is progressive
+          enhancement on top, not the only path. */}
+      <a
+        href={CALENDLY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => {
+          if (window.Calendly) {
+            e.preventDefault();
+            window.Calendly.initPopupWidget({ url: CALENDLY_URL });
+          }
         }}
         className={className}
       >
         {children}
-      </button>
+      </a>
     </>
   );
 }
