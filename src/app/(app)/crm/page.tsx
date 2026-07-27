@@ -65,7 +65,12 @@ export default async function CrmPage(
   // appears in Table/Pipeline, only here — client feedback wanted a real
   // "archives" tab rather than the previous "filter the table to Payé"
   // workaround.
-  const view = searchParams.view === "pipeline" ? "pipeline" : searchParams.view === "archives" ? "archives" : "table";
+  // L'ancien onglet "Pipeline" (kanban 7 colonnes, sans glisser-déposer) a
+  // été retiré : mêmes données et mêmes actions que le tableau, en moins
+  // lisible, et la vue d'ensemble par étape existe déjà sur le dashboard
+  // ("Pipeline commercial par étape"). Un ?view=pipeline retombe ici sur
+  // le tableau.
+  const view = searchParams.view === "archives" ? "archives" : "table";
   const stageFilter = searchParams.stage && searchParams.stage in PipelineStage ? (searchParams.stage as PipelineStage) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
 
@@ -95,11 +100,6 @@ export default async function CrmPage(
       : Promise.resolve([]),
   ]);
 
-  const byStage = Object.values(PipelineStage).map((stage) => ({
-    stage,
-    items: opportunities.filter((o) => o.stage === stage),
-  }));
-
   return (
     <>
       <PageHeader title="CRM commercial" subtitle="Du premier contact à la facturation" />
@@ -111,14 +111,6 @@ export default async function CrmPage(
           }`}
         >
           Tableau
-        </Link>
-        <Link
-          href="/crm?view=pipeline"
-          className={`px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
-            view === "pipeline" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
-          }`}
-        >
-          Pipeline
         </Link>
         <Link
           href="/crm?view=archives"
@@ -179,7 +171,7 @@ export default async function CrmPage(
             </table>
             {opportunities.length === 0 && <div className="text-[12.5px] text-slate px-4 py-4">Aucun contact archivé.</div>}
           </div>
-        ) : view === "table" ? (
+        ) : (
           <>
             <OpportunityFilterBar />
             <div className="bg-white border border-line rounded-card overflow-x-auto">
@@ -233,51 +225,6 @@ export default async function CrmPage(
               {opportunities.length === 0 && <div className="text-[12.5px] text-slate px-4 py-4">Aucun prospect.</div>}
             </div>
           </>
-        ) : (
-          <div className="flex gap-3.5">
-            {byStage.map(({ stage, items }) => (
-              <div key={stage} className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2.5">
-                  <div className="text-xs font-bold text-ink uppercase tracking-wide">{STAGE_LABELS[stage]}</div>
-                  <div className="text-[11px] text-slate">{items.length}</div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {items.map((o) => {
-                    const lastRequest = o.needsAssessmentRequests[0];
-                    return (
-                      <div key={o.id} className="bg-white border border-line rounded-md p-4 flex flex-col gap-2.5">
-                        <div>
-                          <Link href={`/crm/contacts/${o.contactId}`} className="text-[13px] font-semibold text-ink hover:underline">
-                            {o.contact.firstName} {o.contact.lastName}
-                          </Link>
-                          <div className="text-[11.5px] text-slate mt-0.5">{o.label}</div>
-                        </div>
-                        {canWrite && (
-                          <div className="flex flex-col gap-1.5">
-                            <OpportunityStageSelect opportunityId={o.id} stage={o.stage} />
-                            <SendProspectDocumentDialog
-                              opportunityId={o.id}
-                              alreadySentNeedsAssessment={Boolean(lastRequest)}
-                              templates={templates}
-                              contactFirstName={o.contact.firstName}
-                              signatureHtml={signatureHtml}
-                            />
-                            {lastRequest && (
-                              <div className="text-[10.5px] text-slate">
-                                {lastRequest.status === "completed" ? "Recueil complété" : "Recueil envoyé, en attente"}
-                              </div>
-                            )}
-                            <ArchiveContactButton contactId={o.contactId} archived={false} />
-                            <DeleteOpportunityButton opportunityId={o.id} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
         )}
       </div>
     </>
