@@ -1,21 +1,23 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CheckCircle2, Circle, Lock, Video, FileText, HelpCircle, Paperclip } from "lucide-react";
+import { CheckCircle2, Circle, Lock, Video, FileText, HelpCircle, BookOpen, Paperclip } from "lucide-react";
 
 export type ModuleRow = {
   id: string;
   title: string;
   description: string | null;
-  type: "video" | "document" | "quiz";
+  type: "video" | "document" | "quiz" | "page";
   state: "locked" | "unlocked_not_started" | "in_progress" | "completed";
   lockedAfterTitle: string | null;
   attachments: { id: string; title: string; fileUrl: string }[];
   node: ReactNode;
+  chapterId: string | null;
+  chapterTitle: string | null;
 };
 
-const TYPE_ICON: Record<ModuleRow["type"], typeof Video> = { video: Video, document: FileText, quiz: HelpCircle };
-const TYPE_LABEL: Record<ModuleRow["type"], string> = { video: "Vidéo", document: "Document", quiz: "Quiz" };
+const TYPE_ICON: Record<ModuleRow["type"], typeof Video> = { video: Video, document: FileText, quiz: HelpCircle, page: BookOpen };
+const TYPE_LABEL: Record<ModuleRow["type"], string> = { video: "Vidéo", document: "Document", quiz: "Quiz", page: "Page" };
 
 // The list itself is server-rendered (order, lock state, and the module's
 // actual content — LmsModulePlayer/QuizTaker — are all computed server-side
@@ -27,14 +29,43 @@ const TYPE_LABEL: Record<ModuleRow["type"], string> = { video: "Vidéo", documen
 export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow[]; defaultExpandedId: string | null }) {
   const [expandedId, setExpandedId] = useState(defaultExpandedId);
 
+  // Read-only mirror of the admin side's chapter grouping (ContenuTab in
+  // formations/[id]/page.tsx): a header renders wherever chapterId changes
+  // walking the already globally-ordered rows, no separate ordering concept
+  // for chapters. Per-chapter progress is computed here rather than passed
+  // in — it's cheap to derive from the rows the caller already built.
+  const chapterCounts = new Map<string, { total: number; completed: number }>();
+  for (const r of rows) {
+    if (!r.chapterId) continue;
+    const c = chapterCounts.get(r.chapterId) ?? { total: 0, completed: 0 };
+    c.total += 1;
+    if (r.state === "completed") c.completed += 1;
+    chapterCounts.set(r.chapterId, c);
+  }
+  let lastChapterId: string | null | undefined = undefined;
+
   return (
     <div className="flex flex-col">
       {rows.map((r, i) => {
         const isExpanded = expandedId === r.id;
         const isLocked = r.state === "locked";
         const Icon = TYPE_ICON[r.type];
+        const showChapterHeader = r.chapterId !== lastChapterId && Boolean(r.chapterId);
+        lastChapterId = r.chapterId;
+        const chapterProgress = r.chapterId ? chapterCounts.get(r.chapterId) : undefined;
         return (
           <div key={r.id} className="border-t border-line first:border-t-0">
+            {showChapterHeader && (
+              <div className="flex items-center justify-between px-1 pt-2.5 pb-1">
+                <span className="text-[11px] font-semibold text-seal-dark uppercase tracking-wide">{r.chapterTitle}</span>
+                {chapterProgress && (
+                  <span className="text-[10.5px] text-slate tabular-nums">
+                    {chapterProgress.completed}/{chapterProgress.total}
+                  </span>
+                )}
+              </div>
+            )}
+            <div>
             <button
               type="button"
               onClick={() => !isLocked && setExpandedId(isExpanded ? null : r.id)}
@@ -64,16 +95,26 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
                 <div className="pb-3 pl-8 flex flex-col gap-2">
                   {/* Video: description reads as context/instructions for
                       what was just watched, so it goes under the player.
-                      Document/quiz: it's orientation before the content, so
-                      it stays above — same reasoning, different position. */}
+                      Document/quiz/page: it's the orientation (or, for a
+                      page, the content itself) before the action, so it
+                      stays above — same reasoning, different position.
+                      Rendered as HTML: sanitized at save time
+                      (sanitizeRichText, src/lib/richText.ts). */}
                   {r.type === "video" ? (
                     <>
                       {r.node}
-                      {r.description && <div className="text-[11.5px] text-slate">{r.description}</div>}
+                      {r.description && (
+                        <div className="text-[11.5px] text-slate" dangerouslySetInnerHTML={{ __html: r.description }} />
+                      )}
                     </>
                   ) : (
                     <>
-                      {r.description && <div className="text-[11.5px] text-slate">{r.description}</div>}
+                      {r.description && (
+                        <div
+                          className={r.type === "page" ? "text-[12.5px] text-ink leading-relaxed" : "text-[11.5px] text-slate"}
+                          dangerouslySetInnerHTML={{ __html: r.description }}
+                        />
+                      )}
                       {r.node}
                     </>
                   )}
@@ -99,6 +140,7 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
                 </div>
               )
             )}
+            </div>
           </div>
         );
       })}

@@ -18,6 +18,12 @@ const FONT_OPTIONS = [
 // when `resetKey` changes (e.g. the caller loads a different template),
 // never on every keystroke — a normal controlled re-render would fight the
 // browser's own cursor/selection state on each character typed.
+const SIZE_CLASSES = {
+  sm: "min-h-[100px] max-h-[220px]",
+  md: "min-h-[160px] max-h-[360px]",
+  lg: "min-h-[300px] max-h-[600px]",
+};
+
 export function RichTextEditor({
   html,
   onChange,
@@ -26,6 +32,7 @@ export function RichTextEditor({
   allowImages = false,
   onUploadImage,
   mergeTags,
+  size = "md",
 }: {
   html: string;
   onChange: (html: string) => void;
@@ -40,6 +47,11 @@ export function RichTextEditor({
   // lib/mergeTags.ts. Omit to hide the tag row entirely (e.g. SignatureEditor,
   // which isn't addressed to any one recipient).
   mergeTags?: typeof MERGE_TAGS;
+  // "lg" for content meant to be read at length (an LMS module's own body) —
+  // client feedback: the default height was fine for a short email note but
+  // too cramped for real course content. Defaults to the original size so
+  // every existing caller (composers, signature editor) is unaffected.
+  size?: keyof typeof SIZE_CLASSES;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -181,7 +193,7 @@ export function RichTextEditor({
         suppressContentEditableWarning
         onInput={() => onChange(ref.current?.innerHTML ?? "")}
         data-placeholder={placeholder}
-        className="rich-text-editable px-3 py-2.5 text-[13px] text-ink min-h-[160px] max-h-[360px] overflow-y-auto focus:outline-none"
+        className={`rich-text-editable px-3 py-2.5 text-[13px] text-ink overflow-y-auto focus:outline-none ${SIZE_CLASSES[size]}`}
       />
       {imageError && <div className="px-3 py-1.5 text-[11px] text-rust border-t border-line">{imageError}</div>}
     </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { RichTextEditor } from "@/components/RichTextEditor";
 
 type Option = { id: string; text: string; correct: boolean };
 
@@ -27,12 +28,14 @@ const FIELD = "bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px
 // valid, matching the pre-existing flow) and reuses the exact same two API
 // calls QuizBuilder itself makes (POST .../quiz then POST .../questions),
 // just chained right after module creation instead of on a later visit.
-export function NewModuleForm({ courseId }: { courseId: string }) {
+export function NewModuleForm({ courseId, chapters }: { courseId: string; chapters: { id: string; title: string }[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [type, setType] = useState<"video" | "document" | "quiz">("video");
+  const [descriptionResetKey, setDescriptionResetKey] = useState(0);
+  const [type, setType] = useState<"video" | "document" | "quiz" | "page">("video");
+  const [chapterId, setChapterId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +54,10 @@ export function NewModuleForm({ courseId }: { courseId: string }) {
   function resetForm() {
     setTitle("");
     setDescription("");
+    setDescriptionResetKey((k) => k + 1);
     setFile(null);
     setType("video");
+    setChapterId("");
     setQPrompt("");
     setQKind("fermee");
     setQMultiple(false);
@@ -70,6 +75,7 @@ export function NewModuleForm({ courseId }: { courseId: string }) {
     form.set("title", title);
     if (description) form.set("description", description);
     form.set("type", type);
+    if (chapterId) form.set("chapterId", chapterId);
     if (file) form.set("file", file);
 
     const res = await fetch("/api/lms/modules", { method: "POST", body: form });
@@ -134,9 +140,10 @@ export function NewModuleForm({ courseId }: { courseId: string }) {
       <div className="grid grid-cols-[130px_1fr] gap-2.5">
         <div className="flex flex-col gap-1">
           <label className={LABEL}>Type de contenu</label>
-          <select value={type} onChange={(e) => setType(e.target.value as "video" | "document" | "quiz")} className={FIELD}>
+          <select value={type} onChange={(e) => setType(e.target.value as "video" | "document" | "quiz" | "page")} className={FIELD}>
             <option value="video">Vidéo</option>
             <option value="document">Document</option>
+            <option value="page">Page de contenu</option>
             <option value="quiz">Quiz</option>
           </select>
         </div>
@@ -146,21 +153,36 @@ export function NewModuleForm({ courseId }: { courseId: string }) {
         </div>
       </div>
 
+      {chapters.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <label className={LABEL}>Chapitre</label>
+          <select value={chapterId} onChange={(e) => setChapterId(e.target.value)} className={FIELD}>
+            <option value="">Sans chapitre</option>
+            {chapters.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="flex flex-col gap-1">
         <label className={LABEL}>
-          Description{" "}
-          {type === "video" ? "(affichée sous la vidéo, côté apprenant)" : type === "document" ? "(affichée avec le document)" : "(facultatif)"}
+          {type === "page"
+            ? "Contenu de la page"
+            : `Description ${type === "video" ? "(affichée sous la vidéo, côté apprenant)" : type === "document" ? "(affichée avec le document)" : "(facultatif)"}`}
         </label>
-        <textarea
-          rows={2}
-          placeholder="Consignes ou contexte pour l'apprenant…"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className={`${FIELD} resize-none`}
+        <RichTextEditor
+          html={description}
+          onChange={setDescription}
+          resetKey={descriptionResetKey}
+          size="lg"
+          placeholder={type === "page" ? "Le contenu que l'apprenant va lire…" : "Consignes ou contexte pour l'apprenant…"}
         />
       </div>
 
-      {type !== "quiz" && (
+      {(type === "video" || type === "document") && (
         <div className="flex flex-col gap-1">
           <label className={LABEL}>{type === "video" ? "Fichier vidéo" : "Fichier"}</label>
           <input

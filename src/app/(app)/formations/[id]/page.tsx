@@ -4,12 +4,15 @@ import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
-import { ArrowLeft, ExternalLink, FileText, HelpCircle, Paperclip, Video, type LucideIcon } from "lucide-react";
+import { ArrowLeft, BookOpen, ExternalLink, FileText, HelpCircle, Paperclip, Video, type LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Tabs } from "@/components/Tabs";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { NewModuleForm } from "@/components/NewModuleForm";
+import { NewChapterForm } from "@/components/NewChapterForm";
+import { ChapterHeader } from "@/components/ChapterHeader";
+import { ModuleChapterSelect } from "@/components/ModuleChapterSelect";
 import { AssignLearnersPanel } from "@/components/AssignLearnersPanel";
 import { RevokeAccessButton } from "@/components/RevokeAccessButton";
 import { DeleteModuleButton } from "@/components/DeleteModuleButton";
@@ -29,7 +32,7 @@ import { AddModuleAttachmentForm } from "@/components/AddModuleAttachmentForm";
 import { DeleteAttachmentButton } from "@/components/DeleteAttachmentButton";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 
-const TYPE_ICONS: Record<string, LucideIcon> = { video: Video, document: FileText, quiz: HelpCircle };
+const TYPE_ICONS: Record<string, LucideIcon> = { video: Video, document: FileText, quiz: HelpCircle, page: BookOpen };
 
 const courseInclude = {
   elearningModules: {
@@ -38,9 +41,11 @@ const courseInclude = {
       quiz: { include: { questions: { orderBy: { order: "asc" as const } } } },
       versions: { orderBy: { replacedAt: "desc" as const } },
       attachments: { orderBy: { createdAt: "asc" as const } },
+      chapter: { select: { id: true, title: true } },
     },
     orderBy: { order: "asc" as const },
   },
+  chapters: { orderBy: { createdAt: "asc" as const } },
   sessions: { include: { dossiers: { include: { contact: true } } } },
   responsibleUsers: true,
   subcontractors: true,
@@ -371,7 +376,31 @@ function ContenuTab({
   return (
     <div className="flex flex-col gap-3">
       {(() => {
-        const rows = course.elearningModules.map((m) => {
+        const rows: { id: string; node: React.ReactNode; draggable?: boolean }[] = [];
+        // Chapters have no order field of their own (see Chapter model
+        // comment) — their visual position falls out of wherever their
+        // member modules land in the already globally-ordered module list.
+        // Walking that list and inserting a header each time chapterId
+        // changes to a new value reconstructs contiguous chapter groups
+        // without touching module.order or the reorder API at all.
+        let lastChapterId: string | null | undefined = undefined;
+
+        for (const m of course.elearningModules) {
+          if (m.chapterId !== lastChapterId) {
+            lastChapterId = m.chapterId;
+            if (m.chapter) {
+              rows.push({
+                // rows.length suffix: the same chapter can appear as several
+                // non-contiguous runs (a module reassigned from afar) — each
+                // run gets its own header row, so the id must be unique per
+                // run, not per chapter.
+                id: `chapter-header-${m.chapter.id}-${rows.length}`,
+                draggable: false,
+                node: <ChapterHeader chapterId={m.chapter.id} title={m.chapter.title} />,
+              });
+            }
+          }
+
           const assignedIds = new Set(m.progress.map((p) => p.dossierId));
           const eligible = courseDossiers.filter((d) => !assignedIds.has(d.id));
           const avgPercent =
@@ -384,7 +413,7 @@ function ContenuTab({
           }
           if (m.progress.length > 0) badgeParts.push(`${m.progress.length} apprenant${m.progress.length > 1 ? "s" : ""} · ${avgPercent}%`);
 
-          return {
+          rows.push({
             id: m.id,
             node: (
               <CollapsibleSection
@@ -397,11 +426,18 @@ function ContenuTab({
                   </span>
                 }
                 badge={badgeParts.length > 0 ? <Pill tone={avgPercent === 100 ? "good" : "neutral"}>{badgeParts.join(" · ")}</Pill> : undefined}
+                extra={
+                  canManage && course.chapters.length > 0 ? (
+                    <ModuleChapterSelect moduleId={m.id} chapterId={m.chapterId} chapters={course.chapters} />
+                  ) : undefined
+                }
               >
                 <div className="flex flex-col gap-3.5">
-                  {m.description && <div className="text-[12px] text-slate">{m.description}</div>}
+                  {/* Sanitized at save time (sanitizeRichText, src/lib/richText.ts) before
+                      persistence — safe to render as HTML here. */}
+                  {m.description && <div className="text-[12px] text-slate" dangerouslySetInnerHTML={{ __html: m.description }} />}
 
-                  {m.type !== "quiz" && (
+                  {(m.type === "video" || m.type === "document") && (
                     <div className="flex items-center gap-4 flex-wrap">
                       {m.fileUrl ? (
                         <a
@@ -499,9 +535,9 @@ function ContenuTab({
                 </div>
               </CollapsibleSection>
             ),
-          };
-        });
-        return canManage && rows.length > 1 ? (
+          });
+        }
+        return canManage && course.elearningModules.length > 1 ? (
           <ModuleReorderList courseId={course.id} items={rows} />
         ) : (
           rows.map((r) => <div key={r.id}>{r.node}</div>)
@@ -511,8 +547,9 @@ function ContenuTab({
         <div className="bg-white border border-line rounded-card p-6 text-center text-[12.5px] text-slate">Aucun module pour l&apos;instant.</div>
       )}
       {canManage && (
-        <div className="bg-white border border-line rounded-card p-4">
-          <NewModuleForm courseId={course.id} />
+        <div className="bg-white border border-line rounded-card p-4 flex items-start gap-4">
+          <NewModuleForm courseId={course.id} chapters={course.chapters} />
+          <NewChapterForm courseId={course.id} />
         </div>
       )}
     </div>

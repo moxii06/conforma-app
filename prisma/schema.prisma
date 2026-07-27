@@ -601,6 +601,7 @@ model Course {
   documentTemplates       DocumentTemplate[]
   sessions                Session[]
   elearningModules        ElearningModule[]
+  chapters                Chapter[]
   opportunitiesOfInterest Opportunity[]
   qualityRisks            QualityRisk[]
   resultIndicators        ResultIndicator[]
@@ -1463,25 +1464,64 @@ model ElearningModule {
   course        Course   @relation(fields: [courseId], references: [id])
   courseId      String
   title         String
+  // Rich HTML (sanitizeRichText — src/lib/richText.ts), not plain text —
+  // for "video"/"document" it's a supplementary note shown alongside the
+  // file; for "page" it IS the module's entire content, so it needs real
+  // formatting room, not a one-line caption.
   description   String?
-  // "video" | "document" | "quiz" — drives which player the learner portal
-  // renders and how progress is computed (playback position, a manual
-  // "marquer comme lu", or a graded attempt). Free-text rather than an enum:
-  // cheap to extend later (audio, scorm package, ...) without a migration.
+  // "video" | "document" | "quiz" | "page" — drives which player the
+  // learner portal renders and how progress is computed (playback
+  // position, a manual "marquer comme lu", a graded attempt, or — "page" —
+  // the same manual mark-as-read as "document" but with no file at all,
+  // just the rich-text description). Free-text rather than an enum: cheap
+  // to extend later (audio, scorm package, ...) without a migration.
   type          String   @default("video")
   // Real uploaded content (Vercel Blob — see src/lib/storage.ts), not a
   // pasted external link like Document.fileUrl elsewhere in this app.
-  // Unused for type "quiz" — that content lives in the linked Quiz instead.
+  // Unused for type "quiz" and "page" — a quiz's content lives in the
+  // linked Quiz instead, a page's in `description` above.
   fileUrl       String?
   fileName      String?
   fileSizeBytes Int?
+  // Global position across the WHOLE course, unchanged by chapters below —
+  // this is what unlockNextModuleIfNeeded (lib/lms.ts) and the sequential
+  // unlock feature key off of. A chapter is purely a display grouping
+  // layered on top; it deliberately does NOT get its own ordering field; a
+  // chapter's position on screen is wherever its modules naturally fall in
+  // this same global order, and reordering modules keeps working exactly
+  // as it did before chapters existed.
   order         Int      @default(0)
   createdAt     DateTime @default(now())
 
+  chapter     Chapter?                    @relation(fields: [chapterId], references: [id])
+  chapterId   String?
   progress    ElearningProgress[]
   quiz        Quiz?
   versions    ElearningModuleVersion[]
   attachments ElearningModuleAttachment[]
+
+  @@index([chapterId])
+}
+
+// A named grouping of modules within a course (client feedback: Teachizy's
+// "chapitres" — an organizational level between "course" and "module" for
+// courses with many modules). Deliberately no `order` field of its own —
+// see the comment on ElearningModule.order above for why chapter position
+// is derived from its modules' existing global order rather than tracked
+// independently; keeps the pre-existing sequential-unlock logic completely
+// untouched by this feature. Deleting a chapter detaches its modules
+// (chapterId → null) rather than deleting them — a chapter is a label, not
+// a container with any semantic weight of its own.
+model Chapter {
+  id        String   @id @default(cuid())
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String
+  title     String
+  createdAt DateTime @default(now())
+
+  modules ElearningModule[]
+
+  @@index([courseId])
 }
 
 // Supplementary files alongside a module's own primary content — client

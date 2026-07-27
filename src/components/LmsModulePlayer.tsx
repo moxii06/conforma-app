@@ -137,6 +137,29 @@ export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentCom
     }
   }
 
+  // A "page" module has no file by design — its content is the rich-text
+  // description, already rendered above/below this by CourseModulesList.
+  // This branch only owns the completion action, same manual
+  // "Marquer comme terminé" pattern as the document fallback below (a page
+  // has no browser signal for "was this actually read" either).
+  if (type === "page") {
+    return (
+      <div className="flex items-center gap-3">
+        {percent >= 100 ? (
+          <span className="text-[11px] text-sage">Lu</span>
+        ) : (
+          <button
+            onClick={() => { setPercent(100); save(100, 0, true); }}
+            disabled={saving}
+            className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60"
+          >
+            {saving ? "…" : "Marquer comme lu"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (!fileUrl) {
     return <div className="text-[11.5px] text-slate">Contenu pas encore déposé par l&apos;organisme.</div>;
   }

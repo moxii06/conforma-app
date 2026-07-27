@@ -48,6 +48,7 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
                 include: {
                   quiz: { include: { questions: { orderBy: { order: "asc" } } } },
                   attachments: { orderBy: { createdAt: "asc" } },
+                  chapter: { select: { id: true, title: true } },
                 },
                 orderBy: { order: "asc" },
               },
@@ -122,6 +123,8 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
       lockedAfterTitle: state === "locked" && i > 0 ? modules[i - 1].title : null,
       attachments: m.attachments.map((a) => ({ id: a.id, title: a.title, fileUrl: a.fileUrl })),
       node,
+      chapterId: m.chapter?.id ?? null,
+      chapterTitle: m.chapter?.title ?? null,
     };
   });
 

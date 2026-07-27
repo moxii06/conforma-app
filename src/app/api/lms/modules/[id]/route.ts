@@ -3,11 +3,14 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { deleteModuleFile } from "@/lib/storage";
+import { sanitizeRichText } from "@/lib/richText";
 
 const schema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
   order: z.number().int().optional(),
+  // null = detach from any chapter ("Sans chapitre").
+  chapterId: z.string().nullable().optional(),
 });
 
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
@@ -27,7 +30,18 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
 
-  const updated = await prisma.elearningModule.update({ where: { id: module_.id }, data: parsed.data });
+  if (parsed.data.chapterId) {
+    const chapter = await prisma.chapter.findFirst({ where: { id: parsed.data.chapterId, courseId: module_.courseId } });
+    if (!chapter) return NextResponse.json({ error: "Chapitre introuvable." }, { status: 404 });
+  }
+
+  const updated = await prisma.elearningModule.update({
+    where: { id: module_.id },
+    data: {
+      ...parsed.data,
+      description: parsed.data.description != null ? sanitizeRichText(parsed.data.description) : parsed.data.description,
+    },
+  });
   return NextResponse.json(updated);
 }
 

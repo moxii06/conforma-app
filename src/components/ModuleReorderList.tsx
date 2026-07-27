@@ -4,7 +4,13 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { GripVertical } from "lucide-react";
 
-type Item = { id: string; node: ReactNode };
+// draggable: false marks a non-module row (a chapter header) mixed into
+// the same flat list — see ContenuTab in formations/[id]/page.tsx. It still
+// takes part in ordering (so it stays put relative to the modules around
+// it as they get dragged) but can't itself be picked up, and is filtered
+// out of what actually gets persisted (see persist() below) since the
+// reorder API only knows about real ElearningModule rows.
+type Item = { id: string; node: ReactNode; draggable?: boolean };
 
 // Native HTML5 drag-and-drop, no extra dependency — this codebase has none
 // of the usual dnd libraries installed and one row-reorder list doesn't
@@ -17,13 +23,27 @@ export function ModuleReorderList({ courseId, items }: { courseId: string; items
   const [order, setOrder] = useState(items.map((i) => i.id));
   const [dragId, setDragId] = useState<string | null>(null);
 
-  const byId = new Map(items.map((i) => [i.id, i.node]));
+  // router.refresh() re-renders this still-mounted client component with
+  // new server items (module added/removed, chapter header appeared) but
+  // useState keeps the stale initial order, silently hiding the new rows.
+  // Re-derive whenever the server's id sequence changes — after our own
+  // drag+persist the server comes back in the order we already show, so
+  // this never fights an in-flight optimistic reorder.
+  const serverIds = items.map((i) => i.id).join("\n");
+  const [prevServerIds, setPrevServerIds] = useState(serverIds);
+  if (serverIds !== prevServerIds) {
+    setPrevServerIds(serverIds);
+    setOrder(items.map((i) => i.id));
+  }
+
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const moduleIds = new Set(items.filter((i) => i.draggable !== false).map((i) => i.id));
 
   async function persist(nextOrder: string[]) {
     await fetch("/api/lms/modules/reorder", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ courseId, orderedModuleIds: nextOrder }),
+      body: JSON.stringify({ courseId, orderedModuleIds: nextOrder.filter((id) => moduleIds.has(id)) }),
     });
     router.refresh();
   }
@@ -42,29 +62,39 @@ export function ModuleReorderList({ courseId, items }: { courseId: string; items
 
   return (
     <div className="flex flex-col">
-      {order.map((id) => (
-        <div
-          key={id}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => handleDrop(id)}
-          className={`flex items-start gap-2 ${dragId === id ? "opacity-50" : ""}`}
-        >
-          {/* draggable lives on the handle alone, not the whole row — client
-              feedback: with it on the row, clicking into a nested input or
-              button (e.g. inside the quiz editor) could hijack that click as
-              a native HTML5 drag start, showing a greyed drag-ghost the user
-              never asked for ("pourquoi ça se met en sous-brillance ?"). */}
+      {order.map((id) => {
+        const item = byId.get(id);
+        if (!item) return null;
+        const isDraggable = item.draggable !== false;
+        return (
           <div
-            draggable
-            onDragStart={() => setDragId(id)}
-            className="pt-3.5 cursor-grab text-slate shrink-0"
-            title="Glisser pour réordonner"
+            key={id}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => handleDrop(id)}
+            className={`flex items-start gap-2 ${dragId === id ? "opacity-50" : ""}`}
           >
-            <GripVertical size={14} />
+            {isDraggable ? (
+              // draggable lives on the handle alone, not the whole row —
+              // client feedback: with it on the row, clicking into a nested
+              // input or button (e.g. inside the quiz editor) could hijack
+              // that click as a native HTML5 drag start, showing a greyed
+              // drag-ghost the user never asked for ("pourquoi ça se met en
+              // sous-brillance ?").
+              <div
+                draggable
+                onDragStart={() => setDragId(id)}
+                className="pt-3.5 cursor-grab text-slate shrink-0"
+                title="Glisser pour réordonner"
+              >
+                <GripVertical size={14} />
+              </div>
+            ) : (
+              <div className="w-[14px] shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">{item.node}</div>
           </div>
-          <div className="flex-1 min-w-0">{byId.get(id)}</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
