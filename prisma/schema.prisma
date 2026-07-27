@@ -1640,3 +1640,28 @@ model NewsletterSubscriber {
   email        String   @unique
   subscribedAt DateTime @default(now())
 }
+
+// Demandes de démonstration entrantes — marketing/sales de Jalon LUI-MÊME,
+// pas les contacts d'un OF client (ceux-là vivent dans Contact/Opportunity,
+// scopés par organizationId). Ces lignes n'ont donc PAS d'organizationId :
+// ce sont les prospects de Jalon. Capture pour rappel commercial ; aucune
+// donnée sensible. Consultable via Prisma Studio en attendant une vue admin
+// dédiée ; une notification email à l'équipe pourra être branchée une fois
+// Brevo configuré. `status` suit l'avancement du traitement commercial.
+model DemoRequest {
+  id               String   @id @default(cuid())
+  firstName        String
+  lastName         String
+  email            String
+  phone            String?
+  organizationName String
+  orgSize          String? // tranche d'effectif / d'apprenants
+  currentTool      String? // outil actuellement utilisé
+  timeline         String? // échéance de changement envisagée
+  message          String?
+  source           String? // origine / campagne (UTM) si connue
+  status           String   @default("new") // new | contacted | scheduled | done | lost
+  createdAt        DateTime @default(now())
+
+  @@index([email])
+}
