@@ -97,7 +97,7 @@ export async function POST(request: Request) {
   // time, which can sort *after* modules created later and silently
   // break this lookup.
   if (!wasAlreadyComplete && progress.percentComplete >= 100) {
-    await unlockNextModuleIfNeeded({ dossierId: dossier.id, courseId: module_.courseId, currentOrder: module_.order });
+    await unlockNextModuleIfNeeded({ dossierId: dossier.id, courseId: module_.courseId });
   }
 
   return NextResponse.json(progress, { status: existing ? 200 : 201 });

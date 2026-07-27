@@ -12,6 +12,7 @@ const schema = z.object({
   durationHours: z.number().int().positive().nullable().optional(),
   priceCents: z.number().int().positive().nullable().optional(),
   certificateValidityMonths: z.number().int().positive().nullable().optional(),
+  maxLearners: z.number().int().positive().nullable().optional(),
 });
 
 // Single PATCH for both "edit the course's details" and "archive/unarchive
@@ -63,6 +64,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(data.durationHours !== undefined ? { durationHours: data.durationHours } : {}),
       ...(data.priceCents !== undefined ? { priceCents: data.priceCents } : {}),
       ...(data.certificateValidityMonths !== undefined ? { certificateValidityMonths: data.certificateValidityMonths } : {}),
+      ...(data.maxLearners !== undefined ? { maxLearners: data.maxLearners } : {}),
     },
     include: { responsibleUsers: true, subcontractors: true },
   });

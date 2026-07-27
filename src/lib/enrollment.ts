@@ -52,6 +52,23 @@ export async function applyCompanyInfo(organizationId: string, contactId: string
   await prisma.contact.update({ where: { id: contactId }, data: { companyId: record.id } });
 }
 
+// Course-level ceiling (Course.maxLearners, null = unlimited) across ALL
+// the course's sessions — complements the per-session Session.capacity
+// check in resolveEnrollmentSession, which a rolling course's auto-created
+// session (generous default capacity) makes toothless on its own. Counted
+// live at enrollment time rather than stored, so removing a learner
+// immediately frees their place.
+export async function assertCourseHasRoom(organizationId: string, course: { id: string; maxLearners: number | null }) {
+  if (course.maxLearners == null) return;
+  const enrolled = await prisma.dossier.count({ where: { organizationId, session: { courseId: course.id } } });
+  if (enrolled >= course.maxLearners) {
+    throw new EnrollmentError(
+      `Cette formation est complète (${course.maxLearners} place${course.maxLearners > 1 ? "s" : ""} au total). Augmentez le nombre de places ou retirez un apprenant.`,
+      400
+    );
+  }
+}
+
 // A learner added from "Catalogue de formations" may already exist as a
 // Contact (past prospect/client) or may be typed in fresh — either way they
 // end up as the same Contact record, so re-adding someone by email later

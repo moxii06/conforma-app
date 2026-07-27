@@ -115,7 +115,10 @@ export function CookieConsent() {
         <button
           type="button"
           onClick={openCustomize}
-          className="fixed bottom-4 left-4 z-40 inline-flex items-center gap-1.5 text-[11.5px] text-slate hover:text-ink bg-white border border-line rounded-md px-2.5 py-1.5 shadow-sm"
+          // bottom-RIGHT: bottom-left sat on top of the sidebar's user
+          // block ("Déconnexion") on every authenticated page — client
+          // feedback. Nothing else in the app anchors fixed bottom-right.
+          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 text-[11.5px] text-slate hover:text-ink bg-white border border-line rounded-md px-2.5 py-1.5 shadow-sm"
         >
           <Settings2 size={12} />
           Gérer les cookies

@@ -24,6 +24,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [responsibleIds, setResponsibleIds] = useState<Set<string>>(new Set());
   const [subcontractorIds, setSubcontractorIds] = useState<Set<string>>(new Set());
   const [durationHours, setDurationHours] = useState("");
+  const [maxLearners, setMaxLearners] = useState("");
   const [learners, setLearners] = useState<PendingLearner[]>([]);
   const [accessDurationDays, setAccessDurationDays] = useState("");
   const [loading, setLoading] = useState(false);
@@ -116,6 +117,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
         responsibleUserIds: Array.from(responsibleIds),
         subcontractorIds: Array.from(subcontractorIds),
         durationHours: durationHours ? parseInt(durationHours, 10) : undefined,
+        maxLearners: maxLearners ? parseInt(maxLearners, 10) : undefined,
         initialLearners: learners.map((l) => l.input),
       }),
     });
@@ -218,6 +220,14 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
             type="number"
             min={1}
             placeholder="Durée de la formation (heures)"
+            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
+          />
+          <input
+            value={maxLearners}
+            onChange={(e) => setMaxLearners(e.target.value)}
+            type="number"
+            min={1}
+            placeholder="Nombre de places (vide = illimité)"
             className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
           />
           {members.length > 0 && (

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { applyCompanyInfo, enrollmentCategorySchema } from "@/lib/enrollment";
+import { applyCompanyInfo, assertCourseHasRoom, enrollmentCategorySchema, EnrollmentError } from "@/lib/enrollment";
 
 const schema = z.object({ opportunityId: z.string().min(1) }).merge(enrollmentCategorySchema);
 
@@ -19,8 +19,18 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
-  const session = await prisma.session.findFirst({ where: { id: params.id, organizationId: auth.organizationId } });
+  const session = await prisma.session.findFirst({
+    where: { id: params.id, organizationId: auth.organizationId },
+    include: { course: { select: { id: true, maxLearners: true } } },
+  });
   if (!session) return NextResponse.json({ error: "Session introuvable." }, { status: 404 });
+
+  try {
+    await assertCourseHasRoom(auth.organizationId, session.course);
+  } catch (err) {
+    if (err instanceof EnrollmentError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
 
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);

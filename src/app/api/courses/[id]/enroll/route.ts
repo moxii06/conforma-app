@@ -7,6 +7,7 @@ import {
   resolveEnrollmentSession,
   createDossier,
   applyCompanyInfo,
+  assertCourseHasRoom,
   enrollmentCategorySchema,
   EnrollmentError,
 } from "@/lib/enrollment";
@@ -48,6 +49,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
 
   try {
+    await assertCourseHasRoom(auth.organizationId, course);
     const contact = await resolveContact(
       auth.organizationId,
       "contactId" in parsed.data ? { contactId: parsed.data.contactId } : parsed.data

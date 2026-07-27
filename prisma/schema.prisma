@@ -597,6 +597,12 @@ model Course {
   // different duration. Null means "no expiry," the default for most
   // courses.
   certificateValidityMonths Int?
+  // Cap on total enrolled learners across ALL of this course's sessions,
+  // on top of the per-session Session.capacity (a rolling course's
+  // auto-created session gets a generous default capacity, so without
+  // this there was no real course-level ceiling). Null means unlimited —
+  // the default, and what most courses want.
+  maxLearners               Int?
 
   documentTemplates       DocumentTemplate[]
   sessions                Session[]

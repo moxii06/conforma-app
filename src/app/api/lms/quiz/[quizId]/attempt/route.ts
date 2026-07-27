@@ -89,7 +89,7 @@ export async function POST(request: Request, props: { params: Promise<{ quizId: 
           data: { dossierId: dossier.id, moduleId: quiz.moduleId, percentComplete: 100, lastEventAt: new Date(), assignedByUserId: session.userId, assignedByName: session.name || session.email },
         });
     void progress;
-    await unlockNextModuleIfNeeded({ dossierId: dossier.id, courseId: quiz.module.courseId, currentOrder: quiz.module.order });
+    await unlockNextModuleIfNeeded({ dossierId: dossier.id, courseId: quiz.module.courseId });
   } else if (existingProgress) {
     await prisma.elearningProgress.update({ where: { id: existingProgress.id }, data: { lastEventAt: new Date() } });
   }

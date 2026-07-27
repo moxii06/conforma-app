@@ -8,7 +8,7 @@ import { LmsModulePlayer } from "@/components/LmsModulePlayer";
 import { QuizTaker } from "@/components/QuizTaker";
 import { CourseModulesList, type ModuleRow } from "@/components/CourseModulesList";
 import { CourseCertificateButton } from "@/components/CourseCertificateButton";
-import { buildCourseProgress } from "@/lib/lms";
+import { buildCourseProgress, unlockNextModuleIfNeeded } from "@/lib/lms";
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
 
@@ -63,8 +63,19 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
   if (!dossier) notFound();
 
   const modules = dossier.session.course.elearningModules;
-  const progress = buildCourseProgress(modules, dossier.elearningProgress, dossier.quizAttempts);
-  const progressByModule = new Map(dossier.elearningProgress.map((p) => [p.moduleId, p]));
+
+  // Self-heal on load: if staff reordered modules (or dragged a new one
+  // above the learner's position) after this learner started, the moved
+  // module has no progress row and no completion event left to ever create
+  // one — unlock the current frontier now so the parcours stays finishable.
+  // See unlockNextModuleIfNeeded's comment; no-op in the normal case.
+  let progressRows = dossier.elearningProgress;
+  if (await unlockNextModuleIfNeeded({ dossierId: dossier.id, courseId: dossier.session.course.id })) {
+    progressRows = await prisma.elearningProgress.findMany({ where: { dossierId: dossier.id } });
+  }
+
+  const progress = buildCourseProgress(modules, progressRows, dossier.quizAttempts);
+  const progressByModule = new Map(progressRows.map((p) => [p.moduleId, p]));
 
   const rows: ModuleRow[] = modules.map((m, i) => {
     const state = progress.states.get(m.id)!;

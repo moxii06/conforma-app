@@ -1,24 +1,38 @@
 import { prisma } from "@/lib/prisma";
 
-// Shared by both the video/document progress route and the quiz-attempt
-// route — finishing a module unlocks the next one in `order` the same way
-// regardless of what kind of module it was, see the auto-unlock comment
-// in the progress route for the full "why order, not createdAt" rationale.
-export async function unlockNextModuleIfNeeded(params: { dossierId: string; courseId: string; currentOrder: number }) {
-  const nextModule = await prisma.elearningModule.findFirst({
-    where: { courseId: params.courseId, order: { gt: params.currentOrder } },
-    orderBy: { order: "asc" },
-  });
-  if (!nextModule) return;
+// Shared by the video/document progress route, the quiz-attempt route, and
+// the learner course page. Unlocks "the first not-yet-completed module in
+// the course's CURRENT order" rather than "the module whose order follows
+// the one just finished": the two are equivalent while the order never
+// moves, but staff can reorder modules (or drag a new one to the top)
+// after learners have already progressed — under the old rule a module
+// moved before the learner's position had no progress row and nothing
+// left to ever create one, leaving it "Pas encore accessible" forever and
+// the course impossible to finish. Idempotent, so the learner page also
+// calls it on load to self-heal dossiers already stranded that way — but
+// only once staff has opened access at all (>= 1 progress row): a dossier
+// whose e-learning was never started must stay fully locked until the
+// explicit assignment flow runs.
+export async function unlockNextModuleIfNeeded(params: { dossierId: string; courseId: string }) {
+  const [modules, progressList, quizAttempts] = await Promise.all([
+    prisma.elearningModule.findMany({
+      where: { courseId: params.courseId },
+      include: { quiz: { select: { id: true } } },
+      orderBy: { order: "asc" },
+    }),
+    prisma.elearningProgress.findMany({ where: { dossierId: params.dossierId } }),
+    prisma.quizAttempt.findMany({ where: { dossierId: params.dossierId }, select: { quizId: true, passed: true } }),
+  ]);
+  if (progressList.length === 0) return false;
 
-  const existing = await prisma.elearningProgress.findFirst({
-    where: { dossierId: params.dossierId, moduleId: nextModule.id },
-  });
-  if (existing) return;
+  const progressByModule = new Map(progressList.map((p) => [p.moduleId, p]));
+  const frontier = modules.find((m) => !isModuleComplete(m, progressByModule.get(m.id), quizAttempts));
+  if (!frontier || progressByModule.has(frontier.id)) return false;
 
   await prisma.elearningProgress.create({
-    data: { dossierId: params.dossierId, moduleId: nextModule.id, assignedByName: "Déblocage automatique" },
+    data: { dossierId: params.dossierId, moduleId: frontier.id, assignedByName: "Déblocage automatique" },
   });
+  return true;
 }
 
 // The "access" event that starts a ROLLING (self-paced, no fixed date)

@@ -225,6 +225,11 @@ function ResumeTab({
               Attestation valable {course.certificateValidityMonths} mois — renouvellement à prévoir
             </div>
           )}
+          <div className="text-[11px] text-slate mt-0.5">
+            {course.maxLearners != null
+              ? `${course.sessions.reduce((n, s) => n + s.dossiers.length, 0)}/${course.maxLearners} places occupées`
+              : "Places illimitées"}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {rollingSessionCount > 0 && <Pill tone="neutral">{rollingSessionCount} en continu</Pill>}
@@ -246,6 +251,7 @@ function ResumeTab({
               durationHours: course.durationHours,
               priceCents: course.priceCents,
               certificateValidityMonths: course.certificateValidityMonths,
+              maxLearners: course.maxLearners,
             }}
           />
           <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
@@ -326,8 +332,12 @@ function ApprenantsTab({
   return (
     <div className="bg-white border border-line rounded-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
-          Apprenants inscrits ({courseDossiers.length})
+        <div className="flex items-center gap-2">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
+            Apprenants inscrits ({courseDossiers.length}
+            {course.maxLearners != null ? `/${course.maxLearners}` : ""})
+          </div>
+          {course.maxLearners != null && courseDossiers.length >= course.maxLearners && <Pill tone="warn">Complet</Pill>}
         </div>
         {canManage && <EnrollLearnerPanel courseId={course.id} />}
       </div>

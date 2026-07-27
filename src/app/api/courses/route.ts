@@ -7,6 +7,7 @@ import {
   resolveEnrollmentSession,
   createDossier,
   applyCompanyInfo,
+  assertCourseHasRoom,
   enrollmentCategorySchema,
   EnrollmentError,
 } from "@/lib/enrollment";
@@ -33,6 +34,7 @@ const schema = z.object({
   subcontractorIds: z.array(z.string()).optional(),
   durationHours: z.number().int().positive().optional(),
   priceCents: z.number().int().positive().optional(),
+  maxLearners: z.number().int().positive().optional(),
   initialLearners: z.array(learnerSchema).optional(),
 });
 
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
       description: parsed.data.description || null,
       durationHours: parsed.data.durationHours ?? null,
       priceCents: parsed.data.priceCents ?? null,
+      maxLearners: parsed.data.maxLearners ?? null,
       responsibleUsers: parsed.data.responsibleUserIds?.length
         ? { connect: parsed.data.responsibleUserIds.map((id) => ({ id })) }
         : undefined,
@@ -88,6 +91,7 @@ export async function POST(request: Request) {
   if (parsed.data.initialLearners?.length) {
     for (const learner of parsed.data.initialLearners) {
       try {
+        await assertCourseHasRoom(session.organizationId, course);
         const contact = await resolveContact(session.organizationId, learner);
         if (learner.company) {
           await applyCompanyInfo(session.organizationId, contact.id, learner.company);

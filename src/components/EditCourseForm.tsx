@@ -22,6 +22,7 @@ export function EditCourseForm({
     durationHours: number | null;
     priceCents: number | null;
     certificateValidityMonths: number | null;
+    maxLearners: number | null;
   };
 }) {
   const router = useRouter();
@@ -35,6 +36,7 @@ export function EditCourseForm({
   const [certificateValidityMonths, setCertificateValidityMonths] = useState(
     initial.certificateValidityMonths != null ? String(initial.certificateValidityMonths) : ""
   );
+  const [maxLearners, setMaxLearners] = useState(initial.maxLearners != null ? String(initial.maxLearners) : "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +73,7 @@ export function EditCourseForm({
         durationHours: durationHours ? parseInt(durationHours, 10) : null,
         priceCents: price ? Math.round(parseFloat(price) * 100) : null,
         certificateValidityMonths: certificateValidityMonths ? parseInt(certificateValidityMonths, 10) : null,
+        maxLearners: maxLearners ? parseInt(maxLearners, 10) : null,
       }),
     });
     setLoading(false);
@@ -126,6 +129,19 @@ export function EditCourseForm({
           className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft flex-1"
         />
       </div>
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-slate uppercase tracking-wide">
+          Nombre de places — laisser vide pour illimité
+        </span>
+        <input
+          value={maxLearners}
+          onChange={(e) => setMaxLearners(e.target.value)}
+          type="number"
+          min={1}
+          placeholder="ex. 12 — au-delà, plus aucune inscription possible"
+          className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
+        />
+      </label>
       <label className="flex flex-col gap-1">
         <span className="text-[11px] text-slate uppercase tracking-wide">
           Validité de l&apos;attestation (mois) — laisser vide si pas de renouvellement
