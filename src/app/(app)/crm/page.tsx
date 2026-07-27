@@ -30,6 +30,19 @@ function formatAmount(cents: number | null) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
 
+// Client feedback: clicking a name from the CRM landed on /crm/contacts/[id]
+// even for someone already enrolled, a differently-tabbed page from
+// /dossiers/[id] — two places to edit the same person's info. Once a
+// contact has at least one Dossier, that IS the canonical page now (its
+// own Formations tab already lists every one of their formations, see
+// dossiers/[id]/page.tsx) — only a pure prospect with no Dossier yet still
+// goes to the CRM contact record, since there's nothing dossier-shaped to
+// show them. Most recent session first, matching FormationsTab's own
+// ordering, so the dossier landed on is the same one it opens expanded.
+function contactHref(contact: { id: string; dossiers: { id: string }[] }): string {
+  return contact.dossiers.length > 0 ? `/dossiers/${contact.dossiers[0].id}` : `/crm/contacts/${contact.id}`;
+}
+
 function buildOrderBy(sort?: string): Prisma.OpportunityOrderByWithRelationInput {
   switch (sort) {
     case "date_asc":
@@ -83,7 +96,10 @@ export default async function CrmPage(
         ...(view === "table" && stageFilter ? { stage: stageFilter } : {}),
         contact: { archivedAt: view === "archives" ? { not: null } : null },
       },
-      include: { contact: true, needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 } },
+      include: {
+        contact: { include: { dossiers: { select: { id: true }, orderBy: { session: { startsAt: "desc" } }, take: 1 } } },
+        needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 },
+      },
       orderBy: view === "archives" ? { contact: { archivedAt: "desc" } } : view === "table" ? orderBy : { createdAt: "desc" },
     }),
     prisma.contact.findMany({
@@ -153,7 +169,7 @@ export default async function CrmPage(
                 {opportunities.map((o) => (
                   <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-mist">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <Link href={`/crm/contacts/${o.contactId}`} className="font-semibold text-ink hover:underline">
+                      <Link href={contactHref(o.contact)} className="font-semibold text-ink hover:underline">
                         {o.contact.firstName} {o.contact.lastName}
                       </Link>
                     </td>
@@ -194,7 +210,7 @@ export default async function CrmPage(
                     return (
                       <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-mist">
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <Link href={`/crm/contacts/${o.contactId}`} className="font-semibold text-ink hover:underline">
+                          <Link href={contactHref(o.contact)} className="font-semibold text-ink hover:underline">
                             {o.contact.firstName} {o.contact.lastName}
                           </Link>
                         </td>
