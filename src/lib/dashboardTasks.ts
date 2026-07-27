@@ -426,8 +426,19 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   }
 
   if (canSeeGeneral) {
+    // Auto-detected the moment dueDate passes (SENT/SIGNED, never PAID/DRAFT)
+    // — staff no longer has to remember to flip status to OVERDUE by hand.
+    // The manual OVERDUE status still always surfaces here too, for
+    // invoices with no dueDate (pre-dating the field) or a staff judgment
+    // call independent of the date — same "automatic by default, manual
+    // override always wins" pattern as the rest of the app's statuses.
+    const now = new Date();
     const overdueInvoices = await prisma.invoice.findMany({
-      where: { organizationId, status: "OVERDUE" },
+      where: {
+        organizationId,
+        status: { notIn: ["PAID", "DRAFT"] },
+        OR: [{ status: "OVERDUE" }, { dueDate: { lt: now } }],
+      },
       include: { contact: true },
       orderBy: { createdAt: "asc" },
     });
@@ -437,7 +448,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         kind: "invoice_overdue",
         label: `Facture ${inv.reference} en retard — ${(inv.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}`,
         contactName: `${inv.contact.firstName} ${inv.contact.lastName}`,
-        since: inv.createdAt,
+        since: inv.dueDate ?? inv.createdAt,
         href: "/facturation?tab=factures",
         overdue: true,
       });

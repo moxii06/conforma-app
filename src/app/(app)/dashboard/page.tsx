@@ -91,7 +91,15 @@ export default async function DashboardPage() {
       where: { organizationId, stage: { in: ["TO_INVOICE", "INVOICED", "PAID"] } },
       _sum: { amountCents: true },
     }),
-    prisma.invoice.aggregate({ where: { organizationId, status: "OVERDUE" }, _sum: { amountCents: true }, _count: true }),
+    // Same auto-detection as dashboardTasks.ts's invoice_overdue task
+    // (dueDate passed, not PAID/DRAFT) — this card would otherwise keep
+    // showing a stale, artificially low total for any invoice staff hasn't
+    // manually flipped to OVERDUE yet.
+    prisma.invoice.aggregate({
+      where: { organizationId, status: { notIn: ["PAID", "DRAFT"] }, OR: [{ status: "OVERDUE" }, { dueDate: { lt: new Date() } }] },
+      _sum: { amountCents: true },
+      _count: true,
+    }),
     prisma.session.findMany({
       where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date(), lte: addWeeks(new Date(), 6) } },
       select: { startsAt: true },

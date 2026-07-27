@@ -926,6 +926,13 @@ model Invoice {
   reference          String
   amountCents        Int
   status             DocStatus    @default(DRAFT)
+  // Payment deadline — set at creation (NewInvoiceForm defaults to +30
+  // days, staff can override), null on invoices created before this field
+  // existed. Lets dashboardTasks.ts flag an invoice as overdue the moment
+  // the date passes instead of relying solely on staff remembering to flip
+  // status to OVERDUE by hand — same "automatic by default, manual override
+  // always wins" principle as the rest of the app's status fields.
+  dueDate            DateTime?
   // The invoice is NOT itself the compliant e-invoice — transmission via an
   // accredited platform is delegated per spec §5.3 / §7.2. This field just
   // records which provider (if any) handled the compliant transmission.

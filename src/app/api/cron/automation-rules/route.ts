@@ -6,8 +6,16 @@ import { createSessionInvitation } from "@/lib/sessionInvitations";
 import { fillMergeTags, type MergeTagContext } from "@/lib/automationRules";
 import { sendSatisfactionSurvey } from "@/lib/satisfactionSurveys";
 import { runTrialOnboarding } from "@/lib/onboardingEmails";
+import { syncAllMailboxConnections } from "@/lib/mailboxCron";
+import { sendDailyDigests } from "@/lib/dailyDigest";
 import { getCourseCompletion } from "@/lib/lms";
 import type { Contact, Course, Session, Organization } from "@prisma/client";
+
+// Headroom for the extra work now bundled into this same daily run
+// (mailbox sync + digest emails across every org/user, see below) — Vercel
+// Hobby plans cap cron jobs at 2, so new scheduled work is added to this
+// existing route/schedule instead of a new vercel.json entry.
+export const maxDuration = 60;
 
 function mergeContext(contact: Contact, course: Course, session: Session, organization: Organization): MergeTagContext {
   return {
@@ -81,7 +89,17 @@ export async function GET(request: Request) {
   // des AutomationRules ci-dessus. Voir src/lib/onboardingEmails.ts.
   const onboardingSent = await runTrialOnboarding(origin);
 
-  return NextResponse.json({ sent, onboardingSent });
+  // Boîte mail : la seule autre voie de synchro était le bouton manuel
+  // "Synchroniser maintenant" (contrairement à la synchro bancaire, déjà
+  // quotidienne) — voir src/lib/mailboxCron.ts.
+  const mailboxSync = await syncAllMailboxConnections();
+
+  // Synthèse quotidienne "à faire" par utilisateur, envoyée après la synchro
+  // boîte mail ci-dessus pour refléter les dernières suggestions RGPD/emails
+  // du jour — voir src/lib/dailyDigest.ts.
+  const digest = await sendDailyDigests(origin);
+
+  return NextResponse.json({ sent, onboardingSent, mailboxSync, digest });
 }
 
 type Rule = Awaited<ReturnType<typeof prisma.automationRule.findMany>>[number] & { organization: Organization; course: Course };

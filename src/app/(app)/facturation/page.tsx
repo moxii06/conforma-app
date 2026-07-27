@@ -249,6 +249,7 @@ async function InvoicesTab({
     }),
     isStripeConfigured(organizationId),
   ]);
+  const now = new Date();
 
   return (
     <div className="flex flex-col gap-4">
@@ -256,6 +257,10 @@ async function InvoicesTab({
       <div className="flex flex-col gap-2">
         {invoices.map((inv) => {
           const totalPaidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
+          // Computed live so a passed due date reads as overdue immediately,
+          // without staff needing to remember to flip status to OVERDUE by
+          // hand — see dashboardTasks.ts, which now detects the same thing.
+          const isOverdue = inv.status !== "PAID" && inv.status !== "DRAFT" && (inv.status === "OVERDUE" || (inv.dueDate !== null && inv.dueDate < now));
           return (
             <div key={inv.id} className="bg-white border border-line rounded-card px-4.5 py-3.5">
               <div className="flex items-center justify-between gap-4">
@@ -263,10 +268,12 @@ async function InvoicesTab({
                   <div className="text-[13.5px] font-semibold text-ink truncate">{inv.contact.firstName} {inv.contact.lastName}</div>
                   <div className="text-[12px] text-slate mt-1.5 truncate">
                     {inv.reference} · {formatAmount(inv.amountCents)}
+                    {inv.dueDate && ` · éch. ${format(inv.dueDate, "d MMM yyyy", { locale: fr })}`}
                     {inv.einvoicingProvider && ` · ${inv.einvoicingProvider.toUpperCase()}`}
                   </div>
                 </div>
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-2">
+                  {isOverdue && inv.status !== "OVERDUE" && <Pill tone="danger">En retard</Pill>}
                   {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{statusLabels("invoices")[inv.status]}</Pill>}
                 </div>
               </div>

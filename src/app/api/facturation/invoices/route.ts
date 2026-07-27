@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+
+const DEFAULT_PAYMENT_TERM_DAYS = 30;
 
 const schema = z.object({
   contactId: z.string().min(1),
@@ -9,6 +12,11 @@ const schema = z.object({
   reference: z.string().min(1),
   amountCents: z.number().int().positive(),
   fundingOrigin: z.enum(["company", "opco", "public", "individual"]).optional(),
+  // ISO date string from NewInvoiceForm's date input, pre-filled to +30 days
+  // but editable — falls back to the same default server-side so any other
+  // future caller of this route still gets a real dueDate, needed for
+  // dashboardTasks.ts's automatic overdue detection.
+  dueDate: z.string().optional(),
 });
 
 // spec §5.3 / §7.2: the product doesn't become an accredited e-invoicing
@@ -50,6 +58,7 @@ export async function POST(request: Request) {
       amountCents: parsed.data.amountCents,
       fundingOrigin: parsed.data.fundingOrigin,
       einvoicingProvider: DEFAULT_EINVOICING_PROVIDER,
+      dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : addDays(new Date(), DEFAULT_PAYMENT_TERM_DAYS),
     },
     include: { contact: true },
   });

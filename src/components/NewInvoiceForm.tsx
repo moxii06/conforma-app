@@ -11,6 +11,16 @@ const FUNDING_LABELS = Object.fromEntries(
   Object.entries(FUNDING_ORIGIN_LABELS).filter(([key]) => key !== "unset")
 );
 
+// Pre-fills the standard 30-day payment term as an editable default rather
+// than leaving the field blank — staff can shorten/extend it per client,
+// but every invoice ends up with a real dueDate either way (needed for
+// dashboardTasks.ts's automatic overdue detection).
+function defaultDueDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  return d.toISOString().slice(0, 10);
+}
+
 export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; dossiers: Dossier[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -19,6 +29,7 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
   const [fundingOrigin, setFundingOrigin] = useState("company");
+  const [dueDate, setDueDate] = useState(defaultDueDate);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -36,6 +47,7 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
         reference,
         amountCents: Math.round(parseFloat(amount || "0") * 100),
         fundingOrigin,
+        dueDate: dueDate || undefined,
       }),
     });
 
@@ -82,11 +94,23 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
         <input required placeholder="Référence (FAC-2026-001)" value={reference} onChange={(e) => setReference(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
         <input required placeholder="Montant (€)" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
       </div>
-      <select value={fundingOrigin} onChange={(e) => setFundingOrigin(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
-        {Object.entries(FUNDING_LABELS).map(([value, label]) => (
-          <option key={value} value={value}>{label}</option>
-        ))}
-      </select>
+      <div className="grid grid-cols-[2fr_1fr] gap-2">
+        <select value={fundingOrigin} onChange={(e) => setFundingOrigin(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
+          {Object.entries(FUNDING_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10.5px] text-slate uppercase tracking-wide">Échéance</label>
+          <input
+            type="date"
+            required
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          />
+        </div>
+      </div>
       <div className="text-[11px] text-slate">
         Transmission via le portail public (PPF) par défaut — connecteur Pennylane/Sellsy non branché (voir /integrations).
       </div>
