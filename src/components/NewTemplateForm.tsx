@@ -6,11 +6,16 @@ import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 
 type Course = { id: string; title: string };
 
-export function NewTemplateForm({ courses = [] }: { courses?: Course[] }) {
+// From the course detail page's own "Documents de la formation" tab, the
+// course is already known and fixed — showing the general-library picker
+// there would let staff accidentally create a "Document général" (or a
+// document for a different course) from inside a specific course's own
+// document section, which is never the intent from that entry point.
+export function NewTemplateForm({ courses = [], fixedCourse }: { courses?: Course[]; fixedCourse?: Course }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<string>(DOCUMENT_CATEGORIES[0]);
-  const [courseId, setCourseId] = useState("");
+  const [courseId, setCourseId] = useState(fixedCourse?.id ?? "");
   const [title, setTitle] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +41,7 @@ export function NewTemplateForm({ courses = [] }: { courses?: Course[] }) {
 
     setTitle("");
     setBodyText("");
-    setCourseId("");
+    setCourseId(fixedCourse?.id ?? "");
     setOpen(false);
     router.refresh();
   }
@@ -62,17 +67,23 @@ export function NewTemplateForm({ courses = [] }: { courses?: Course[] }) {
         </select>
         <input required placeholder="Titre du modèle" value={title} onChange={(e) => setTitle(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
       </div>
-      {courses.length > 0 && (
-        <select
-          value={courseId}
-          onChange={(e) => setCourseId(e.target.value)}
-          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
-        >
-          <option value="">Document général (toutes formations)</option>
-          {courses.map((c) => (
-            <option key={c.id} value={c.id}>Bibliothèque : {c.title}</option>
-          ))}
-        </select>
+      {fixedCourse ? (
+        <div className="text-[11.5px] text-slate">
+          Bibliothèque : <span className="text-ink font-medium">{fixedCourse.title}</span>
+        </div>
+      ) : (
+        courses.length > 0 && (
+          <select
+            value={courseId}
+            onChange={(e) => setCourseId(e.target.value)}
+            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          >
+            <option value="">Document général (toutes formations)</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>Bibliothèque : {c.title}</option>
+            ))}
+          </select>
+        )
       )}
       <textarea
         required

@@ -5,6 +5,9 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
 import { ArrowLeft } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import { Tabs } from "@/components/Tabs";
 import { NewModuleForm } from "@/components/NewModuleForm";
 import { AssignLearnersPanel } from "@/components/AssignLearnersPanel";
 import { RevokeAccessButton } from "@/components/RevokeAccessButton";
@@ -13,10 +16,15 @@ import { QuizBuilder } from "@/components/QuizBuilder";
 import { ModuleReorderList } from "@/components/ModuleReorderList";
 import { ReplaceModuleFileForm } from "@/components/ReplaceModuleFileForm";
 import { EnrollLearnerPanel } from "@/components/EnrollLearnerPanel";
+import { RemoveLearnerButton } from "@/components/RemoveLearnerButton";
 import { EditCourseForm } from "@/components/EditCourseForm";
 import { ArchiveCourseButton } from "@/components/ArchiveCourseButton";
 import { AutomationRulesPanel } from "@/components/AutomationRulesPanel";
 import { SatisfactionSurveyEditor } from "@/components/SatisfactionSurveyEditor";
+import { NewTemplateForm } from "@/components/NewTemplateForm";
+import { TemplateEditor } from "@/components/TemplateEditor";
+import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
+import { CATEGORY_LABELS } from "@/lib/documentCategories";
 
 const TYPE_LABELS: Record<string, string> = { video: "Vidéo", document: "Document", quiz: "Quiz" };
 
@@ -34,19 +42,37 @@ const courseInclude = {
   subcontractors: true,
   automationRules: { orderBy: { createdAt: "asc" as const } },
   satisfactionSurveys: { include: { questions: { orderBy: { order: "asc" as const } } } },
+  // "Modèles" sub-tab of Documents — course-scoped templates only (see
+  // DocumentTemplate.courseId); the general Jalon-provided/org-wide library
+  // stays on /documents, this is just the per-formation slice of it.
+  documentTemplates: { orderBy: { title: "asc" as const } },
   _count: { select: { sessions: true } },
 };
 
+const TABS = [
+  { key: "resume", label: "Résumé" },
+  { key: "apprenants", label: "Apprenants" },
+  { key: "contenu", label: "Contenu" },
+  { key: "documents", label: "Documents" },
+];
+
 // The full management surface for one course — modules, quizzes, roster,
-// edit/archive — split out of the catalog list (/formations) so that page
-// can stay a scannable summary even with a large catalog, the same
+// finances, documents — split out of the catalog list (/formations) so that
+// page can stay a scannable summary even with a large catalog, the same
 // list-then-detail split already used for Dossiers apprenants and the
-// learner's own course view.
-export default async function CourseDetailPage(props: { params: Promise<{ id: string }> }) {
+// learner's own course view. Tabbed (client feedback: everything used to be
+// one long scroll) the same URL-driven ?tab= pattern as /facturation and
+// /documents.
+export default async function CourseDetailPage(props: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; docs?: string }> }) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none" || role === "LEARNER") redirect("/formations");
   const canManage = can(role, "planning") === "full";
+  const canToolkit = can(role, "toolkit") !== "none";
+  const canSeeMoney = can(role, "invoicing") !== "none";
+  const activeTab = searchParams.tab && TABS.some((t) => t.key === searchParams.tab) ? searchParams.tab : "resume";
+  const docsView = searchParams.docs === "signes" ? "signes" : "modeles";
 
   const [course, members, subcontractors] = await Promise.all([
     prisma.course.findFirst({ where: { id: params.id, organizationId }, include: courseInclude }),
@@ -82,250 +108,454 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
   const courseDossiers = course.sessions.flatMap((s) =>
     s.dossiers.map((d) => ({ id: d.id, contactName: `${d.contact.firstName} ${d.contact.lastName}` }))
   );
-  const VISIBLE_LEARNERS = 12;
+  const courseDossierIds = courseDossiers.map((d) => d.id);
   const rollingSessionCount = course.sessions.filter((s) => s.mode === "ROLLING").length;
+
+  const [financials, signedDocuments] = await Promise.all([
+    activeTab === "resume" && canSeeMoney && courseDossierIds.length > 0
+      ? Promise.all([
+          prisma.invoice.aggregate({ where: { dossierId: { in: courseDossierIds } }, _sum: { amountCents: true }, _count: true }),
+          prisma.payment.aggregate({ where: { invoice: { dossierId: { in: courseDossierIds } } }, _sum: { amountCents: true } }),
+        ])
+      : Promise.resolve(null),
+    activeTab === "documents" && docsView === "signes" && courseDossierIds.length > 0
+      ? prisma.document.findMany({
+          where: { organizationId, dossierId: { in: courseDossierIds }, signatureStatus: "signed" },
+          include: { dossier: { include: { contact: true } } },
+          orderBy: { signedAt: "desc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <>
       <PageHeader title={course.title} subtitle={course.archivedAt ? "Formation archivée" : "Gestion de la formation"} />
+      <Tabs basePath={`/formations/${course.id}`} tabs={TABS} active={activeTab} />
       <div className="p-8 flex flex-col gap-4 max-w-3xl">
         <Link href="/formations" className="inline-flex items-center gap-1.5 text-[12.5px] text-slate hover:text-ink w-fit">
           <ArrowLeft size={14} /> Retour au catalogue
         </Link>
 
-        <div className="bg-white border border-line rounded-card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              {course.description && <div className="text-[11.5px] text-slate mt-0.5">{course.description}</div>}
-              {course.responsibleUsers.length > 0 && (
-                <div className="text-[11px] text-slate mt-0.5">
-                  Responsable{course.responsibleUsers.length > 1 ? "s" : ""} : {course.responsibleUsers.map((u) => u.name).join(", ")}
-                </div>
-              )}
-              {course.subcontractors.length > 0 && (
-                <div className="text-[11px] text-slate mt-0.5">
-                  Prestataire{course.subcontractors.length > 1 ? "s" : ""} : {course.subcontractors.map((s) => s.name).join(", ")}
-                </div>
-              )}
-              {(course.durationHours != null || course.priceCents != null) && (
-                <div className="text-[11px] text-slate mt-0.5">
-                  {course.durationHours != null ? `${course.durationHours} h` : "Durée non renseignée"}
-                  {" · "}
-                  {course.priceCents != null
-                    ? (course.priceCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
-                    : "Prix non renseigné"}
-                </div>
-              )}
-              {course.certificateValidityMonths != null && (
-                <div className="text-[11px] text-slate mt-0.5">
-                  Attestation valable {course.certificateValidityMonths} mois — renouvellement à prévoir
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {rollingSessionCount > 0 && <Pill tone="neutral">{rollingSessionCount} en continu</Pill>}
-              <div className="text-[11.5px] text-slate">{course._count.sessions} session(s)</div>
-            </div>
-          </div>
+        {activeTab === "resume" && (
+          <ResumeTab
+            course={course}
+            members={members}
+            subcontractors={subcontractors}
+            canManage={canManage}
+            canSeeMoney={canSeeMoney}
+            rollingSessionCount={rollingSessionCount}
+            sessionCount={course._count.sessions}
+            financials={financials}
+          />
+        )}
 
-          {canManage && (
-            <div className="flex items-center gap-3 mb-3">
-              <EditCourseForm
-                courseId={course.id}
-                members={members}
-                subcontractors={subcontractors}
-                initial={{
-                  title: course.title,
-                  description: course.description,
-                  responsibleUserIds: course.responsibleUsers.map((u) => u.id),
-                  subcontractorIds: course.subcontractors.map((s) => s.id),
-                  durationHours: course.durationHours,
-                  priceCents: course.priceCents,
-                  certificateValidityMonths: course.certificateValidityMonths,
-                }}
-              />
-              <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
-            </div>
-          )}
+        {activeTab === "apprenants" && <ApprenantsTab course={course} courseDossiers={courseDossiers} canManage={canManage} />}
 
-          <div className="border-t border-line pt-3 mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
-                Apprenants inscrits ({courseDossiers.length})
-              </div>
-              {canManage && <EnrollLearnerPanel courseId={course.id} />}
-            </div>
-            {courseDossiers.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {courseDossiers.slice(0, VISIBLE_LEARNERS).map((d) => (
-                  <Link
-                    key={d.id}
-                    href={`/dossiers/${d.id}`}
-                    className="inline-block bg-linen border border-line rounded-full px-2.5 py-1 text-[11.5px] text-ink hover:border-ink-soft"
-                  >
-                    {d.contactName}
-                  </Link>
-                ))}
-                {courseDossiers.length > VISIBLE_LEARNERS && (
-                  <span className="inline-flex items-center px-1.5 text-[11.5px] text-slate">
-                    +{courseDossiers.length - VISIBLE_LEARNERS} autre(s)
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="text-[11.5px] text-slate">Aucun apprenant inscrit pour l&apos;instant.</div>
-            )}
-          </div>
+        {activeTab === "contenu" && <ContenuTab course={course} courseDossiers={courseDossiers} canManage={canManage} />}
 
-          {canManage && (
-            <div className="border-t border-line pt-3 mb-3">
-              <AutomationRulesPanel courseId={course.id} rules={course.automationRules} />
+        {activeTab === "documents" && (
+          <DocumentsTab
+            course={course}
+            courseDossiers={courseDossiers}
+            canWrite={canToolkit}
+            docsView={docsView}
+            signedDocuments={signedDocuments}
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
+type CourseWithIncludes = NonNullable<Awaited<ReturnType<typeof prisma.course.findFirst<{ include: typeof courseInclude }>>>>;
+
+function ResumeTab({
+  course,
+  members,
+  subcontractors,
+  canManage,
+  canSeeMoney,
+  rollingSessionCount,
+  sessionCount,
+  financials,
+}: {
+  course: CourseWithIncludes;
+  members: { id: string; name: string }[];
+  subcontractors: { id: string; name: string }[];
+  canManage: boolean;
+  canSeeMoney: boolean;
+  rollingSessionCount: number;
+  sessionCount: number;
+  financials: [{ _sum: { amountCents: number | null }; _count: number }, { _sum: { amountCents: number | null } }] | null;
+}) {
+  const formatAmount = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+  return (
+    <div className="bg-white border border-line rounded-card p-4 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div>
+          {course.description && <div className="text-[11.5px] text-slate mt-0.5">{course.description}</div>}
+          {course.responsibleUsers.length > 0 && (
+            <div className="text-[11px] text-slate mt-0.5">
+              Responsable{course.responsibleUsers.length > 1 ? "s" : ""} : {course.responsibleUsers.map((u) => u.name).join(", ")}
             </div>
           )}
-
-          {canManage && (
-            <div className="border-t border-line pt-3 mb-3 flex flex-col gap-3">
-              <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Enquêtes de satisfaction</div>
-              <SatisfactionSurveyEditor
-                courseId={course.id}
-                kind="hot"
-                initialQuestions={
-                  course.satisfactionSurveys.find((s) => s.kind === "hot")?.questions.map((q) => ({
-                    id: q.id,
-                    type: q.type,
-                    prompt: q.prompt,
-                    options: q.options as { id: string; text: string }[] | null,
-                  })) ?? []
-                }
-              />
-              <SatisfactionSurveyEditor
-                courseId={course.id}
-                kind="cold"
-                initialQuestions={
-                  course.satisfactionSurveys.find((s) => s.kind === "cold")?.questions.map((q) => ({
-                    id: q.id,
-                    type: q.type,
-                    prompt: q.prompt,
-                    options: q.options as { id: string; text: string }[] | null,
-                  })) ?? []
-                }
-              />
+          {course.subcontractors.length > 0 && (
+            <div className="text-[11px] text-slate mt-0.5">
+              Prestataire{course.subcontractors.length > 1 ? "s" : ""} : {course.subcontractors.map((s) => s.name).join(", ")}
             </div>
           )}
-
-          {course.elearningModules.length > 0 && (
-            <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-1.5">Modules e-learning</div>
+          {(course.durationHours != null || course.priceCents != null) && (
+            <div className="text-[11px] text-slate mt-0.5">
+              {course.durationHours != null ? `${course.durationHours} h` : "Durée non renseignée"}
+              {" · "}
+              {course.priceCents != null ? formatAmount(course.priceCents) : "Prix non renseigné"}
+            </div>
           )}
-          <div className="flex flex-col gap-3">
-            {(() => {
-              const rows = course.elearningModules.map((m) => {
-                const assignedIds = new Set(m.progress.map((p) => p.dossierId));
-                const eligible = courseDossiers.filter((d) => !assignedIds.has(d.id));
-                return {
-                  id: m.id,
-                  node: (
-                    <div className="border-t border-line pt-3 first:border-t-0 first:pt-0 flex flex-col gap-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <Pill tone="neutral">{TYPE_LABELS[m.type] ?? m.type}</Pill>
-                            <span className="text-[12.5px] text-ink font-medium">{m.title}</span>
-                          </div>
-                          {m.description && <div className="text-[11.5px] text-slate mt-0.5">{m.description}</div>}
-                        </div>
-                        {m.type === "quiz" ? (
-                          <span className="text-[11px] text-slate shrink-0">
-                            {m.quiz?.questions.length ?? 0} question(s)
-                          </span>
-                        ) : m.fileUrl ? (
-                          <a
-                            href={m.type === "video" ? `/api/lms/modules/${m.id}/stream` : m.fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[11.5px] text-ink underline decoration-line hover:decoration-ink shrink-0"
-                          >
-                            Voir le fichier
-                          </a>
-                        ) : (
-                          <span className="text-[11px] text-rust shrink-0">Aucun fichier déposé</span>
-                        )}
-                      </div>
-
-                      {m.type !== "quiz" && canManage && (
-                        <div className="flex items-center gap-2.5">
-                          <ReplaceModuleFileForm moduleId={m.id} type={m.type} />
-                        </div>
-                      )}
-                      {m.versions.length > 0 && (
-                        <details className="text-[11px] text-slate">
-                          <summary className="cursor-pointer">Historique des fichiers ({m.versions.length})</summary>
-                          <div className="flex flex-col gap-0.5 mt-1 pl-2">
-                            {m.versions.map((v) => (
-                              <div key={v.id}>
-                                {v.fileUrl ? (
-                                  <a href={v.fileUrl} target="_blank" rel="noreferrer" className="underline decoration-line hover:decoration-ink">
-                                    {v.fileName ?? "Fichier"}
-                                  </a>
-                                ) : (
-                                  "Fichier"
-                                )}{" "}
-                                — remplacé le {new Date(v.replacedAt).toLocaleDateString("fr-FR")} par {v.replacedByName}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-
-                      {m.type === "quiz" && canManage && (
-                        <QuizBuilder
-                          moduleId={m.id}
-                          quizId={m.quiz?.id ?? null}
-                          minScorePercent={m.quiz?.minScorePercent ?? 70}
-                          maxAttempts={m.quiz?.maxAttempts ?? null}
-                          questions={m.quiz?.questions ?? []}
-                        />
-                      )}
-
-                      {m.progress.length > 0 && (
-                        <div className="flex flex-col gap-1">
-                          {m.progress.map((p) => (
-                            <div key={p.id} className="flex items-center justify-between gap-3 text-[12px]">
-                              <span className="text-ink">{p.dossier.contact.firstName} {p.dossier.contact.lastName}</span>
-                              <div className="flex items-center gap-2.5">
-                                <span className="text-slate w-10 text-right">{p.percentComplete}%</span>
-                                {canManage && <RevokeAccessButton progressId={p.id} />}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {m.progress.length === 0 && <div className="text-[11.5px] text-slate">Aucun apprenant assigné.</div>}
-
-                      {canManage && (
-                        <div className="flex items-center gap-3.5 flex-wrap">
-                          <AssignLearnersPanel moduleId={m.id} eligibleDossiers={eligible} />
-                          <DeleteModuleButton moduleId={m.id} />
-                        </div>
-                      )}
-                    </div>
-                  ),
-                };
-              });
-              return canManage && rows.length > 1 ? (
-                <ModuleReorderList courseId={course.id} items={rows} />
-              ) : (
-                rows.map((r) => <div key={r.id}>{r.node}</div>)
-              );
-            })()}
-            {course.elearningModules.length === 0 && <div className="text-[12px] text-slate py-1">Aucun module.</div>}
-          </div>
-          {canManage && (
-            <div className="mt-3 pt-3 border-t border-line">
-              <NewModuleForm courseId={course.id} />
+          {course.certificateValidityMonths != null && (
+            <div className="text-[11px] text-slate mt-0.5">
+              Attestation valable {course.certificateValidityMonths} mois — renouvellement à prévoir
             </div>
           )}
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {rollingSessionCount > 0 && <Pill tone="neutral">{rollingSessionCount} en continu</Pill>}
+          <div className="text-[11.5px] text-slate">{sessionCount} session(s)</div>
+        </div>
       </div>
-    </>
+
+      {canManage && (
+        <div className="flex items-center gap-3">
+          <EditCourseForm
+            courseId={course.id}
+            members={members}
+            subcontractors={subcontractors}
+            initial={{
+              title: course.title,
+              description: course.description,
+              responsibleUserIds: course.responsibleUsers.map((u) => u.id),
+              subcontractorIds: course.subcontractors.map((s) => s.id),
+              durationHours: course.durationHours,
+              priceCents: course.priceCents,
+              certificateValidityMonths: course.certificateValidityMonths,
+            }}
+          />
+          <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
+        </div>
+      )}
+
+      {canSeeMoney && (
+        <div className="border-t border-line pt-3.5">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-2">Données financières</div>
+          {financials ? (
+            <div className="flex gap-3.5">
+              <div className="bg-linen border border-line rounded-card p-3 flex-1">
+                <div className="text-[11.5px] text-slate mb-1.5">Facturé</div>
+                <div className="text-xl font-mono font-semibold tabular-nums text-ink">{formatAmount(financials[0]._sum.amountCents ?? 0)}</div>
+                <div className="text-[11px] text-slate mt-1">
+                  {financials[0]._count} facture{financials[0]._count > 1 ? "s" : ""}
+                </div>
+              </div>
+              <div className="bg-linen border border-line rounded-card p-3 flex-1">
+                <div className="text-[11.5px] text-slate mb-1.5">Encaissé</div>
+                <div className="text-xl font-mono font-semibold tabular-nums text-sage">{formatAmount(financials[1]._sum.amountCents ?? 0)}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-[11.5px] text-slate">Aucun apprenant facturé pour l&apos;instant.</div>
+          )}
+        </div>
+      )}
+
+      {canManage && (
+        <div className="border-t border-line pt-3.5">
+          <AutomationRulesPanel courseId={course.id} rules={course.automationRules} />
+        </div>
+      )}
+
+      {canManage && (
+        <div className="border-t border-line pt-3.5 flex flex-col gap-3">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Enquêtes de satisfaction</div>
+          <SatisfactionSurveyEditor
+            courseId={course.id}
+            kind="hot"
+            initialQuestions={
+              course.satisfactionSurveys.find((s) => s.kind === "hot")?.questions.map((q) => ({
+                id: q.id,
+                type: q.type,
+                prompt: q.prompt,
+                options: q.options as { id: string; text: string }[] | null,
+              })) ?? []
+            }
+          />
+          <SatisfactionSurveyEditor
+            courseId={course.id}
+            kind="cold"
+            initialQuestions={
+              course.satisfactionSurveys.find((s) => s.kind === "cold")?.questions.map((q) => ({
+                id: q.id,
+                type: q.type,
+                prompt: q.prompt,
+                options: q.options as { id: string; text: string }[] | null,
+              })) ?? []
+            }
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApprenantsTab({
+  course,
+  courseDossiers,
+  canManage,
+}: {
+  course: CourseWithIncludes;
+  courseDossiers: { id: string; contactName: string }[];
+  canManage: boolean;
+}) {
+  return (
+    <div className="bg-white border border-line rounded-card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
+          Apprenants inscrits ({courseDossiers.length})
+        </div>
+        {canManage && <EnrollLearnerPanel courseId={course.id} />}
+      </div>
+      {courseDossiers.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          {courseDossiers.map((d) => (
+            <div key={d.id} className="flex items-center justify-between gap-3 border-t border-line first:border-t-0 pt-2 first:pt-0">
+              <Link href={`/dossiers/${d.id}`} className="text-[13px] text-ink hover:underline">
+                {d.contactName}
+              </Link>
+              {canManage && <RemoveLearnerButton dossierId={d.id} />}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-[11.5px] text-slate">Aucun apprenant inscrit pour l&apos;instant.</div>
+      )}
+    </div>
+  );
+}
+
+function ContenuTab({
+  course,
+  courseDossiers,
+  canManage,
+}: {
+  course: CourseWithIncludes;
+  courseDossiers: { id: string; contactName: string }[];
+  canManage: boolean;
+}) {
+  return (
+    <div className="bg-white border border-line rounded-card p-4">
+      <div className="flex flex-col gap-3">
+        {(() => {
+          const rows = course.elearningModules.map((m) => {
+            const assignedIds = new Set(m.progress.map((p) => p.dossierId));
+            const eligible = courseDossiers.filter((d) => !assignedIds.has(d.id));
+            return {
+              id: m.id,
+              node: (
+                <div className="border-t border-line pt-3 first:border-t-0 first:pt-0 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Pill tone="neutral">{TYPE_LABELS[m.type] ?? m.type}</Pill>
+                        <span className="text-[12.5px] text-ink font-medium">{m.title}</span>
+                      </div>
+                      {m.description && <div className="text-[11.5px] text-slate mt-0.5">{m.description}</div>}
+                    </div>
+                    {m.type === "quiz" ? (
+                      <span className="text-[11px] text-slate shrink-0">{m.quiz?.questions.length ?? 0} question(s)</span>
+                    ) : m.fileUrl ? (
+                      <a
+                        href={m.type === "video" ? `/api/lms/modules/${m.id}/stream` : m.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11.5px] text-ink underline decoration-line hover:decoration-ink shrink-0"
+                      >
+                        Voir le fichier
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-rust shrink-0">Aucun fichier déposé</span>
+                    )}
+                  </div>
+
+                  {m.type !== "quiz" && canManage && (
+                    <div className="flex items-center gap-2.5">
+                      <ReplaceModuleFileForm moduleId={m.id} type={m.type} />
+                    </div>
+                  )}
+                  {m.versions.length > 0 && (
+                    <details className="text-[11px] text-slate">
+                      <summary className="cursor-pointer">Historique des fichiers ({m.versions.length})</summary>
+                      <div className="flex flex-col gap-0.5 mt-1 pl-2">
+                        {m.versions.map((v) => (
+                          <div key={v.id}>
+                            {v.fileUrl ? (
+                              <a href={v.fileUrl} target="_blank" rel="noreferrer" className="underline decoration-line hover:decoration-ink">
+                                {v.fileName ?? "Fichier"}
+                              </a>
+                            ) : (
+                              "Fichier"
+                            )}{" "}
+                            — remplacé le {new Date(v.replacedAt).toLocaleDateString("fr-FR")} par {v.replacedByName}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
+                  {m.type === "quiz" && canManage && (
+                    <QuizBuilder
+                      moduleId={m.id}
+                      quizId={m.quiz?.id ?? null}
+                      minScorePercent={m.quiz?.minScorePercent ?? 70}
+                      maxAttempts={m.quiz?.maxAttempts ?? null}
+                      questions={m.quiz?.questions ?? []}
+                    />
+                  )}
+
+                  {m.progress.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                      {m.progress.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-3 text-[12px]">
+                          <span className="text-ink">
+                            {p.dossier.contact.firstName} {p.dossier.contact.lastName}
+                          </span>
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-slate w-10 text-right">{p.percentComplete}%</span>
+                            {canManage && <RevokeAccessButton progressId={p.id} />}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {m.progress.length === 0 && <div className="text-[11.5px] text-slate">Aucun apprenant assigné.</div>}
+
+                  {canManage && (
+                    <div className="flex items-center gap-3.5 flex-wrap">
+                      <AssignLearnersPanel moduleId={m.id} eligibleDossiers={eligible} />
+                      <DeleteModuleButton moduleId={m.id} />
+                    </div>
+                  )}
+                </div>
+              ),
+            };
+          });
+          return canManage && rows.length > 1 ? (
+            <ModuleReorderList courseId={course.id} items={rows} />
+          ) : (
+            rows.map((r) => <div key={r.id}>{r.node}</div>)
+          );
+        })()}
+        {course.elearningModules.length === 0 && <div className="text-[12px] text-slate py-1">Aucun module.</div>}
+      </div>
+      {canManage && (
+        <div className="mt-3 pt-3 border-t border-line">
+          <NewModuleForm courseId={course.id} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DocumentsTab({
+  course,
+  courseDossiers,
+  canWrite,
+  docsView,
+  signedDocuments,
+}: {
+  course: CourseWithIncludes;
+  courseDossiers: { id: string; contactName: string }[];
+  canWrite: boolean;
+  docsView: "modeles" | "signes";
+  signedDocuments: Awaited<ReturnType<typeof prisma.document.findMany<{ include: { dossier: { include: { contact: true } } } }>>>;
+}) {
+  const dossierOptions = courseDossiers.map((d) => ({ id: d.id, label: d.contactName }));
+  const pillClass = (isActive: boolean) =>
+    `px-3 py-1.5 text-[12.5px] font-medium border-b-2 -mb-px transition-colors ${
+      isActive ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
+    }`;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex gap-1 border-b border-line">
+        <Link href={`/formations/${course.id}?tab=documents`} className={pillClass(docsView === "modeles")}>
+          Modèles
+        </Link>
+        <Link href={`/formations/${course.id}?tab=documents&docs=signes`} className={pillClass(docsView === "signes")}>
+          Documents signés
+        </Link>
+      </div>
+
+      {docsView === "modeles" ? (
+        <div className="flex flex-col gap-3">
+          <div className="text-[11.5px] text-slate">
+            Modèles de contrat, convention, attestation… personnalisés pour cette formation (distincts de la
+            bibliothèque générale — voir{" "}
+            <a href="/documents" className="underline decoration-line hover:decoration-ink">
+              Bibliothèque de documents
+            </a>
+            ).
+          </div>
+          {course.documentTemplates.length > 0 && (
+            <div className="bg-white border border-line rounded-card p-4">
+              {course.documentTemplates.map((t) => (
+                <details key={t.id} className="border-t border-line first:border-t-0 py-2.5">
+                  <summary className="cursor-pointer list-none text-[13px] text-ink font-medium">
+                    {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
+                  </summary>
+                  <div className="mt-2.5 flex flex-col gap-2.5">
+                    {canWrite ? (
+                      <TemplateEditor templateId={t.id} title={t.title} bodyText={t.bodyText} />
+                    ) : (
+                      <pre className="whitespace-pre-wrap text-[12px] text-slate font-sans leading-relaxed">{t.bodyText}</pre>
+                    )}
+                    <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+          {course.documentTemplates.length === 0 && (
+            <div className="text-[12px] text-slate py-1">Aucun modèle propre à cette formation pour l&apos;instant.</div>
+          )}
+          {canWrite && <NewTemplateForm fixedCourse={{ id: course.id, title: course.title }} />}
+        </div>
+      ) : (
+        <div className="bg-white border border-line rounded-card">
+          {signedDocuments.map((doc) => (
+            <a
+              key={doc.id}
+              href={doc.bodyText ? `/api/documents/generated/${doc.id}` : doc.fileUrl ?? "#"}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-linen"
+            >
+              <Pill tone="good">{CATEGORY_LABELS[doc.category] ?? doc.category}</Pill>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] text-ink font-medium truncate">{doc.title}</div>
+                {doc.dossier && (
+                  <div className="text-[11.5px] text-slate truncate">
+                    {doc.dossier.contact.firstName} {doc.dossier.contact.lastName}
+                  </div>
+                )}
+              </div>
+              <div className="text-[11px] text-slate shrink-0">
+                {doc.signedAt ? format(doc.signedAt, "d MMM yyyy", { locale: fr }) : ""}
+              </div>
+            </a>
+          ))}
+          {signedDocuments.length === 0 && (
+            <div className="px-4 py-6 text-[12.5px] text-slate text-center">Aucun document signé pour cette formation pour l&apos;instant.</div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

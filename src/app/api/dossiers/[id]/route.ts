@@ -87,3 +87,34 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   });
   return NextResponse.json(updated);
 }
+
+// Client feedback: a learner enrolled by mistake (or a pure duplicate) had
+// no way to be removed from a course's roster. No cascade here on purpose —
+// every related table (Document, Invoice, ClientOutreach, elearningProgress...)
+// keeps its default FK restrict, so a dossier with real history (a document
+// sent, an invoice, tracked progress) simply can't be deleted; the 409 below
+// tells staff why instead of the request silently 500-ing.
+export async function DELETE(_request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+  if (can(session.role, "planning") !== "full") {
+    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+
+  const dossier = await prisma.dossier.findFirst({ where: { id: params.id, organizationId: session.organizationId } });
+  if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+
+  try {
+    await prisma.dossier.delete({ where: { id: dossier.id } });
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "Impossible de retirer cet apprenant : des documents, factures ou un suivi de progression existent déjà pour ce dossier.",
+      },
+      { status: 409 }
+    );
+  }
+  return NextResponse.json({ ok: true });
+}

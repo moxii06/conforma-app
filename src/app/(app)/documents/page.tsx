@@ -163,7 +163,7 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
                     ? (course.priceCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
                     : "Prix non renseigné"}
                   {" — "}
-                  <a href={`/formations/${course.id}`} className="underline decoration-line hover:decoration-ink">
+                  <a href={`/formations/${course.id}?tab=documents`} className="underline decoration-line hover:decoration-ink">
                     modifier sur la fiche formation
                   </a>
                 </div>
