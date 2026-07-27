@@ -61,8 +61,21 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
             ) : (
               isExpanded && (
                 <div className="pb-3 pl-8 flex flex-col gap-2">
-                  {r.description && <div className="text-[11.5px] text-slate">{r.description}</div>}
-                  {r.node}
+                  {/* Video: description reads as context/instructions for
+                      what was just watched, so it goes under the player.
+                      Document/quiz: it's orientation before the content, so
+                      it stays above — same reasoning, different position. */}
+                  {r.type === "video" ? (
+                    <>
+                      {r.node}
+                      {r.description && <div className="text-[11.5px] text-slate">{r.description}</div>}
+                    </>
+                  ) : (
+                    <>
+                      {r.description && <div className="text-[11.5px] text-slate">{r.description}</div>}
+                      {r.node}
+                    </>
+                  )}
                 </div>
               )
             )}
