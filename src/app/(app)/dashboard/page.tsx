@@ -167,14 +167,19 @@ export default async function DashboardPage() {
           <div className="flex flex-col gap-2">
             <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Argent</div>
             <div className="flex gap-3.5">
-              <MetricCard label="À facturer" value={formatAmount(stageAmounts.get("TO_INVOICE") ?? 0)} />
-              <MetricCard label="Facturé, en attente de paiement" value={formatAmount(stageAmounts.get("INVOICED") ?? 0)} />
-              <MetricCard label="Payé" value={formatAmount(stageAmounts.get("PAID") ?? 0)} />
+              <MetricCard label="À facturer" value={formatAmount(stageAmounts.get("TO_INVOICE") ?? 0)} href="/facturation?tab=factures" />
+              <MetricCard
+                label="Facturé, en attente de paiement"
+                value={formatAmount(stageAmounts.get("INVOICED") ?? 0)}
+                href="/facturation?tab=factures&status=SENT"
+              />
+              <MetricCard label="Payé" value={formatAmount(stageAmounts.get("PAID") ?? 0)} href="/facturation?tab=factures&status=PAID" />
               <MetricCard
                 label="Factures en retard"
                 value={formatAmount(overdueInvoiceTotal._sum.amountCents ?? 0)}
                 hint={overdueInvoiceTotal._count > 0 ? `${overdueInvoiceTotal._count} facture${overdueInvoiceTotal._count > 1 ? "s" : ""}` : undefined}
                 tone={overdueInvoiceTotal._count > 0 ? "danger" : "ink"}
+                href="/facturation?tab=factures&status=OVERDUE"
               />
             </div>
           </div>

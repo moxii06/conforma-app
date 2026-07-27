@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const METRIC_VALUE_TONES: Record<string, string> = {
   ink: "text-ink",
   danger: "text-rust",
@@ -9,19 +11,33 @@ export function MetricCard({
   value,
   hint,
   tone = "ink",
+  href,
 }: {
   label: string;
   value: string;
   hint?: string;
   tone?: keyof typeof METRIC_VALUE_TONES;
+  // Client feedback: a metric like "Factures en retard" was a dead end —
+  // clicking it did nothing. When set, the whole card becomes a link to
+  // where that number actually comes from.
+  href?: string;
 }) {
-  return (
-    <div className="bg-white border border-line rounded-card p-4 flex-1">
+  const className = "bg-white border border-line rounded-card p-4 flex-1 block" + (href ? " hover:border-ink-soft transition-colors" : "");
+  const content = (
+    <>
       <div className="text-[12.5px] text-slate mb-2">{label}</div>
       <div className={`text-2xl font-mono font-semibold tabular-nums ${METRIC_VALUE_TONES[tone]}`}>{value}</div>
       {hint && <div className="text-xs text-slate mt-1.5">{hint}</div>}
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+  return <div className={className}>{content}</div>;
 }
 
 const PILL_STYLES: Record<string, string> = {

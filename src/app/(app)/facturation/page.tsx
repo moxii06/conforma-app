@@ -243,7 +243,20 @@ async function InvoicesTab({
 }) {
   const [invoices, stripeConfigured] = await Promise.all([
     prisma.invoice.findMany({
-      where: { organizationId, ...(statusFilter ? { status: statusFilter } : {}) },
+      where: {
+        organizationId,
+        // "En retard" (from DocFilterBar or the dashboard's "Factures en
+        // retard" card) means the same auto-detected set as
+        // dashboardTasks.ts and the dashboard total, not a strict status
+        // match — otherwise an invoice overdue by dueDate but still
+        // status SENT would show in the dashboard count but vanish from
+        // this filtered list.
+        ...(statusFilter === "OVERDUE"
+          ? { status: { notIn: ["PAID", "DRAFT"] }, OR: [{ status: "OVERDUE" }, { dueDate: { lt: new Date() } }] }
+          : statusFilter
+            ? { status: statusFilter }
+            : {}),
+      },
       include: { contact: true, payments: true },
       orderBy,
     }),
