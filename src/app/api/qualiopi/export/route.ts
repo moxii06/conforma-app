@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { generatePdfFromRichText } from "@/lib/htmlToPdf";
+import { getAutomaticEvidence } from "@/lib/qualiopiEvidence";
 
 const CRITERION_LABELS: Record<number, string> = {
   1: "Conditions d'information du public",
@@ -46,7 +47,7 @@ export async function GET() {
     include: { activeReferentielVersion: true },
   });
 
-  const [indicators, checklistItems, evidence, risks, resultIndicators, watchItems] = await Promise.all([
+  const [indicators, checklistItems, evidence, risks, resultIndicators, watchItems, autoEvidence, audits] = await Promise.all([
     org.activeReferentielVersionId
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: org.activeReferentielVersionId }, orderBy: { number: "asc" } })
       : Promise.resolve([]),
@@ -55,6 +56,12 @@ export async function GET() {
     prisma.qualityRisk.findMany({ where: { organizationId: session.organizationId, status: { not: "clos" } }, include: { course: true } }),
     prisma.resultIndicator.findMany({ where: { organizationId: session.organizationId, published: true }, include: { course: true } }),
     prisma.regulatoryWatch.findMany({ where: { organizationId: session.organizationId }, orderBy: { watchDate: "desc" }, take: 10 }),
+    getAutomaticEvidence(session.organizationId),
+    prisma.qualiopiAudit.findMany({
+      where: { organizationId: session.organizationId },
+      include: { findings: { orderBy: { indicatorNumber: "asc" } } },
+      orderBy: { auditDate: "desc" },
+    }),
   ]);
 
   const gatheredMap = new Map(checklistItems.map((c) => [c.indicatorNumber, c.gathered]));
@@ -72,7 +79,11 @@ export async function GET() {
   parts.push(`<p><b>Généré le</b> : ${new Date().toLocaleDateString("fr-FR")}</p>`);
   if (org.nextAuditDate) parts.push(`<p><b>Prochain audit</b> : ${org.nextAuditDate.toLocaleDateString("fr-FR")}</p>`);
   if (org.activeReferentielVersion) parts.push(`<p><b>Référentiel</b> : ${esc(org.activeReferentielVersion.label)}</p>`);
-  parts.push(`<p><b>Preuves rassemblées</b> : ${gatheredCount}/${indicators.length}</p>`);
+  const autoCount = indicators.filter((ind) => (autoEvidence.get(ind.number)?.length ?? 0) > 0).length;
+  parts.push(`<p><b>Preuves validées</b> : ${gatheredCount}/${indicators.length} — <b>Indicateurs avec activité tracée</b> : ${autoCount}/${indicators.length}</p>`);
+  parts.push(
+    `<p><i>L'« activité tracée » ci-dessous est générée automatiquement par l'utilisation réelle de la plateforme (horodatée et attribuée). Elle constitue une matière première de preuve dont la pertinence reste à l'appréciation de l'organisme et de l'auditeur.</i></p>`
+  );
   parts.push(`<p><br></p>`);
 
   parts.push(`<p><b>INDICATEURS PAR CRITÈRE</b></p>`);
@@ -88,6 +99,26 @@ export async function GET() {
     if (summary) parts.push(`<p>&nbsp;&nbsp;&nbsp;${esc(summary)}</p>`);
     const notes = evidenceByIndicator.get(ind.number) ?? [];
     for (const note of notes) parts.push(`<p>&nbsp;&nbsp;&nbsp;Preuve : ${esc(note)}</p>`);
+    const auto = autoEvidence.get(ind.number) ?? [];
+    for (const a of auto) parts.push(`<p>&nbsp;&nbsp;&nbsp;Activité tracée : ${a.count} ${esc(a.label)}</p>`);
+  }
+
+  parts.push(`<p><br></p><p><b>AUDITS DE CERTIFICATION</b></p>`);
+  if (audits.length === 0) parts.push(`<p>Aucun audit enregistré.</p>`);
+  for (const a of audits) {
+    const typeLabels: Record<string, string> = {
+      initial: "Audit initial",
+      surveillance: "Audit de surveillance",
+      renouvellement: "Audit de renouvellement",
+      complementaire: "Audit complémentaire",
+    };
+    parts.push(
+      `<p>- ${typeLabels[a.type] ?? a.type} du ${new Date(a.auditDate).toLocaleDateString("fr-FR")} (${esc(a.certifierName)}) — ${a.findings.length === 0 ? "aucune non-conformité" : `${a.findings.length} non-conformité(s)`}</p>`
+    );
+    for (const f of a.findings) {
+      const statusLabel = f.status === "soldee" ? "soldée" : f.status === "levee" ? "levée" : "à traiter";
+      parts.push(`<p>&nbsp;&nbsp;&nbsp;Indicateur ${f.indicatorNumber} (NC ${esc(f.severity)}, ${statusLabel}) : ${esc(f.description)}</p>`);
+    }
   }
 
   parts.push(`<p><br></p><p><b>REGISTRE DES RISQUES OUVERTS</b></p>`);

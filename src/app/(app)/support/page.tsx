@@ -175,7 +175,7 @@ export default async function SupportPage(props: { searchParams: Promise<{ tab?:
                     {c.assigneeComment && ` · ${c.assigneeComment}`}
                   </div>
                 )}
-                <ComplaintStatusForm complaintId={c.id} status={c.status} resolutionNotes={c.resolutionNotes} />
+                <ComplaintStatusForm complaintId={c.id} status={c.status} resolutionNotes={c.resolutionNotes} subject={c.subject} />
                 <div className="flex items-center gap-3 flex-wrap">
                   {c.submittedByEmail && <ReplyToComplaintDialog complaintId={c.id} />}
                   <ArchiveSupportItemButton kind="complaints" itemId={c.id} archived={Boolean(c.archivedAt)} />

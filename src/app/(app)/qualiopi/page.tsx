@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, MetricCard } from "@/components/ui";
+import { getAutomaticEvidence } from "@/lib/qualiopiEvidence";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -342,24 +344,27 @@ async function ContinuousImprovementTab({ organizationId, canEdit }: { organizat
 
 async function AuditPrepTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
   const activeVersion = await getActiveVersion(organizationId);
-  const [indicators, checklistItems] = await Promise.all([
+  const [indicators, checklistItems, autoEvidence] = await Promise.all([
     activeVersion
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: activeVersion.id }, orderBy: { number: "asc" } })
       : Promise.resolve([]),
     prisma.auditChecklistItem.findMany({ where: { organizationId } }),
+    getAutomaticEvidence(organizationId),
   ]);
 
   const gatheredMap = new Map(checklistItems.map((c) => [c.indicatorNumber, c.gathered]));
   const summaryMap = new Map(checklistItems.map((c) => [c.indicatorNumber, c.personalizedSummary]));
   const gatheredCount = indicators.filter((ind) => gatheredMap.get(ind.number)).length;
+  const autoCount = indicators.filter((ind) => (autoEvidence.get(ind.number)?.length ?? 0) > 0).length;
 
   let currentCriterion = 0;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="text-[13px] text-slate">
-          {gatheredCount}/{indicators.length} preuves rassemblées
+          {gatheredCount}/{indicators.length} preuves validées par vous · {autoCount}/{indicators.length} avec activité
+          tracée automatiquement
         </div>
         <a
           href="/api/qualiopi/export"
@@ -367,6 +372,11 @@ async function AuditPrepTab({ organizationId, canEdit }: { organizationId: strin
         >
           Télécharger le dossier de préparation audit (PDF)
         </a>
+      </div>
+      <div className="text-[11.5px] text-slate bg-linen border border-line rounded-md p-2.5">
+        L&apos;activité tracée (en vert sous chaque indicateur) est produite automatiquement par votre travail réel dans
+        Jalon — c&apos;est une matière première de preuve, pas une garantie de conformité : sa pertinence reste à votre
+        appréciation et à celle de l&apos;auditeur. Cochez un indicateur quand vous jugez son dossier prêt.
       </div>
       <div className="bg-white border border-line rounded-card p-5">
         {indicators.map((ind) => {
@@ -394,6 +404,15 @@ async function AuditPrepTab({ organizationId, canEdit }: { organizationId: strin
                   {ind.label}
                 </div>
               </div>
+              {(autoEvidence.get(ind.number)?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-x-3 gap-y-1 pl-7 pb-1.5">
+                  {autoEvidence.get(ind.number)!.map((e, i) => (
+                    <Link key={i} href={e.href} className="text-[11px] text-sage hover:underline">
+                      ✓ {e.count} {e.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
               <IndicatorSummaryButton indicatorNumber={ind.number} initialSummary={summaryMap.get(ind.number) ?? null} />
             </div>
           );
