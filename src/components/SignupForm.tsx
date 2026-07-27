@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { trackEvent } from "@/lib/track";
 
 const PLAN_LABELS: Record<string, { name: string; price: string }> = {
   solo: { name: "Solo", price: "39 €/mois" },
@@ -18,6 +19,7 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
   const [billingAddress, setBillingAddress] = useState("");
   const [billingPostalCode, setBillingPostalCode] = useState("");
   const [billingCity, setBillingCity] = useState("");
+  const [showBilling, setShowBilling] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,6 +55,9 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
       setLoading(false);
       return;
     }
+
+    // Conversion principale : compte d'essai créé.
+    trackEvent("sign_up", { method: "trial", plan });
 
     const result = await signIn("credentials", { email, password, redirect: false });
     setLoading(false);
@@ -91,50 +96,6 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
           placeholder="Formations Nova"
           className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
         />
-      </div>
-
-      <div>
-        <label className="text-[12.5px] text-slate mb-1.5 block">
-          SIRET <span className="text-slate/70 font-normal">(14 chiffres)</span>
-        </label>
-        <input
-          required
-          value={siret}
-          onChange={(e) => setSiret(e.target.value.replace(/\D/g, "").slice(0, 14))}
-          inputMode="numeric"
-          placeholder="12345678900012"
-          className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
-        />
-        <div className="text-[11px] text-slate mt-1">
-          Nécessaire pour établir vos factures d&apos;abonnement Jalon une fois l&apos;essai terminé.
-        </div>
-      </div>
-
-      <div>
-        <label className="text-[12.5px] text-slate mb-1.5 block">Adresse de facturation</label>
-        <input
-          required
-          value={billingAddress}
-          onChange={(e) => setBillingAddress(e.target.value)}
-          placeholder="12 rue de la Paix"
-          className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal mb-2"
-        />
-        <div className="flex gap-3">
-          <input
-            required
-            value={billingPostalCode}
-            onChange={(e) => setBillingPostalCode(e.target.value)}
-            placeholder="75002"
-            className="w-28 border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
-          />
-          <input
-            required
-            value={billingCity}
-            onChange={(e) => setBillingCity(e.target.value)}
-            placeholder="Paris"
-            className="flex-1 border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
-          />
-        </div>
       </div>
 
       <div className="flex gap-3">
@@ -181,6 +142,61 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
           className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
         />
       </div>
+
+      {/* Coordonnées de facturation — optionnelles à l'inscription, requises
+          seulement avant la fin de l'essai. Repliées par défaut pour ne pas
+          alourdir un essai « sans carte bancaire ». */}
+      {!showBilling ? (
+        <button
+          type="button"
+          onClick={() => setShowBilling(true)}
+          className="text-[12px] text-slate hover:text-ink text-left underline decoration-line hover:decoration-ink"
+        >
+          + Ajouter mes coordonnées de facturation (optionnel)
+        </button>
+      ) : (
+        <div className="border border-line rounded-md p-4 flex flex-col gap-3 bg-paper/50">
+          <div className="text-[12px] text-slate">
+            Optionnel — utile uniquement pour établir vos factures d&apos;abonnement Jalon
+            à la fin de l&apos;essai. Vous pourrez aussi les renseigner plus tard depuis votre espace.
+          </div>
+          <div>
+            <label className="text-[12.5px] text-slate mb-1.5 block">
+              SIRET <span className="text-slate/70 font-normal">(14 chiffres)</span>
+            </label>
+            <input
+              value={siret}
+              onChange={(e) => setSiret(e.target.value.replace(/\D/g, "").slice(0, 14))}
+              inputMode="numeric"
+              placeholder="12345678900012"
+              className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+            />
+          </div>
+          <div>
+            <label className="text-[12.5px] text-slate mb-1.5 block">Adresse de facturation</label>
+            <input
+              value={billingAddress}
+              onChange={(e) => setBillingAddress(e.target.value)}
+              placeholder="12 rue de la Paix"
+              className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal mb-2"
+            />
+            <div className="flex gap-3">
+              <input
+                value={billingPostalCode}
+                onChange={(e) => setBillingPostalCode(e.target.value)}
+                placeholder="75002"
+                className="w-28 border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+              />
+              <input
+                value={billingCity}
+                onChange={(e) => setBillingCity(e.target.value)}
+                placeholder="Paris"
+                className="flex-1 border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && <div className="text-[12.5px] text-rust">{error}</div>}
 
