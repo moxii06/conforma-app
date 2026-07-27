@@ -4,7 +4,7 @@ import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
-import { ArrowLeft, ExternalLink, FileText, HelpCircle, Video, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, HelpCircle, Paperclip, Video, type LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Tabs } from "@/components/Tabs";
@@ -25,6 +25,8 @@ import { SatisfactionSurveyEditor } from "@/components/SatisfactionSurveyEditor"
 import { NewTemplateForm } from "@/components/NewTemplateForm";
 import { TemplateEditor } from "@/components/TemplateEditor";
 import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
+import { AddModuleAttachmentForm } from "@/components/AddModuleAttachmentForm";
+import { DeleteAttachmentButton } from "@/components/DeleteAttachmentButton";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 
 const TYPE_ICONS: Record<string, LucideIcon> = { video: Video, document: FileText, quiz: HelpCircle };
@@ -35,6 +37,7 @@ const courseInclude = {
       progress: { include: { dossier: { include: { contact: true } } } },
       quiz: { include: { questions: { orderBy: { order: "asc" as const } } } },
       versions: { orderBy: { replacedAt: "desc" as const } },
+      attachments: { orderBy: { createdAt: "asc" as const } },
     },
     orderBy: { order: "asc" as const },
   },
@@ -434,6 +437,30 @@ function ContenuTab({
                       </div>
                     </details>
                   )}
+
+                  <div className="flex flex-col gap-1.5 border-t border-line pt-3.5">
+                    <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide flex items-center gap-1.5">
+                      <Paperclip size={11} /> Documents complémentaires
+                    </div>
+                    {m.attachments.length > 0 && (
+                      <div className="flex flex-col gap-1">
+                        {m.attachments.map((a) => (
+                          <div key={a.id} className="flex items-center gap-2">
+                            <a
+                              href={a.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[12px] text-ink underline decoration-line hover:decoration-ink truncate"
+                            >
+                              {a.title}
+                            </a>
+                            {canManage && <DeleteAttachmentButton attachmentId={a.id} />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {canManage && <AddModuleAttachmentForm moduleId={m.id} />}
+                  </div>
 
                   {m.type === "quiz" && canManage && (
                     <QuizBuilder

@@ -1478,9 +1478,32 @@ model ElearningModule {
   order         Int      @default(0)
   createdAt     DateTime @default(now())
 
-  progress ElearningProgress[]
-  quiz     Quiz?
-  versions ElearningModuleVersion[]
+  progress    ElearningProgress[]
+  quiz        Quiz?
+  versions    ElearningModuleVersion[]
+  attachments ElearningModuleAttachment[]
+}
+
+// Supplementary files alongside a module's own primary content — client
+// feedback: a video module needed to carry a companion handout/slide deck,
+// not just the one video file ElearningModule.fileUrl already holds. Kept
+// as its own table rather than reusing Document (dossier/subcontractor/
+// user-scoped, carries signature/category fields that mean nothing for
+// course content) — same reasoning that already keeps ElearningModule's
+// own primary file separate from Document. Applies to any module type, not
+// just video: a document or quiz module can just as reasonably ship a
+// reference sheet alongside its main content.
+model ElearningModuleAttachment {
+  id            String          @id @default(cuid())
+  module        ElearningModule @relation(fields: [moduleId], references: [id])
+  moduleId      String
+  title         String
+  fileUrl       String
+  fileName      String
+  fileSizeBytes Int
+  createdAt     DateTime        @default(now())
+
+  @@index([moduleId])
 }
 
 // A history entry for a module's *previous* file, written right before it

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CheckCircle2, Circle, Lock, Video, FileText, HelpCircle } from "lucide-react";
+import { CheckCircle2, Circle, Lock, Video, FileText, HelpCircle, Paperclip } from "lucide-react";
 
 export type ModuleRow = {
   id: string;
@@ -10,6 +10,7 @@ export type ModuleRow = {
   type: "video" | "document" | "quiz";
   state: "locked" | "unlocked_not_started" | "in_progress" | "completed";
   lockedAfterTitle: string | null;
+  attachments: { id: string; title: string; fileUrl: string }[];
   node: ReactNode;
 };
 
@@ -75,6 +76,25 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
                       {r.description && <div className="text-[11.5px] text-slate">{r.description}</div>}
                       {r.node}
                     </>
+                  )}
+                  {r.attachments.length > 0 && (
+                    <div className="flex flex-col gap-1 pt-1">
+                      <div className="text-[10px] font-semibold text-slate uppercase tracking-wide flex items-center gap-1">
+                        <Paperclip size={10} /> Documents complémentaires
+                      </div>
+                      {r.attachments.map((a) => (
+                        <a
+                          key={a.id}
+                          href={a.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          download
+                          className="text-[11.5px] text-ink underline decoration-line hover:decoration-ink"
+                        >
+                          {a.title}
+                        </a>
+                      ))}
+                    </div>
                   )}
                 </div>
               )

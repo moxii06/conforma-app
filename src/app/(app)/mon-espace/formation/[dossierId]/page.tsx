@@ -45,7 +45,10 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
           course: {
             include: {
               elearningModules: {
-                include: { quiz: { include: { questions: { orderBy: { order: "asc" } } } } },
+                include: {
+                  quiz: { include: { questions: { orderBy: { order: "asc" } } } },
+                  attachments: { orderBy: { createdAt: "asc" } },
+                },
                 orderBy: { order: "asc" },
               },
             },
@@ -117,6 +120,7 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
       type: m.type as ModuleRow["type"],
       state,
       lockedAfterTitle: state === "locked" && i > 0 ? modules[i - 1].title : null,
+      attachments: m.attachments.map((a) => ({ id: a.id, title: a.title, fileUrl: a.fileUrl })),
       node,
     };
   });
