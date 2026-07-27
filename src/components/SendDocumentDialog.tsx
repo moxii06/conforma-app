@@ -134,7 +134,7 @@ export function SendDocumentDialog({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink"
+        className="border border-line rounded-md px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-ink-soft"
       >
         Envoyer un document
       </button>

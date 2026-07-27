@@ -57,15 +57,27 @@ export function SendOutreachButtons({ dossierId, showConvocation }: { dossierId:
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2.5 flex-wrap">
-        <button onClick={() => handleSend("contract")} disabled={loading !== null} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+        <button
+          onClick={() => handleSend("contract")}
+          disabled={loading !== null}
+          className="border border-line rounded-md px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-ink-soft disabled:opacity-60"
+        >
           {loading === "contract" ? "…" : LABELS.contract}
         </button>
         {showConvocation && (
-          <button onClick={() => handleSend("convocation")} disabled={loading !== null} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+          <button
+            onClick={() => handleSend("convocation")}
+            disabled={loading !== null}
+            className="border border-line rounded-md px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-ink-soft disabled:opacity-60"
+          >
             {loading === "convocation" ? "…" : LABELS.convocation}
           </button>
         )}
-        <button onClick={() => handleSend("platform_access")} disabled={loading !== null} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+        <button
+          onClick={() => handleSend("platform_access")}
+          disabled={loading !== null}
+          className="border border-line rounded-md px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-ink-soft disabled:opacity-60"
+        >
           {loading === "platform_access" ? "…" : LABELS.platform_access}
         </button>
       </div>
