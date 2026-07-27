@@ -20,6 +20,9 @@ import { MarkContractSignedButton } from "@/components/MarkContractSignedButton"
 import { AccommodationForm } from "@/components/AccommodationForm";
 import { AccommodationStatusForm } from "@/components/AccommodationStatusForm";
 import { SendSatisfactionSurveyButton } from "@/components/SendSatisfactionSurveyButton";
+import { EditContactForm } from "@/components/EditContactForm";
+import { EditCompanyForm } from "@/components/EditCompanyForm";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -29,8 +32,11 @@ const OUTREACH_LABELS: Record<string, string> = {
   platform_access: "Accès plateforme",
 };
 
+const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
+
 const BASE_TABS = [
   { key: "info", label: "Info" },
+  { key: "formations", label: "Formations" },
   { key: "emails", label: "Emails" },
   { key: "documents", label: "Documents" },
   { key: "donnees-personnelles", label: "Données personnelles" },
@@ -50,7 +56,7 @@ export default async function DossierPage(
 
   const dossier = await prisma.dossier.findFirst({
     where: { id: params.id, organizationId },
-    include: { contact: true, session: { include: { course: true } } },
+    include: { contact: { include: { company: true } }, session: { include: { course: true } } },
   });
   if (!dossier) notFound();
   if (role === Role.TRAINER && dossier.session.trainerId !== userId) redirect("/dossiers");
@@ -70,55 +76,22 @@ export default async function DossierPage(
       })
     : [];
 
-  const outreaches = await prisma.clientOutreach.findMany({
-    where: { dossierId: dossier.id },
-    orderBy: { sentAt: "desc" },
-  });
-
-  // Parcours de formation steps (needs_assessment/convention/convocation/
-  // eval_hot/eval_cold) mirror Document's own category set 1-for-1 — so
-  // "click a done step to see the document" is just "most recent Document
-  // in this dossier whose category matches the step key", no separate
-  // linking table needed.
-  const stepDocuments = await prisma.document.findMany({
-    where: { dossierId: dossier.id, category: { in: ["needs_assessment", "convention", "convocation", "eval_hot", "eval_cold"] } },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, category: true, fileUrl: true, bodyText: true },
-  });
-  const documentHrefByStep: Record<string, string> = {};
-  for (const doc of stepDocuments) {
-    if (documentHrefByStep[doc.category]) continue; // already have the most recent one for this category
-    documentHrefByStep[doc.category] = doc.fileUrl ?? `/api/documents/generated/${doc.id}`;
-  }
-
-  // eval_hot/eval_cold have no Document row — their "document" is a
-  // completed SatisfactionSurveyResponse, viewed on a small staff-facing
-  // results page instead of a generated file.
-  const surveyResponses = await prisma.satisfactionSurveyResponse.findMany({
-    where: { dossierId: dossier.id, status: "completed" },
-    include: { survey: { select: { kind: true } } },
-  });
-  for (const r of surveyResponses) {
-    documentHrefByStep[`eval_${r.survey.kind}`] = `/dossiers/${dossier.id}/satisfaction/${r.survey.kind}`;
-  }
-
-  const canConvocation = canManageSessionInvitations(role, userId, dossier.session);
-
-  // Client feedback: anticipate the same contact attending several
-  // formations — surface it directly on the dossier so staff aren't
-  // surprised by (or duplicate work for) a learner already known elsewhere.
-  const otherDossiers = await prisma.dossier.findMany({
-    where: { contactId: dossier.contactId, id: { not: dossier.id }, organizationId },
-    include: { session: { include: { course: true } } },
-    orderBy: { createdAt: "desc" },
-  });
-
   return (
     <>
       <PageHeader title={`${dossier.contact.firstName} ${dossier.contact.lastName}`} subtitle={dossier.session.course.title} />
       <Tabs basePath={`/dossiers/${dossier.id}`} tabs={TABS} active={activeTab} />
       <div className="p-8 max-w-xl">
-        {activeTab === "emails" ? (
+        {activeTab === "formations" ? (
+          <FormationsTab
+            contactId={dossier.contactId}
+            organizationId={organizationId}
+            currentDossierId={dossier.id}
+            role={role}
+            userId={userId}
+            canManageOutreach={can(role, "dossiers") !== "none"}
+            signatureHtml={signatureHtml}
+          />
+        ) : activeTab === "emails" ? (
           <EmailsTab contactId={dossier.contactId} dossierId={dossier.id} canManageEmail={canManageEmail} members={members} />
         ) : activeTab === "documents" ? (
           <DocumentsTab
@@ -135,164 +108,41 @@ export default async function DossierPage(
         ) : activeTab === "accessibilite" ? (
           <AccessibilityTab dossierId={dossier.id} />
         ) : (
-          <InfoTab
-            dossier={dossier}
-            organizationId={organizationId}
-            canEditCategory={canEditCategory}
-            canManageOutreach={can(role, "dossiers") !== "none"}
-            canConvocation={canConvocation}
-            outreaches={outreaches}
-            documentHrefByStep={documentHrefByStep}
-            signatureHtml={signatureHtml}
-            otherDossiers={otherDossiers.map((d) => ({
-              id: d.id,
-              courseTitle: d.session.course.title,
-              startsAt: d.session.startsAt,
-            }))}
-          />
+          <InfoTab dossier={dossier} canEditCategory={canEditCategory} />
         )}
       </div>
     </>
   );
 }
 
-async function InfoTab({
+// Client feedback: with the Parcours checklist and "Autres formations"
+// both living here, Info read as covering every formation of the learner
+// at once even though the checklist only ever tracked the current dossier.
+// Info now holds exactly what its name promises — who this person (and
+// their company, if any) is — and nothing formation-specific; all of that
+// moved to the new "Formations" tab (see FormationsTab below), one entry
+// per dossier, each expandable to its own recap.
+function InfoTab({
   dossier,
-  organizationId,
   canEditCategory,
-  canManageOutreach,
-  canConvocation,
-  outreaches,
-  documentHrefByStep,
-  signatureHtml,
-  otherDossiers,
 }: {
-  dossier: { id: string; needsAssessmentDone: boolean; contractSigned: boolean; convocationSent: boolean; evaluationHotDone: boolean; evaluationColdDone: boolean; learnerCategory: string | null; contact: { firstName: string }; session: { course: { title: string } } };
-  organizationId: string;
+  dossier: {
+    id: string;
+    learnerCategory: string | null;
+    contact: { id: string; firstName: string; lastName: string; email: string; phone: string | null; company: { id: string; name: string; siret: string | null; address: string | null; responsableFirstName: string | null; responsableLastName: string | null; responsableEmail: string | null; responsablePhone: string | null } | null };
+  };
   canEditCategory: boolean;
-  canManageOutreach: boolean;
-  canConvocation: boolean;
-  outreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
-  documentHrefByStep: Record<string, string>;
-  signatureHtml: string;
-  otherDossiers: { id: string; courseTitle: string; startsAt: Date }[];
 }) {
-  const templates = canManageOutreach
-    ? await prisma.documentTemplate.findMany({
-        where: { OR: [{ organizationId }, { organizationId: null }] },
-        select: { id: true, title: true, category: true },
-        orderBy: { title: "asc" },
-      })
-    : [];
-  const steps: { key: "needs_assessment" | "contract" | "convocation" | "eval_hot" | "eval_cold"; docCategory: string; label: string; done: boolean }[] = [
-    { key: "needs_assessment", docCategory: "needs_assessment", label: "Recueil des besoins", done: dossier.needsAssessmentDone },
-    { key: "contract", docCategory: "convention", label: "Convention signée", done: dossier.contractSigned },
-    { key: "convocation", docCategory: "convocation", label: "Convocation envoyée", done: dossier.convocationSent },
-    { key: "eval_hot", docCategory: "eval_hot", label: "Évaluation à chaud", done: dossier.evaluationHotDone },
-    { key: "eval_cold", docCategory: "eval_cold", label: "Évaluation à froid", done: dossier.evaluationColdDone },
-  ];
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Client feedback: with "Autres formations" sitting right above an
-          untitled "Parcours de formation", the checklist read as covering
-          every formation at once. The Parcours belongs to THIS dossier only
-          (each formation has its own dossier and its own checklist), so it
-          comes first, named after its course — and the other-formations
-          card follows, explicitly pointing at their own parcours. */}
       <div className="bg-white border border-line rounded-card p-5">
-        <div className="text-[13.5px] font-semibold text-ink mb-0.5">
-          Parcours de formation — {dossier.session.course.title}
-        </div>
-        <div className="text-[11.5px] text-slate mb-3">
-          Suivi propre à cette formation uniquement.
-        </div>
-        {steps.map((s) =>
-          canManageOutreach ? (
-            <ParcoursStepToggle
-              key={s.key}
-              dossierId={dossier.id}
-              stepKey={s.key}
-              label={s.label}
-              done={s.done}
-              documentHref={documentHrefByStep[s.docCategory]}
-            />
-          ) : (
-            <div key={s.key} className="flex items-center justify-between gap-2.5 py-2 border-t border-line first:border-t-0">
-              <div className="flex items-center gap-2.5">
-                {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-ash" />}
-                <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
-              </div>
-              {s.done && documentHrefByStep[s.docCategory] && (
-                <a
-                  href={documentHrefByStep[s.docCategory]}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-slate underline decoration-line hover:decoration-ink shrink-0"
-                >
-                  Voir le document
-                </a>
-              )}
-            </div>
-          )
-        )}
+        <div className="text-[13.5px] font-semibold text-ink mb-3">Coordonnées</div>
+        <EditContactForm contact={dossier.contact} />
       </div>
-      {otherDossiers.length > 0 && (
+      {dossier.contact.company && (
         <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13.5px] font-semibold text-ink mb-0.5">
-            Autres formations de {dossier.contact.firstName} ({otherDossiers.length})
-          </div>
-          <div className="text-[11.5px] text-slate mb-3">
-            Chacune a son propre dossier et son propre parcours de formation.
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {otherDossiers.map((d) => (
-              <Link
-                key={d.id}
-                href={`/dossiers/${d.id}`}
-                className="flex items-center justify-between gap-3 text-[12.5px] text-ink hover:underline decoration-line"
-              >
-                <span className="truncate">{d.courseTitle}</span>
-                <span className="text-slate shrink-0">{format(d.startsAt, "d MMM yyyy", { locale: fr })}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-      {(canManageOutreach || canConvocation) && (
-        <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13.5px] font-semibold text-ink mb-3">Communications</div>
-          <div className="flex items-center gap-2.5 flex-wrap mb-2.5">
-            <SendOutreachButtons dossierId={dossier.id} showConvocation={canConvocation} />
-            {canManageOutreach && (
-              <SendDocumentDialog
-                dossierId={dossier.id}
-                templates={templates}
-                contactFirstName={dossier.contact.firstName}
-                signatureHtml={signatureHtml}
-              />
-            )}
-            {canManageOutreach && <SendSatisfactionSurveyButton dossierId={dossier.id} kind="hot" />}
-            {canManageOutreach && <SendSatisfactionSurveyButton dossierId={dossier.id} kind="cold" />}
-          </div>
-          {outreaches.length > 0 && (
-            <div className="mt-3.5 pt-3.5 border-t border-line flex flex-col gap-2">
-              {outreaches.map((o) => (
-                <div key={o.id} className="flex items-center justify-between gap-3 text-[12px]">
-                  <div className="text-ink">
-                    {OUTREACH_LABELS[o.type] ?? o.type} — envoyé le {format(o.sentAt, "d MMM yyyy", { locale: fr })} par {o.sentByName}
-                  </div>
-                  {o.status === "acknowledged" ? (
-                    <Pill tone="good">{o.type === "platform_access" ? "Activé" : "Signé"}</Pill>
-                  ) : o.type === "contract" && canManageOutreach ? (
-                    <MarkContractSignedButton outreachId={o.id} />
-                  ) : (
-                    <Pill tone="neutral">En attente</Pill>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="text-[13.5px] font-semibold text-ink mb-3">Société</div>
+          <EditCompanyForm company={dossier.contact.company} />
         </div>
       )}
       {canEditCategory && (
@@ -301,6 +151,199 @@ async function InfoTab({
           <DossierCategorySelect dossierId={dossier.id} learnerCategory={dossier.learnerCategory} />
         </div>
       )}
+    </div>
+  );
+}
+
+// Every formation (Dossier) this contact has ever been enrolled in, each
+// collapsed to a one-line summary and expandable to its own recap — the
+// current dossier starts open. Only the current dossier gets the full
+// Communications block (send actions): rendering that for every formation
+// would mean fetching document templates and building N send dialogs for
+// a tab whose point is an overview, not a place to manage every formation
+// at once — "Voir le dossier complet" is the deliberate escape hatch for
+// managing a DIFFERENT formation, by navigating to its own page where it
+// becomes the current one.
+async function FormationsTab({
+  contactId,
+  organizationId,
+  currentDossierId,
+  role,
+  userId,
+  canManageOutreach,
+  signatureHtml,
+}: {
+  contactId: string;
+  organizationId: string;
+  currentDossierId: string;
+  role: Role;
+  userId: string;
+  canManageOutreach: boolean;
+  signatureHtml: string;
+}) {
+  const dossiers = await prisma.dossier.findMany({
+    where: { contactId, organizationId },
+    include: { session: { include: { course: true, trainer: { select: { name: true } } } } },
+    orderBy: { session: { startsAt: "desc" } },
+  });
+  const dossierIds = dossiers.map((d) => d.id);
+
+  const [contact, allDocuments, allSurveyResponses, allOutreaches, templates] = await Promise.all([
+    prisma.contact.findUniqueOrThrow({ where: { id: contactId }, select: { firstName: true } }),
+    prisma.document.findMany({ where: { dossierId: { in: dossierIds } }, orderBy: { createdAt: "desc" } }),
+    prisma.satisfactionSurveyResponse.findMany({
+      where: { dossierId: { in: dossierIds }, status: "completed" },
+      select: { dossierId: true, survey: { select: { kind: true } } },
+    }),
+    prisma.clientOutreach.findMany({ where: { dossierId: { in: dossierIds } }, orderBy: { sentAt: "desc" } }),
+    canManageOutreach
+      ? prisma.documentTemplate.findMany({
+          where: { OR: [{ organizationId }, { organizationId: null }] },
+          select: { id: true, title: true, category: true },
+          orderBy: { title: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="text-[12px] text-slate">
+        {dossiers.length} formation{dossiers.length > 1 ? "s" : ""} pour {contact.firstName}.
+      </div>
+      {dossiers.map((d) => {
+        const isCurrent = d.id === currentDossierId;
+        const documents = allDocuments.filter((doc) => doc.dossierId === d.id);
+        const outreaches = allOutreaches.filter((o) => o.dossierId === d.id);
+        const canConvocation = canManageSessionInvitations(role, userId, d.session);
+
+        const documentHrefByStep: Record<string, string> = {};
+        for (const doc of documents) {
+          if (!["needs_assessment", "convention", "convocation", "eval_hot", "eval_cold"].includes(doc.category)) continue;
+          if (documentHrefByStep[doc.category]) continue; // most recent already kept — findMany above is createdAt desc
+          documentHrefByStep[doc.category] = doc.fileUrl ?? `/api/documents/generated/${doc.id}`;
+        }
+        for (const r of allSurveyResponses.filter((r) => r.dossierId === d.id)) {
+          documentHrefByStep[`eval_${r.survey.kind}`] = `/dossiers/${d.id}/satisfaction/${r.survey.kind}`;
+        }
+
+        const steps: { key: "needs_assessment" | "contract" | "convocation" | "eval_hot" | "eval_cold"; docCategory: string; label: string; done: boolean }[] = [
+          { key: "needs_assessment", docCategory: "needs_assessment", label: "Recueil des besoins", done: d.needsAssessmentDone },
+          { key: "contract", docCategory: "convention", label: "Convention signée", done: d.contractSigned },
+          { key: "convocation", docCategory: "convocation", label: "Convocation envoyée", done: d.convocationSent },
+          { key: "eval_hot", docCategory: "eval_hot", label: "Évaluation à chaud", done: d.evaluationHotDone },
+          { key: "eval_cold", docCategory: "eval_cold", label: "Évaluation à froid", done: d.evaluationColdDone },
+        ];
+
+        return (
+          <CollapsibleSection
+            key={d.id}
+            title={d.session.course.title}
+            badge={<Pill tone={isCurrent ? "good" : "neutral"}>{format(d.session.startsAt, "d MMM yyyy", { locale: fr })}</Pill>}
+            defaultOpen={isCurrent}
+          >
+            <div className="text-[11.5px] text-slate mb-3">
+              {FORMAT_LABELS[d.session.format] ?? d.session.format} · {d.session.trainer?.name ?? "Formateur non assigné"} · du{" "}
+              {format(d.session.startsAt, "d MMM", { locale: fr })} au {format(d.session.endsAt, "d MMM yyyy", { locale: fr })}
+            </div>
+
+            <div className="text-[11px] text-slate uppercase tracking-wide mb-1">Parcours de formation</div>
+            {steps.map((s) =>
+              isCurrent && canManageOutreach ? (
+                <ParcoursStepToggle
+                  key={s.key}
+                  dossierId={d.id}
+                  stepKey={s.key}
+                  label={s.label}
+                  done={s.done}
+                  documentHref={documentHrefByStep[s.docCategory]}
+                />
+              ) : (
+                <div key={s.key} className="flex items-center justify-between gap-2.5 py-2 border-t border-line first:border-t-0">
+                  <div className="flex items-center gap-2.5">
+                    {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-ash" />}
+                    <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
+                  </div>
+                  {s.done && documentHrefByStep[s.docCategory] && (
+                    <a
+                      href={documentHrefByStep[s.docCategory]}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-slate underline decoration-line hover:decoration-ink shrink-0"
+                    >
+                      Voir le document
+                    </a>
+                  )}
+                </div>
+              )
+            )}
+
+            {documents.length > 0 && (
+              <div className="mt-3.5 pt-3.5 border-t border-line">
+                <div className="text-[11px] text-slate uppercase tracking-wide mb-1.5">Documents ({documents.length})</div>
+                <div className="flex flex-col gap-1.5">
+                  {documents.map((doc) => (
+                    <a
+                      key={doc.id}
+                      href={doc.bodyText ? `/api/documents/generated/${doc.id}` : doc.fileUrl ?? "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between gap-3 text-[12px] text-ink underline decoration-line hover:decoration-ink"
+                    >
+                      <span className="truncate">{doc.title}</span>
+                      <span className="text-slate shrink-0 no-underline">{format(doc.createdAt, "d MMM yyyy", { locale: fr })}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {isCurrent && (canManageOutreach || canConvocation) && (
+              <div className="mt-3.5 pt-3.5 border-t border-line">
+                <div className="text-[11px] text-slate uppercase tracking-wide mb-1.5">Communications</div>
+                <div className="flex items-center gap-2.5 flex-wrap mb-2.5">
+                  <SendOutreachButtons dossierId={d.id} showConvocation={canConvocation} />
+                  {canManageOutreach && (
+                    <SendDocumentDialog
+                      dossierId={d.id}
+                      templates={templates}
+                      contactFirstName={contact.firstName}
+                      signatureHtml={signatureHtml}
+                    />
+                  )}
+                  {canManageOutreach && <SendSatisfactionSurveyButton dossierId={d.id} kind="hot" />}
+                  {canManageOutreach && <SendSatisfactionSurveyButton dossierId={d.id} kind="cold" />}
+                </div>
+                {outreaches.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    {outreaches.map((o) => (
+                      <div key={o.id} className="flex items-center justify-between gap-3 text-[12px]">
+                        <div className="text-ink">
+                          {OUTREACH_LABELS[o.type] ?? o.type} — envoyé le {format(o.sentAt, "d MMM yyyy", { locale: fr })} par {o.sentByName}
+                        </div>
+                        {o.status === "acknowledged" ? (
+                          <Pill tone="good">{o.type === "platform_access" ? "Activé" : "Signé"}</Pill>
+                        ) : o.type === "contract" ? (
+                          <MarkContractSignedButton outreachId={o.id} />
+                        ) : (
+                          <Pill tone="neutral">En attente</Pill>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isCurrent && (
+              <div className="mt-3.5 pt-3.5 border-t border-line">
+                <Link href={`/dossiers/${d.id}`} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
+                  Voir le dossier complet →
+                </Link>
+              </div>
+            )}
+          </CollapsibleSection>
+        );
+      })}
     </div>
   );
 }
