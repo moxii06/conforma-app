@@ -10,6 +10,7 @@ import { NewOpportunityForm } from "@/components/NewOpportunityForm";
 import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
 import { OpportunityFilterBar } from "@/components/OpportunityFilterBar";
 import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
+import { ImportDataDialog } from "@/components/ImportDataDialog";
 import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
 import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 
@@ -101,7 +102,11 @@ export default async function CrmPage(
 
   return (
     <>
-      <PageHeader title="CRM commercial" subtitle="Du premier contact à la facturation" />
+      <PageHeader
+        title="CRM commercial"
+        subtitle="Du premier contact à la facturation"
+        action={can(role, "crm") === "full" ? <ImportDataDialog kind="contacts" courses={courses} /> : undefined}
+      />
       <div className="flex gap-1 px-8 border-b border-line">
         <Link
           href="/crm"

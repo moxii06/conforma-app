@@ -274,3 +274,46 @@ export async function summarizeQualiopiIndicator(params: {
     temperature: 0.4,
   });
 }
+
+// Column-mapping assist for the CSV/Excel data import (see lib/dataImport.ts
+// and /api/import/analyze): given the file's raw headers and a couple of
+// sample rows, propose which header feeds which Jalon field. Only called
+// for fields the deterministic synonym matching couldn't resolve — and the
+// result is only ever a pre-selection in the mapping UI the user reviews,
+// never applied blindly. Returns null (silently, no error) when the
+// platform key isn't configured: heuristics-only is a fine fallback.
+export async function suggestImportMappingWithAI(params: {
+  headers: string[];
+  sampleRows: string[][];
+  fields: { key: string; label: string }[];
+}): Promise<Record<string, string> | null> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) return null;
+
+  const sample = params.sampleRows
+    .slice(0, 2)
+    .map((row, i) => `Ligne ${i + 1}: ${params.headers.map((h, j) => `${h}=${row[j] ?? ""}`).join(" | ")}`)
+    .join("\n");
+
+  try {
+    const text = await chatCompletion(apiKey, {
+      system:
+        'Tu associes les colonnes d\'un fichier exporté (CRM, Excel) aux champs d\'un logiciel de gestion pour organismes de formation. Réponds UNIQUEMENT en JSON : un objet dont les clés sont les identifiants de champ demandés et les valeurs le nom EXACT d\'une colonne du fichier, ou null si aucune colonne ne correspond clairement. N\'invente jamais de nom de colonne.',
+      user: `Colonnes du fichier : ${JSON.stringify(params.headers)}\n\nAperçu :\n${sample}\n\nChamps à associer : ${params.fields.map((f) => `${f.key} (${f.label})`).join(", ")}`,
+      json: true,
+      temperature: 0,
+    });
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    const result: Record<string, string> = {};
+    const validKeys = new Set(params.fields.map((f) => f.key));
+    for (const [key, value] of Object.entries(parsed)) {
+      // Defensive: only keep mappings onto headers that really exist.
+      if (validKeys.has(key) && typeof value === "string" && params.headers.includes(value)) {
+        result[key] = value;
+      }
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
