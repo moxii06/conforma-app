@@ -30,6 +30,9 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   satisfaction_not_collected: "Satisfaction",
   learner_inactive: "Décrochage",
   bank_transaction_pending: "Rapprochement bancaire",
+  qualiopi_certificate_expiring: "Certificat Qualiopi",
+  qualiopi_audit_upcoming: "Audit Qualiopi",
+  qualiopi_finding_open: "Non-conformité",
 };
 
 const STAGE_LABELS: Record<PipelineStage, string> = {

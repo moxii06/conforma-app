@@ -47,7 +47,10 @@ export type DashboardTask = {
     | "rolling_deadline_overdue"
     | "satisfaction_not_collected"
     | "learner_inactive"
-    | "bank_transaction_pending";
+    | "bank_transaction_pending"
+    | "qualiopi_certificate_expiring"
+    | "qualiopi_audit_upcoming"
+    | "qualiopi_finding_open";
   label: string;
   contactName: string;
   since: Date;
@@ -552,6 +555,65 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         since: soonest,
         href: "/team",
         overdue: soonest < now,
+      });
+    }
+  }
+
+  // Qualiopi certification deadlines — admin-only (same visibility as the
+  // /qualiopi module). Three signals, all cheap reads: the certificate's
+  // 3-year validity running out, the certifier-announced next audit getting
+  // close, and audit non-conformities still waiting for a corrective-action
+  // response ("ouverte" — "levée" is a normal resting state until the next
+  // audit and doesn't alert).
+  if (canSeeGeneral) {
+    const now = new Date();
+    const [orgQualiopi, openFindings] = await Promise.all([
+      prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { qualiopiCertificateUntil: true, nextAuditDate: true },
+      }),
+      prisma.qualiopiAuditFinding.findMany({
+        where: { audit: { organizationId }, status: "ouverte" },
+        include: { audit: { select: { auditDate: true } } },
+      }),
+    ]);
+
+    if (orgQualiopi?.qualiopiCertificateUntil && orgQualiopi.qualiopiCertificateUntil < addDays(now, 180)) {
+      results.push({
+        id: "qualiopi-certificate",
+        kind: "qualiopi_certificate_expiring",
+        label:
+          orgQualiopi.qualiopiCertificateUntil < now
+            ? "Certificat Qualiopi expiré"
+            : "Certificat Qualiopi expire bientôt — planifier l'audit de renouvellement",
+        contactName: "Certification Qualiopi",
+        since: orgQualiopi.qualiopiCertificateUntil,
+        href: "/qualiopi?tab=audits",
+        overdue: orgQualiopi.qualiopiCertificateUntil < now,
+      });
+    }
+
+    if (orgQualiopi?.nextAuditDate && orgQualiopi.nextAuditDate < addDays(now, 90)) {
+      results.push({
+        id: "qualiopi-next-audit",
+        kind: "qualiopi_audit_upcoming",
+        label: "Audit Qualiopi dans moins de 3 mois — préparer le dossier de preuves",
+        contactName: "Certification Qualiopi",
+        since: orgQualiopi.nextAuditDate,
+        href: "/qualiopi?tab=preparation-audit",
+        overdue: orgQualiopi.nextAuditDate < now,
+      });
+    }
+
+    for (const f of openFindings) {
+      results.push({
+        id: f.id,
+        kind: "qualiopi_finding_open",
+        label: `Non-conformité ${f.severity} (indicateur ${f.indicatorNumber}) — proposer une action corrective`,
+        contactName: "Audit Qualiopi",
+        since: f.audit.auditDate,
+        href: "/qualiopi?tab=audits",
+        overdue: f.audit.auditDate < addDays(now, -30),
       });
     }
   }

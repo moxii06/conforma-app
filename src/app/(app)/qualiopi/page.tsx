@@ -13,6 +13,11 @@ import { ResultIndicatorForm } from "@/components/ResultIndicatorForm";
 import { ResultIndicatorPublishToggle } from "@/components/ResultIndicatorPublishToggle";
 import { RegulatoryWatchForm } from "@/components/RegulatoryWatchForm";
 import { RegulatoryWatchStatusForm } from "@/components/RegulatoryWatchStatusForm";
+import { QualiopiCertificateForm } from "@/components/QualiopiCertificateForm";
+import { QualiopiAuditForm } from "@/components/QualiopiAuditForm";
+import { QualiopiFindingForm } from "@/components/QualiopiFindingForm";
+import { QualiopiFindingActions } from "@/components/QualiopiFindingActions";
+import { QualiopiAuditDeleteButton } from "@/components/QualiopiAuditDeleteButton";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -34,6 +39,7 @@ const TABS = [
   { key: "resultats", label: "Indicateurs de résultats" },
   { key: "veille", label: "Veille réglementaire" },
   { key: "amelioration-continue", label: "Amélioration continue" },
+  { key: "audits", label: "Audits" },
   { key: "preparation-audit", label: "Préparation audit" },
 ];
 
@@ -61,6 +67,8 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
       <div className="p-8">
         {activeTab === "amelioration-continue" ? (
           <ContinuousImprovementTab organizationId={session.organizationId} canEdit={canEdit} />
+        ) : activeTab === "audits" ? (
+          <AuditsTab organizationId={session.organizationId} canEdit={canEdit} />
         ) : activeTab === "preparation-audit" ? (
           <AuditPrepTab organizationId={session.organizationId} canEdit={canEdit} />
         ) : activeTab === "resultats" ? (
@@ -501,6 +509,191 @@ async function RegulatoryWatchTab({ organizationId, canEdit }: { organizationId:
         </div>
       ))}
       {items.length === 0 && <div className="text-[12.5px] text-slate">Aucun élément de veille enregistré.</div>}
+    </div>
+  );
+}
+
+const AUDIT_TYPE_LABELS: Record<string, string> = {
+  initial: "Audit initial",
+  surveillance: "Audit de surveillance",
+  renouvellement: "Audit de renouvellement",
+  complementaire: "Audit complémentaire",
+};
+
+const FINDING_STATUS: Record<string, { label: string; tone: "warn" | "neutral" | "good" }> = {
+  ouverte: { label: "À traiter", tone: "warn" },
+  levee: { label: "Écart levé — à solder à l'audit suivant", tone: "neutral" },
+  soldee: { label: "Soldée", tone: "good" },
+};
+
+// L'historique réel des audits de certification, modelé sur les documents
+// certificateurs (synthèse d'audit + fiches "Demande d'amélioration") pour
+// que l'OF puisse les recopier champ à champ le jour où il les reçoit —
+// et retrouver en un endroit ce qu'un auditeur de surveillance demandera
+// en premier : "montrez-moi les écarts du dernier audit et ce que vous en
+// avez fait".
+async function AuditsTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
+  const [org, audits] = await Promise.all([
+    prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
+    prisma.qualiopiAudit.findMany({
+      where: { organizationId },
+      include: { findings: { orderBy: { indicatorNumber: "asc" } } },
+      orderBy: { auditDate: "desc" },
+    }),
+  ]);
+
+  const now = Date.now();
+  const expiresInDays = org.qualiopiCertificateUntil
+    ? Math.ceil((org.qualiopiCertificateUntil.getTime() - now) / 86_400_000)
+    : null;
+
+  return (
+    <div className="flex flex-col gap-5 max-w-3xl">
+      <div className="bg-white border border-line rounded-card p-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Certificat Qualiopi</div>
+          {expiresInDays != null &&
+            (expiresInDays < 0 ? (
+              <Pill tone="danger">Expiré</Pill>
+            ) : expiresInDays <= 180 ? (
+              <Pill tone="warn">Expire dans {expiresInDays} j — planifier le renouvellement</Pill>
+            ) : (
+              <Pill tone="good">Valide</Pill>
+            ))}
+        </div>
+        {org.qualiopiCertificateNumber ? (
+          <div className="mt-2 text-[12.5px] text-ink">
+            <span className="font-medium">{org.qualiopiCertificateNumber}</span>
+            {org.qualiopiCertifier && <span className="text-slate"> — {org.qualiopiCertifier}</span>}
+            <div className="text-[11.5px] text-slate mt-0.5">
+              {org.qualiopiCertifiedSince && `Certifié depuis le ${format(org.qualiopiCertifiedSince, "d MMMM yyyy", { locale: fr })}`}
+              {org.qualiopiCertificateUntil && ` · valide jusqu'au ${format(org.qualiopiCertificateUntil, "d MMMM yyyy", { locale: fr })}`}
+            </div>
+            {org.qualiopiCategories && <div className="text-[11.5px] text-slate mt-0.5">Catégories : {org.qualiopiCategories}</div>}
+          </div>
+        ) : (
+          <div className="mt-2 text-[12px] text-slate">
+            Renseignez les informations de votre certificat (numéro, validité) pour activer les alertes d&apos;échéance.
+          </div>
+        )}
+        {canEdit && (
+          <div className="mt-2">
+            <QualiopiCertificateForm
+              initial={{
+                qualiopiCertificateNumber: org.qualiopiCertificateNumber,
+                qualiopiCertifier: org.qualiopiCertifier,
+                qualiopiCertifiedSince: org.qualiopiCertifiedSince ? org.qualiopiCertifiedSince.toISOString().slice(0, 10) : null,
+                qualiopiCertificateUntil: org.qualiopiCertificateUntil ? org.qualiopiCertificateUntil.toISOString().slice(0, 10) : null,
+                qualiopiCategories: org.qualiopiCategories,
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
+          Historique des audits ({audits.length})
+        </div>
+        {canEdit && <QualiopiAuditForm />}
+      </div>
+
+      {audits.length === 0 && (
+        <div className="bg-white border border-line rounded-card p-6 text-center text-[12.5px] text-slate">
+          Aucun audit enregistré pour l&apos;instant. Enregistrez votre audit initial et ses éventuelles
+          non-conformités : c&apos;est la première chose qu&apos;un auditeur de surveillance demandera.
+        </div>
+      )}
+
+      {audits.map((audit) => {
+        const majCount = audit.findings.filter((f) => f.severity === "majeure").length;
+        const minCount = audit.findings.filter((f) => f.severity === "mineure").length;
+        const openCount = audit.findings.filter((f) => f.status !== "soldee").length;
+        return (
+          <div key={audit.id} className="bg-white border border-line rounded-card p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="text-[13.5px] font-medium text-ink">{AUDIT_TYPE_LABELS[audit.type] ?? audit.type}</span>
+                <span className="text-[12px] text-slate">{format(audit.auditDate, "d MMMM yyyy", { locale: fr })}</span>
+                {audit.findings.length === 0 ? (
+                  <Pill tone="good">Aucune non-conformité</Pill>
+                ) : (
+                  <Pill tone={openCount > 0 ? "warn" : "good"}>
+                    {majCount > 0 && `${majCount} NC majeure${majCount > 1 ? "s" : ""}`}
+                    {majCount > 0 && minCount > 0 && " · "}
+                    {minCount > 0 && `${minCount} NC mineure${minCount > 1 ? "s" : ""}`}
+                    {openCount === 0 && " — toutes soldées"}
+                  </Pill>
+                )}
+              </div>
+              {canEdit && <QualiopiAuditDeleteButton auditId={audit.id} />}
+            </div>
+
+            <div className="text-[11.5px] text-slate">
+              {audit.certifierName}
+              {audit.auditorName && ` · Auditeur : ${audit.auditorName}`}
+              {audit.durationDays != null && ` · ${audit.durationDays} jour${audit.durationDays > 1 ? "s" : ""}`}
+              {audit.remote && " · à distance"}
+            </div>
+
+            {audit.conclusions && <div className="text-[12px] text-ink bg-linen border border-line rounded-md p-2.5">{audit.conclusions}</div>}
+
+            {audit.nextAuditDate && (
+              <div className="text-[11.5px] text-slate">
+                Prochain audit annoncé : {audit.nextAuditType ? (AUDIT_TYPE_LABELS[audit.nextAuditType] ?? audit.nextAuditType).toLowerCase() : "type non précisé"}
+                {" — "}
+                {format(audit.nextAuditDate, "MMMM yyyy", { locale: fr })}
+              </div>
+            )}
+
+            {audit.findings.length > 0 && (
+              <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+                {audit.findings.map((f) => (
+                  <div key={f.id} className="border border-line rounded-md p-2.5 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[12px] font-semibold text-ink">Indicateur {f.indicatorNumber}</span>
+                      <Pill tone={f.severity === "majeure" ? "danger" : "warn"}>NC {f.severity}</Pill>
+                      <Pill tone={FINDING_STATUS[f.status]?.tone ?? "neutral"}>{FINDING_STATUS[f.status]?.label ?? f.status}</Pill>
+                    </div>
+                    <div className="text-[12px] text-ink">{f.description}</div>
+                    {(f.immediateAction || f.rootCause || f.correctiveAction) && (
+                      <div className="text-[11.5px] text-slate flex flex-col gap-0.5">
+                        {f.immediateAction && <div>Action immédiate : {f.immediateAction}</div>}
+                        {f.rootCause && <div>Causes : {f.rootCause}</div>}
+                        {f.correctiveAction && (
+                          <div>
+                            Action corrective : {f.correctiveAction}
+                            {f.implementedAt && ` (mise en œuvre le ${format(f.implementedAt, "d/MM/yyyy")})`}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {(f.liftedAt || f.closedAt) && (
+                      <div className="text-[11px] text-slate">
+                        {f.liftedAt && `Écart levé le ${format(f.liftedAt, "d/MM/yyyy")}`}
+                        {f.closedAt && ` · soldé le ${format(f.closedAt, "d/MM/yyyy")}`}
+                        {f.closureComment && ` — ${f.closureComment}`}
+                      </div>
+                    )}
+                    {canEdit && (
+                      <QualiopiFindingActions
+                        findingId={f.id}
+                        status={f.status}
+                        indicatorNumber={f.indicatorNumber}
+                        description={f.description}
+                        correctiveAction={f.correctiveAction}
+                        severity={f.severity}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canEdit && <QualiopiFindingForm auditId={audit.id} />}
+          </div>
+        );
+      })}
     </div>
   );
 }

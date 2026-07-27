@@ -25,6 +25,18 @@ model Organization {
   nextAuditDate DateTime?
   createdAt     DateTime  @default(now())
 
+  // Current Qualiopi certificate identity, copied from the paper
+  // certificate the certifier issues (modeled on a real AB Certification
+  // one): the certificate is REISSUED at each renewal with a new 3-year
+  // validity but keeps its number and original issue date, so a single
+  // set of org-level fields tracks "the current certificate" while
+  // QualiopiAudit rows below carry the full audit history.
+  qualiopiCertificateNumber String?
+  qualiopiCertifier         String? // organisme certificateur (ex. AB Certification)
+  qualiopiCertifiedSince    DateTime? // date d'émission initiale
+  qualiopiCertificateUntil  DateTime? // date de fin de validité (cycle de 3 ans)
+  qualiopiCategories        String? // catégories L.6313-1 couvertes, texte libre
+
   // Billing identity for the ORGANIZATION'S OWN Jalon subscription —
   // the org is the paying customer, so this is what a real invoice from
   // Jalon to them would need (Stripe customer creation, French invoice
@@ -80,6 +92,7 @@ model Organization {
   dpiaRecords                 DPIARecord[]
   sessionInvitations          SessionInvitation[]
   nonConformities             NonConformity[]
+  qualiopiAudits              QualiopiAudit[]
   rightsRequests              RightsRequest[]
   dataBreaches                DataBreach[]
   documents                   Document[]
@@ -1308,6 +1321,67 @@ model DataBreach {
 // currently auditing itself against (Organization.activeReferentielVersion)
 // so switching to a new version — or previewing a still-draft one ahead of
 // its application date — never silently rewrites another org's checklist.
+// One row per certification-body audit (initial, surveillance,
+// renouvellement, complémentaire) — the org's real audit history, modeled
+// on actual certifier paperwork (AB Certification "Synthèse de l'audit"
+// 223-DS-09). Distinct from Organization.nextAuditDate (a manually set
+// pointer, kept in sync when an audit announces the next one) and from the
+// internal NonConformity model (complaints/suggestions log): findings here
+// come from the CERTIFIER, are tied to an indicator, and follow the
+// two-audit lifecycle (raised → corrective action accepted/levée → soldée
+// at the NEXT audit).
+model QualiopiAudit {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  type          String // initial | surveillance | renouvellement | complementaire
+  auditDate     DateTime
+  certifierName String
+  auditorName   String?
+  durationDays  Float?
+  remote        Boolean  @default(false)
+  // Conclusions et recommandations de la synthèse d'audit, en texte libre —
+  // c'est là que vit "l'auditeur recommande le maintien de la certification".
+  conclusions   String?
+  nextAuditType String? // surveillance | renouvellement | complementaire
+  nextAuditDate DateTime? // date prévisionnelle annoncée dans la synthèse
+
+  findings QualiopiAuditFinding[]
+
+  createdByName String
+  createdAt     DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// Une "Demande d'amélioration" (fiche de non-conformité d'audit, formulaire
+// certificateur 223-DS-05) : écart constaté sur UN indicateur, majeure ou
+// mineure, avec le plan de réponse de l'OF puis deux jalons distincts —
+// "levée" quand l'auditeur accepte l'action corrective (quelques semaines
+// après l'audit), "soldée" quand l'audit SUIVANT constate que l'action est
+// toujours en œuvre. Les deux dates coexistent donc sur la même fiche.
+model QualiopiAuditFinding {
+  id      String        @id @default(cuid())
+  audit   QualiopiAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  auditId String
+
+  indicatorNumber  Int
+  severity         String // majeure | mineure
+  description      String // l'écart constaté (preuve tangible)
+  immediateAction  String? // action curative immédiate
+  rootCause        String? // analyse des causes de l'écart
+  correctiveAction String? // action pour éviter la récurrence
+  implementedAt    DateTime? // date de mise en œuvre annoncée
+
+  status         String    @default("ouverte") // ouverte | levee | soldee
+  liftedAt       DateTime? // levée de l'écart (action corrective acceptée)
+  closedAt       DateTime? // écart soldé (à l'audit suivant)
+  closureComment String?
+
+  @@index([auditId])
+}
+
 model QualiopiReferentielVersion {
   id             String    @id @default(cuid())
   label          String // e.g. "RNQ 2022 (en vigueur)", "RNQ — Réforme 2026 (projet)"
