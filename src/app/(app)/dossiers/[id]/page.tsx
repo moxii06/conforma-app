@@ -167,7 +167,7 @@ async function InfoTab({
   signatureHtml,
   otherDossiers,
 }: {
-  dossier: { id: string; needsAssessmentDone: boolean; contractSigned: boolean; convocationSent: boolean; evaluationHotDone: boolean; evaluationColdDone: boolean; learnerCategory: string | null; contact: { firstName: string } };
+  dossier: { id: string; needsAssessmentDone: boolean; contractSigned: boolean; convocationSent: boolean; evaluationHotDone: boolean; evaluationColdDone: boolean; learnerCategory: string | null; contact: { firstName: string }; session: { course: { title: string } } };
   organizationId: string;
   canEditCategory: boolean;
   canManageOutreach: boolean;
@@ -194,27 +194,19 @@ async function InfoTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {otherDossiers.length > 0 && (
-        <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13.5px] font-semibold text-ink mb-3">
-            Autres formations de {dossier.contact.firstName} ({otherDossiers.length})
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {otherDossiers.map((d) => (
-              <Link
-                key={d.id}
-                href={`/dossiers/${d.id}`}
-                className="flex items-center justify-between gap-3 text-[12.5px] text-ink hover:underline decoration-line"
-              >
-                <span className="truncate">{d.courseTitle}</span>
-                <span className="text-slate shrink-0">{format(d.startsAt, "d MMM yyyy", { locale: fr })}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Client feedback: with "Autres formations" sitting right above an
+          untitled "Parcours de formation", the checklist read as covering
+          every formation at once. The Parcours belongs to THIS dossier only
+          (each formation has its own dossier and its own checklist), so it
+          comes first, named after its course — and the other-formations
+          card follows, explicitly pointing at their own parcours. */}
       <div className="bg-white border border-line rounded-card p-5">
-        <div className="text-[13.5px] font-semibold text-ink mb-3">Parcours de formation</div>
+        <div className="text-[13.5px] font-semibold text-ink mb-0.5">
+          Parcours de formation — {dossier.session.course.title}
+        </div>
+        <div className="text-[11.5px] text-slate mb-3">
+          Suivi propre à cette formation uniquement.
+        </div>
         {steps.map((s) =>
           canManageOutreach ? (
             <ParcoursStepToggle
@@ -245,6 +237,28 @@ async function InfoTab({
           )
         )}
       </div>
+      {otherDossiers.length > 0 && (
+        <div className="bg-white border border-line rounded-card p-5">
+          <div className="text-[13.5px] font-semibold text-ink mb-0.5">
+            Autres formations de {dossier.contact.firstName} ({otherDossiers.length})
+          </div>
+          <div className="text-[11.5px] text-slate mb-3">
+            Chacune a son propre dossier et son propre parcours de formation.
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {otherDossiers.map((d) => (
+              <Link
+                key={d.id}
+                href={`/dossiers/${d.id}`}
+                className="flex items-center justify-between gap-3 text-[12.5px] text-ink hover:underline decoration-line"
+              >
+                <span className="truncate">{d.courseTitle}</span>
+                <span className="text-slate shrink-0">{format(d.startsAt, "d MMM yyyy", { locale: fr })}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       {(canManageOutreach || canConvocation) && (
         <div className="bg-white border border-line rounded-card p-5">
           <div className="text-[13.5px] font-semibold text-ink mb-3">Communications</div>
