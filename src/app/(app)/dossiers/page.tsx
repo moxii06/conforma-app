@@ -77,7 +77,7 @@ export default async function DossiersPage(
             <Link
               key={d.id}
               href={`/dossiers/${d.id}`}
-              className="bg-white border border-line rounded-card px-4.5 py-3.5 flex items-center justify-between gap-4 hover:border-ink-soft"
+              className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center justify-between gap-4 hover:border-ink-soft"
             >
               <div className="min-w-0">
                 <div className="text-[13.5px] font-semibold text-ink truncate">

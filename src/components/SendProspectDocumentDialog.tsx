@@ -303,7 +303,7 @@ export function SendProspectDocumentDialog({
                       <span className="text-[12px] text-ink">Demander une signature électronique (Yousign)</span>
                     </label>
                     {!eSignatureAvailable && (
-                      <div className="text-[11px] text-slate pl-5.5">
+                      <div className="text-[11px] text-slate pl-[22px]">
                         Nécessite une clé API Yousign — à configurer sur la page Intégrations.
                       </div>
                     )}

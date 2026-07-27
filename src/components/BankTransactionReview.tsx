@@ -63,7 +63,7 @@ export function BankTransactionReview({
   const top = suggestions.find((s) => s.id === selectedId);
 
   return (
-    <div className="bg-white border border-line rounded-card px-4.5 py-3.5 flex flex-col gap-2.5">
+    <div className="bg-white border border-line rounded-card px-5 py-3.5 flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="text-[13.5px] font-semibold text-ink truncate">{label}</div>
