@@ -27,7 +27,18 @@ type SessionChoice = { id: string; startsAt: string; format: string; mode: strin
 // One dialog for both import kinds (CRM contacts, course catalog) — the
 // field list, permissions and commit endpoint differ, the flow doesn't:
 // upload -> validate the proposed column mapping -> import -> report.
-export function ImportDataDialog({ kind, courses }: { kind: ImportKind; courses?: { id: string; title: string }[] }) {
+export function ImportDataDialog({
+  kind,
+  courses,
+  triggerClassName,
+}: {
+  kind: ImportKind;
+  courses?: { id: string; title: string }[];
+  // Lets each host page match its neighboring action button (dark primary
+  // next to "+ Nouveau prospect" on /crm, bordered next to "+ Créer une
+  // formation" on /formations).
+  triggerClassName?: string;
+}) {
   const router = useRouter();
   const fields = importFieldsFor(kind);
   const [open, setOpen] = useState(false);
@@ -118,7 +129,10 @@ export function ImportDataDialog({ kind, courses }: { kind: ImportKind; courses?
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink border border-line rounded-md px-3 py-1.5 hover:border-ink-soft"
+        className={
+          triggerClassName ??
+          "inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink border border-line rounded-md px-3 py-1.5 hover:border-ink-soft"
+        }
       >
         <Upload size={13} />
         Importer

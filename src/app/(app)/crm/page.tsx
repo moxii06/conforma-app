@@ -102,11 +102,7 @@ export default async function CrmPage(
 
   return (
     <>
-      <PageHeader
-        title="CRM commercial"
-        subtitle="Du premier contact à la facturation"
-        action={can(role, "crm") === "full" ? <ImportDataDialog kind="contacts" courses={courses} /> : undefined}
-      />
+      <PageHeader title="CRM commercial" subtitle="Du premier contact à la facturation" />
       <div className="flex gap-1 px-8 border-b border-line">
         <Link
           href="/crm"
@@ -134,7 +130,18 @@ export default async function CrmPage(
         </Link>
       </div>
       <div className="p-8 flex flex-col gap-4">
-        {canWrite && view !== "archives" && <NewOpportunityForm contacts={contacts} courses={courses} />}
+        {canWrite && view !== "archives" && (
+          <div className="flex items-start gap-2.5">
+            <NewOpportunityForm contacts={contacts} courses={courses} />
+            {can(role, "crm") === "full" && (
+              <ImportDataDialog
+                kind="contacts"
+                courses={courses}
+                triggerClassName="inline-flex items-center gap-1.5 bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft"
+              />
+            )}
+          </div>
+        )}
 
         {view === "archives" ? (
           <div className="bg-white border border-line rounded-card overflow-x-auto">
