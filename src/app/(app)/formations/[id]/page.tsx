@@ -4,10 +4,11 @@ import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, HelpCircle, Video, type LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Tabs } from "@/components/Tabs";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { NewModuleForm } from "@/components/NewModuleForm";
 import { AssignLearnersPanel } from "@/components/AssignLearnersPanel";
 import { RevokeAccessButton } from "@/components/RevokeAccessButton";
@@ -26,7 +27,7 @@ import { TemplateEditor } from "@/components/TemplateEditor";
 import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 
-const TYPE_LABELS: Record<string, string> = { video: "Vidéo", document: "Document", quiz: "Quiz" };
+const TYPE_ICONS: Record<string, LucideIcon> = { video: Video, document: FileText, quiz: HelpCircle };
 
 const courseInclude = {
   elearningModules: {
@@ -340,6 +341,21 @@ function ApprenantsTab({
   );
 }
 
+// Module progress used to be a bare "72%" number next to each name — a
+// small filled track reads at a glance across a dozen rows in a way a
+// column of digits doesn't, and color (sage at 100%, seal otherwise) flags
+// completion without adding another badge.
+function ProgressBar({ percent }: { percent: number }) {
+  return (
+    <div className="flex-1 h-1.5 bg-pebble rounded-full overflow-hidden min-w-[48px]">
+      <div
+        className={`h-full rounded-full ${percent >= 100 ? "bg-sage" : "bg-seal"}`}
+        style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+      />
+    </div>
+  );
+}
+
 function ContenuTab({
   course,
   courseDossiers,
@@ -350,43 +366,53 @@ function ContenuTab({
   canManage: boolean;
 }) {
   return (
-    <div className="bg-white border border-line rounded-card p-4">
-      <div className="flex flex-col gap-3">
-        {(() => {
-          const rows = course.elearningModules.map((m) => {
-            const assignedIds = new Set(m.progress.map((p) => p.dossierId));
-            const eligible = courseDossiers.filter((d) => !assignedIds.has(d.id));
-            return {
-              id: m.id,
-              node: (
-                <div className="border-t border-line pt-3 first:border-t-0 first:pt-0 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Pill tone="neutral">{TYPE_LABELS[m.type] ?? m.type}</Pill>
-                        <span className="text-[12.5px] text-ink font-medium">{m.title}</span>
-                      </div>
-                      {m.description && <div className="text-[11.5px] text-slate mt-0.5">{m.description}</div>}
-                    </div>
-                    {m.type === "quiz" ? (
-                      <span className="text-[11px] text-slate shrink-0">{m.quiz?.questions.length ?? 0} question(s)</span>
-                    ) : m.fileUrl ? (
-                      <a
-                        href={m.type === "video" ? `/api/lms/modules/${m.id}/stream` : m.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11.5px] text-ink underline decoration-line hover:decoration-ink shrink-0"
-                      >
-                        Voir le fichier
-                      </a>
-                    ) : (
-                      <span className="text-[11px] text-rust shrink-0">Aucun fichier déposé</span>
-                    )}
-                  </div>
+    <div className="flex flex-col gap-3">
+      {(() => {
+        const rows = course.elearningModules.map((m) => {
+          const assignedIds = new Set(m.progress.map((p) => p.dossierId));
+          const eligible = courseDossiers.filter((d) => !assignedIds.has(d.id));
+          const avgPercent =
+            m.progress.length > 0 ? Math.round(m.progress.reduce((sum, p) => sum + p.percentComplete, 0) / m.progress.length) : null;
+          const Icon = TYPE_ICONS[m.type] ?? FileText;
+          const badgeParts: string[] = [];
+          if (m.type === "quiz") {
+            const n = m.quiz?.questions.length ?? 0;
+            badgeParts.push(`${n} question${n > 1 ? "s" : ""}`);
+          }
+          if (m.progress.length > 0) badgeParts.push(`${m.progress.length} apprenant${m.progress.length > 1 ? "s" : ""} · ${avgPercent}%`);
 
-                  {m.type !== "quiz" && canManage && (
-                    <div className="flex items-center gap-2.5">
-                      <ReplaceModuleFileForm moduleId={m.id} type={m.type} />
+          return {
+            id: m.id,
+            node: (
+              <CollapsibleSection
+                title={
+                  <span className="inline-flex items-center gap-2.5 min-w-0">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-linen text-seal-dark shrink-0">
+                      <Icon size={13} />
+                    </span>
+                    <span className="text-[13.5px] font-medium text-ink truncate">{m.title}</span>
+                  </span>
+                }
+                badge={badgeParts.length > 0 ? <Pill tone={avgPercent === 100 ? "good" : "neutral"}>{badgeParts.join(" · ")}</Pill> : undefined}
+              >
+                <div className="flex flex-col gap-3.5">
+                  {m.description && <div className="text-[12px] text-slate">{m.description}</div>}
+
+                  {m.type !== "quiz" && (
+                    <div className="flex items-center gap-4 flex-wrap">
+                      {m.fileUrl ? (
+                        <a
+                          href={m.type === "video" ? `/api/lms/modules/${m.id}/stream` : m.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink"
+                        >
+                          <ExternalLink size={12} /> Voir le fichier
+                        </a>
+                      ) : (
+                        <span className="text-[11.5px] text-rust">Aucun fichier déposé</span>
+                      )}
+                      {canManage && <ReplaceModuleFileForm moduleId={m.id} type={m.type} />}
                     </div>
                   )}
                   {m.versions.length > 0 && (
@@ -419,43 +445,46 @@ function ContenuTab({
                     />
                   )}
 
-                  {m.progress.length > 0 && (
-                    <div className="flex flex-col gap-1">
-                      {m.progress.map((p) => (
-                        <div key={p.id} className="flex items-center justify-between gap-3 text-[12px]">
-                          <span className="text-ink">
+                  <div className="flex flex-col gap-2 border-t border-line pt-3.5">
+                    <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">Progression des apprenants</div>
+                    {m.progress.length > 0 ? (
+                      m.progress.map((p) => (
+                        <div key={p.id} className="flex items-center gap-3">
+                          <span className="text-[12px] text-ink w-32 truncate shrink-0">
                             {p.dossier.contact.firstName} {p.dossier.contact.lastName}
                           </span>
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-slate w-10 text-right">{p.percentComplete}%</span>
-                            {canManage && <RevokeAccessButton progressId={p.id} />}
-                          </div>
+                          <ProgressBar percent={p.percentComplete} />
+                          <span className="text-[11px] text-slate w-9 text-right tabular-nums shrink-0">{p.percentComplete}%</span>
+                          {canManage && <RevokeAccessButton progressId={p.id} />}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {m.progress.length === 0 && <div className="text-[11.5px] text-slate">Aucun apprenant assigné.</div>}
+                      ))
+                    ) : (
+                      <div className="text-[11.5px] text-slate">Aucun apprenant assigné.</div>
+                    )}
+                  </div>
 
                   {canManage && (
-                    <div className="flex items-center gap-3.5 flex-wrap">
+                    <div className="flex items-center justify-between gap-3.5 border-t border-line pt-3.5">
                       <AssignLearnersPanel moduleId={m.id} eligibleDossiers={eligible} />
                       <DeleteModuleButton moduleId={m.id} />
                     </div>
                   )}
                 </div>
-              ),
-            };
-          });
-          return canManage && rows.length > 1 ? (
-            <ModuleReorderList courseId={course.id} items={rows} />
-          ) : (
-            rows.map((r) => <div key={r.id}>{r.node}</div>)
-          );
-        })()}
-        {course.elearningModules.length === 0 && <div className="text-[12px] text-slate py-1">Aucun module.</div>}
-      </div>
+              </CollapsibleSection>
+            ),
+          };
+        });
+        return canManage && rows.length > 1 ? (
+          <ModuleReorderList courseId={course.id} items={rows} />
+        ) : (
+          rows.map((r) => <div key={r.id}>{r.node}</div>)
+        );
+      })()}
+      {course.elearningModules.length === 0 && (
+        <div className="bg-white border border-line rounded-card p-6 text-center text-[12.5px] text-slate">Aucun module pour l&apos;instant.</div>
+      )}
       {canManage && (
-        <div className="mt-3 pt-3 border-t border-line">
+        <div className="bg-white border border-line rounded-card p-4">
           <NewModuleForm courseId={course.id} />
         </div>
       )}

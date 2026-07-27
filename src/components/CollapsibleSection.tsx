@@ -16,7 +16,11 @@ export function CollapsibleSection({
   defaultOpen = false,
   children,
 }: {
-  title: string;
+  // ReactNode (not just string) so a caller can compose an icon/label
+  // combo as the heading — e.g. the course content tab's per-module type
+  // icon — while every plain-string usage (dashboard widgets) keeps working
+  // unchanged.
+  title: React.ReactNode;
   badge?: React.ReactNode;
   extra?: React.ReactNode;
   defaultOpen?: boolean;
@@ -26,9 +30,9 @@ export function CollapsibleSection({
   return (
     <div className="bg-white border border-line rounded-card p-4">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 text-left shrink-0">
-          {open ? <ChevronDown size={14} className="text-slate" /> : <ChevronRight size={14} className="text-slate" />}
-          <span className="text-[12.5px] text-slate">{title}</span>
+        <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 text-left shrink-0 min-w-0">
+          {open ? <ChevronDown size={14} className="text-slate shrink-0" /> : <ChevronRight size={14} className="text-slate shrink-0" />}
+          <span className="text-[12.5px] text-slate min-w-0">{title}</span>
         </button>
         {badge}
         <div className="flex-1" />
