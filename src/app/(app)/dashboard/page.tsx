@@ -16,6 +16,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "Test de positionnement",
   contract: "Contrat",
   platform_access: "Accès plateforme",
+  platform_access_after_payment: "Accès plateforme",
   convocation: "Convocation",
   invoice_overdue: "Facture",
   rgpd_suggestion: "RGPD (IA)",

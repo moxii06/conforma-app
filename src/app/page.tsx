@@ -71,7 +71,7 @@ const PLANS = [
     name: "Solo",
     price: "39",
     tagline: "Pour démarrer seul",
-    features: ["1 utilisateur", "Jusqu'à 15 apprenants actifs / mois", "Toolkit documents inclus", "15 signatures électroniques / mois"],
+    features: ["1 utilisateur", "Jusqu'à 15 apprenants actifs / mois", "Toolkit documents inclus", "10 signatures électroniques / mois incluses (puis 1 € HT)"],
     featured: false,
   },
   {

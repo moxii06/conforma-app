@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import { differenceInCalendarDays, format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { checkSignatureQuota } from "@/lib/signatureQuota";
+import { getSignatureQuota, OVERAGE_PRICE_CENTS } from "@/lib/signatureQuota";
 
 const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team", growth: "Growth" };
 const STATUS_LABELS: Record<string, { label: string; tone: "good" | "warn" | "danger" | "neutral" }> = {
@@ -22,7 +22,7 @@ export default async function AbonnementPage() {
 
   const subscription = await prisma.subscription.findUnique({ where: { organizationId } });
   const status = subscription ? STATUS_LABELS[subscription.status] ?? { label: subscription.status, tone: "neutral" as const } : null;
-  const signatureQuota = await checkSignatureQuota(organizationId);
+  const signatureQuota = await getSignatureQuota(organizationId);
   const daysLeft =
     subscription?.status === "trialing" && subscription.trialEndsAt
       ? Math.max(0, differenceInCalendarDays(subscription.trialEndsAt, new Date()))
@@ -53,18 +53,28 @@ export default async function AbonnementPage() {
           )}
         </div>
 
-        {signatureQuota.limit !== null && (
+        {signatureQuota.metered && (
           <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="text-[13px] font-semibold text-ink">Signatures électroniques</div>
-              <Pill tone={signatureQuota.used >= signatureQuota.limit ? "danger" : signatureQuota.used >= signatureQuota.limit * 0.8 ? "warn" : "neutral"}>
-                {signatureQuota.used} / {signatureQuota.limit} ce mois-ci
+              <Pill tone={signatureQuota.overage > 0 ? "warn" : "neutral"}>
+                {Math.min(signatureQuota.used, signatureQuota.included)} / {signatureQuota.included} incluses ce mois-ci
               </Pill>
             </div>
             <div className="text-[12.5px] text-slate">
-              L&apos;offre Solo inclut {signatureQuota.limit}
-              {" "}demandes de signature électronique par mois. Passez à l&apos;offre Team pour un usage illimité.
+              L&apos;offre Solo inclut {signatureQuota.included}
+              {" "}demandes de signature électronique par mois via le compte Yousign de Jalon ; au-delà, chaque
+              signature est refacturée {(OVERAGE_PRICE_CENTS / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+              {" "}HT sur votre facture mensuelle. Les signatures envoyées via votre propre clé Yousign (page
+              Intégrations) ne sont pas comptées. Passez à l&apos;offre Team pour un usage illimité.
             </div>
+            {signatureQuota.overage > 0 && (
+              <div className="text-[12.5px] text-rust">
+                {signatureQuota.overage} signature{signatureQuota.overage > 1 ? "s" : ""} hors forfait ce mois-ci —{" "}
+                {((signatureQuota.overage * OVERAGE_PRICE_CENTS) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })} HT
+                seront refacturés.
+              </div>
+            )}
           </div>
         )}
 

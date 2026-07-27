@@ -36,12 +36,17 @@ export function SendProspectDocumentDialog({
   templates,
   contactFirstName,
   signatureHtml,
+  eSignatureAvailable = false,
 }: {
   opportunityId: string;
   alreadySentNeedsAssessment: boolean;
   templates: Template[];
   contactFirstName: string;
   signatureHtml: string;
+  // True when a Yousign key (the org's own, or Jalon's platform account)
+  // exists server-side — there's no internal-stub fallback for a prospect
+  // (no portal login yet), so without a key the checkbox simply isn't shown.
+  eSignatureAvailable?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -53,6 +58,7 @@ export function SendProspectDocumentDialog({
   const [message, setMessage] = useState(() => defaultMessage(contactFirstName));
   const [messageResetKey, setMessageResetKey] = useState(0);
   const [includeSignature, setIncludeSignature] = useState(true);
+  const [requiresESignature, setRequiresESignature] = useState(false);
   const [category, setCategory] = useState<string>("other");
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
@@ -94,6 +100,7 @@ export function SendProspectDocumentDialog({
     setMessage(defaultMessage(contactFirstName));
     setMessageResetKey((k) => k + 1);
     setIncludeSignature(true);
+    setRequiresESignature(false);
     setCategory("other");
     setFile(null);
     setResult(null);
@@ -127,6 +134,7 @@ export function SendProspectDocumentDialog({
     formData.set("title", title);
     formData.set("category", category);
     formData.set("message", includeSignature ? message + signatureHtml : message);
+    formData.set("requiresSignature", String(requiresESignature));
     if (mode === "template") {
       formData.set("templateId", templateId);
       formData.set("bodyText", bodyHtml);
@@ -276,6 +284,18 @@ export function SendProspectDocumentDialog({
                       </select>
                       <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} required className="text-[12px] text-ink" />
                     </div>
+                  )}
+
+                  {eSignatureAvailable && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={requiresESignature}
+                        onChange={(e) => setRequiresESignature(e.target.checked)}
+                        className="accent-ink w-3.5 h-3.5"
+                      />
+                      <span className="text-[12px] text-ink">Demander une signature électronique (Yousign)</span>
+                    </label>
                   )}
 
                   <div className="flex flex-col gap-1">

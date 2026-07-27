@@ -1097,6 +1097,13 @@ model Document {
   // key on file for this org), or the Yousign webhook handler below
   // (yousignSignatureRequestId set, real signature_request.done event).
   signatureStatus           String         @default("none")
+  // Which engine carries this signature request: "yousign_org" (the OFP's
+  // own Yousign key — they pay Yousign directly, never metered),
+  // "yousign_platform" (Jalon's partner account — the only kind
+  // lib/signatureQuota.ts counts for the Solo plan's included-10 + re-billed
+  // overage), or "stub" (internal mon-espace click, free). Null when no
+  // signature was requested, and on rows predating this field.
+  signatureProvider         String?
   signedAt                  DateTime?
   // Set only when this document's signature was actually sent through
   // Yousign (src/lib/yousign.ts) rather than the internal stub — lets the

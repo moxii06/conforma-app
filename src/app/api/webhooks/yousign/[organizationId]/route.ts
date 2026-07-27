@@ -10,6 +10,12 @@ import { notifyDocumentSigned, syncParcoursFromSignedDocument } from "@/lib/docu
 // to check the payload against, before the payload itself can be trusted —
 // same reasoning as the Stripe webhook route sketched in lib/stripe.ts.
 //
+// The literal path segment "platform" is Jalon's own partner account's
+// single subscription (secret: YOUSIGN_WEBHOOK_SECRET) — it carries events
+// for EVERY tenant whose signatures ran on the platform key, so the
+// document lookup drops the org filter and relies on
+// yousignSignatureRequestId being globally @unique instead.
+//
 // Event names/payload shape per https://developers.yousign.com/docs/use-webhooks-in-your-app
 // and https://developers.yousign.com/reference/approver-events (now hosted
 // at developers.youtrust.com after the July 2026 rename) — not yet
@@ -32,7 +38,10 @@ export async function POST(request: Request, props: { params: Promise<{ organiza
   if (!signatureRequestId) return NextResponse.json({ ok: true, ignored: "no signature_request.id" });
 
   const document = await prisma.document.findFirst({
-    where: { organizationId: params.organizationId, yousignSignatureRequestId: signatureRequestId },
+    where: {
+      yousignSignatureRequestId: signatureRequestId,
+      ...(params.organizationId === "platform" ? {} : { organizationId: params.organizationId }),
+    },
   });
   if (!document) return NextResponse.json({ ok: true, ignored: "document not found" });
   if (document.signatureStatus === "signed") return NextResponse.json({ ok: true });
@@ -42,7 +51,7 @@ export async function POST(request: Request, props: { params: Promise<{ organiza
     data: { signatureStatus: "signed", signedAt: new Date() },
   });
 
-  await notifyDocumentSigned(signed, params.organizationId);
+  await notifyDocumentSigned(signed, signed.organizationId);
   await syncParcoursFromSignedDocument(signed);
 
   return NextResponse.json({ ok: true });

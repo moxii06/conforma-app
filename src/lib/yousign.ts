@@ -19,13 +19,16 @@
 // that touches the credential provider key, the /integrations label, and
 // this file for a rebrand with no functional effect on this client.
 //
-// Unlike AI/Brevo, this deliberately stays a PER-ORGANIZATION credential
-// (IntegrationCredential, provider "yousign" — already on /integrations)
-// rather than moving platform-level: the signature request has to reflect
-// the actual OFP as the contracting party, not Jalon, for the document
-// to make legal sense to the person signing it. A Yousign ISV/reseller
-// partnership could remove that constraint later, but that's a commercial
-// step, not a code change.
+// Credential resolution is two-level since the Yousign ISV/partner
+// pricing negotiation (July 2026): an org's OWN key (IntegrationCredential,
+// provider "yousign", on /integrations) always wins — that org pays Yousign
+// directly and their signatures never count toward Jalon's quota. When the
+// org has no key, YOUSIGN_API_KEY (Jalon's own partner account) is the
+// fallback: signatures then run on Jalon's account and are METERED per org
+// (see lib/signatureQuota.ts — Solo includes 10/month, beyond that each one
+// is re-billed). The old "per-org only, for legal contracting-party
+// reasons" stance was explicitly conditioned on an ISV/reseller partnership
+// existing — which is now the commercial track being negotiated.
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "@/lib/prisma";
@@ -33,19 +36,20 @@ import { decrypt } from "@/lib/crypto";
 
 const YOUSIGN_BASE_URL = "https://api.yousign.app/v3";
 
-async function getYousignKey(organizationId: string): Promise<string | null> {
+export type YousignProvider = "yousign_org" | "yousign_platform";
+
+async function resolveYousignCredential(organizationId: string): Promise<{ apiKey: string; provider: YousignProvider } | null> {
   const credential = await prisma.integrationCredential.findUnique({
     where: { organizationId_provider: { organizationId, provider: "yousign" } },
   });
-  if (!credential?.apiKey) return null;
-  return decrypt(credential.apiKey);
+  if (credential?.apiKey) return { apiKey: decrypt(credential.apiKey), provider: "yousign_org" };
+  const platformKey = process.env.YOUSIGN_API_KEY;
+  if (platformKey) return { apiKey: platformKey, provider: "yousign_platform" };
+  return null;
 }
 
 export async function isYousignConfigured(organizationId: string): Promise<boolean> {
-  const credential = await prisma.integrationCredential.findUnique({
-    where: { organizationId_provider: { organizationId, provider: "yousign" } },
-  });
-  return Boolean(credential?.apiKey);
+  return (await resolveYousignCredential(organizationId)) !== null;
 }
 
 // Verifies the `x-yousign-signature-256` header (HMAC-SHA256 of the raw
@@ -54,13 +58,24 @@ export async function isYousignConfigured(organizationId: string): Promise<boole
 // subscription, stored the same way Stripe's whsec_ is (IntegrationCredential
 // .clientSecret, reused rather than adding a fifth column for one provider).
 // Per https://developers.yousign.com/docs/use-webhooks-in-your-app.
+//
+// Two subscription flavors exist now: an org's own Youtrust account posts
+// to /api/webhooks/yousign/<organizationId> (secret in their
+// IntegrationCredential), while Jalon's platform account posts to
+// /api/webhooks/yousign/platform (one subscription for every tenant,
+// secret in YOUSIGN_WEBHOOK_SECRET — set up once alongside YOUSIGN_API_KEY).
 export async function verifyYousignWebhook(organizationId: string, rawBody: string, signatureHeader: string | null): Promise<boolean> {
   if (!signatureHeader) return false;
-  const credential = await prisma.integrationCredential.findUnique({
-    where: { organizationId_provider: { organizationId, provider: "yousign" } },
-  });
-  if (!credential?.clientSecret) return false;
-  const secret = decrypt(credential.clientSecret);
+  let secret: string | null = null;
+  if (organizationId === "platform") {
+    secret = process.env.YOUSIGN_WEBHOOK_SECRET || null;
+  } else {
+    const credential = await prisma.integrationCredential.findUnique({
+      where: { organizationId_provider: { organizationId, provider: "yousign" } },
+    });
+    if (credential?.clientSecret) secret = decrypt(credential.clientSecret);
+  }
+  if (!secret) return false;
   const expected = "sha256=" + createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
   const a = Buffer.from(expected);
   const b = Buffer.from(signatureHeader);
@@ -120,27 +135,28 @@ async function activate(apiKey: string, signatureRequestId: string): Promise<voi
   await yousignFetch(apiKey, `/signature_requests/${signatureRequestId}/activate`, { method: "POST" });
 }
 
-// The orchestrator a real "Envoyer pour signature" button would call, once
-// a PDF-rendering step exists to produce `pdf`. Not currently invoked
-// anywhere in the app.
+// The orchestrator behind every "Demander une signature électronique"
+// checkbox (dossier documents and CRM prospect documents alike). The
+// returned provider is what the caller persists as Document.signatureProvider
+// so lib/signatureQuota.ts can meter platform-account signatures only.
 export async function sendDocumentForSignature(
   organizationId: string,
   params: { name: string; pdf: Buffer; filename: string; signerFirstName: string; signerLastName: string; signerEmail: string }
-): Promise<{ signatureRequestId: string }> {
-  const apiKey = await getYousignKey(organizationId);
-  if (!apiKey) {
+): Promise<{ signatureRequestId: string; provider: YousignProvider }> {
+  const credential = await resolveYousignCredential(organizationId);
+  if (!credential) {
     throw new Error("Signature électronique non configurée — ajoutez une clé API Yousign sur la page Intégrations.");
   }
 
-  const signatureRequest = await createSignatureRequest(apiKey, params.name);
-  const document = await addDocument(apiKey, signatureRequest.id, params.pdf, params.filename);
-  await addSigner(apiKey, signatureRequest.id, {
+  const signatureRequest = await createSignatureRequest(credential.apiKey, params.name);
+  const document = await addDocument(credential.apiKey, signatureRequest.id, params.pdf, params.filename);
+  await addSigner(credential.apiKey, signatureRequest.id, {
     documentId: document.id,
     firstName: params.signerFirstName,
     lastName: params.signerLastName,
     email: params.signerEmail,
   });
-  await activate(apiKey, signatureRequest.id);
+  await activate(credential.apiKey, signatureRequest.id);
 
-  return { signatureRequestId: signatureRequest.id };
+  return { signatureRequestId: signatureRequest.id, provider: credential.provider };
 }

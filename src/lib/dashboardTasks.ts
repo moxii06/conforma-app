@@ -34,6 +34,7 @@ export type DashboardTask = {
     | "needs_assessment"
     | "contract"
     | "platform_access"
+    | "platform_access_after_payment"
     | "convocation"
     | "invoice_overdue"
     | "rgpd_suggestion"
@@ -138,6 +139,34 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         contactName: `${o.contact.firstName} ${o.contact.lastName}`,
         since: o.sentAt,
         href: o.dossierId ? `/dossiers/${o.dossierId}` : "/crm",
+        overdue: false,
+      });
+    }
+
+    // The other half of the payment→access chain: recordInvoicePayment()
+    // (lib/payments.ts) already advances the CRM pipeline to PAID on its
+    // own, but sending the learner their platform access stayed a manual
+    // button nothing pointed at — staff had to just remember. This surfaces
+    // every dossier whose contact has a PAID invoice but no platform_access
+    // outreach yet, immediately (no aging threshold: money arrived, the
+    // learner is waiting).
+    const paidAwaitingAccess = await prisma.dossier.findMany({
+      where: {
+        organizationId,
+        contact: { invoices: { some: { status: "PAID" } } },
+        clientOutreaches: { none: { type: "platform_access" } },
+      },
+      include: { contact: true },
+      orderBy: { createdAt: "asc" },
+    });
+    for (const d of paidAwaitingAccess) {
+      results.push({
+        id: d.id,
+        kind: "platform_access_after_payment",
+        label: "Paiement reçu — envoyer les accès plateforme",
+        contactName: `${d.contact.firstName} ${d.contact.lastName}`,
+        since: d.createdAt,
+        href: `/dossiers/${d.id}`,
         overdue: false,
       });
     }

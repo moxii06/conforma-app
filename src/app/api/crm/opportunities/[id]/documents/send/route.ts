@@ -5,9 +5,14 @@ import { buildDocumentAttachment } from "@/lib/documentSending";
 import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
+import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
 
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/send — see
 // that route's comment for the real-attachment + rich-message rationale.
+// E-signature here is Yousign-or-nothing: a prospect has no platform login
+// yet, so the dossier flow's internal stub fallback (learner clicks
+// "signer" in mon-espace) can't exist at this stage — if Yousign fails or
+// isn't configured, the document simply goes out unsigned.
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await getSessionContext();
@@ -32,6 +37,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const title = formData.get("title")?.toString().trim();
   const category = formData.get("category")?.toString() || "other";
   const messageHtmlRaw = formData.get("message")?.toString() ?? "";
+  const requiresSignature = formData.get("requiresSignature") === "true";
   if (!title) return NextResponse.json({ error: "Titre requis." }, { status: 400 });
   if (mode !== "template" && mode !== "upload") return NextResponse.json({ error: "Mode invalide." }, { status: 400 });
 
@@ -77,8 +83,34 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     },
   });
 
+  let sentViaYousign = false;
+  if (requiresSignature && (await isYousignConfigured(session.organizationId))) {
+    try {
+      const { signatureRequestId, provider } = await sendDocumentForSignature(session.organizationId, {
+        name: title,
+        pdf: Buffer.from(attachment.contentBase64, "base64"),
+        filename: attachment.fileName,
+        signerFirstName: opportunity.contact.firstName,
+        signerLastName: opportunity.contact.lastName,
+        signerEmail: opportunity.contact.email,
+      });
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { signatureStatus: "pending", yousignSignatureRequestId: signatureRequestId, signatureProvider: provider },
+      });
+      sentViaYousign = true;
+    } catch {
+      // Non-fatal — no stub fallback exists pre-enrollment, the document
+      // simply goes out unsigned and the record keeps signatureStatus "none".
+    }
+  }
+
+  const signatureNote = sentViaYousign
+    ? `<p><br></p><p>Ce document attend votre signature électronique — vous allez recevoir un email séparé de Yousign avec le lien pour signer.</p>`
+    : "";
   const messageHtml = fillMergeTags(
-    sanitizeRichText(messageHtmlRaw) || `<p>Bonjour ${opportunity.contact.firstName},</p><p>Veuillez trouver ci-joint : ${title}.</p>`,
+    (sanitizeRichText(messageHtmlRaw) || `<p>Bonjour ${opportunity.contact.firstName},</p><p>Veuillez trouver ci-joint : ${title}.</p>`) +
+      signatureNote,
     { firstName: opportunity.contact.firstName, lastName: opportunity.contact.lastName, organizationName: organization.name }
   );
 

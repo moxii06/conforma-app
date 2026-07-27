@@ -7,7 +7,6 @@ import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
 import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
-import { checkSignatureQuota, SOLO_MONTHLY_SIGNATURE_LIMIT } from "@/lib/signatureQuota";
 
 // Client feedback: sending a document should produce a real email — the
 // chosen file (a generated PDF from a library template, or something
@@ -43,18 +42,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const requiresSignature = formData.get("requiresSignature") === "true";
   if (!title) return NextResponse.json({ error: "Titre requis." }, { status: 400 });
   if (mode !== "template" && mode !== "upload") return NextResponse.json({ error: "Mode invalide." }, { status: 400 });
-
-  if (requiresSignature) {
-    const quota = await checkSignatureQuota(auth.organizationId);
-    if (!quota.allowed) {
-      return NextResponse.json(
-        {
-          error: `Plafond de signatures électroniques atteint pour ce mois (${SOLO_MONTHLY_SIGNATURE_LIMIT} inclus dans l'offre Solo). Envoyez ce document sans demander de signature, ou passez à l'offre Team pour un usage illimité.`,
-        },
-        { status: 403 }
-      );
-    }
-  }
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
 
@@ -97,6 +84,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       sentByUserId: auth.userId,
       sentByName: auth.name || auth.email,
       signatureStatus: requiresSignature ? "pending" : "none",
+      // Overwritten below if the Yousign send succeeds — until then a
+      // requested signature is the free internal stub.
+      signatureProvider: requiresSignature ? "stub" : null,
     },
   });
 
@@ -108,7 +98,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   let sentViaYousign = false;
   if (requiresSignature && (await isYousignConfigured(auth.organizationId))) {
     try {
-      const { signatureRequestId } = await sendDocumentForSignature(auth.organizationId, {
+      const { signatureRequestId, provider } = await sendDocumentForSignature(auth.organizationId, {
         name: title,
         pdf: Buffer.from(attachment.contentBase64, "base64"),
         filename: attachment.fileName,
@@ -116,7 +106,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         signerLastName: dossier.contact.lastName,
         signerEmail: dossier.contact.email,
       });
-      await prisma.document.update({ where: { id: document.id }, data: { yousignSignatureRequestId: signatureRequestId } });
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { yousignSignatureRequestId: signatureRequestId, signatureProvider: provider },
+      });
       sentViaYousign = true;
     } catch {
       // Falls through to the stub flow below — signatureStatus stays "pending".

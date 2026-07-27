@@ -13,6 +13,7 @@ import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDia
 import { ImportDataDialog } from "@/components/ImportDataDialog";
 import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
 import { ArchiveContactButton } from "@/components/ArchiveContactButton";
+import { isYousignConfigured } from "@/lib/yousign";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   PROSPECT: "Prospect",
@@ -99,6 +100,7 @@ export default async function CrmPage(
         })
       : Promise.resolve([]),
   ]);
+  const eSignatureAvailable = canWrite ? await isYousignConfigured(organizationId) : false;
 
   return (
     <>
@@ -211,6 +213,7 @@ export default async function CrmPage(
                                 templates={templates}
                                 contactFirstName={o.contact.firstName}
                                 signatureHtml={signatureHtml}
+                                eSignatureAvailable={eSignatureAvailable}
                               />
                               <ArchiveContactButton contactId={o.contactId} archived={false} />
                               <DeleteOpportunityButton opportunityId={o.id} />
