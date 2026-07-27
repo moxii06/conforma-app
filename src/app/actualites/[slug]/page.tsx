@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ShieldCheck, ArrowLeft, Milestone } from "lucide-react";
+import { ShieldCheck, ArrowLeft, ArrowRight, Milestone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -90,6 +90,22 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
           {article.title}
         </h1>
         <div>{renderBody(article.body)}</div>
+
+        {/* Encart de conversion — chaque article amène vers le diagnostic
+            (aimant à prospects), point d'entrée du tunnel d'acquisition. */}
+        <div className="mt-10 bg-ink text-white rounded-card p-6 text-center">
+          <div className="font-display text-[19px] mb-1.5">Où en êtes-vous sur les 7 critères Qualiopi ?</div>
+          <p className="text-[13px] text-white/70 max-w-md mx-auto mb-4">
+            Faites le point en 3 minutes avec notre diagnostic gratuit : score par critère et points à renforcer.
+          </p>
+          <Link
+            href="/diagnostic-qualiopi"
+            className="inline-flex items-center gap-1.5 bg-seal text-ink text-[13.5px] font-medium rounded-md px-5 py-2.5 hover:bg-[#A9884A]"
+          >
+            Lancer mon diagnostic Qualiopi
+            <ArrowRight size={15} />
+          </Link>
+        </div>
       </article>
 
       <footer className="border-t border-line">
