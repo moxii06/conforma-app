@@ -32,6 +32,6 @@ export default withAuth({
 // its remainder isn't empty).
 export const config = {
   matcher: [
-    "/((?!login|formulaire|essai|activation|actualites|api/auth|api/public|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
+    "/((?!login|formulaire|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
   ],
 };
