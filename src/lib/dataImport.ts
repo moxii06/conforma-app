@@ -6,7 +6,7 @@
 // lives in xlsxRead.ts.
 
 export type ParsedTable = { headers: string[]; rows: string[][] };
-export type ImportKind = "contacts" | "courses";
+export type ImportKind = "contacts" | "courses" | "bank_transactions";
 
 export type ImportFieldDef = {
   key: string;
@@ -89,8 +89,38 @@ export const COURSE_IMPORT_FIELDS: ImportFieldDef[] = [
   },
 ];
 
+// A relevé bancaire export is either one signed "Montant" column (negative
+// = débit) or separate Débit/Crédit columns — mapping just "the column
+// that holds money coming in" covers both: for a signed column the user
+// maps it here directly (débit rows parse negative and get dropped, see
+// parseSignedAmountCents); for split columns they map only Crédit, leaving
+// Débit unmapped. No separate "débit" field is needed since we only ever
+// care about incoming payments.
+export const BANK_TRANSACTION_IMPORT_FIELDS: ImportFieldDef[] = [
+  {
+    key: "date",
+    label: "Date",
+    required: true,
+    synonyms: ["date", "dateoperation", "dateoperationdate", "datevaleur", "dateop"],
+  },
+  {
+    key: "label",
+    label: "Libellé",
+    required: true,
+    synonyms: ["libelle", "libelleoperation", "description", "communication", "objet", "detail"],
+  },
+  {
+    key: "credit",
+    label: "Montant reçu (crédit)",
+    required: true,
+    synonyms: ["montant", "credit", "montantcredit", "somme", "entree"],
+  },
+];
+
 export function importFieldsFor(kind: ImportKind): ImportFieldDef[] {
-  return kind === "contacts" ? CONTACT_IMPORT_FIELDS : COURSE_IMPORT_FIELDS;
+  if (kind === "contacts") return CONTACT_IMPORT_FIELDS;
+  if (kind === "courses") return COURSE_IMPORT_FIELDS;
+  return BANK_TRANSACTION_IMPORT_FIELDS;
 }
 
 export function normalizeHeader(header: string): string {
@@ -245,6 +275,39 @@ export function parsePriceCents(raw: string): number | null {
   if (!match) return null;
   const value = Math.round(parseFloat(match[0]) * 100);
   return value >= 0 ? value : null;
+}
+
+// Signed variant for bank statements, where a débit shows as a negative
+// number in a single "Montant" column — kept negative on purpose so the
+// caller can drop non-credit rows rather than silently flipping their sign.
+export function parseSignedAmountCents(raw: string): number | null {
+  const cleaned = raw.replace(/[\s €]/g, "").replace(",", ".");
+  const match = cleaned.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  return Math.round(parseFloat(match[0]) * 100);
+}
+
+// Handles the two formats real French bank exports actually use: DD/MM/YYYY
+// (or DD-MM-YYYY) and ISO YYYY-MM-DD. Returns null rather than a garbage
+// Date for anything else — an unparseable date drops the row instead of
+// silently landing it on the wrong day.
+export function parseBankDate(raw: string): Date | null {
+  const trimmed = raw.trim();
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const fr = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (fr) {
+    const day = Number(fr[1]);
+    const month = Number(fr[2]);
+    const year = Number(fr[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const d = new Date(Date.UTC(year, month - 1, day));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
 }
 
 // "Jean Dupont" -> Jean / Dupont ; "DUPONT Jean" (all-caps last name first,

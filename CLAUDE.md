@@ -141,6 +141,22 @@ the separate, smaller tag set used by automation-rule email bodies. Signature co
 (`notifyDocumentSigned`, `syncParcoursFromSignedDocument`) so "what happens when a
 document gets signed" exists in exactly one place regardless of which path triggered it.
 
+### Bank reconciliation — suggest, never auto-apply
+
+A bank transaction's label is free text with no invoice reference, unlike Stripe's
+Checkout Session metadata — so `src/lib/bankReconciliation.ts`'s `rankInvoiceMatches()`
+(exact remaining-balance match + payer name found in the label, see its own comments for
+why the scoring is gated the way it is) only ever produces a ranked suggestion that staff
+confirms on `/facturation?tab=a-valider`, never an automatic status flip. Two independent
+sources feed the same `BankTransaction` table so no OFP is locked out by their bank or
+accounting software: a CSV statement import (`bankStatementImport.ts`, always on) and a
+live GoCardless Bank Account Data connector (`gocardless.ts`, one open-banking aggregator
+covering the whole EU through a single API — hidden until `GOCARDLESS_SECRET_ID`/`_KEY`
+are set, same "prepared but not yet wired" stance as every other optional integration).
+`src/lib/payments.ts`'s `recordInvoicePayment()` is the one place a `Payment` row actually
+gets created — manual entry, Stripe's webhook, and a confirmed bank match all call it, so
+the auto-PAID-once-covered logic can't drift between the three.
+
 ### Public vs. authenticated routes
 
 `middleware.ts` gates every route through NextAuth except an explicit allowlist, each

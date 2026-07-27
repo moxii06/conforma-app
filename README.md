@@ -835,6 +835,27 @@ optional once real customer data is involved.
   real-looking findings with effectively zero exposure in this app; don't
   chase them without first checking whether the feature they gate is
   actually used.
+- **Bank reconciliation ("À valider" on `/facturation`)** — an incoming bank
+  transaction never carries a reliable invoice reference (`VIR SEPA JEAN
+  DUPONT` is free text, not Stripe's Checkout Session metadata), so this is
+  suggest-and-confirm only, never automatic — see `src/lib/bankReconciliation.ts`'s
+  scoring (exact remaining-balance match + payer name found in the label)
+  and the `BankTransaction` comment in `schema.prisma`. Two tiers, built so
+  no OFP is ever locked out by which bank or accounting software they use:
+  **tier 1** is a CSV bank-statement import (`src/lib/bankStatementImport.ts`,
+  reuses the same column-mapping UI as the contacts/courses import), always
+  on, no external account needed. **Tier 2** is a live connector to
+  GoCardless Bank Account Data (`src/lib/gocardless.ts`) — one open-banking
+  aggregator covering 2 500+ EU banks through a single API, so it's
+  bank-agnostic by construction, unlike a per-accounting-software connector
+  (Pennylane etc.) would be. Needs `GOCARDLESS_SECRET_ID`/`GOCARDLESS_SECRET_KEY`
+  (a free GoCardless developer account, 50 connections/month) to appear at
+  all — the whole panel and the daily `/api/cron/bank-sync` job stay hidden
+  until then, same "prepared but not yet wired" stance as every other
+  optional integration here. `recordInvoicePayment()` in `src/lib/payments.ts`
+  is the one place a `Payment` row actually gets created (manual entry,
+  Stripe's webhook, and a confirmed bank match all call it) — extend that,
+  not any individual caller, if the auto-PAID logic ever needs to change.
 - **Where the permission model actually lives**: `src/lib/tenant.ts`'s
   `PERMISSIONS` matrix (`can(role, feature)`) is the single source of truth
   for coarse "does this role see this section at all" access — the Sidebar,

@@ -31,10 +31,10 @@ model Organization {
   // legal-mention requirements). Collected at signup (see /essai). Not to
   // be confused with the org's own Company/Contact records, which are
   // their end customers, a separate concern.
-  siret               String?
-  billingAddress      String?
-  billingPostalCode   String?
-  billingCity         String?
+  siret             String?
+  billingAddress    String?
+  billingPostalCode String?
+  billingCity       String?
 
   // Legal identity mentions the OFP needs printed on documents it issues
   // to ITS OWN clients (contracts, conventions, CGV — the French "mentions
@@ -63,39 +63,41 @@ model Organization {
   logoUrl    String?
   brandColor String?
 
-  users               User[]
-  contacts            Contact[]
-  companies           Company[]
-  dossiers            Dossier[]
-  opportunities       Opportunity[]
-  courses             Course[]
-  sessions            Session[]
-  quotes              Quote[]
-  invoices            Invoice[]
-  payments            Payment[]
-  processingActivities ProcessingActivity[]
-  subProcessors       SubProcessor[]
-  qualiopiIndicators  QualiopiIndicatorEvidence[]
-  auditChecklistItems AuditChecklistItem[]
-  dpiaRecords         DPIARecord[]
-  sessionInvitations  SessionInvitation[]
-  nonConformities     NonConformity[]
-  rightsRequests      RightsRequest[]
-  dataBreaches        DataBreach[]
-  documents           Document[]
-  documentTemplates   DocumentTemplate[]
-  needsAssessmentRequests NeedsAssessmentRequest[]
-  emailMessages       EmailMessage[]
-  mailboxConnections  MailboxConnection[]
-  integrationCredentials IntegrationCredential[]
-  clientOutreaches    ClientOutreach[]
-  subscription        Subscription?
-  qualityRisks        QualityRisk[]
-  resultIndicators    ResultIndicator[]
-  dashboardTaskDismissals DashboardTaskDismissal[]
-  orgChartSnapshots OrgChartSnapshot[]
-  satisfactionSurveys SatisfactionSurvey[]
+  users                       User[]
+  contacts                    Contact[]
+  companies                   Company[]
+  dossiers                    Dossier[]
+  opportunities               Opportunity[]
+  courses                     Course[]
+  sessions                    Session[]
+  quotes                      Quote[]
+  invoices                    Invoice[]
+  payments                    Payment[]
+  processingActivities        ProcessingActivity[]
+  subProcessors               SubProcessor[]
+  qualiopiIndicators          QualiopiIndicatorEvidence[]
+  auditChecklistItems         AuditChecklistItem[]
+  dpiaRecords                 DPIARecord[]
+  sessionInvitations          SessionInvitation[]
+  nonConformities             NonConformity[]
+  rightsRequests              RightsRequest[]
+  dataBreaches                DataBreach[]
+  documents                   Document[]
+  documentTemplates           DocumentTemplate[]
+  needsAssessmentRequests     NeedsAssessmentRequest[]
+  emailMessages               EmailMessage[]
+  mailboxConnections          MailboxConnection[]
+  integrationCredentials      IntegrationCredential[]
+  clientOutreaches            ClientOutreach[]
+  subscription                Subscription?
+  qualityRisks                QualityRisk[]
+  resultIndicators            ResultIndicator[]
+  dashboardTaskDismissals     DashboardTaskDismissal[]
+  orgChartSnapshots           OrgChartSnapshot[]
+  satisfactionSurveys         SatisfactionSurvey[]
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
+  bankConnections             BankConnection[]
+  bankTransactions            BankTransaction[]
 
   // Which version of the RNQ this org is currently auditing itself against
   // (see QualiopiReferentielVersion) — nullable only until the backfill
@@ -139,7 +141,7 @@ model AccommodationRequest {
   grantedAccommodations   String?
   handledByUserId         String?
   handledByName           String?
-  handledAt                DateTime?
+  handledAt               DateTime?
 
   createdByName String
   createdAt     DateTime @default(now())
@@ -161,9 +163,9 @@ model Complaint {
   dossier        Dossier?     @relation(fields: [dossierId], references: [id])
   dossierId      String?
 
-  subject         String
-  description     String
-  submittedByName String
+  subject          String
+  description      String
+  submittedByName  String
   // Captured at submission time from the (always-authenticated) submitter's
   // session — client feedback: staff need to find the complainant's email
   // straight from the request, not go hunting for their dossier/contact
@@ -172,10 +174,10 @@ model Complaint {
   // Which intent the unified support dialog's picker was set to — "complaint"
   // | "question" | "other" — purely for staff triage, same underlying model
   // and workflow either way.
-  category        String    @default("other")
-  status          String    @default("open") // open | investigating | resolved
-  resolutionNotes String?
-  resolvedAt      DateTime?
+  category         String    @default("other")
+  status           String    @default("open") // open | investigating | resolved
+  resolutionNotes  String?
+  resolvedAt       DateTime?
 
   // Client feedback: a request should be assignable to a specific staff
   // member with their own working note and a deadline, independent of the
@@ -188,7 +190,7 @@ model Complaint {
   // Manual, independent of status — client feedback: a resolved complaint
   // shouldn't just pile up in the main list forever; give staff an explicit
   // "Archivées" tab to move it out of the way once truly done with it.
-  archivedAt DateTime?
+  archivedAt       DateTime?
 
   createdAt DateTime @default(now())
 
@@ -266,7 +268,7 @@ model RegulatoryWatch {
   actionTaken  String?
   exploitedAt  DateTime?
   evidenceNote String?
-  status       String @default("identified") // identified | decided | exploited
+  status       String    @default("identified") // identified | decided | exploited
 
   affectedCourses Course[]
 
@@ -301,7 +303,7 @@ model Subcontractor {
   // freelancers (auto-entrepreneurs) — the two carry different legal
   // mentions on a contract (a company has a raison sociale + forme
   // juridique; an individual just has their own SIRET, if any).
-  isIndividual   Boolean      @default(false)
+  isIndividual   Boolean @default(false)
   legalForm      String? // company only — SARL, SAS, EI... blank/meaningless for an individual
   siret          String?
   address        String?
@@ -320,7 +322,7 @@ model Subcontractor {
   linkedUserId String? @unique
 
   documents Document[]
-  courses   Course[] @relation("CourseSubcontractors")
+  courses   Course[]   @relation("CourseSubcontractors")
 
   createdAt DateTime @default(now())
 
@@ -336,16 +338,16 @@ model Subcontractor {
 // calls Stripe yet; this table exists so that wiring is "update a row",
 // not "design a schema", when the time comes.
 model Subscription {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String       @unique
-  plan           String       // solo | team | growth
-  status         String       @default("trialing") // trialing | active | past_due | canceled
-  trialEndsAt    DateTime?
+  id                   String       @id @default(cuid())
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  organizationId       String       @unique
+  plan                 String // solo | team | growth
+  status               String       @default("trialing") // trialing | active | past_due | canceled
+  trialEndsAt          DateTime?
   stripeCustomerId     String?
   stripeSubscriptionId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 }
 
 // The dashboard's "À faire" list is computed live from dossier/invoice/etc.
@@ -394,38 +396,38 @@ enum Role {
 }
 
 model User {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  email          String       @unique
-  name           String
-  role           Role
-  status         String       @default("active") // active | invited | disabled
-  passwordHash   String? // null while status = "invited" — set once the member activates their account
-  activationToken String?     @unique // set alongside status="invited"; consumed by /activation/[token]
+  id                          String       @id @default(cuid())
+  organization                Organization @relation(fields: [organizationId], references: [id])
+  organizationId              String
+  email                       String       @unique
+  name                        String
+  role                        Role
+  status                      String       @default("active") // active | invited | disabled
+  passwordHash                String? // null while status = "invited" — set once the member activates their account
+  activationToken             String?      @unique // set alongside status="invited"; consumed by /activation/[token]
   // "Mot de passe oublié" — set by /api/public/forgot-password, consumed by
   // /reinitialiser-mot-de-passe/[token]. Unlike activationToken this always
   // carries an expiry: an activation link is issued once by staff to a
   // known invitee, but a reset link is self-service and publicly requestable
   // by anyone typing an email address, so a stale unconsumed link staying
   // valid forever is a real risk, not just a tidiness concern.
-  passwordResetToken          String?   @unique
+  passwordResetToken          String?      @unique
   passwordResetTokenExpiresAt DateTime?
-  createdAt      DateTime     @default(now())
+  createdAt                   DateTime     @default(now())
   // Sanitized HTML, set by the user themselves on /profil — auto-appended
   // to composed messages (client feedback: "la même signature qu'un mail
   // classique envoyé depuis sa boîte normale"). No auto-import from a
   // connected Gmail/IMAP mailbox: IMAP has no protocol-level concept of a
   // signature, and Gmail's lives behind a broader OAuth scope than this
   // app currently requests — this is the practical always-works version.
-  emailSignature String?
+  emailSignature              String?
 
-  trainerSessions Session[]      @relation("SessionTrainer")
-  learnerDossiers Dossier[]      @relation("DossierLearnerUser")
+  trainerSessions                  Session[]      @relation("SessionTrainer")
+  learnerDossiers                  Dossier[]      @relation("DossierLearnerUser")
   referentHandicapForOrganizations Organization[] @relation("ReferentHandicap")
-  responsibleForCourses Course[] @relation("CourseResponsibles")
-  subcontractorRecord Subcontractor?
-  documents Document[] @relation("UserDocuments")
+  responsibleForCourses            Course[]       @relation("CourseResponsibles")
+  subcontractorRecord              Subcontractor?
+  documents                        Document[]     @relation("UserDocuments")
 
   @@index([organizationId])
 }
@@ -435,12 +437,12 @@ model User {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  name           String
-  siret          String?
-  address        String?
+  id                   String       @id @default(cuid())
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  organizationId       String
+  name                 String
+  siret                String?
+  address              String?
   // Client feedback: when a training is company-funded (learnerCategory
   // employee/apprentice — see Dossier below), the OFP needs a named
   // point of contact at the company, not just its identity — stored
@@ -460,16 +462,16 @@ model Company {
 // IMPORTANT: emails are matched and stored against a Contact, never directly
 // against a Dossier — see MailboxConnection / EmailMessage below and spec §5.11.
 model Contact {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  firstName      String
-  lastName       String
-  email          String
-  phone          String?
-  company        Company?     @relation(fields: [companyId], references: [id])
-  companyId      String?
-  createdAt      DateTime     @default(now())
+  id                     String       @id @default(cuid())
+  organization           Organization @relation(fields: [organizationId], references: [id])
+  organizationId         String
+  firstName              String
+  lastName               String
+  email                  String
+  phone                  String?
+  company                Company?     @relation(fields: [companyId], references: [id])
+  companyId              String?
+  createdAt              DateTime     @default(now())
   // Client feedback: category (and company, via companyId above) should be
   // capturable the moment a new contact exists — even before any formation
   // enrollment — e.g. from the CRM "Nouveau prospect" form. Dossier has its
@@ -482,15 +484,15 @@ model Contact {
   // feedback: a paid deal means the relationship is closed out, not still
   // an active prospect to keep chasing) — hides them from the default CRM
   // view the same way Course.archivedAt hides finished formations.
-  archivedAt     DateTime?
+  archivedAt             DateTime?
 
-  dossiers      Dossier[]
-  emailMessages EmailMessage[]
-  quotes        Quote[]
-  invoices      Invoice[]
-  opportunities Opportunity[]
+  dossiers                Dossier[]
+  emailMessages           EmailMessage[]
+  quotes                  Quote[]
+  invoices                Invoice[]
+  opportunities           Opportunity[]
   needsAssessmentRequests NeedsAssessmentRequest[]
-  clientOutreaches ClientOutreach[]
+  clientOutreaches        ClientOutreach[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -508,16 +510,16 @@ model Dossier {
   session        Session      @relation(fields: [sessionId], references: [id])
   sessionId      String
   learnerUser    User?        @relation("DossierLearnerUser", fields: [learnerUserId], references: [id])
-  learnerUserId  String?      // set once the learner has portal access
+  learnerUserId  String? // set once the learner has portal access
 
-  needsAssessmentDone Boolean  @default(false)
-  contractSigned      Boolean  @default(false)
-  convocationSent     Boolean  @default(false)
-  evaluationHotDone   Boolean  @default(false)
-  evaluationColdDone  Boolean  @default(false)
+  needsAssessmentDone Boolean @default(false)
+  contractSigned      Boolean @default(false)
+  convocationSent     Boolean @default(false)
+  evaluationHotDone   Boolean @default(false)
+  evaluationColdDone  Boolean @default(false)
 
-  legalBasis      String   @default("contract_performance")
-  retentionUntil  DateTime?
+  legalBasis     String    @default("contract_performance")
+  retentionUntil DateTime?
 
   // Only meaningful for a ROLLING (self-paced, no fixed date) session: how
   // many days the learner has to finish once they start, and when they
@@ -549,17 +551,17 @@ model Dossier {
   satisfactionAutoReminderSentAt    DateTime?
   sessionReminderSentAt             DateTime?
 
-  documents          Document[]
-  qualiopiEvidence   QualiopiIndicatorEvidence[]
-  elearningProgress  ElearningProgress[]
-  quizAttempts       QuizAttempt[]
-  virtualClassAttendances VirtualClassAttendance[]
-  accommodationRequests AccommodationRequest[]
-  complaints          Complaint[]
-  invitations        SessionInvitation[]
-  quotes             Quote[]
-  invoices           Invoice[]
-  clientOutreaches   ClientOutreach[]
+  documents                   Document[]
+  qualiopiEvidence            QualiopiIndicatorEvidence[]
+  elearningProgress           ElearningProgress[]
+  quizAttempts                QuizAttempt[]
+  virtualClassAttendances     VirtualClassAttendance[]
+  accommodationRequests       AccommodationRequest[]
+  complaints                  Complaint[]
+  invitations                 SessionInvitation[]
+  quotes                      Quote[]
+  invoices                    Invoice[]
+  clientOutreaches            ClientOutreach[]
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
 
   @@index([organizationId])
@@ -571,23 +573,23 @@ model Dossier {
 // ---------------------------------------------------------------------------
 
 model Course {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  title          String
-  description    String?
+  id                        String       @id @default(cuid())
+  organization              Organization @relation(fields: [organizationId], references: [id])
+  organizationId            String
+  title                     String
+  description               String?
   // Archiving hides a course from the default catalog view without
   // deleting its history (sessions/dossiers/documents/certificates all
   // stay intact and queryable) — for offers no longer run but still
   // needed for compliance/audit lookback.
-  archivedAt     DateTime?
+  archivedAt                DateTime?
   // Client feedback: a per-course document library should be able to pull
   // the formation's own reference info (title/duration/price) into any
   // document generated from it — see mergeTemplate.ts's course.* fields and
   // DocumentTemplate.courseId below. Nullable: most courses won't bother
   // filling these in until they actually attach a course-scoped template.
-  durationHours  Int?
-  priceCents     Int?
+  durationHours             Int?
+  priceCents                Int?
   // For formations that need periodic renewal (SST, sécurité incendie,
   // habilitations...) — set on the course, locked into Document.expiresAt
   // at the moment a given certificate is actually issued, so a later change
@@ -596,28 +598,28 @@ model Course {
   // courses.
   certificateValidityMonths Int?
 
-  documentTemplates DocumentTemplate[]
-  sessions          Session[]
-  elearningModules  ElearningModule[]
+  documentTemplates       DocumentTemplate[]
+  sessions                Session[]
+  elearningModules        ElearningModule[]
   opportunitiesOfInterest Opportunity[]
-  qualityRisks      QualityRisk[]
-  resultIndicators  ResultIndicator[]
-  regulatoryWatchItems RegulatoryWatch[]
+  qualityRisks            QualityRisk[]
+  resultIndicators        ResultIndicator[]
+  regulatoryWatchItems    RegulatoryWatch[]
   // Who's accountable for this training — any team member, not just
   // trainers (a course can have an admin/coordinator responsible for it
   // without ever running a session themselves). Distinct from
   // Session.trainerId, which is who actually delivers one specific
   // session — a course can have several sessions with different trainers
   // while keeping the same responsible person(s) throughout.
-  responsibleUsers  User[]            @relation("CourseResponsibles")
+  responsibleUsers        User[]               @relation("CourseResponsibles")
   // External providers (formateurs externes/prestataires) delivering this
   // training — distinct from responsibleUsers (internal staff accountable
   // for it) and Session.trainerId (an internal trainer delivering one
   // specific session). A course can lean on both internal and external
   // people at once.
-  subcontractors    Subcontractor[]   @relation("CourseSubcontractors")
-  automationRules   AutomationRule[]
-  satisfactionSurveys SatisfactionSurvey[]
+  subcontractors          Subcontractor[]      @relation("CourseSubcontractors")
+  automationRules         AutomationRule[]
+  satisfactionSurveys     SatisfactionSurvey[]
 
   @@index([organizationId])
 }
@@ -636,8 +638,8 @@ model AutomationRule {
   course         Course       @relation(fields: [courseId], references: [id])
   courseId       String
 
-  trigger   String // see LEARNER... AUTOMATION_TRIGGER_VALUES in lib/automationRules.ts
-  afterDays Int
+  trigger      String // see LEARNER... AUTOMATION_TRIGGER_VALUES in lib/automationRules.ts
+  afterDays    Int
   // Task-only by default (shows up in the dashboard's "À faire"); an OFP
   // opts a rule into also sending an automatic reminder email to the
   // learner, tracked separately per rule since not every OFP wants
@@ -645,10 +647,10 @@ model AutomationRule {
   // creation (with [Prénom]/[Nom]/... merge tags — see
   // lib/automationRules.ts's fillMergeTags) and reused unedited for every
   // learner the rule fires for, rather than reopened per send.
-  sendEmail    Boolean @default(false)
+  sendEmail    Boolean  @default(false)
   emailSubject String?
   emailBody    String?
-  active       Boolean @default(true)
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
   @@index([organizationId])
@@ -664,15 +666,15 @@ model AutomationRule {
 // delay) — questions are fully custom per course, same JSON-options
 // pattern as QuizQuestion so a single form renderer handles both.
 model SatisfactionSurvey {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  id             String                       @id @default(cuid())
+  organization   Organization                 @relation(fields: [organizationId], references: [id])
   organizationId String
-  course         Course       @relation(fields: [courseId], references: [id])
+  course         Course                       @relation(fields: [courseId], references: [id])
   courseId       String
   kind           String // hot | cold
   questions      SatisfactionSurveyQuestion[]
   responses      SatisfactionSurveyResponse[]
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime                     @default(now())
 
   @@unique([courseId, kind])
   @@index([organizationId])
@@ -704,11 +706,11 @@ model SatisfactionSurveyResponse {
   // Public-link access, same pattern as NeedsAssessmentRequest — works
   // whether the learner has a mon-espace account or not (client feedback:
   // must work both ways).
-  token       String    @unique
-  status      String    @default("sent") // sent | completed
-  answers     Json? // { [questionId]: string | string[] }
-  sentAt      DateTime  @default(now())
-  completedAt DateTime?
+  token          String             @unique
+  status         String             @default("sent") // sent | completed
+  answers        Json? // { [questionId]: string | string[] }
+  sentAt         DateTime           @default(now())
+  completedAt    DateTime?
 
   @@unique([surveyId, dossierId])
   @@index([organizationId])
@@ -761,7 +763,7 @@ model Session {
   endsAt         DateTime
   format         SessionFormat
   status         SessionStatus @default(DRAFT)
-  location       String?       // room name/address (IN_PERSON, HYBRID) or existing video link (REMOTE)
+  location       String? // room name/address (IN_PERSON, HYBRID) or existing video link (REMOTE)
   capacity       Int
   // Auto-generated once, on first invitation send for a REMOTE/HYBRID
   // session — see /api/planning/sessions/[id]/invitations. Uses a public
@@ -885,13 +887,13 @@ model Opportunity {
   // Sales rep who created it — spec §2 scopes SALES to "their own prospects";
   // null for opportunities created before this field existed or by non-Sales
   // roles who don't need the restriction.
-  ownerId        String?
+  ownerId                 String?
   // Course the prospect is interested in — powers the Planning autosuggest
   // (match a session's course against CONTRACT_SIGNED opportunities to
   // propose who to enrol). Optional: pre-existing opportunities and ones
   // created without picking a course just won't be suggested anywhere.
-  courseOfInterest   Course? @relation(fields: [courseOfInterestId], references: [id])
-  courseOfInterestId String?
+  courseOfInterest        Course?                  @relation(fields: [courseOfInterestId], references: [id])
+  courseOfInterestId      String?
 
   @@index([organizationId])
   @@index([stage])
@@ -914,25 +916,26 @@ model Quote {
 }
 
 model Invoice {
-  id                  String       @id @default(cuid())
-  organization        Organization @relation(fields: [organizationId], references: [id])
-  organizationId       String
-  contact              Contact      @relation(fields: [contactId], references: [id])
-  contactId            String
-  dossier              Dossier?     @relation(fields: [dossierId], references: [id])
-  dossierId            String?
-  reference            String
-  amountCents          Int
-  status               DocStatus    @default(DRAFT)
+  id                 String       @id @default(cuid())
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  organizationId     String
+  contact            Contact      @relation(fields: [contactId], references: [id])
+  contactId          String
+  dossier            Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId          String?
+  reference          String
+  amountCents        Int
+  status             DocStatus    @default(DRAFT)
   // The invoice is NOT itself the compliant e-invoice — transmission via an
   // accredited platform is delegated per spec §5.3 / §7.2. This field just
   // records which provider (if any) handled the compliant transmission.
-  einvoicingProvider   String?      // "pennylane" | "sellsy" | "ppf" | null
+  einvoicingProvider String? // "pennylane" | "sellsy" | "ppf" | null
   // BPF §5.13 needs revenue broken down by funding origin.
-  fundingOrigin        String?      // company | opco | public | individual
-  createdAt            DateTime     @default(now())
+  fundingOrigin      String? // company | opco | public | individual
+  createdAt          DateTime     @default(now())
 
-  payments Payment[]
+  payments         Payment[]
+  bankTransactions BankTransaction[]
 
   @@index([organizationId])
 }
@@ -947,20 +950,106 @@ model Invoice {
 // Stripe...) rather than an enum since real payment methods vary more than
 // this scaffold needs to model rigidly.
 model Payment {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  invoice        Invoice      @relation(fields: [invoiceId], references: [id])
-  invoiceId      String
-  amountCents    Int
-  paidAt         DateTime     @default(now())
-  method         String?
+  id               String       @id @default(cuid())
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  organizationId   String
+  invoice          Invoice      @relation(fields: [invoiceId], references: [id])
+  invoiceId        String
+  amountCents      Int
+  paidAt           DateTime     @default(now())
+  method           String?
   recordedByUserId String?
   recordedByName   String?
-  createdAt      DateTime     @default(now())
+  createdAt        DateTime     @default(now())
 
   @@index([organizationId])
   @@index([invoiceId])
+}
+
+// ---------------------------------------------------------------------------
+// Bank reconciliation ("à valider" — see lib/bankReconciliation.ts)
+//
+// Deliberately NOT structured like Stripe (IntegrationCredential is
+// per-org because Jalon must never sit in the OFP's money flow — see
+// stripe.ts's comment). Here Jalon never touches money at all, only reads
+// transaction data through an aggregator: GOCARDLESS_SECRET_ID/SECRET_KEY
+// are Jalon's own platform-level developer credentials (same shape as
+// OPENAI_API_KEY/BREVO_API_KEY), and BankConnection is what scopes a
+// single org's own bank consent ("requisition") under that shared
+// platform account — the same relationship GOOGLE_CLIENT_ID/SECRET (one
+// platform OAuth app) has to each org's own MailboxConnection tokens.
+//
+// A bank transaction label is free text ("VIR DUPONT JEAN") with no
+// invoice reference, unlike Stripe's Checkout Session metadata — so
+// matching here is only ever a ranked suggestion (lib/bankReconciliation.ts),
+// never an automatic status flip. Staff always confirms or dismisses.
+// ---------------------------------------------------------------------------
+
+model BankConnection {
+  id                String       @id @default(cuid())
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  organizationId    String
+  provider          String       @default("gocardless")
+  institutionId     String // GoCardless's bank identifier, e.g. "BNPPARIBAS_BNPAFRPP"
+  institutionName   String
+  requisitionId     String // GoCardless requisition id — how the accounts below were fetched
+  // pending = consent link sent, not yet completed at the bank; linked =
+  // accounts fetched and stored; expired = the ~90-day PSD2 consent needs
+  // renewing; error = requisition failed (declined, institution down...).
+  status            String       @default("pending")
+  connectedByUserId String?
+  connectedByName   String?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime     @default(now())
+
+  accounts BankAccount[]
+
+  @@unique([organizationId, requisitionId])
+  @@index([organizationId])
+}
+
+model BankAccount {
+  id                String         @id @default(cuid())
+  bankConnection    BankConnection @relation(fields: [bankConnectionId], references: [id])
+  bankConnectionId  String
+  externalAccountId String // GoCardless account id
+  iban              String?
+  displayName       String?
+
+  transactions BankTransaction[]
+
+  @@unique([bankConnectionId, externalAccountId])
+}
+
+model BankTransaction {
+  id               String       @id @default(cuid())
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  organizationId   String
+  bankAccount      BankAccount? @relation(fields: [bankAccountId], references: [id])
+  bankAccountId    String? // null for source="csv_import" — a statement upload has no live account link
+  source           String // "gocardless" | "csv_import"
+  // Deterministic id (GoCardless's own transactionId, or a hash of
+  // date+amount+label+account for CSV rows) — the only thing standing
+  // between a re-sync/re-import and duplicate rows.
+  externalId       String
+  bookedAt         DateTime
+  amountCents      Int // positive = credit (incoming) — the only ones ever surfaced as suggestions
+  label            String // raw bank statement line, shown as-is, never edited
+  counterpartyName String?
+
+  matchedInvoice   Invoice?  @relation(fields: [matchedInvoiceId], references: [id])
+  matchedInvoiceId String?
+  // pending = awaiting staff review; confirmed = became a real Payment;
+  // dismissed = staff said "not a match" — stays visible (audit trail,
+  // avoids re-suggesting it), just out of the default "à valider" count.
+  status           String    @default("pending")
+  reviewedByUserId String?
+  reviewedByName   String?
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@unique([organizationId, source, externalId])
+  @@index([organizationId, status])
 }
 
 // ---------------------------------------------------------------------------
@@ -968,63 +1057,63 @@ model Payment {
 // ---------------------------------------------------------------------------
 
 model Document {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
-  dossierId      String?
-  subcontractor  Subcontractor? @relation(fields: [subcontractorId], references: [id])
-  subcontractorId String?
+  id                        String         @id @default(cuid())
+  organization              Organization   @relation(fields: [organizationId], references: [id])
+  organizationId            String
+  dossier                   Dossier?       @relation(fields: [dossierId], references: [id])
+  dossierId                 String?
+  subcontractor             Subcontractor? @relation(fields: [subcontractorId], references: [id])
+  subcontractorId           String?
   // A staff/team member's own document (CV, diplôme...) — same Document
   // model as dossier/subcontractor documents, just a third optional owner.
-  user           User?          @relation("UserDocuments", fields: [userId], references: [id])
-  userId         String?
-  title          String
+  user                      User?          @relation("UserDocuments", fields: [userId], references: [id])
+  userId                    String?
+  title                     String
   // Uploaded/linked documents carry a fileUrl. Documents generated by the
   // toolkit's merge-field engine (see /api/documents/generate) carry
   // bodyText instead — the merged text itself, since there's no file
   // storage to put a real file into yet. One of the two is always set.
-  fileUrl        String?
-  bodyText       String?
-  templateOrigin String?      // which toolkit template this was generated from, if any
+  fileUrl                   String?
+  bodyText                  String?
+  templateOrigin            String? // which toolkit template this was generated from, if any
   // Denormalized from DocumentTemplate.category at generation/upload time —
   // a Document needs its own copy since the source template can be edited
   // or deleted later, and a manually-linked document (no template at all)
   // still needs a category to show up correctly in "Mes documents"
   // (src/app/(app)/documents/page.tsx). Defaults to "other" so existing
   // rows and manual adds without a picked category still file predictably.
-  category       String       @default("other")
+  category                  String         @default("other")
   // Who sent it — nullable since older rows (uploads via
   // AddDossierDocumentForm, LMS certificates, /api/documents/generate) predate
   // this; also who a completed signature's staff notification email goes to.
-  sentByUserId   String?
-  sentByName     String?
+  sentByUserId              String?
+  sentByName                String?
   // "none" | "pending" | "signed" — set at send time (SendDocumentDialog's
   // "Demander une signature électronique" checkbox). Flipped to "signed" by
   // one of two paths: the learner's mon-espace stub sign action (no Yousign
   // key on file for this org), or the Yousign webhook handler below
   // (yousignSignatureRequestId set, real signature_request.done event).
-  signatureStatus String      @default("none")
-  signedAt       DateTime?
+  signatureStatus           String         @default("none")
+  signedAt                  DateTime?
   // Set only when this document's signature was actually sent through
   // Yousign (src/lib/yousign.ts) rather than the internal stub — lets the
   // webhook handler (src/app/api/webhooks/yousign/[organizationId]) find
   // the right Document from the signature_request.id in the event payload.
-  yousignSignatureRequestId String? @unique
-  createdAt      DateTime     @default(now())
+  yousignSignatureRequestId String?        @unique
+  createdAt                 DateTime       @default(now())
   // Set only on LMS certificates (templateOrigin "lms_certificate") issued
   // for a course with Course.certificateValidityMonths set — the date this
   // specific attestation stops being valid. expiryReminderSentAt is the
   // idempotency stamp for the certificate_expiring AutomationRule trigger,
   // same pattern as Dossier's *AutoReminderSentAt fields.
-  expiresAt      DateTime?
-  expiryReminderSentAt DateTime?
+  expiresAt                 DateTime?
+  expiryReminderSentAt      DateTime?
   // Client feedback: a document needed for a Qualiopi audit shouldn't be
   // permanently deleted just because it's no longer "current" — archiving
   // keeps the row (and its file) around, out of the active list, still
   // retrievable later. Deletion stays available separately for genuine
   // mistakes/duplicates.
-  archivedAt     DateTime?
+  archivedAt                DateTime?
 
   invitationLinks SessionInvitationDocument[]
 
@@ -1042,7 +1131,7 @@ model DocumentTemplate {
   id             String        @id @default(cuid())
   organization   Organization? @relation(fields: [organizationId], references: [id])
   organizationId String?
-  category       String        // needs_assessment | convention | convocation | eval_hot | eval_cold | cgv | internal_rules | other
+  category       String // needs_assessment | convention | convocation | eval_hot | eval_cold | cgv | internal_rules | other
   title          String
   bodyText       String
   forkedFromId   String?
@@ -1067,20 +1156,20 @@ model DocumentTemplate {
 // itself (DocumentTemplate above) still covers every other document type
 // for internal use/download.
 model NeedsAssessmentRequest {
-  id             String        @id @default(cuid())
-  organization   Organization  @relation(fields: [organizationId], references: [id])
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
-  contact        Contact       @relation(fields: [contactId], references: [id])
+  contact        Contact      @relation(fields: [contactId], references: [id])
   contactId      String
-  opportunity    Opportunity?  @relation(fields: [opportunityId], references: [id])
+  opportunity    Opportunity? @relation(fields: [opportunityId], references: [id])
   opportunityId  String?
-  token          String        @unique
+  token          String       @unique
   templateBody   String
   responseText   String?
-  status         String        @default("sent") // sent | completed
+  status         String       @default("sent") // sent | completed
   sentByUserId   String
   sentByName     String
-  sentAt         DateTime      @default(now())
+  sentAt         DateTime     @default(now())
   completedAt    DateTime?
 
   @@index([organizationId])
@@ -1092,14 +1181,14 @@ model NeedsAssessmentRequest {
 // ---------------------------------------------------------------------------
 
 model ProcessingActivity {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  name           String
-  legalBasis     String
+  id              String       @id @default(cuid())
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  organizationId  String
+  name            String
+  legalBasis      String
   retentionPeriod String
-  riskFlag       String       @default("ok") // ok | to_review
-  createdAt      DateTime     @default(now())
+  riskFlag        String       @default("ok") // ok | to_review
+  createdAt       DateTime     @default(now())
 
   dpiaRecords DPIARecord[]
 
@@ -1120,34 +1209,34 @@ model SubProcessor {
 }
 
 model DPIARecord {
-  id                    String              @id @default(cuid())
-  organization          Organization        @relation(fields: [organizationId], references: [id])
-  organizationId        String
-  processingActivity    ProcessingActivity  @relation(fields: [processingActivityId], references: [id])
-  processingActivityId  String
-  subject               String
-  riskLevel             String              // low | moderate | high
-  status                String              @default("required") // required | in_progress | validated | not_required
-  createdAt             DateTime            @default(now())
+  id                   String             @id @default(cuid())
+  organization         Organization       @relation(fields: [organizationId], references: [id])
+  organizationId       String
+  processingActivity   ProcessingActivity @relation(fields: [processingActivityId], references: [id])
+  processingActivityId String
+  subject              String
+  riskLevel            String // low | moderate | high
+  status               String             @default("required") // required | in_progress | validated | not_required
+  createdAt            DateTime           @default(now())
 
   @@index([organizationId])
 }
 
 model RightsRequest {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  requestType    String   // access | erasure | portability | rectification
-  personLabel    String
-  deadline       DateTime
-  status         String   @default("open") // open | in_progress | closed
-  createdAt      DateTime @default(now())
+  id                String       @id @default(cuid())
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  organizationId    String
+  requestType       String // access | erasure | portability | rectification
+  personLabel       String
+  deadline          DateTime
+  status            String       @default("open") // open | in_progress | closed
+  createdAt         DateTime     @default(now())
   // Plain id + denormalized name, no formal relation — same pattern as
   // EmailMessage.assignedToUserId/assignedToName elsewhere in this schema.
   // Client feedback: a request just sat there with no owner; this is who's
   // actually working it.
-  assignedToUserId String?
-  assignedToName   String?
+  assignedToUserId  String?
+  assignedToName    String?
   // Set when a learner files this themselves via the unified support dialog
   // (mon-espace's "Aide & demandes") instead of staff creating it manually
   // from a dossier — null for the latter case.
@@ -1171,12 +1260,12 @@ model DataBreach {
   title               String
   description         String
   discoveredAt        DateTime
-  affectedDataTypes   String       // free text — which personal data categories were exposed
+  affectedDataTypes   String // free text — which personal data categories were exposed
   affectedPeopleCount Int?
   severity            String       @default("moderate") // low | moderate | high
   status              String       @default("investigating") // investigating | contained | closed
-  notifiedAuthorityAt DateTime?    // CNIL notification, due within 72h of discovery if required
-  notifiedSubjectsAt  DateTime?    // affected individuals, if high risk (art. 34)
+  notifiedAuthorityAt DateTime? // CNIL notification, due within 72h of discovery if required
+  notifiedSubjectsAt  DateTime? // affected individuals, if high risk (art. 34)
   remediation         String?
   createdByName       String
   createdAt           DateTime     @default(now())
@@ -1196,16 +1285,16 @@ model DataBreach {
 // so switching to a new version — or previewing a still-draft one ahead of
 // its application date — never silently rewrites another org's checklist.
 model QualiopiReferentielVersion {
-  id             String   @id @default(cuid())
-  label          String   // e.g. "RNQ 2022 (en vigueur)", "RNQ — Réforme 2026 (projet)"
-  status         String   @default("projet") // projet | publie | applicable | archive
+  id             String    @id @default(cuid())
+  label          String // e.g. "RNQ 2022 (en vigueur)", "RNQ — Réforme 2026 (projet)"
+  status         String    @default("projet") // projet | publie | applicable | archive
   publishedAt    DateTime?
   applicableFrom DateTime?
   notes          String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   indicators    QualiopiIndicator[]
-  organizations Organization[] @relation("ActiveReferentiel")
+  organizations Organization[]      @relation("ActiveReferentiel")
 }
 
 // Reference data for a given RNQ version — shared across every organization
@@ -1219,8 +1308,8 @@ model QualiopiIndicator {
   id              String                     @id @default(cuid())
   version         QualiopiReferentielVersion @relation(fields: [versionId], references: [id])
   versionId       String
-  number          Int    // 1–32 within its version
-  criterionNumber Int    // 1–7
+  number          Int // 1–32 within its version
+  criterionNumber Int // 1–7
   label           String
 
   @@unique([versionId, number])
@@ -1228,11 +1317,11 @@ model QualiopiIndicator {
 }
 
 model AuditChecklistItem {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
+  id              String       @id @default(cuid())
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  organizationId  String
   indicatorNumber Int
-  gathered       Boolean      @default(false)
+  gathered        Boolean      @default(false)
 
   // AI-generated, org-specific explanation of what this indicator actually
   // requires and what evidence to gather — "voir mon résumé personnalisé"
@@ -1248,13 +1337,13 @@ model AuditChecklistItem {
 }
 
 model QualiopiIndicatorEvidence {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
-  dossierId      String?
-  criterionNumber Int         // 1–7
-  indicatorNumber Int         // 1–32
+  id              String       @id @default(cuid())
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  organizationId  String
+  dossier         Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId       String?
+  criterionNumber Int // 1–7
+  indicatorNumber Int // 1–32
   evidenceNote    String?
 
   @@index([organizationId])
@@ -1264,13 +1353,13 @@ model NonConformity {
   id             String       @id @default(cuid())
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
-  type           String       // complaint | non_conformity | suggestion
+  type           String // complaint | non_conformity | suggestion
   subject        String
   origin         String
   status         String       @default("open") // open | in_progress | resolved
   dueDate        DateTime?
 
-  qualityRisks   QualityRisk[]
+  qualityRisks QualityRisk[]
 
   @@index([organizationId])
 }
@@ -1286,25 +1375,25 @@ model NonConformity {
 // optional and one-directional (sourceNonConformityId), so promoting a
 // complaint to a risk never mutates the original complaint record.
 model QualityRisk {
-  id             String        @id @default(cuid())
-  organization   Organization  @relation(fields: [organizationId], references: [id])
-  organizationId String
-  course         Course?       @relation(fields: [courseId], references: [id])
-  courseId       String?
+  id                    String         @id @default(cuid())
+  organization          Organization   @relation(fields: [organizationId], references: [id])
+  organizationId        String
+  course                Course?        @relation(fields: [courseId], references: [id])
+  courseId              String?
   sourceNonConformity   NonConformity? @relation(fields: [sourceNonConformityId], references: [id])
   sourceNonConformityId String?
 
   risk              String
-  origin            String   // reclamation | resultat | audit | veille | autre
-  probability       String   // faible | moyenne | elevee
-  severity          String   // faible | moyenne | elevee
+  origin            String // reclamation | resultat | audit | veille | autre
+  probability       String // faible | moyenne | elevee
+  severity          String // faible | moyenne | elevee
   ownerUserId       String?
   ownerName         String?
   preventiveMeasure String?
   correctiveAction  String?
   dueDate           DateTime?
   evidenceNote      String?
-  status            String   @default("identifie") // identifie | en_cours | maitrise | clos
+  status            String    @default("identifie") // identifie | en_cours | maitrise | clos
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1329,20 +1418,20 @@ model ResultIndicator {
   course         Course?      @relation(fields: [courseId], references: [id])
   courseId       String?
 
-  label          String
-  definition     String
-  formula        String
-  computedFrom   String   // elearning_completion | hot_evaluation_rate | manual
-  periodStart    DateTime
-  periodEnd      DateTime
+  label           String
+  definition      String
+  formula         String
+  computedFrom    String // elearning_completion | hot_evaluation_rate | manual
+  periodStart     DateTime
+  periodEnd       DateTime
   totalPopulation Int
   respondents     Int
   exclusions      Int      @default(0)
-  computedValue   Float?   // percentage, 0–100
+  computedValue   Float? // percentage, 0–100
 
-  published  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([organizationId])
   @@index([courseId])
@@ -1353,24 +1442,24 @@ model ResultIndicator {
 // ---------------------------------------------------------------------------
 
 model ElearningModule {
-  id          String  @id @default(cuid())
-  course      Course  @relation(fields: [courseId], references: [id])
-  courseId    String
-  title       String
-  description String?
+  id            String   @id @default(cuid())
+  course        Course   @relation(fields: [courseId], references: [id])
+  courseId      String
+  title         String
+  description   String?
   // "video" | "document" | "quiz" — drives which player the learner portal
   // renders and how progress is computed (playback position, a manual
   // "marquer comme lu", or a graded attempt). Free-text rather than an enum:
   // cheap to extend later (audio, scorm package, ...) without a migration.
-  type        String  @default("video")
+  type          String   @default("video")
   // Real uploaded content (Vercel Blob — see src/lib/storage.ts), not a
   // pasted external link like Document.fileUrl elsewhere in this app.
   // Unused for type "quiz" — that content lives in the linked Quiz instead.
-  fileUrl      String?
-  fileName     String?
+  fileUrl       String?
+  fileName      String?
   fileSizeBytes Int?
-  order       Int     @default(0)
-  createdAt   DateTime @default(now())
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
 
   progress ElearningProgress[]
   quiz     Quiz?
@@ -1386,13 +1475,13 @@ model ElearningModule {
 // new one) — the replace endpoint requires an explicit confirmation in
 // that case rather than swapping the file out from under them unannounced.
 model ElearningModuleVersion {
-  id            String          @id @default(cuid())
-  module        ElearningModule @relation(fields: [moduleId], references: [id])
-  moduleId      String
-  fileUrl       String?
-  fileName      String?
-  fileSizeBytes Int?
-  replacedAt     DateTime @default(now())
+  id             String          @id @default(cuid())
+  module         ElearningModule @relation(fields: [moduleId], references: [id])
+  moduleId       String
+  fileUrl        String?
+  fileName       String?
+  fileSizeBytes  Int?
+  replacedAt     DateTime        @default(now())
   replacedByName String
 
   @@index([moduleId])
@@ -1409,24 +1498,24 @@ model Quiz {
   module          ElearningModule @relation(fields: [moduleId], references: [id])
   moduleId        String          @unique
   minScorePercent Int             @default(70)
-  maxAttempts     Int?            // null = unlimited
+  maxAttempts     Int? // null = unlimited
   questions       QuizQuestion[]
   attempts        QuizAttempt[]
   createdAt       DateTime        @default(now())
 }
 
 model QuizQuestion {
-  id       String @id @default(cuid())
-  quiz     Quiz   @relation(fields: [quizId], references: [id])
-  quizId   String
-  order    Int
+  id                String  @id @default(cuid())
+  quiz              Quiz    @relation(fields: [quizId], references: [id])
+  quizId            String
+  order             Int
   // single_choice | multiple_choice | true_false | short_answer
-  type     String
-  prompt   String
+  type              String
+  prompt            String
   // [{ id, text, correct }] for single_choice/multiple_choice/true_false —
   // the correct flags live here, not just in the answer-checking code, so
   // "what's the right answer" is inspectable/editable data, not logic.
-  options  Json?
+  options           Json?
   // short_answer only — graded by exact match (trimmed, case-insensitive),
   // not semantic comparison; a deliberate scaffold limitation, not hidden.
   correctAnswerText String?
@@ -1440,7 +1529,7 @@ model QuizAttempt {
   quizId       String
   dossier      Dossier  @relation(fields: [dossierId], references: [id])
   dossierId    String
-  answers      Json     // { [questionId]: string | string[] }
+  answers      Json // { [questionId]: string | string[] }
   scorePercent Int
   passed       Boolean
   submittedAt  DateTime @default(now())
@@ -1450,28 +1539,28 @@ model QuizAttempt {
 }
 
 model ElearningProgress {
-  id                 String          @id @default(cuid())
-  dossier            Dossier         @relation(fields: [dossierId], references: [id])
-  dossierId          String
-  module             ElearningModule @relation(fields: [moduleId], references: [id])
-  moduleId           String
-  percentComplete    Int             @default(0)
+  id                  String          @id @default(cuid())
+  dossier             Dossier         @relation(fields: [dossierId], references: [id])
+  dossierId           String
+  module              ElearningModule @relation(fields: [moduleId], references: [id])
+  moduleId            String
+  percentComplete     Int             @default(0)
   // Raw playback position, separate from percentComplete — percent is
   // "furthest point ever reached" (never regresses, see the progress
   // route), but resuming should pick up from wherever the learner actually
   // paused, which can be earlier than their furthest point if they went
   // back to re-watch something. Video only; documents have no position.
   lastPositionSeconds Int?
-  lastEventAt        DateTime?       // last tracked login/lesson/quiz event —
-                                       // feeds Qualiopi evidence, see spec §5.12
+  lastEventAt         DateTime? // last tracked login/lesson/quiz event —
+  // feeds Qualiopi evidence, see spec §5.12
   // This row IS the assignment record — a learner only sees a module once
   // one exists for their dossier (see /mon-espace). Created exclusively by
   // staff (see /api/lms/modules/[id]/assign); a learner can update their
   // own row's percentComplete but can no longer create one for themselves,
   // closing the implicit self-assignment gap the previous version had.
-  assignedAt         DateTime        @default(now())
-  assignedByUserId   String?
-  assignedByName     String?
+  assignedAt          DateTime        @default(now())
+  assignedByUserId    String?
+  assignedByName      String?
 
   @@unique([dossierId, moduleId])
 }
@@ -1481,11 +1570,11 @@ model ElearningProgress {
 // ---------------------------------------------------------------------------
 
 model MailboxConnection {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  provider       String       // "gmail" | "outlook" | "imap"
-  accountEmail   String
+  id                    String       @id @default(cuid())
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  organizationId        String
+  provider              String // "gmail" | "outlook" | "imap"
+  accountEmail          String
   // OAuth tokens (gmail/outlook) encrypted at rest via src/lib/crypto.ts
   // (AES-256-GCM) — see TOKEN_ENCRYPTION_KEY. accessToken is refreshed on
   // every sync/send call rather than tracked for expiry, so its stored
@@ -1496,15 +1585,15 @@ model MailboxConnection {
   // IMAP/SMTP (any other provider — OVH, Ionos, Zoho...) — same encryption,
   // a single password used for both since most hosts share credentials
   // across the two protocols. All null for gmail/outlook.
-  passwordEncrypted String?
-  imapHost          String?
-  imapPort           Int?
-  smtpHost          String?
-  smtpPort           Int?
-  connectedAt    DateTime     @default(now())
-  lastSyncedAt   DateTime?
+  passwordEncrypted     String?
+  imapHost              String?
+  imapPort              Int?
+  smtpHost              String?
+  smtpPort              Int?
+  connectedAt           DateTime     @default(now())
+  lastSyncedAt          DateTime?
 
-  emailMessages  EmailMessage[]
+  emailMessages EmailMessage[]
 
   // An org can connect several mailboxes (several Gmail accounts, an IMAP
   // account, etc.) — uniqueness is per actual account, not per provider.
@@ -1513,22 +1602,22 @@ model MailboxConnection {
 }
 
 model EmailMessage {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  contact        Contact?     @relation(fields: [contactId], references: [id])
-  contactId      String?      // null = unmatched, goes to inbox triage
-  suggestedDossierId String?  // set only when a reliable signal was found (thread or reference match)
-  matchBasis     String?      // "thread" | "reference" | null
-  fromAddress    String
-  fromName       String?      // display name from the "From" header, when present — feeds the "Nouveau prospect" pre-fill, not an AI guess
-  subject        String
-  snippet        String
-  body           String?      // full content — snippet stays a short preview for list views
-  externalId     String?      @unique // provider message id (e.g. Gmail's id) — dedupes repeated syncs; null for locally-composed replies and seed/demo rows
-  externalThreadId String?    // Gmail threadId — lets a real reply land in the same Gmail conversation instead of starting a new one
-  receivedAt     DateTime
-  direction      String       // "in" | "out"
+  id                 String       @id @default(cuid())
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  organizationId     String
+  contact            Contact?     @relation(fields: [contactId], references: [id])
+  contactId          String? // null = unmatched, goes to inbox triage
+  suggestedDossierId String? // set only when a reliable signal was found (thread or reference match)
+  matchBasis         String? // "thread" | "reference" | null
+  fromAddress        String
+  fromName           String? // display name from the "From" header, when present — feeds the "Nouveau prospect" pre-fill, not an AI guess
+  subject            String
+  snippet            String
+  body               String? // full content — snippet stays a short preview for list views
+  externalId         String?      @unique // provider message id (e.g. Gmail's id) — dedupes repeated syncs; null for locally-composed replies and seed/demo rows
+  externalThreadId   String? // Gmail threadId — lets a real reply land in the same Gmail conversation instead of starting a new one
+  receivedAt         DateTime
+  direction          String // "in" | "out"
 
   // Which connected mailbox this came from — null for seed/demo rows and
   // locally-composed replies that predate multi-mailbox support. Lets
@@ -1547,9 +1636,9 @@ model EmailMessage {
   // back at the message it answers. No real delivery happens (no mailbox
   // is actually connected yet), so this just records the reply was
   // composed and against which thread.
-  replyTo        EmailMessage?  @relation("EmailThread", fields: [inReplyToId], references: [id])
-  inReplyToId    String?
-  replies        EmailMessage[] @relation("EmailThread")
+  replyTo     EmailMessage?  @relation("EmailThread", fields: [inReplyToId], references: [id])
+  inReplyToId String?
+  replies     EmailMessage[] @relation("EmailThread")
 
   // AI classification for the RGPD register (spec: catch exercise-of-rights
   // requests — access/erasure/portability/rectification — buried in the
@@ -1561,7 +1650,7 @@ model EmailMessage {
   // — same "AI suggests, human decides" shape as suggestedDossierId above,
   // never auto-creates the actual RightsRequest record on its own.
   rgpdClassifiedAt  DateTime?
-  rgpdSuggestedType String?   // access | erasure | portability | rectification | null
+  rgpdSuggestedType String? // access | erasure | portability | rectification | null
   rgpdReasoning     String?
 
   @@index([organizationId])
@@ -1585,7 +1674,7 @@ model ClientOutreach {
   contactId      String
   dossier        Dossier?     @relation(fields: [dossierId], references: [id])
   dossierId      String?
-  type           String       // "contract" | "platform_access"
+  type           String // "contract" | "platform_access"
   status         String       @default("sent") // sent | acknowledged
   sentByUserId   String
   sentByName     String
@@ -1610,7 +1699,7 @@ model IntegrationCredential {
   id             String       @id @default(cuid())
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
-  provider       String       // brevo | yousign | pennylane | sellsy | google_oauth | microsoft_oauth
+  provider       String // brevo | yousign | pennylane | sellsy | google_oauth | microsoft_oauth
   apiKey         String?
   clientId       String?
   clientSecret   String?
@@ -1629,7 +1718,7 @@ model NewsArticle {
   id          String   @id @default(cuid())
   slug        String   @unique
   title       String
-  category    String   // qualiopi | rgpd | reglementation | produit
+  category    String // qualiopi | rgpd | reglementation | produit
   excerpt     String
   body        String
   publishedAt DateTime @default(now())

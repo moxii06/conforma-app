@@ -9,15 +9,15 @@ import { DocStatusSelect, statusLabels } from "@/components/DocStatusSelect";
 import { DocFilterBar } from "@/components/DocFilterBar";
 import { RecordPaymentForm } from "@/components/RecordPaymentForm";
 import { CreatePaymentLinkButton } from "@/components/CreatePaymentLinkButton";
+import { BankStatementImportDialog } from "@/components/BankStatementImportDialog";
+import { BankTransactionReview } from "@/components/BankTransactionReview";
+import { BankConnectionPanel } from "@/components/BankConnectionPanel";
 import { isStripeConfigured } from "@/lib/stripe";
+import { isGoCardlessConfigured } from "@/lib/gocardless";
+import { rankInvoiceMatches, CONFIDENT_MATCH_THRESHOLD } from "@/lib/bankReconciliation";
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-
-const TABS = [
-  { key: "devis", label: "Devis" },
-  { key: "factures", label: "Factures" },
-];
 
 const STATUS_TONE: Record<DocStatus, "good" | "warn" | "danger" | "neutral"> = {
   DRAFT: "neutral",
@@ -57,32 +57,128 @@ export default async function FacturationPage(
   const statusFilter = searchParams.status && searchParams.status in DocStatus ? (searchParams.status as DocStatus) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
 
-  const [contacts, dossiers] = await Promise.all([
+  const [contacts, dossiers, pendingBankCount] = await Promise.all([
     prisma.contact.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true }, orderBy: { lastName: "asc" } }),
     prisma.dossier.findMany({
       where: { organizationId },
       include: { contact: true, session: { include: { course: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.bankTransaction.count({ where: { organizationId, status: "pending" } }),
   ]);
   const dossierOptions = dossiers.map((d) => ({
     id: d.id,
     label: `${d.contact.firstName} ${d.contact.lastName} — ${d.session.course.title}`,
   }));
+  const tabs = [
+    { key: "devis", label: "Devis" },
+    { key: "factures", label: "Factures" },
+    { key: "a-valider", label: pendingBankCount > 0 ? `À valider (${pendingBankCount})` : "À valider" },
+  ];
 
   return (
     <>
       <PageHeader title="Facturation" subtitle="Devis et factures, transmission via le portail public par défaut" />
-      <Tabs basePath="/facturation" tabs={TABS} active={activeTab} />
+      <Tabs basePath="/facturation" tabs={tabs} active={activeTab} />
       <div className="p-8 flex flex-col gap-4">
-        <DocFilterBar />
-        {activeTab === "factures" ? (
-          <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
+        {activeTab === "a-valider" ? (
+          canWrite ? (
+            <BankValidationTab organizationId={organizationId} />
+          ) : null
         ) : (
-          <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
+          <>
+            <DocFilterBar />
+            {activeTab === "factures" ? (
+              <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
+            ) : (
+              <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
+            )}
+          </>
         )}
       </div>
     </>
+  );
+}
+
+async function BankValidationTab({ organizationId }: { organizationId: string }) {
+  const [pending, openInvoices, connections] = await Promise.all([
+    prisma.bankTransaction.findMany({
+      where: { organizationId, status: "pending" },
+      orderBy: { bookedAt: "desc" },
+    }),
+    prisma.invoice.findMany({
+      where: { organizationId, status: { in: ["SENT", "OVERDUE", "SIGNED"] } },
+      include: { contact: { include: { company: true } }, payments: true },
+    }),
+    isGoCardlessConfigured() ? prisma.bankConnection.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
+  ]);
+
+  const invoiceCandidates = openInvoices.map((inv) => ({
+    id: inv.id,
+    reference: inv.reference,
+    amountCents: inv.amountCents,
+    paidCents: inv.payments.reduce((sum, p) => sum + p.amountCents, 0),
+    createdAt: inv.createdAt,
+    contact: { firstName: inv.contact.firstName, lastName: inv.contact.lastName, company: inv.contact.company },
+  }));
+  const invoiceById = new Map(openInvoices.map((inv) => [inv.id, inv]));
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-[12.5px] text-slate leading-relaxed max-w-lg">
+          Chaque virement reçu ne porte jamais de référence facture fiable — Jalon propose un rapprochement, à valider
+          en un clic. Rien n&apos;est jamais associé automatiquement.
+        </div>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {isGoCardlessConfigured() && (
+            <BankConnectionPanel
+              connections={connections.map((c) => ({
+                id: c.id,
+                institutionName: c.institutionName,
+                status: c.status,
+                lastSyncedAt: c.lastSyncedAt?.toISOString() ?? null,
+              }))}
+            />
+          )}
+          <BankStatementImportDialog />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        {pending.map((tx) => {
+          const ranked = rankInvoiceMatches(
+            { amountCents: tx.amountCents, bookedAt: tx.bookedAt, label: tx.label, counterpartyName: tx.counterpartyName },
+            invoiceCandidates
+          );
+          const suggestions = ranked.map((m) => {
+            const inv = invoiceById.get(m.invoiceId)!;
+            const paidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
+            return {
+              id: inv.id,
+              reference: inv.reference,
+              contactName: `${inv.contact.firstName} ${inv.contact.lastName}`,
+              remainingCents: inv.amountCents - paidCents,
+              score: m.score,
+              reasons: m.reasons,
+            };
+          });
+          return (
+            <BankTransactionReview
+              key={tx.id}
+              transactionId={tx.id}
+              bookedAt={format(tx.bookedAt, "d MMM yyyy", { locale: fr })}
+              amountCents={tx.amountCents}
+              label={tx.label}
+              suggestions={suggestions}
+              confident={(ranked[0]?.score ?? 0) >= CONFIDENT_MATCH_THRESHOLD}
+            />
+          );
+        })}
+        {pending.length === 0 && (
+          <div className="text-[12.5px] text-slate">Aucune transaction en attente — importez un relevé pour commencer.</div>
+        )}
+      </div>
+    </div>
   );
 }
 

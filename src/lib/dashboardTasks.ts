@@ -45,7 +45,8 @@ export type DashboardTask = {
     | "rolling_deadline_warning"
     | "rolling_deadline_overdue"
     | "satisfaction_not_collected"
-    | "learner_inactive";
+    | "learner_inactive"
+    | "bank_transaction_pending";
   label: string;
   contactName: string;
   since: Date;
@@ -410,6 +411,26 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         since: inv.createdAt,
         href: "/facturation?tab=factures",
         overdue: true,
+      });
+    }
+  }
+
+  if (canSeeGeneral) {
+    // One aggregate row, not one per transaction — a single CSV import can
+    // drop in dozens at once, and the actual review already happens on the
+    // dedicated /facturation?tab=a-valider page, not here. "id" is a
+    // constant rather than an entity id since there's only ever one such
+    // aggregate per organization.
+    const pendingBankCount = await prisma.bankTransaction.count({ where: { organizationId, status: "pending" } });
+    if (pendingBankCount > 0) {
+      results.push({
+        id: "pending",
+        kind: "bank_transaction_pending",
+        label: `${pendingBankCount} transaction${pendingBankCount > 1 ? "s" : ""} bancaire${pendingBankCount > 1 ? "s" : ""} à valider`,
+        contactName: "Rapprochement bancaire",
+        since: new Date(),
+        href: "/facturation?tab=a-valider",
+        overdue: false,
       });
     }
   }

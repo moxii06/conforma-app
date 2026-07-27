@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { advanceOpportunityStage } from "@/lib/pipeline";
+import { recordInvoicePayment } from "@/lib/payments";
 
 const schema = z.object({
   amountCents: z.number().int().positive(),
@@ -23,39 +22,24 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
-  const invoice = await prisma.invoice.findFirst({
-    where: { id: params.id, organizationId: auth.organizationId },
-    include: { payments: true },
-  });
+  const invoice = await prisma.invoice.findFirst({ where: { id: params.id, organizationId: auth.organizationId } });
   if (!invoice) return NextResponse.json({ error: "Facture introuvable." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Montant invalide." }, { status: 400 });
 
-  const alreadyPaid = invoice.payments.reduce((sum, p) => sum + p.amountCents, 0);
-  const newTotal = alreadyPaid + parsed.data.amountCents;
-  const justCompleted = newTotal >= invoice.amountCents && invoice.status !== "PAID";
+  const result = await recordInvoicePayment({
+    organizationId: auth.organizationId,
+    invoiceId: invoice.id,
+    amountCents: parsed.data.amountCents,
+    method: parsed.data.method,
+    recordedByUserId: auth.userId,
+    recordedByName: auth.name || auth.email,
+  });
+  if (!result) return NextResponse.json({ error: "Facture introuvable." }, { status: 404 });
 
-  const [payment] = await prisma.$transaction([
-    prisma.payment.create({
-      data: {
-        organizationId: auth.organizationId,
-        invoiceId: invoice.id,
-        amountCents: parsed.data.amountCents,
-        method: parsed.data.method || null,
-        recordedByUserId: auth.userId,
-        recordedByName: auth.name || auth.email,
-      },
-    }),
-    ...(justCompleted ? [prisma.invoice.update({ where: { id: invoice.id }, data: { status: "PAID" as const } })] : []),
-  ]);
-
-  if (justCompleted) {
-    await advanceOpportunityStage(auth.organizationId, invoice.contactId, PipelineStage.INVOICED, PipelineStage.PAID);
-  }
-
-  return NextResponse.json({ payment, totalPaidCents: newTotal, fullyPaid: newTotal >= invoice.amountCents }, { status: 201 });
+  return NextResponse.json({ payment: result.payment, totalPaidCents: result.totalPaidCents, fullyPaid: result.fullyPaid }, { status: 201 });
 }
 
 // Listing is used by the invoice row's expandable payment history.
