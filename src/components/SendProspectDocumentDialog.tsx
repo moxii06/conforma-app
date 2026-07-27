@@ -286,17 +286,28 @@ export function SendProspectDocumentDialog({
                     </div>
                   )}
 
-                  {eSignatureAvailable && (
-                    <label className="flex items-center gap-2 cursor-pointer">
+                  {/* Visible even when unavailable — a fully hidden option is
+                      undiscoverable (client feedback: "je ne vois pas la case").
+                      Disabled + explained instead, since without a Yousign key
+                      there's genuinely nothing to send: a prospect has no portal
+                      login, so no free internal-stub signature exists here. */}
+                  <div className="flex flex-col gap-0.5">
+                    <label className={`flex items-center gap-2 ${eSignatureAvailable ? "cursor-pointer" : "opacity-50"}`}>
                       <input
                         type="checkbox"
                         checked={requiresESignature}
+                        disabled={!eSignatureAvailable}
                         onChange={(e) => setRequiresESignature(e.target.checked)}
                         className="accent-ink w-3.5 h-3.5"
                       />
                       <span className="text-[12px] text-ink">Demander une signature électronique (Yousign)</span>
                     </label>
-                  )}
+                    {!eSignatureAvailable && (
+                      <div className="text-[11px] text-slate pl-5.5">
+                        Nécessite une clé API Yousign — à configurer sur la page Intégrations.
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex flex-col gap-1">
                     <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
