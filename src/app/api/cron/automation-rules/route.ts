@@ -5,6 +5,7 @@ import { sendTransactionalEmail } from "@/lib/brevo";
 import { createSessionInvitation } from "@/lib/sessionInvitations";
 import { fillMergeTags, type MergeTagContext } from "@/lib/automationRules";
 import { sendSatisfactionSurvey } from "@/lib/satisfactionSurveys";
+import { runTrialOnboarding } from "@/lib/onboardingEmails";
 import { getCourseCompletion } from "@/lib/lms";
 import type { Contact, Course, Session, Organization } from "@prisma/client";
 
@@ -76,7 +77,11 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ sent });
+  // Séquence d'onboarding d'essai (marketing propre de Jalon) — indépendante
+  // des AutomationRules ci-dessus. Voir src/lib/onboardingEmails.ts.
+  const onboardingSent = await runTrialOnboarding(origin);
+
+  return NextResponse.json({ sent, onboardingSent });
 }
 
 type Rule = Awaited<ReturnType<typeof prisma.automationRule.findMany>>[number] & { organization: Organization; course: Course };

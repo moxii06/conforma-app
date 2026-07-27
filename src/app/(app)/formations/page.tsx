@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { buildCourseProgress } from "@/lib/lms";
 import { CourseCertificateButton } from "@/components/CourseCertificateButton";
+import { ImportDataDialog } from "@/components/ImportDataDialog";
 
 const TABS = [
   { key: "catalogue", label: "Catalogue" },
@@ -120,7 +121,14 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
       <PageHeader
         title="Catalogue de formations"
         subtitle="Cours et modules e-learning associés"
-        action={activeTab === "catalogue" && canManage ? <CreateCourseForm members={members} subcontractors={subcontractors} /> : undefined}
+        action={
+          activeTab === "catalogue" && canManage ? (
+            <div className="flex items-center gap-2.5">
+              <ImportDataDialog kind="courses" />
+              <CreateCourseForm members={members} subcontractors={subcontractors} />
+            </div>
+          ) : undefined
+        }
       />
       <Tabs basePath="/formations" tabs={TABS} active={activeTab} />
       <div className="p-8 flex flex-col gap-4 max-w-2xl">

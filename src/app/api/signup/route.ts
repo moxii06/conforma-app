@@ -3,13 +3,26 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sendWelcomeEmail } from "@/lib/onboardingEmails";
+
+// Billing identity (SIRET + adresse) is intentionally OPTIONAL at signup:
+// it's only needed once a trial converts to a paid Jalon subscription (not
+// built yet — see Subscription's comment in schema.prisma), and requiring it
+// up front is pure friction on a "no credit card" trial. Collected later,
+// from /profil or at conversion. When provided, SIRET is still validated
+// (14 digits) — an empty string is accepted and stored as null.
+const optionalSiret = z
+  .string()
+  .regex(/^\d{14}$/, "Le SIRET doit contenir 14 chiffres.")
+  .optional()
+  .or(z.literal(""));
 
 const schema = z.object({
   organizationName: z.string().min(1),
-  siret: z.string().min(14, "Le SIRET doit contenir 14 chiffres.").max(14, "Le SIRET doit contenir 14 chiffres.").regex(/^\d{14}$/, "Le SIRET ne doit contenir que des chiffres."),
-  billingAddress: z.string().min(1),
-  billingPostalCode: z.string().min(1),
-  billingCity: z.string().min(1),
+  siret: optionalSiret,
+  billingAddress: z.string().optional(),
+  billingPostalCode: z.string().optional(),
+  billingCity: z.string().optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email(),
@@ -49,10 +62,10 @@ export async function POST(request: Request) {
     const org = await tx.organization.create({
       data: {
         name: data.organizationName,
-        siret: data.siret,
-        billingAddress: data.billingAddress,
-        billingPostalCode: data.billingPostalCode,
-        billingCity: data.billingCity,
+        siret: data.siret || null,
+        billingAddress: data.billingAddress || null,
+        billingPostalCode: data.billingPostalCode || null,
+        billingCity: data.billingCity || null,
       },
     });
     await tx.user.create({
@@ -73,6 +86,16 @@ export async function POST(request: Request) {
       },
     });
   });
+
+  // Email de bienvenue (J0 de la séquence d'onboarding) — non bloquant :
+  // no-op si Brevo n'est pas configuré, et n'échoue jamais la création du
+  // compte si l'envoi échoue. La suite de la séquence part du cron quotidien.
+  const baseUrl = process.env.NEXTAUTH_URL || new URL(request.url).origin;
+  await sendWelcomeEmail(baseUrl, {
+    email,
+    name: `${data.firstName} ${data.lastName}`,
+    orgName: data.organizationName,
+  }).catch(() => {});
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

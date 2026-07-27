@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Libre_Caslon_Text, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { SessionProviderWrapper } from "@/components/SessionProviderWrapper";
+import { CookieConsent } from "@/components/CookieConsent";
 import "./globals.css";
 
 // Titles get a classic serif with real ink (Libre Caslon Text); body copy
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr" className={`${displayFont.variable} ${sansFont.variable} ${monoFont.variable}`}>
       <body>
         <SessionProviderWrapper>{children}</SessionProviderWrapper>
+        <CookieConsent />
       </body>
     </html>
   );

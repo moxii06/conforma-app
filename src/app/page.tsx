@@ -16,7 +16,6 @@ import {
   Mail,
   FolderOpen,
 } from "lucide-react";
-import { BookDemoButton } from "@/components/BookDemoButton";
 
 export const metadata: Metadata = {
   title: "Jalon — Le CRM de conformité pour les organismes de formation",
@@ -109,6 +108,7 @@ export default function MarketingPage() {
             <a href="#fonctionnalites" className="hover:text-ink">Fonctionnalités</a>
             <a href="#conformite" className="hover:text-ink">Conformité</a>
             <a href="#tarifs" className="hover:text-ink">Tarifs</a>
+            <Link href="/diagnostic-qualiopi" className="hover:text-ink">Diagnostic Qualiopi</Link>
             <Link href="/actualites" className="hover:text-ink">Actualités</Link>
           </nav>
           <div className="flex items-center gap-3 sm:gap-2.5">
@@ -154,9 +154,12 @@ export default function MarketingPage() {
             Commencer l&apos;essai gratuit
             <ArrowRight size={15} />
           </Link>
-          <BookDemoButton className="w-full sm:w-auto bg-white border border-line text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:border-ink-soft inline-flex items-center justify-center">
+          <Link
+            href="/demo"
+            className="w-full sm:w-auto bg-white border border-line text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:border-ink-soft inline-flex items-center justify-center"
+          >
             Réserver une démo
-          </BookDemoButton>
+          </Link>
         </div>
         <div className="text-[12.5px] text-slate mt-4">14 jours d&apos;essai gratuit — sans carte bancaire.</div>
         <a
@@ -328,9 +331,12 @@ export default function MarketingPage() {
               Commencer l&apos;essai gratuit
               <ArrowRight size={15} />
             </Link>
-            <BookDemoButton className="w-full sm:w-auto bg-white border border-line text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:border-ink-soft inline-flex items-center justify-center">
+            <Link
+              href="/demo"
+              className="w-full sm:w-auto bg-white border border-line text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:border-ink-soft inline-flex items-center justify-center"
+            >
               Réserver une démo
-            </BookDemoButton>
+            </Link>
           </div>
         </div>
       </section>
