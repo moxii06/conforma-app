@@ -13,7 +13,7 @@ import { BankStatementImportDialog } from "@/components/BankStatementImportDialo
 import { BankTransactionReview } from "@/components/BankTransactionReview";
 import { BankConnectionPanel } from "@/components/BankConnectionPanel";
 import { isStripeConfigured } from "@/lib/stripe";
-import { isGoCardlessConfigured } from "@/lib/gocardless";
+import { isBridgeConfigured } from "@/lib/bridge";
 import { rankInvoiceMatches, CONFIDENT_MATCH_THRESHOLD } from "@/lib/bankReconciliation";
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
@@ -110,7 +110,7 @@ async function BankValidationTab({ organizationId }: { organizationId: string })
       where: { organizationId, status: { in: ["SENT", "OVERDUE", "SIGNED"] } },
       include: { contact: { include: { company: true } }, payments: true },
     }),
-    isGoCardlessConfigured() ? prisma.bankConnection.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
+    isBridgeConfigured() ? prisma.bankConnection.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
   ]);
 
   const invoiceCandidates = openInvoices.map((inv) => ({
@@ -131,7 +131,7 @@ async function BankValidationTab({ organizationId }: { organizationId: string })
           en un clic. Rien n&apos;est jamais associé automatiquement.
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
-          {isGoCardlessConfigured() && (
+          {isBridgeConfigured() && (
             <BankConnectionPanel
               connections={connections.map((c) => ({
                 id: c.id,

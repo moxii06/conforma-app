@@ -844,15 +844,20 @@ optional once real customer data is involved.
   no OFP is ever locked out by which bank or accounting software they use:
   **tier 1** is a CSV bank-statement import (`src/lib/bankStatementImport.ts`,
   reuses the same column-mapping UI as the contacts/courses import), always
-  on, no external account needed. **Tier 2** is a live connector to
-  GoCardless Bank Account Data (`src/lib/gocardless.ts`) — one open-banking
-  aggregator covering 2 500+ EU banks through a single API, so it's
-  bank-agnostic by construction, unlike a per-accounting-software connector
-  (Pennylane etc.) would be. Needs `GOCARDLESS_SECRET_ID`/`GOCARDLESS_SECRET_KEY`
-  (a free GoCardless developer account, 50 connections/month) to appear at
-  all — the whole panel and the daily `/api/cron/bank-sync` job stay hidden
-  until then, same "prepared but not yet wired" stance as every other
-  optional integration here. `recordInvoicePayment()` in `src/lib/payments.ts`
+  on, no external account needed. **Tier 2** is a live connector to Bridge
+  (`src/lib/bridge.ts`) — a French DSP2/ACPR-licensed open-banking
+  aggregator covering ~99% of French banks + ~200 more across the EU
+  through a single API, so it's bank-agnostic by construction, unlike a
+  per-accounting-software connector (Pennylane etc.) would be. (An earlier
+  version targeted GoCardless Bank Account Data instead — dropped because
+  GoCardless closed new signups for that product before this app went
+  live.) Needs `BRIDGE_CLIENT_ID`/`BRIDGE_CLIENT_SECRET` to appear at all —
+  the whole panel and the daily `/api/cron/bank-sync` job stay hidden until
+  then, same "prepared but not yet wired" stance as every other optional
+  integration here. Unlike GoCardless, Bridge has no self-serve free
+  production tier: the free sandbox is enough to build and test against,
+  but going live needs a commercial agreement with Bridge directly.
+  `recordInvoicePayment()` in `src/lib/payments.ts`
   is the one place a `Payment` row actually gets created (manual entry,
   Stripe's webhook, and a confirmed bank match all call it) — extend that,
   not any individual caller, if the auto-PAID logic ever needs to change.

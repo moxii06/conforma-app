@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { fetchAccountTransactions } from "@/lib/gocardless";
+import { fetchAccountTransactions } from "@/lib/bridge";
 
 // Pulls fresh transactions for every linked BankAccount of one org (or, with
 // no argument, every org that has one — see /api/cron/bank-sync) and stores
 // new credits as pending BankTransaction rows. createMany + skipDuplicates
-// does the dedup against GoCardless's own transactionId in one query per
+// does the dedup against Bridge's own transaction id in one query per
 // account, same idea as the CSV import's createMany (see
 // /api/import/bank-transactions) — re-syncing never double-counts a
 // payment already seen.
@@ -21,18 +21,17 @@ export async function syncBankTransactions(organizationId?: string): Promise<{ a
   for (const connection of connections) {
     for (const account of connection.accounts) {
       try {
-        const remote = await fetchAccountTransactions(account.externalAccountId);
+        const remote = await fetchAccountTransactions(connection.organizationId, account.externalAccountId);
         if (remote.length > 0) {
           const { count } = await prisma.bankTransaction.createMany({
             data: remote.map((t) => ({
               organizationId: connection.organizationId,
               bankAccountId: account.id,
-              source: "gocardless",
+              source: "bridge",
               externalId: t.externalId,
               bookedAt: t.bookedAt,
               amountCents: t.amountCents,
               label: t.label,
-              counterpartyName: t.counterpartyName,
             })),
             skipDuplicates: true,
           });

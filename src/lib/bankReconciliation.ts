@@ -4,8 +4,8 @@
 // (see schema.prisma's BankTransaction comment): a bank statement line is
 // free text with no invoice reference, unlike Stripe's Checkout Session
 // metadata. Used identically regardless of where the transaction came from
-// (CSV import or a live GoCardless sync) — see bankStatementCsv.ts and
-// lib/gocardless.ts for the two sources that feed BankTransaction rows.
+// (CSV import or a live Bridge sync) — see bankStatementImport.ts and
+// lib/bridge.ts for the two sources that feed BankTransaction rows.
 
 export type InvoiceMatchCandidate = {
   id: string;

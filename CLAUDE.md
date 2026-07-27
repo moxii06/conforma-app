@@ -150,9 +150,13 @@ why the scoring is gated the way it is) only ever produces a ranked suggestion t
 confirms on `/facturation?tab=a-valider`, never an automatic status flip. Two independent
 sources feed the same `BankTransaction` table so no OFP is locked out by their bank or
 accounting software: a CSV statement import (`bankStatementImport.ts`, always on) and a
-live GoCardless Bank Account Data connector (`gocardless.ts`, one open-banking aggregator
-covering the whole EU through a single API — hidden until `GOCARDLESS_SECRET_ID`/`_KEY`
-are set, same "prepared but not yet wired" stance as every other optional integration).
+live connector to Bridge (`bridge.ts`, a French DSP2/ACPR-licensed open-banking aggregator
+covering ~99% of French banks through a single API — hidden until `BRIDGE_CLIENT_ID`/
+`_SECRET` are set, same "prepared but not yet wired" stance as every other optional
+integration). Unlike most platform-level credentials here, Bridge has no self-serve free
+production tier — the sandbox used to build this is free, but going live needs a
+commercial agreement with Bridge. (An earlier version of tier 2 targeted GoCardless Bank
+Account Data instead; dropped when GoCardless closed new signups for that product.)
 `src/lib/payments.ts`'s `recordInvoicePayment()` is the one place a `Payment` row actually
 gets created — manual entry, Stripe's webhook, and a confirmed bank match all call it, so
 the auto-PAID-once-covered logic can't drift between the three.

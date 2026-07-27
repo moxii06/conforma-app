@@ -3,7 +3,7 @@ import { cellFor, parseBankDate, parseSignedAmountCents, type ImportMapping, typ
 
 // Server-only half of the CSV bank-statement import (tier 1 of
 // "rapprochement bancaire" — see bankReconciliation.ts for the matching
-// half and gocardless.ts for tier 2, the live connector). Turns mapped CSV
+// half and bridge.ts for tier 2, the live connector). Turns mapped CSV
 // rows into the same shape BankTransaction rows need, keeping only credits
 // (incoming money) since those are the only ones ever worth suggesting
 // against an open invoice.
@@ -16,7 +16,7 @@ export type ParsedBankRow = {
   externalId: string;
 };
 
-// A GoCardless-synced transaction gets its externalId straight from the
+// A Bridge-synced transaction gets its externalId straight from the
 // provider (real, globally unique). A CSV row has no such id, so one is
 // derived from its own content — stable enough that re-uploading the exact
 // same file produces the exact same ids (caught by BankTransaction's

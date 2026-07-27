@@ -4,54 +4,31 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Landmark, X } from "lucide-react";
 
-type Institution = { id: string; name: string; logo?: string };
 type Connection = { id: string; institutionName: string; status: string; lastSyncedAt: string | null };
 
-// Tier 2 of "rapprochement bancaire" — see gocardless.ts. Renders nothing
-// if GoCardless isn't configured server-side (no GOCARDLESS_SECRET_ID/KEY),
+// Tier 2 of "rapprochement bancaire" — see bridge.ts. Renders nothing if
+// Bridge isn't configured server-side (no BRIDGE_CLIENT_ID/CLIENT_SECRET),
 // same "hidden until the platform credential exists" stance as every other
-// optional integration here (Stripe, Yousign...).
+// optional integration here (Stripe, Yousign...). No bank picker here —
+// Bridge Connect's own hosted webview lets the end user search their bank.
 export function BankConnectionPanel({ connections }: { connections: Connection[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [institutions, setInstitutions] = useState<Institution[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState("");
-
-  async function openDialog() {
-    setOpen(true);
-    if (institutions) return;
-    setLoading(true);
-    setError(null);
-    const res = await fetch("/api/facturation/bank/institutions");
-    const data = await res.json().catch(() => null);
-    setLoading(false);
-    if (!res.ok || !data) {
-      setError(data?.error ?? "Impossible de charger la liste des banques.");
-      return;
-    }
-    setInstitutions(data.institutions);
-  }
 
   async function connect() {
-    const institution = institutions?.find((i) => i.id === selected);
-    if (!institution) return;
     setLoading(true);
     setError(null);
-    const res = await fetch("/api/facturation/bank/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ institutionId: institution.id, institutionName: institution.name }),
-    });
+    const res = await fetch("/api/facturation/bank/connect", { method: "POST" });
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.authUrl) {
       setLoading(false);
       setError(data?.error ?? "Échec de la connexion.");
       return;
     }
-    // Full navigation, not a fetch — the bank's own hosted consent page.
+    // Full navigation, not a fetch — Bridge's own hosted webview.
     window.location.href = data.authUrl;
   }
 
@@ -93,7 +70,7 @@ export function BankConnectionPanel({ connections }: { connections: Connection[]
       {!open ? (
         <button
           type="button"
-          onClick={openDialog}
+          onClick={() => setOpen(true)}
           className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink border border-line rounded-md px-3 py-1.5 hover:border-ink-soft"
         >
           <Landmark size={13} />
@@ -109,33 +86,18 @@ export function BankConnectionPanel({ connections }: { connections: Connection[]
               </button>
             </div>
             <div className="text-[12.5px] text-slate leading-relaxed">
-              Vous serez redirigé vers votre banque pour vous authentifier — Jalon ne voit jamais vos identifiants
-              bancaires, uniquement les mouvements de compte (lecture seule), via GoCardless (agrégateur agréé DSP2).
+              Vous serez redirigé vers Bridge pour choisir votre banque et vous authentifier — Jalon ne voit jamais vos
+              identifiants bancaires, uniquement les mouvements de compte (lecture seule), via Bridge (agrégateur agréé
+              DSP2/ACPR).
             </div>
-            {loading && !institutions ? (
-              <div className="text-[12.5px] text-slate">Chargement des banques…</div>
-            ) : institutions ? (
-              <select
-                value={selected}
-                onChange={(e) => setSelected(e.target.value)}
-                className="border border-line rounded-md px-2 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
-              >
-                <option value="">— Choisir votre banque —</option>
-                {institutions.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name}
-                  </option>
-                ))}
-              </select>
-            ) : null}
             {error && <div className="text-[12.5px] text-rust">{error}</div>}
             <button
               type="button"
               onClick={connect}
-              disabled={!selected || loading}
+              disabled={loading}
               className="self-start bg-ink text-white text-[12.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft disabled:opacity-50"
             >
-              {loading ? "…" : "Continuer vers ma banque"}
+              {loading ? "…" : "Continuer vers Bridge"}
             </button>
           </div>
         </div>
