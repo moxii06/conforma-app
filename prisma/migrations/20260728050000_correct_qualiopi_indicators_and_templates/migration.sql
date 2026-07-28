@@ -9,6 +9,19 @@
 -- QualiopiIndicatorEvidence or QualiopiAuditFinding, is preserved); rows
 -- that don't exist yet are inserted.
 
+-- Both referentiel versions must exist before the indicator rows below can
+-- reference them via FK. rnq2022v1 is almost certainly already seeded (the
+-- app has been live against it all session); rnq2026-reforme-projet may not
+-- be, if the reference-data seed was never re-run against this database
+-- after the reform draft was added — insert both defensively.
+INSERT INTO "QualiopiReferentielVersion" ("id", "label", "status", "publishedAt", "applicableFrom", "notes", "createdAt")
+VALUES ('rnq2022v1', 'RNQ 2022 (en vigueur)', 'applicable', '2022-01-01T00:00:00Z', '2022-01-01T00:00:00Z', 'Référentiel National Qualité en vigueur depuis le lancement de Qualiopi.', now())
+ON CONFLICT ("id") DO NOTHING;
+
+INSERT INTO "QualiopiReferentielVersion" ("id", "label", "status", "notes", "createdAt")
+VALUES ('rnq2026-reforme-projet', 'RNQ — Réforme 2026 (projet)', 'projet', 'Version de travail, à titre indicatif — reprend les thèmes les plus souvent évoqués pour la prochaine révision du RNQ (traçabilité du handicap, veille réglementaire documentée, indicateurs de résultats structurés). Ne pas utiliser comme texte officiel : se référer à l''arrêté publié le moment venu.', now())
+ON CONFLICT ("id") DO NOTHING;
+
 INSERT INTO "QualiopiIndicator" ("id", "versionId", "number", "criterionNumber", "label") VALUES
   (gen_random_uuid()::text, 'rnq2022v1', 1, 1, 'Information accessible au public sur les prestations, délais d''accès et résultats obtenus'),
   (gen_random_uuid()::text, 'rnq2022v1', 2, 1, 'Diffusion d''indicateurs de résultats adaptés à la nature des prestations et des publics'),
