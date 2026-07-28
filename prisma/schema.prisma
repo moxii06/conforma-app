@@ -1028,6 +1028,12 @@ model Invoice {
   einvoicingProvider String? // "pennylane" | "sellsy" | "ppf" | null
   // BPF §5.13 needs revenue broken down by funding origin.
   fundingOrigin      String? // company | opco | public | individual
+  // Set when this invoice is addressed to a funder (subrogation) rather
+  // than to the client. contactId stays pointing at the learner's contact —
+  // that's who the training was FOR, and what keeps the invoice reachable
+  // from the dossier — while funderId says who PAYS.
+  funder             Funder?      @relation(fields: [funderId], references: [id])
+  funderId           String?
   createdAt          DateTime     @default(now())
 
   payments           Payment[]
@@ -2011,6 +2017,7 @@ model Funder {
   createdAt    DateTime  @default(now())
 
   commitments FundingCommitment[]
+  invoices    Invoice[]
 
   @@unique([organizationId, name])
   @@index([organizationId])

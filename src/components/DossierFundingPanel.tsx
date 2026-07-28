@@ -28,6 +28,8 @@ export type CommitmentRow = {
   validUntil: string | null; // ISO
   depositedAt: string | null; // ISO
   status: string;
+  /** Reference of the invoice raised on this commitment, if any. */
+  invoiceReference: string | null;
 };
 
 const STATUS_TONES: Record<string, "neutral" | "warn" | "good" | "danger"> = {
@@ -136,6 +138,22 @@ export function DossierFundingPanel({
     router.refresh();
   }
 
+  async function generateInvoice(body: { commitmentId: string } | { remainder: true }) {
+    setLoading(true);
+    setError(null);
+    const res = await fetch(`/api/dossiers/${dossierId}/funding/invoice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      setError((await res.json().catch(() => null))?.error ?? "La génération a échoué.");
+      return;
+    }
+    router.refresh();
+  }
+
   async function savePrice() {
     const cents = Math.round(parseFloat(priceInput.replace(",", ".")) * 100);
     if (Number.isNaN(cents)) return;
@@ -193,8 +211,21 @@ export function DossierFundingPanel({
               {formatCents(summary.subrogatedCents)} facturés aux financeurs
             </div>
           )}
+          {canEdit && summary.remainderCents > 0 && (
+            <button
+              onClick={() => generateInvoice({ remainder: true })}
+              disabled={loading}
+              className="text-[10.5px] text-ink underline decoration-line hover:decoration-ink mt-1 disabled:opacity-60"
+            >
+              Facturer au client
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Errors from invoice generation land here — the add-funder form has
+          its own copy, but that form may be closed when a button fails. */}
+      {error && !adding && <div className="bg-[#E9D8D3] text-rust text-[12px] rounded-md px-3 py-2">{error}</div>}
 
       {/* Dossier de dépôt : les pièces qu'un financeur demandera, vérifiées
           contre l'existant. C'est la moitié du temps que ce module fait
@@ -281,6 +312,24 @@ export function DossierFundingPanel({
                     Déposé le {new Date(c.depositedAt).toLocaleDateString("fr-FR")} — sans réponse depuis{" "}
                     {daysSince(c.depositedAt)} jour{daysSince(c.depositedAt) > 1 ? "s" : ""}
                   </div>
+                )}
+                {c.invoiceReference ? (
+                  <div className="text-[11px] text-slate">
+                    Facture <span className="font-mono">{c.invoiceReference}</span> émise — suivez son règlement sur
+                    Facturation.
+                  </div>
+                ) : (
+                  canEdit &&
+                  c.status === "granted" &&
+                  c.subrogation && (
+                    <button
+                      onClick={() => generateInvoice({ commitmentId: c.id })}
+                      disabled={loading}
+                      className="text-[11px] font-medium text-ink underline decoration-line hover:decoration-ink mt-0.5 disabled:opacity-60"
+                    >
+                      Générer la facture au financeur
+                    </button>
+                  )
                 )}
               </div>
               <div className="text-[12.5px] text-ink tabular-nums shrink-0">{formatCents(c.amountCents)}</div>

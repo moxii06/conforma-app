@@ -97,7 +97,10 @@ export default async function DossierPage(
     ? await Promise.all([
         prisma.fundingCommitment.findMany({
           where: { dossierId: dossier.id, organizationId },
-          include: { funder: { select: { name: true, type: true } } },
+          include: {
+            funder: { select: { name: true, type: true } },
+            invoice: { select: { reference: true } },
+          },
           orderBy: { createdAt: "asc" },
         }),
         prisma.funder.findMany({
@@ -226,6 +229,7 @@ export default async function DossierPage(
                 validUntil: c.validUntil ? c.validUntil.toISOString() : null,
                 depositedAt: c.depositedAt ? c.depositedAt.toISOString() : null,
                 status: c.status,
+                invoiceReference: c.invoice?.reference ?? null,
               }))}
             />
           </div>

@@ -43,6 +43,14 @@ export async function recordInvoicePayment(params: {
 
   if (justCompleted) {
     await advanceOpportunityStage(params.organizationId, invoice.contactId, PipelineStage.INVOICED, PipelineStage.PAID);
+    // A subrogated funding commitment is settled the moment its invoice is —
+    // same "one place, every payment channel" rule as the rest of this
+    // function: manual entry, Stripe and a confirmed bank match all land
+    // here, so the commitment can never drift out of sync with its invoice.
+    await prisma.fundingCommitment.updateMany({
+      where: { invoiceId: invoice.id, organizationId: params.organizationId },
+      data: { status: "paid" },
+    });
     // Fires on the crossing into PAID only, never on later payments against
     // an already-settled invoice — the same guard the opportunity move uses.
     // Placed here rather than in each caller so manual entry, the Stripe
