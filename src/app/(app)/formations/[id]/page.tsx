@@ -277,7 +277,7 @@ function ResumeTab({
             Les informations obligatoires de l&apos;indicateur Qualiopi 1 (prérequis, objectifs, tarifs, délais et
             modalités d&apos;accès, accessibilité…) publiées sur une page ouverte au public.
           </div>
-          <CoursePublicToggle courseId={course.id} isPublic={course.isPublic} />
+          <CoursePublicToggle courseId={course.id} isPublic={course.isPublic} publicEnrollment={course.publicEnrollment} />
         </div>
       )}
 

@@ -21,6 +21,7 @@ const schema = z.object({
   evaluationModalities: z.string().nullable().optional(),
   isPublic: z.boolean().optional(),
   allowVideoSkip: z.boolean().optional(),
+  publicEnrollment: z.enum(["none", "request", "direct"]).optional(),
 });
 
 // Single PATCH for both "edit the course's details" and "archive/unarchive
@@ -81,6 +82,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(data.evaluationModalities !== undefined ? { evaluationModalities: data.evaluationModalities || null } : {}),
       ...(data.isPublic !== undefined ? { isPublic: data.isPublic } : {}),
       ...(data.allowVideoSkip !== undefined ? { allowVideoSkip: data.allowVideoSkip } : {}),
+      ...(data.publicEnrollment !== undefined ? { publicEnrollment: data.publicEnrollment } : {}),
     },
     include: { responsibleUsers: true, subcontractors: true },
   });

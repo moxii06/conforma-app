@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { BrandedLogo } from "@/components/BrandedLogo";
+import { PublicEnrollmentForm } from "@/components/PublicEnrollmentForm";
 
 // The public course page — RNQ indicator 1's ten mandatory items on one
 // URL the OF can put on its website, quotes and social posts. Opt-in
@@ -44,6 +45,17 @@ export default async function PublicCoursePage(props: { params: Promise<{ course
           <h1 className="text-[22px] font-display text-ink mb-1.5">{course.title}</h1>
           {course.description && <p className="text-[13px] text-slate leading-relaxed">{course.description}</p>}
         </div>
+
+        {/* Placed high on purpose: a visitor who has already decided
+            shouldn't have to scroll past the whole indicator-1 sheet to act.
+            Renders only when the OF opted in for this course. */}
+        {(course.publicEnrollment === "request" || course.publicEnrollment === "direct") && (
+          <PublicEnrollmentForm
+            courseId={course.id}
+            mode={course.publicEnrollment}
+            brandColor={org.brandColor}
+          />
+        )}
 
         {course.objectives && (
           <div className="bg-white border border-line rounded-card p-5">

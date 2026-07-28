@@ -640,6 +640,16 @@ model Course {
   // Opt-in publication of the public course page (/catalogue/[id]) — the
   // OF decides per course; archived courses never render publicly.
   isPublic             Boolean @default(false)
+  // What a visitor on the public page can actually DO, on top of reading it:
+  //   "none"    — information only (the historical behaviour)
+  //   "request" — leaves their details; creates a Contact + Opportunity in
+  //               the CRM for staff to qualify. Nothing is committed.
+  //   "direct"  — creates the Contact and the Dossier straight away on an
+  //               open session, respecting maxLearners.
+  // "request" is the safe middle ground and what the UI recommends: "direct"
+  // turns unauthenticated form input into real learner records, which most
+  // OFs want to vet first. Only meaningful when isPublic is true.
+  publicEnrollment     String  @default("none")
   // Opt-in "Passer cette vidéo" button on this course's video modules —
   // off by default so a skip path only exists where the OF has explicitly
   // decided it's acceptable. See ElearningProgress.skippedAt for how a
