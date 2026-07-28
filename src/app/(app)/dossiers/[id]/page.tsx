@@ -21,6 +21,7 @@ import { AccommodationForm } from "@/components/AccommodationForm";
 import { AccommodationStatusForm } from "@/components/AccommodationStatusForm";
 import { SendSatisfactionSurveyButton } from "@/components/SendSatisfactionSurveyButton";
 import { EditContactForm } from "@/components/EditContactForm";
+import { DossierSwitcher } from "@/components/DossierSwitcher";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
@@ -61,6 +62,19 @@ export default async function DossierPage(
   if (!dossier) notFound();
   if (role === Role.TRAINER && dossier.session.trainerId !== userId) redirect("/dossiers");
 
+  // Client feedback (S4 UX audit): the header used to show only this
+  // dossier's course title, implying it's the learner's one formation even
+  // when they have several — this powers a real switcher instead.
+  const siblingDossiers = await prisma.dossier.findMany({
+    where: { contactId: dossier.contactId, organizationId },
+    select: { id: true, session: { select: { startsAt: true, mode: true, course: { select: { title: true } } } } },
+    orderBy: { session: { startsAt: "desc" } },
+  });
+  const dossierOptions = siblingDossiers.map((d) => ({
+    id: d.id,
+    label: d.session.mode === "ROLLING" ? d.session.course.title : `${d.session.course.title} — ${format(d.session.startsAt, "d MMM yyyy", { locale: fr })}`,
+  }));
+
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
   const sender = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } });
   const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
@@ -78,8 +92,10 @@ export default async function DossierPage(
 
   return (
     <>
-      <PageHeader title={`${dossier.contact.firstName} ${dossier.contact.lastName}`} subtitle={dossier.session.course.title} />
-      <div className="px-8 pt-3.5 flex items-center gap-3 text-[12px] text-slate">
+      <PageHeader title={`${dossier.contact.firstName} ${dossier.contact.lastName}`} />
+      <div className="px-8 pt-3.5 flex items-center gap-3 text-[12px] text-slate flex-wrap">
+        <DossierSwitcher dossiers={dossierOptions} currentId={dossier.id} />
+        <span className="text-line">·</span>
         <Link href={`/planning/${dossier.session.id}`} className="hover:text-ink hover:underline decoration-line">
           {dossier.session.mode === "ROLLING"
             ? "Voir la session (formation en continu) →"

@@ -173,12 +173,20 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
         const isFirstDone = done && i > 0 && !ordered[i - 1].done;
         const pendingSurveyByKind: Record<string, string> = {};
         for (const r of d.satisfactionSurveyResponses) pendingSurveyByKind[r.survey.kind] = r.token;
+        // Client feedback (S4 UX audit): this checklist reused the staff-facing
+        // dossier-closing steps verbatim, but three of the five aren't
+        // learner actions at all (the OF/company handles them) — an empty
+        // circle read the same whether nothing was expected of you or
+        // something was. Only the two evaluations are ever something the
+        // learner does themselves, so only they get the "en attente de
+        // vous" treatment; the rest get an explicit "administratif" hint
+        // instead of silence.
         const steps = [
-          { label: "Recueil des besoins", done: d.needsAssessmentDone },
-          { label: "Convention signée", done: d.contractSigned },
-          { label: "Convocation reçue", done: d.convocationSent },
-          { label: "Évaluation à chaud", done: d.evaluationHotDone, pendingToken: pendingSurveyByKind.hot },
-          { label: "Évaluation à froid", done: d.evaluationColdDone, pendingToken: pendingSurveyByKind.cold },
+          { label: "Recueil des besoins", done: d.needsAssessmentDone, actionable: false },
+          { label: "Convention signée", done: d.contractSigned, actionable: false },
+          { label: "Convocation reçue", done: d.convocationSent, actionable: false },
+          { label: "Évaluation à chaud", done: d.evaluationHotDone, actionable: true, pendingToken: pendingSurveyByKind.hot },
+          { label: "Évaluation à froid", done: d.evaluationColdDone, actionable: true, pendingToken: pendingSurveyByKind.cold },
         ];
         return (
           <div key={d.id}>
@@ -214,6 +222,9 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
                     <Link href={`/satisfaction/${s.pendingToken}`} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink">
                       Répondre
                     </Link>
+                  )}
+                  {!s.done && !s.actionable && (
+                    <span className="text-[11px] text-slate">Administratif</span>
                   )}
                 </div>
               ))}
