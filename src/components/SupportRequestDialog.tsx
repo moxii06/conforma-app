@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 
-type Intent = "complaint" | "question" | "secure_report" | "rights_request";
+type Intent = "complaint" | "question" | "secure_report" | "rights_request" | "accommodation_request";
 
 const RIGHTS_TYPE_LABELS: Record<string, string> = {
   access: "Accéder à mes données",
@@ -39,6 +39,7 @@ export function SupportRequestDialog({
   const [reporterName, setReporterName] = useState("");
   const [reporterContact, setReporterContact] = useState("");
   const [rightsType, setRightsType] = useState("access");
+  const [requestedAccommodations, setRequestedAccommodations] = useState("");
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +53,7 @@ export function SupportRequestDialog({
     setReporterName("");
     setReporterContact("");
     setRightsType("access");
+    setRequestedAccommodations("");
     setDone(null);
     setError(null);
   }
@@ -86,6 +88,14 @@ export function SupportRequestDialog({
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
         setDone("Votre demande a été enregistrée — le délégué à la protection des données a 1 mois pour y répondre.");
+      } else if (intent === "accommodation_request") {
+        const res = await fetch("/api/support/accommodation-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dossierId, description, requestedAccommodations }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
+        setDone("Votre demande a été transmise en toute confidentialité au référent handicap.");
       }
       router.refresh();
     } catch (err) {
@@ -139,6 +149,9 @@ export function SupportRequestDialog({
                 <option value="question">Poser une question / contacter le support</option>
                 <option value="secure_report">Faire un signalement confidentiel</option>
                 {canRequestOwnRights && <option value="rights_request">Faire une demande sur mes données personnelles</option>}
+                {canRequestOwnRights && dossiers.length > 0 && (
+                  <option value="accommodation_request">Signaler un besoin d&apos;aménagement (situation de handicap)</option>
+                )}
               </select>
             </div>
 
@@ -219,6 +232,41 @@ export function SupportRequestDialog({
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Précisez votre demande (optionnel)"
                   rows={3}
+                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
+                />
+              </>
+            )}
+
+            {intent === "accommodation_request" && (
+              <>
+                <div className="text-[11.5px] text-slate">
+                  Transmis en toute confidentialité à votre référent handicap uniquement — pas à l&apos;équipe pédagogique.
+                </div>
+                <select
+                  value={dossierId}
+                  onChange={(e) => setDossierId(e.target.value)}
+                  required
+                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                >
+                  <option value="">Formation concernée</option>
+                  {dossiers.map((d) => (
+                    <option key={d.id} value={d.id}>{d.label}</option>
+                  ))}
+                </select>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Décrivez votre situation"
+                  rows={3}
+                  required
+                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
+                />
+                <textarea
+                  value={requestedAccommodations}
+                  onChange={(e) => setRequestedAccommodations(e.target.value)}
+                  placeholder="Aménagements souhaités"
+                  rows={2}
+                  required
                   className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal resize-none"
                 />
               </>

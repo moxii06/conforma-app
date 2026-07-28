@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
+import Link from "next/link";
 import { Role } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -12,6 +13,7 @@ import { EnrollProspectForm } from "@/components/EnrollProspectForm";
 import { GenerateCertificateButton } from "@/components/GenerateCertificateButton";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
+import { SendBulkDocumentDialog } from "@/components/SendBulkDocumentDialog";
 
 const FORMAT_LABELS: Record<string, string> = {
   IN_PERSON: "Présentiel",
@@ -71,6 +73,27 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   const isValidated = session.status === "VALIDATED";
   const isFull = session.dossiers.length >= session.capacity;
 
+  // QW6 — closing checklist: aggregates the same per-dossier Parcours
+  // fields the dossier detail page already tracks (needsAssessmentDone,
+  // contractSigned, convocationSent, evaluationHotDone, evaluationColdDone)
+  // plus certificate issuance, so staff can see at a glance whether a
+  // naturally-ended session is actually ready to archive instead of
+  // discovering gaps dossier by dossier.
+  const closingSteps = session.dossiers.map((d) => ({
+    dossierId: d.id,
+    contactName: `${d.contact.firstName} ${d.contact.lastName}`,
+    needsAssessmentDone: d.needsAssessmentDone,
+    contractSigned: d.contractSigned,
+    convocationSent: d.convocationSent,
+    evaluationHotDone: d.evaluationHotDone,
+    evaluationColdDone: d.evaluationColdDone,
+    certificateIssued: d.documents.some((doc) => doc.templateOrigin === "lms_certificate"),
+  }));
+  const closingReadyCount = closingSteps.filter(
+    (s) => s.needsAssessmentDone && s.contractSigned && s.convocationSent && s.evaluationHotDone
+  ).length;
+  const closingCertifiedCount = closingSteps.filter((s) => s.certificateIssued).length;
+
   // Client feedback: staff need a heads-up when a learner already has other
   // active formations, to avoid double-booking or duplicated outreach.
   const contactIds = session.dossiers.map((d) => d.contactId);
@@ -100,6 +123,13 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
     : [];
 
   const organization = canManage ? await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } }) : null;
+  const documentTemplates = canManage
+    ? await prisma.documentTemplate.findMany({
+        where: { OR: [{ organizationId: auth.organizationId }, { organizationId: null }] },
+        select: { id: true, title: true, category: true },
+        orderBy: { title: "asc" },
+      })
+    : [];
   const courseTitle = session.course.title;
   const dateLabel = format(session.startsAt, "d MMMM yyyy", { locale: fr });
   const timeLabel = format(session.startsAt, "HH:mm");
@@ -118,8 +148,8 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         <div className="bg-white border border-line rounded-card p-5">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Pill tone={isCancelled ? "danger" : isArchived ? "neutral" : isValidated ? "good" : "warn"}>
-                {isCancelled ? "Annulée" : isArchived ? "Archivée" : isValidated ? "Validée" : "Brouillon"}
+              <Pill tone={isCancelled ? "danger" : isManuallyArchived ? "neutral" : isPast ? "warn" : isValidated ? "good" : "warn"}>
+                {isCancelled ? "Annulée" : isManuallyArchived ? "Archivée" : isPast ? "Terminée" : isValidated ? "Validée" : "Brouillon"}
               </Pill>
               {isFull && !isCancelled && <Pill tone="neutral">Complet</Pill>}
             </div>
@@ -214,8 +244,62 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
           </div>
         )}
 
+        {isPast && !isCancelled && closingSteps.length > 0 && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+              <div className="text-[13.5px] font-semibold text-ink">Clôture de la session</div>
+              {canEdit && <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />}
+            </div>
+            <div className="text-[12px] text-slate mb-3">
+              {closingReadyCount}/{closingSteps.length} dossier{closingSteps.length > 1 ? "s" : ""} avec le parcours complet (recueil, contrat, convocation, évaluation à chaud)
+              {" · "}
+              {closingCertifiedCount}/{closingSteps.length} attestation{closingSteps.length > 1 ? "s" : ""} émise{closingSteps.length > 1 ? "s" : ""}
+              {!isManuallyArchived && " — vérifiez ci-dessous avant d'archiver."}
+            </div>
+            <div className="flex flex-col">
+              {closingSteps.map((s) => {
+                const steps: { label: string; done: boolean }[] = [
+                  { label: "Recueil", done: s.needsAssessmentDone },
+                  { label: "Contrat", done: s.contractSigned },
+                  { label: "Convocation", done: s.convocationSent },
+                  { label: "Éval. à chaud", done: s.evaluationHotDone },
+                  { label: "Éval. à froid", done: s.evaluationColdDone },
+                  { label: "Attestation", done: s.certificateIssued },
+                ];
+                return (
+                  <div key={s.dossierId} className="flex items-center justify-between gap-3 py-1.5 border-t border-line first:border-t-0">
+                    <Link href={`/dossiers/${s.dossierId}`} className="text-[12px] text-ink min-w-0 truncate hover:underline decoration-line">
+                      {s.contactName}
+                    </Link>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {steps.map((step) => (
+                        <span
+                          key={step.label}
+                          title={step.label}
+                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${step.done ? "bg-[#DEE5E0] text-sage" : "bg-pebble text-slate"}`}
+                        >
+                          {step.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13.5px] font-semibold text-ink mb-3.5">Apprenants inscrits ({session.dossiers.length})</div>
+          <div className="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
+            <div className="text-[13.5px] font-semibold text-ink">Apprenants inscrits ({session.dossiers.length})</div>
+            {canManage && (
+              <SendBulkDocumentDialog
+                sessionId={session.id}
+                templates={documentTemplates}
+                recipients={session.dossiers.map((d) => ({ id: d.id, name: `${d.contact.firstName} ${d.contact.lastName}` }))}
+              />
+            )}
+          </div>
           {!isValidated && session.dossiers.length > 0 && (
             <div className="text-[12px] text-slate mb-3">
               Validez la session pour pouvoir envoyer les convocations.

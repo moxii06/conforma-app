@@ -194,8 +194,8 @@ async function ArchivesTab({
               {s.dossiers.length}/{s.capacity}
             </div>
             <div className="shrink-0">
-              <Pill tone={s.status === "CANCELLED" ? "danger" : "neutral"}>
-                {s.status === "CANCELLED" ? "Annulée" : "Archivée"}
+              <Pill tone={s.status === "CANCELLED" ? "danger" : s.archivedAt ? "neutral" : "warn"}>
+                {s.status === "CANCELLED" ? "Annulée" : s.archivedAt ? "Archivée" : "Terminée"}
               </Pill>
             </div>
           </Link>

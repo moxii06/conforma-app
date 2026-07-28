@@ -11,6 +11,7 @@ import Link from "next/link";
 import { RefreshButton } from "@/components/RefreshButton";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { DismissTaskButton } from "@/components/DismissTaskButton";
+import { ShowMoreToggle } from "@/components/ShowMoreToggle";
 
 const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "Test de positionnement",
@@ -247,9 +248,26 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
         ))}
       </div>
       {tasks.length > 8 && (
-        <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
-          + {tasks.length - 8} autre{tasks.length - 8 > 1 ? "s" : ""}
-        </div>
+        <ShowMoreToggle count={tasks.length - 8}>
+          <div className="flex flex-col">
+            {tasks.slice(8).map((t) => (
+              <div
+                key={`${t.kind}-${t.id}`}
+                className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
+              >
+                <Link href={t.href} className="min-w-0 flex-1">
+                  <span className="text-[12.5px] text-ink font-medium">{t.contactName}</span>
+                  <span className="text-[12.5px] text-slate"> — {t.label}</span>
+                </Link>
+                <div className="flex items-center gap-2 shrink-0">
+                  {t.overdue && <Pill tone="danger">En retard</Pill>}
+                  <span className="text-[11px] text-slate">{TASK_KIND_LABELS[t.kind]}</span>
+                  <DismissTaskButton kind={t.kind} id={t.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </ShowMoreToggle>
       )}
     </CollapsibleSection>
   );
@@ -278,9 +296,23 @@ function ComplaintsWidget({
         ))}
       </div>
       {complaints.length > 5 && (
-        <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
-          + {complaints.length - 5} autre{complaints.length - 5 > 1 ? "s" : ""}
-        </div>
+        <ShowMoreToggle count={complaints.length - 5}>
+          <div className="flex flex-col">
+            {complaints.slice(5).map((c) => (
+              <Link
+                key={c.id}
+                href="/support"
+                className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
+              >
+                <div className="min-w-0">
+                  <span className="text-[12.5px] text-ink font-medium truncate">{c.subject}</span>
+                  <span className="text-[12.5px] text-slate"> — {c.submittedByName}</span>
+                </div>
+                <span className="text-[11px] text-slate shrink-0">{format(c.createdAt, "d MMM", { locale: fr })}</span>
+              </Link>
+            ))}
+          </div>
+        </ShowMoreToggle>
       )}
     </CollapsibleSection>
   );
@@ -313,9 +345,23 @@ function SecureReportsWidget({
         ))}
       </div>
       {reports.length > 5 && (
-        <div className="text-[11.5px] text-slate mt-2 pt-2 border-t border-line">
-          + {reports.length - 5} autre{reports.length - 5 > 1 ? "s" : ""}
-        </div>
+        <ShowMoreToggle count={reports.length - 5}>
+          <div className="flex flex-col">
+            {reports.slice(5).map((r) => (
+              <Link
+                key={r.id}
+                href="/support"
+                className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
+              >
+                <div className="min-w-0">
+                  <span className="text-[12.5px] text-ink font-medium truncate">{r.description.slice(0, 60)}{r.description.length > 60 ? "…" : ""}</span>
+                  <span className="text-[12.5px] text-slate"> — {r.reporterName ?? "Anonyme"}</span>
+                </div>
+                <span className="text-[11px] text-slate shrink-0">{format(r.createdAt, "d MMM", { locale: fr })}</span>
+              </Link>
+            ))}
+          </div>
+        </ShowMoreToggle>
       )}
     </CollapsibleSection>
   );
