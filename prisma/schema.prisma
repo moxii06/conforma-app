@@ -372,6 +372,15 @@ model Subscription {
   trialEndsAt          DateTime?
   stripeCustomerId     String?
   stripeSubscriptionId String?
+  // Mirrored from Stripe by the billing webhook, never set by the app
+  // itself: Stripe is the source of truth on what was actually paid and
+  // until when. Kept locally so the UI can answer "jusqu'à quand ?" without
+  // an API round-trip on every page load.
+  currentPeriodEnd     DateTime?
+  // Stripe keeps a cancelled subscription active until the end of the paid
+  // period. Without this flag the UI would show "Actif" to someone who has
+  // already cancelled, which is exactly the moment not to be misleading.
+  cancelAtPeriodEnd    Boolean      @default(false)
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
 }

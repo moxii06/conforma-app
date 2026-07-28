@@ -6,6 +6,8 @@ import { Role } from "@prisma/client";
 import { differenceInCalendarDays, format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getSignatureQuota, OVERAGE_PRICE_CENTS } from "@/lib/signatureQuota";
+import { SubscriptionActions } from "@/components/SubscriptionActions";
+import { billingConfigured, fetchPlanPrices } from "@/lib/billing";
 
 const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team", growth: "Growth" };
 const STATUS_LABELS: Record<string, { label: string; tone: "good" | "warn" | "danger" | "neutral" }> = {
@@ -23,6 +25,7 @@ export default async function AbonnementPage() {
   const subscription = await prisma.subscription.findUnique({ where: { organizationId } });
   const status = subscription ? STATUS_LABELS[subscription.status] ?? { label: subscription.status, tone: "neutral" as const } : null;
   const signatureQuota = await getSignatureQuota(organizationId);
+  const prices = await fetchPlanPrices();
   const daysLeft =
     subscription?.status === "trialing" && subscription.trialEndsAt
       ? Math.max(0, differenceInCalendarDays(subscription.trialEndsAt, new Date()))
@@ -78,22 +81,16 @@ export default async function AbonnementPage() {
           </div>
         )}
 
-        <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13px] font-semibold text-ink">Moyen de paiement</div>
-          <div className="text-[12.5px] text-slate">
-            Aucun moyen de paiement enregistré. La mise en place du prélèvement et le passage à une formule payante
-            seront disponibles ici une fois la facturation en ligne activée pour votre organisme — contactez-nous en
-            attendant.
-          </div>
-        </div>
-
-        <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13px] font-semibold text-ink">Historique des factures</div>
-          <div className="text-[12.5px] text-slate">
-            Aucune facture pour l'instant — vos factures d'abonnement Jalon apparaîtront ici, téléchargeables en
-            PDF, dès la première échéance facturée.
-          </div>
-        </div>
+        {/* Moyen de paiement, factures, changement de formule et résiliation
+            vivent tous dans le portail Stripe — d'où l'absence de sections
+            dédiées ici : les reconstruire serait quatre écrans à maintenir
+            pour un résultat moins complet. */}
+        <SubscriptionActions
+          currentPlan={subscription?.plan ?? "solo"}
+          hasPaidSubscription={Boolean(subscription?.stripeCustomerId)}
+          billingEnabled={billingConfigured()}
+          prices={prices}
+        />
 
         {subscription && (
           <div className="text-[11.5px] text-slate">
