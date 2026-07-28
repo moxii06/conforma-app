@@ -5,6 +5,7 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { IntegrationCredentialForm } from "@/components/IntegrationCredentialForm";
 import { IntegrationRequestForm } from "@/components/IntegrationRequestForm";
+import { ApiAccessPanel } from "@/components/ApiAccessPanel";
 import { MailboxActions } from "@/components/MailboxActions";
 import { ImapMailboxForm } from "@/components/ImapMailboxForm";
 import { format } from "date-fns";
@@ -50,6 +51,7 @@ const TABS = [
   { key: "paiement", label: "Paiement & comptabilité" },
   { key: "signature", label: "Signature électronique" },
   { key: "incluses", label: "Incluses dans Jalon" },
+  { key: "api", label: "API & webhooks" },
 ];
 
 function Card({
@@ -85,6 +87,15 @@ export default async function IntegrationsPage(props: {
   if (can(role, "integrations") === "none") redirect("/dashboard");
 
   const activeTab = TABS.some((t) => t.key === searchParams.tab) ? searchParams.tab! : "messagerie";
+
+  // Only loaded for its own tab — see the same reasoning on the funders tab.
+  const [apiKeys, webhooks] =
+    activeTab === "api"
+      ? await Promise.all([
+          prisma.apiKey.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }),
+          prisma.webhook.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }),
+        ])
+      : [[], []];
 
   const [credentials, googleConnections, imapConnections, requests] = await Promise.all([
     prisma.integrationCredential.findMany({ where: { organizationId } }),
@@ -301,6 +312,29 @@ export default async function IntegrationsPage(props: {
               }
             />
           </>
+        )}
+
+        {activeTab === "api" && (
+          <ApiAccessPanel
+            baseUrl={process.env.NEXTAUTH_URL ?? "https://votre-domaine"}
+            apiKeys={apiKeys.map((k) => ({
+              id: k.id,
+              name: k.name,
+              keyPrefix: k.keyPrefix,
+              scopes: k.scopes,
+              lastUsedAt: k.lastUsedAt ? k.lastUsedAt.toISOString() : null,
+              revokedAt: k.revokedAt ? k.revokedAt.toISOString() : null,
+              createdAt: k.createdAt.toISOString(),
+            }))}
+            webhooks={webhooks.map((h) => ({
+              id: h.id,
+              url: h.url,
+              events: h.events,
+              secret: h.secret,
+              lastDeliveryAt: h.lastDeliveryAt ? h.lastDeliveryAt.toISOString() : null,
+              lastDeliveryStatus: h.lastDeliveryStatus,
+            }))}
+          />
         )}
 
         {upcomingForTab.length > 0 && (

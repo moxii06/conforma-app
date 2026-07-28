@@ -1,6 +1,7 @@
 import { PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { advanceOpportunityStage } from "@/lib/pipeline";
+import { emitWebhook } from "@/lib/webhooks";
 
 // Shared by every place a Payment gets created — manual entry
 // (/api/facturation/invoices/[id]/payments), Stripe's webhook, and bank
@@ -42,6 +43,17 @@ export async function recordInvoicePayment(params: {
 
   if (justCompleted) {
     await advanceOpportunityStage(params.organizationId, invoice.contactId, PipelineStage.INVOICED, PipelineStage.PAID);
+    // Fires on the crossing into PAID only, never on later payments against
+    // an already-settled invoice — the same guard the opportunity move uses.
+    // Placed here rather than in each caller so manual entry, the Stripe
+    // webhook and a confirmed bank match all emit it identically.
+    await emitWebhook(params.organizationId, "invoice.paid", {
+      invoice_id: invoice.id,
+      reference: invoice.reference,
+      amount_cents: invoice.amountCents,
+      paid_cents: newTotal,
+      contact_id: invoice.contactId,
+    });
   }
 
   return { payment, totalPaidCents: newTotal, fullyPaid: newTotal >= invoice.amountCents, justCompleted };

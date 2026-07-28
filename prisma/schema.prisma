@@ -111,6 +111,8 @@ model Organization {
   integrationRequests         IntegrationRequest[]
   funders                     Funder[]
   fundingCommitments          FundingCommitment[]
+  apiKeys                     ApiKey[]
+  webhooks                    Webhook[]
   clientOutreaches            ClientOutreach[]
   subscription                Subscription?
   qualityRisks                QualityRisk[]
@@ -2046,6 +2048,73 @@ model FundingCommitment {
   @@index([organizationId])
   @@index([dossierId])
   @@index([funderId])
+}
+
+// ---------------------------------------------------------------------------
+// Public API (/api/v1) — read-only in v1, plus outbound webhooks.
+//
+// Deliberately NOT modelled on IntegrationCredential: that table holds
+// credentials Jalon uses to call OUT to a third party. These are credentials
+// a third party uses to call IN, which is the opposite trust direction and
+// the reason everything here is hashed and scoped.
+// ---------------------------------------------------------------------------
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  // What the key is for, so an admin can revoke the right one two years
+  // later ("Zapier — export compta") without guessing.
+  name String
+
+  // First characters of the key, stored in clear so the UI can show which
+  // key a row refers to. Not secret on its own.
+  keyPrefix String
+
+  // SHA-256 of the full key. NOT bcrypt: an API key is 32 random bytes, so
+  // there is nothing to brute-force and nothing to rainbow-table — while
+  // bcrypt's deliberate slowness would be paid on every single API call.
+  // Same reasoning Stripe and GitHub apply to their own keys.
+  keyHash String @unique
+
+  // Coarse read scopes, e.g. ["read:dossiers", "read:invoices"]. A BI tool
+  // pulling training volumes has no business reading learner contact details.
+  scopes String[]
+
+  lastUsedAt      DateTime?
+  // Revoked rather than deleted: the row is the audit trail of what had
+  // access, and to what, at a given time.
+  revokedAt       DateTime?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+
+  @@index([organizationId])
+}
+
+model Webhook {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  url String
+  // Event names subscribed to — see WEBHOOK_EVENTS in src/lib/apiKeys.ts.
+  events String[]
+
+  // Shared secret used to sign each delivery (HMAC-SHA256). The receiver
+  // verifies it to be sure the call really comes from Jalon — without it a
+  // webhook URL is an unauthenticated endpoint anyone can forge calls to.
+  secret String
+
+  active Boolean @default(true)
+
+  // Last delivery outcome, kept so an OF can see a broken endpoint without
+  // needing us to read logs for them.
+  lastDeliveryAt     DateTime?
+  lastDeliveryStatus Int?
+  createdAt          DateTime  @default(now())
+
+  @@index([organizationId])
 }
 
 // An OF asking Jalon to connect a tool we don't support yet. Persisted

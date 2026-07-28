@@ -32,6 +32,9 @@ export default withAuth({
 // its remainder isn't empty).
 export const config = {
   matcher: [
-    "/((?!login|formulaire|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
+    // api/v1 is the public REST API: it carries its own bearer-token auth
+    // (see src/lib/apiAuth.ts), so a NextAuth session redirect here would
+    // answer an API call with an HTML login page.
+    "/((?!login|formulaire|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/v1|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
   ],
 };
