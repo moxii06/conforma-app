@@ -10,7 +10,7 @@ const commitmentSchema = z.object({
   agreementNumber: z.string().max(120).optional(),
   agreementDate: z.string().optional(),
   validUntil: z.string().optional(),
-  status: z.enum(["requested", "granted", "refused", "invoiced", "paid"]).optional(),
+  status: z.enum(["draft", "deposited", "instructing", "granted", "refused", "invoiced", "paid"]).optional(),
   notes: z.string().max(2000).optional(),
 });
 
@@ -18,7 +18,7 @@ const patchSchema = z.object({
   // Null clears it, falling back to the course's catalogue price.
   agreedPriceCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
   commitmentId: z.string().optional(),
-  status: z.enum(["requested", "granted", "refused", "invoiced", "paid"]).optional(),
+  status: z.enum(["draft", "deposited", "instructing", "granted", "refused", "invoiced", "paid"]).optional(),
 });
 
 function parseDate(value?: string) {
@@ -69,7 +69,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       agreementNumber: parsed.data.agreementNumber || null,
       agreementDate: parseDate(parsed.data.agreementDate),
       validUntil: parseDate(parsed.data.validUntil),
-      status: parsed.data.status ?? "requested",
+      status: parsed.data.status ?? "draft",
+      // A commitment born directly at "deposited" (staff catching up on
+      // paperwork done outside the app) still deserves its deposit date.
+      depositedAt: parsed.data.status && parsed.data.status !== "draft" ? new Date() : null,
       notes: parsed.data.notes || null,
     },
   });
@@ -86,15 +89,28 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
 
   if (parsed.data.commitmentId && parsed.data.status) {
-    const updated = await prisma.fundingCommitment.updateMany({
+    // Scoped read first so the depositedAt stamping below can't be tricked
+    // into touching another tenant's row.
+    const existing = await prisma.fundingCommitment.findFirst({
       where: {
         id: parsed.data.commitmentId,
         dossierId: auth.dossier.id,
         organizationId: auth.session.organizationId,
       },
-      data: { status: parsed.data.status },
     });
-    if (updated.count === 0) return NextResponse.json({ error: "Engagement introuvable." }, { status: 404 });
+    if (!existing) return NextResponse.json({ error: "Engagement introuvable." }, { status: 404 });
+
+    await prisma.fundingCommitment.update({
+      where: { id: existing.id },
+      data: {
+        status: parsed.data.status,
+        // Stamped once, on the first move past "draft", and never cleared:
+        // the deposit date stays true even after the funder answers. Going
+        // back to draft doesn't erase it either — "was deposited once" is a
+        // fact, not a state.
+        ...(existing.depositedAt === null && parsed.data.status !== "draft" ? { depositedAt: new Date() } : {}),
+      },
+    });
   }
 
   if (parsed.data.agreedPriceCents !== undefined) {

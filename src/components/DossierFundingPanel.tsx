@@ -9,8 +9,11 @@ import {
   formatCents,
   COMMITMENT_STATUS_LABELS,
   FUNDER_TYPE_LABELS,
+  AWAITING_FUNDER,
   type CommitmentStatus,
+  type ReadinessItem,
 } from "@/lib/funding";
+import { CheckCircle2, Circle } from "lucide-react";
 
 export type FunderOption = { id: string; name: string; type: string };
 
@@ -23,16 +26,23 @@ export type CommitmentRow = {
   subrogation: boolean;
   agreementNumber: string | null;
   validUntil: string | null; // ISO
+  depositedAt: string | null; // ISO
   status: string;
 };
 
 const STATUS_TONES: Record<string, "neutral" | "warn" | "good" | "danger"> = {
-  requested: "warn",
+  draft: "neutral",
+  deposited: "warn",
+  instructing: "warn",
   granted: "good",
   refused: "danger",
   invoiced: "neutral",
   paid: "good",
 };
+
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
 
 export function DossierFundingPanel({
   dossierId,
@@ -41,6 +51,7 @@ export function DossierFundingPanel({
   commitments,
   funders,
   canEdit,
+  readiness,
 }: {
   dossierId: string;
   totalCents: number;
@@ -49,6 +60,8 @@ export function DossierFundingPanel({
   commitments: CommitmentRow[];
   funders: FunderOption[];
   canEdit: boolean;
+  /** Computed server-side (computeFundingReadiness) — the deposit checklist. */
+  readiness: ReadinessItem[];
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -60,10 +73,14 @@ export function DossierFundingPanel({
   const [subrogation, setSubrogation] = useState(true);
   const [agreementNumber, setAgreementNumber] = useState("");
   const [validUntil, setValidUntil] = useState("");
-  const [status, setStatus] = useState<CommitmentStatus>("requested");
+  const [status, setStatus] = useState<CommitmentStatus>("draft");
 
   const [editingPrice, setEditingPrice] = useState(false);
   const [priceInput, setPriceInput] = useState((totalCents / 100).toString());
+  // Open by default only while something is missing: once the dossier is
+  // complete the checklist is confirmation, not a to-do list.
+  const missingCount = readiness.filter((r) => !r.ok).length;
+  const [checklistOpen, setChecklistOpen] = useState(missingCount > 0);
 
   const summary = computeFundingSummary(
     totalCents,
@@ -101,7 +118,7 @@ export function DossierFundingPanel({
     setAmount("");
     setAgreementNumber("");
     setValidUntil("");
-    setStatus("requested");
+    setStatus("draft");
     router.refresh();
   }
 
@@ -179,6 +196,45 @@ export function DossierFundingPanel({
         </div>
       </div>
 
+      {/* Dossier de dépôt : les pièces qu'un financeur demandera, vérifiées
+          contre l'existant. C'est la moitié du temps que ce module fait
+          gagner — savoir AVANT le dépôt ce qui manque. */}
+      <div className="bg-white border border-line rounded-md p-3">
+        <button
+          type="button"
+          onClick={() => setChecklistOpen(!checklistOpen)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <span className="text-[12px] font-semibold text-ink">
+            Dossier de dépôt — {readiness.length - missingCount}/{readiness.length} pièces prêtes
+          </span>
+          <span className={`text-[11px] ${missingCount === 0 ? "text-sage" : "text-seal-dark"}`}>
+            {missingCount === 0 ? "Complet ✓" : `${missingCount} manquante${missingCount > 1 ? "s" : ""}`}
+          </span>
+        </button>
+        {checklistOpen && (
+          <div className="flex flex-col gap-1.5 mt-2.5 pt-2.5 border-t border-line">
+            {readiness.map((item) => (
+              <div key={item.key} className="flex items-start gap-2">
+                {item.ok ? (
+                  <CheckCircle2 size={14} className="text-sage mt-0.5 shrink-0" />
+                ) : (
+                  <Circle size={14} className="text-ash mt-0.5 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <span className={`text-[12px] ${item.ok ? "text-ink" : "text-ink font-medium"}`}>{item.label}</span>
+                  {!item.ok && <div className="text-[11px] text-slate">{item.hint}</div>}
+                </div>
+              </div>
+            ))}
+            <div className="text-[10.5px] text-slate mt-1">
+              Vérifié automatiquement d&apos;après le contenu du dossier. Le dépôt lui-même se fait sur le portail
+              de votre financeur — Jalon prépare, vous déposez.
+            </div>
+          </div>
+        )}
+      </div>
+
       {summary.overCommitted && (
         <div className="flex items-start gap-2 bg-[#E9D8D3] rounded-md px-3 py-2 text-[12px] text-rust">
           <TriangleAlert size={14} className="mt-0.5 shrink-0" />
@@ -217,6 +273,15 @@ export function DossierFundingPanel({
                   {c.agreementNumber ? `Accord ${c.agreementNumber}` : "Sans numéro d'accord"}
                   {c.validUntil && ` · valable jusqu'au ${new Date(c.validUntil).toLocaleDateString("fr-FR")}`}
                 </div>
+                {/* The number an OF actually watches: how long the funder has
+                    been sitting on this. Amber past 30 days — the point where
+                    a phone call is warranted. */}
+                {AWAITING_FUNDER.includes(c.status as CommitmentStatus) && c.depositedAt && (
+                  <div className={`text-[11px] ${daysSince(c.depositedAt) > 30 ? "text-seal-dark font-medium" : "text-slate"}`}>
+                    Déposé le {new Date(c.depositedAt).toLocaleDateString("fr-FR")} — sans réponse depuis{" "}
+                    {daysSince(c.depositedAt)} jour{daysSince(c.depositedAt) > 1 ? "s" : ""}
+                  </div>
+                )}
               </div>
               <div className="text-[12.5px] text-ink tabular-nums shrink-0">{formatCents(c.amountCents)}</div>
               {canEdit ? (

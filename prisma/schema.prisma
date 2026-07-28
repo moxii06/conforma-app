@@ -2041,11 +2041,20 @@ model FundingCommitment {
   agreementDate   DateTime?
   validUntil      DateTime?
 
-  // requested | granted | refused | invoiced | paid
+  // draft | deposited | instructing | granted | refused | invoiced | paid
+  // Mirrors the real lifecycle of a funding request: an OF's daily question
+  // is "which dossiers are sitting at the OPCO and since when", which needs
+  // the préparation/dépôt/instruction distinction — a single "requested"
+  // couldn't say whether anyone had actually sent anything.
   // Only granted/invoiced/paid count towards what's actually secured — see
   // computeFundingSummary in src/lib/funding.ts, which is the one place that
   // arithmetic lives.
-  status String @default("requested")
+  status String @default("draft")
+
+  // Stamped automatically the first time status moves to "deposited" — this
+  // is what powers "en attente de réponse depuis N jours". Kept when the
+  // status advances (granted etc.): the deposit date stays true.
+  depositedAt DateTime?
 
   // Set once the (subrogated) invoice for this funder's share is raised.
   invoice   Invoice? @relation(fields: [invoiceId], references: [id])

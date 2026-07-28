@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeFundingSummary, resolveDossierPriceCents } from "./funding";
+import { computeFundingSummary, resolveDossierPriceCents, computeFundingReadiness } from "./funding";
 
 // Money split across several funders is exactly the kind of arithmetic that
 // looks obvious and silently goes wrong — a "requested" amount counted as
@@ -28,7 +28,7 @@ describe("computeFundingSummary", () => {
       150000,
       [
         { amountCents: 100000, status: "granted", subrogation: true },
-        { amountCents: 30000, status: "requested", subrogation: false },
+        { amountCents: 30000, status: "deposited", subrogation: false },
       ],
       { now: NOW },
     );
@@ -113,5 +113,83 @@ describe("computeFundingSummary", () => {
     const s = computeFundingSummary(80000, [], { now: NOW });
     expect(s.remainderCents).toBe(80000);
     expect(s.overCommitted).toBe(false);
+  });
+});
+
+describe("computeFundingReadiness", () => {
+  const ready: import("./funding").ReadinessInput = {
+    dossier: { needsAssessmentDone: true, contractSigned: true },
+    course: {
+      objectives: "Savoir X",
+      prerequisites: "",
+      durationHours: 7,
+      teachingMethods: "E-learning",
+      evaluationModalities: "Quiz",
+    },
+    session: { mode: "FIXED_DATE", startsAt: new Date("2026-09-01"), endsAt: new Date("2026-09-02") },
+    organization: { qualiopiCertificateNumber: "QUAL-123", qualiopiCertificateUntil: new Date("2028-01-01") },
+    documentCategories: ["convention"],
+    trainerHasDocuments: true,
+    quoteExists: true,
+  };
+  const NOW2 = new Date("2026-07-28T00:00:00Z");
+
+  it("passes every item on a complete dossier", () => {
+    const items = computeFundingReadiness(ready, NOW2);
+    expect(items.every((i) => i.ok)).toBe(true);
+  });
+
+  it("accepts empty-string prerequisites (a real 'sans prérequis') but not null (never filled)", () => {
+    const items = computeFundingReadiness(
+      { ...ready, course: { ...ready.course, prerequisites: null } },
+      NOW2,
+    );
+    expect(items.find((i) => i.key === "programme")?.ok).toBe(false);
+  });
+
+  it("rejects an expired Qualiopi certificate — the most common deposit refusal", () => {
+    const items = computeFundingReadiness(
+      { ...ready, organization: { qualiopiCertificateNumber: "QUAL-123", qualiopiCertificateUntil: new Date("2026-01-01") } },
+      NOW2,
+    );
+    expect(items.find((i) => i.key === "certificat_qualiopi")?.ok).toBe(false);
+  });
+
+  it("counts the convention via the manual flag OR an uploaded document", () => {
+    const viaFlag = computeFundingReadiness(
+      { ...ready, documentCategories: [], dossier: { ...ready.dossier, contractSigned: true } },
+      NOW2,
+    );
+    const viaDoc = computeFundingReadiness(
+      { ...ready, dossier: { ...ready.dossier, contractSigned: false }, documentCategories: ["convention"] },
+      NOW2,
+    );
+    expect(viaFlag.find((i) => i.key === "convention")?.ok).toBe(true);
+    expect(viaDoc.find((i) => i.key === "convention")?.ok).toBe(true);
+  });
+
+  it("treats a rolling course as having a calendar by construction", () => {
+    const items = computeFundingReadiness(
+      { ...ready, session: { mode: "ROLLING", startsAt: new Date("2026-09-01"), endsAt: new Date("2026-09-01") } },
+      NOW2,
+    );
+    expect(items.find((i) => i.key === "calendrier")?.ok).toBe(true);
+  });
+});
+
+describe("computeFundingSummary — nouveaux statuts", () => {
+  it("counts draft, deposited and instructing as pending, never as secured", () => {
+    const s = computeFundingSummary(
+      100000,
+      [
+        { amountCents: 20000, status: "draft", subrogation: true },
+        { amountCents: 30000, status: "deposited", subrogation: true },
+        { amountCents: 40000, status: "instructing", subrogation: true },
+      ],
+      { now: new Date("2026-07-28") },
+    );
+    expect(s.securedCents).toBe(0);
+    expect(s.pendingCents).toBe(90000);
+    expect(s.remainderCents).toBe(100000);
   });
 });

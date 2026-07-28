@@ -26,7 +26,7 @@ import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { DossierFundingPanel } from "@/components/DossierFundingPanel";
-import { resolveDossierPriceCents } from "@/lib/funding";
+import { resolveDossierPriceCents, computeFundingReadiness } from "@/lib/funding";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -108,6 +108,48 @@ export default async function DossierPage(
       ])
     : [[], []];
 
+  // The deposit checklist — everything verified against real records, never
+  // hand-declared. Loaded only when the tab is reachable.
+  let fundingReadiness: ReturnType<typeof computeFundingReadiness> = [];
+  if (canSeeFunding) {
+    const [dossierDocs, quoteCount, trainerDocCount, org] = await Promise.all([
+      prisma.document.findMany({ where: { dossierId: dossier.id }, select: { category: true } }),
+      prisma.quote.count({ where: { organizationId, contactId: dossier.contactId } }),
+      // "The trainer has a CV on file": documents attached either to the
+      // session's trainer (User) or to a subcontractor linked to that user.
+      dossier.session.trainerId
+        ? prisma.document.count({
+            where: {
+              organizationId,
+              OR: [
+                { userId: dossier.session.trainerId },
+                { subcontractor: { linkedUserId: dossier.session.trainerId } },
+              ],
+            },
+          })
+        : Promise.resolve(0),
+      prisma.organization.findUniqueOrThrow({
+        where: { id: organizationId },
+        select: { qualiopiCertificateNumber: true, qualiopiCertificateUntil: true },
+      }),
+    ]);
+    fundingReadiness = computeFundingReadiness({
+      dossier: { needsAssessmentDone: dossier.needsAssessmentDone, contractSigned: dossier.contractSigned },
+      course: {
+        objectives: dossier.session.course.objectives,
+        prerequisites: dossier.session.course.prerequisites,
+        durationHours: dossier.session.course.durationHours,
+        teachingMethods: dossier.session.course.teachingMethods,
+        evaluationModalities: dossier.session.course.evaluationModalities,
+      },
+      session: { mode: dossier.session.mode, startsAt: dossier.session.startsAt, endsAt: dossier.session.endsAt },
+      organization: org,
+      documentCategories: dossierDocs.map((d) => d.category).filter((c): c is string => c !== null),
+      trainerHasDocuments: trainerDocCount > 0,
+      quoteExists: quoteCount > 0,
+    });
+  }
+
   const members = canManageEmail
     ? await prisma.user.findMany({
         where: { organizationId, status: "active", role: { not: Role.LEARNER } },
@@ -172,6 +214,7 @@ export default async function DossierPage(
               usesCoursePrice={dossier.agreedPriceCents == null}
               canEdit={can(role, "invoicing") !== "none"}
               funders={funders}
+              readiness={fundingReadiness}
               commitments={fundingCommitments.map((c) => ({
                 id: c.id,
                 funderId: c.funderId,
@@ -181,6 +224,7 @@ export default async function DossierPage(
                 subrogation: c.subrogation,
                 agreementNumber: c.agreementNumber,
                 validUntil: c.validUntil ? c.validUntil.toISOString() : null,
+                depositedAt: c.depositedAt ? c.depositedAt.toISOString() : null,
                 status: c.status,
               }))}
             />
