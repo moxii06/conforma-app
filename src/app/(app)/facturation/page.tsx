@@ -99,7 +99,7 @@ export default async function FacturationPage(
           where: { organizationId },
           orderBy: [{ archivedAt: "asc" }, { name: "asc" }],
           include: {
-            commitments: { select: { amountCents: true, status: true } },
+            commitments: { select: { amountCents: true, status: true, dossierId: true } },
           },
         })
       : [];
@@ -119,7 +119,10 @@ export default async function FacturationPage(
               contactEmail: f.contactEmail,
               contactPhone: f.contactPhone,
               archivedAt: f.archivedAt ? f.archivedAt.toISOString() : null,
-              usageCount: f.commitments.length,
+              // Distinct dossiers, not commitments: nothing stops two lines
+              // from the same funder on one dossier (a top-up, a correction),
+              // and the label says "dossier".
+              usageCount: new Set(f.commitments.map((c) => c.dossierId)).size,
               // Same rule as computeFundingSummary: only agreed money counts.
               securedCents: f.commitments
                 .filter((c) => ["granted", "invoiced", "paid"].includes(c.status))
