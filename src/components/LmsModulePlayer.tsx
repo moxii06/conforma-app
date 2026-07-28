@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Pill } from "@/components/ui";
 
 type Props = {
   dossierId: string;
@@ -10,6 +11,8 @@ type Props = {
   fileUrl: string | null;
   percentComplete: number;
   lastPositionSeconds: number | null;
+  allowSkip: boolean;
+  skippedAt: string | null;
 };
 
 // A jump of more than this many seconds between two timeupdate ticks can't
@@ -40,19 +43,37 @@ const SUSPICIOUS_JUMP_MIN_PERCENT = 95;
 // the prompt still gets through, same as the old input did; the point is
 // to stop the *accidental* "oops I dragged to the end" case, not defeat a
 // determined cheater.
-export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentComplete, lastPositionSeconds }: Props) {
+export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentComplete, lastPositionSeconds, allowSkip, skippedAt }: Props) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [percent, setPercent] = useState(percentComplete);
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmSkipOpen, setConfirmSkipOpen] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const lastSavedRef = useRef(percentComplete);
   const lastSaveAtRef = useRef(0);
   const lastTimeRef = useRef(0);
-  const alreadyCompletedOnceRef = useRef(percentComplete >= 100);
+  // A module that's "complete" only because it was skipped doesn't get the
+  // same trust a genuinely-watched one does — re-arms the anti-scrub
+  // confirmation below so scrubbing to the end after a skip still asks
+  // "did you really watch it," same gate a first-time viewing gets.
+  const alreadyCompletedOnceRef = useRef(percentComplete >= 100 && !skippedAt);
   const confirmOpenRef = useRef(false);
   const pendingPercentRef = useRef(0);
   const resumedRef = useRef(false);
+
+  async function handleSkip() {
+    setConfirmSkipOpen(false);
+    setSkipping(true);
+    await fetch(`/api/lms/modules/${moduleId}/skip`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dossierId }),
+    });
+    setSkipping(false);
+    router.refresh();
+  }
 
   async function save(next: number, position: number, force = false) {
     const now = Date.now();
@@ -112,7 +133,12 @@ export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentCom
     const video = e.currentTarget;
     if (!video.duration || Number.isNaN(video.duration)) return;
     const pct = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
-    save(Math.max(pct, percent), video.currentTime, true);
+    // Once skipped, `percent` is pinned at 100 (see save's guard below) —
+    // Math.max(pct, percent) would report a fake 100 on every pause, never
+    // letting a genuine partial re-watch register. Send the honest,
+    // freshly-measured pct instead so the server can tell a real
+    // crossing-into-100 apart from the skip's own artificial one.
+    save(skippedAt ? pct : Math.max(pct, percent), video.currentTime, true);
   }
 
   function handleConfirmYes() {
@@ -214,6 +240,42 @@ export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentCom
           <div className="text-[10.5px] text-slate">
             Reprise à {Math.floor(lastPositionSeconds / 60)}:{String(lastPositionSeconds % 60).padStart(2, "0")}
           </div>
+        )}
+
+        {skippedAt && (
+          <div>
+            <Pill tone="danger">Passé sans visionnage complet</Pill>
+          </div>
+        )}
+
+        {allowSkip && !skippedAt && percent < 100 && !confirmOpen && (
+          confirmSkipOpen ? (
+            <div className="bg-linen border border-line rounded-md p-3 flex flex-col gap-2">
+              <div className="text-[12.5px] text-ink">
+                Vous n&apos;aurez pas regardé cette vidéo en entier. Cela peut affecter la preuve de suivi de votre
+                formation.
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={handleSkip}
+                  disabled={skipping}
+                  className="bg-rust text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-60"
+                >
+                  {skipping ? "…" : "Passer quand même"}
+                </button>
+                <button onClick={() => setConfirmSkipOpen(false)} className="text-[12px] text-slate hover:text-ink">
+                  Annuler
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmSkipOpen(true)}
+              className="text-[11.5px] text-slate hover:text-ink underline decoration-line self-start"
+            >
+              Passer cette vidéo
+            </button>
+          )
         )}
       </div>
     );

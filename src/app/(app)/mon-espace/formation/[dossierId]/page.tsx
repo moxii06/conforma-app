@@ -120,6 +120,8 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
             fileUrl={m.fileUrl}
             percentComplete={p?.percentComplete ?? 0}
             lastPositionSeconds={p?.lastPositionSeconds ?? null}
+            allowSkip={dossier.session.course.allowVideoSkip}
+            skippedAt={p?.skippedAt ? p.skippedAt.toISOString() : null}
           />
         );
       }
@@ -136,6 +138,7 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
       node,
       chapterId: m.chapter?.id ?? null,
       chapterTitle: m.chapter?.title ?? null,
+      skippedAt: Boolean(progressByModule.get(m.id)?.skippedAt),
     };
   });
 

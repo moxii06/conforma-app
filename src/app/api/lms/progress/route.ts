@@ -70,6 +70,13 @@ export async function POST(request: Request) {
           percentComplete: isStaff ? parsed.data.percentComplete : Math.max(existing.percentComplete, parsed.data.percentComplete),
           lastPositionSeconds: parsed.data.lastPositionSeconds ?? existing.lastPositionSeconds,
           lastEventAt: new Date(),
+          // A module reaching 100 here came from real tracked playback
+          // (this route), never from the skip route (which sets 100
+          // directly) — so if it was previously skipped, this genuine
+          // crossing-into-100 clears that flag. The client re-arms its
+          // own anti-scrub confirmation after a skip specifically so this
+          // can't be reached by just scrubbing to the end unnoticed.
+          skippedAt: existing.skippedAt && parsed.data.percentComplete >= 100 ? null : existing.skippedAt,
         },
       })
     : await prisma.elearningProgress.create({

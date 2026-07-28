@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CheckCircle2, Circle, Lock, Video, FileText, HelpCircle, BookOpen, Paperclip } from "lucide-react";
+import { CheckCircle2, Circle, CircleAlert, Lock, Video, FileText, HelpCircle, BookOpen, Paperclip } from "lucide-react";
 
 export type ModuleRow = {
   id: string;
@@ -14,6 +14,9 @@ export type ModuleRow = {
   node: ReactNode;
   chapterId: string | null;
   chapterTitle: string | null;
+  // "Passer cette vidéo" was used and the video hasn't since been watched
+  // to genuine completion — see LmsModulePlayer/ElearningProgress.skippedAt.
+  skippedAt: boolean;
 };
 
 const TYPE_ICON: Record<ModuleRow["type"], typeof Video> = { video: Video, document: FileText, quiz: HelpCircle, page: BookOpen };
@@ -72,7 +75,9 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
               disabled={isLocked}
               className={`w-full flex items-center gap-2.5 py-2.5 text-left ${isLocked ? "cursor-not-allowed opacity-50" : "hover:bg-linen"}`}
             >
-              {r.state === "completed" ? (
+              {r.state === "completed" && r.skippedAt ? (
+                <CircleAlert size={15} className="text-rust shrink-0" />
+              ) : r.state === "completed" ? (
                 <CheckCircle2 size={15} className="text-sage shrink-0" />
               ) : isLocked ? (
                 <Lock size={13} className="text-slate shrink-0" />

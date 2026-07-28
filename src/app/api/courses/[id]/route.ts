@@ -20,6 +20,7 @@ const schema = z.object({
   teachingMethods: z.string().nullable().optional(),
   evaluationModalities: z.string().nullable().optional(),
   isPublic: z.boolean().optional(),
+  allowVideoSkip: z.boolean().optional(),
 });
 
 // Single PATCH for both "edit the course's details" and "archive/unarchive
@@ -79,6 +80,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(data.teachingMethods !== undefined ? { teachingMethods: data.teachingMethods || null } : {}),
       ...(data.evaluationModalities !== undefined ? { evaluationModalities: data.evaluationModalities || null } : {}),
       ...(data.isPublic !== undefined ? { isPublic: data.isPublic } : {}),
+      ...(data.allowVideoSkip !== undefined ? { allowVideoSkip: data.allowVideoSkip } : {}),
     },
     include: { responsibleUsers: true, subcontractors: true },
   });

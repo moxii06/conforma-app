@@ -14,6 +14,7 @@ import { NewChapterForm } from "@/components/NewChapterForm";
 import { ChapterHeader } from "@/components/ChapterHeader";
 import { ModuleChapterSelect } from "@/components/ModuleChapterSelect";
 import { CoursePublicToggle } from "@/components/CoursePublicToggle";
+import { CourseVideoSkipToggle } from "@/components/CourseVideoSkipToggle";
 import { AssignLearnersPanel } from "@/components/AssignLearnersPanel";
 import { RevokeAccessButton } from "@/components/RevokeAccessButton";
 import { DeleteModuleButton } from "@/components/DeleteModuleButton";
@@ -277,6 +278,20 @@ function ResumeTab({
             modalités d&apos;accès, accessibilité…) publiées sur une page ouverte au public.
           </div>
           <CoursePublicToggle courseId={course.id} isPublic={course.isPublic} />
+        </div>
+      )}
+
+      {canManage && (
+        <div className="border-t border-line pt-3.5 flex flex-col gap-1.5">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
+            Modules vidéo
+          </div>
+          <div className="text-[11.5px] text-slate">
+            Autoriser l&apos;apprenant à passer une vidéo sans la regarder en entier (avec avertissement) — désactivé
+            par défaut. La suite du parcours se débloque quand même, mais c&apos;est visible comme tel tant que la
+            vidéo n&apos;a pas été réellement regardée en entier.
+          </div>
+          <CourseVideoSkipToggle courseId={course.id} allowVideoSkip={course.allowVideoSkip} />
         </div>
       )}
 

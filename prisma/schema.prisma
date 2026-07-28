@@ -639,6 +639,11 @@ model Course {
   // Opt-in publication of the public course page (/catalogue/[id]) — the
   // OF decides per course; archived courses never render publicly.
   isPublic             Boolean @default(false)
+  // Opt-in "Passer cette vidéo" button on this course's video modules —
+  // off by default so a skip path only exists where the OF has explicitly
+  // decided it's acceptable. See ElearningProgress.skippedAt for how a
+  // skip is tracked once used.
+  allowVideoSkip       Boolean @default(false)
 
   // Cap on total enrolled learners across ALL of this course's sessions,
   // on top of the per-session Session.capacity (a rolling course's
@@ -1781,6 +1786,14 @@ model ElearningProgress {
   assignedAt          DateTime        @default(now())
   assignedByUserId    String?
   assignedByName      String?
+  // Set when the learner used "Passer cette vidéo" (Course.allowVideoSkip)
+  // instead of actually watching to the end — percentComplete still jumps
+  // to 100 so the next module unlocks, but this marks that 100 as unearned
+  // so the UI can show it distinctly rather than as a genuine "Terminé".
+  // Cleared by the progress route the moment a later real watch-through
+  // (tracked the same way as any first-time viewing, including the
+  // anti-scrub confirmation) reaches 100 for real.
+  skippedAt           DateTime?
 
   @@unique([dossierId, moduleId])
 }
