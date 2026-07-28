@@ -6,10 +6,11 @@ import { PersonPicker, type LearnerInput } from "@/components/PersonPicker";
 import { SuggestedLearners } from "@/components/SuggestedLearners";
 import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
 import { COURSE_TEMPLATES, COURSE_TEMPLATE_SECTORS } from "@/lib/courseTemplates";
-import { X, FileUp, LayoutTemplate } from "lucide-react";
+import { X, FileUp, LayoutTemplate, Sparkles } from "lucide-react";
 
 type Member = { id: string; name: string };
 type PendingLearner = { key: string; label: string; input: LearnerInput & { accessDurationDays?: number } };
+type OutlineChapter = { title: string; modules: string[] };
 
 // Client feedback: the trigger used to sit inline in the page content and,
 // because its flex-col parent defaults to align-items: stretch, rendered as
@@ -21,6 +22,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [objectives, setObjectives] = useState("");
   const [responsibleIds, setResponsibleIds] = useState<Set<string>>(new Set());
   const [subcontractorIds, setSubcontractorIds] = useState<Set<string>>(new Set());
   const [durationHours, setDurationHours] = useState("");
@@ -32,6 +34,11 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [imported, setImported] = useState(false);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [aiIntention, setAiIntention] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [outline, setOutline] = useState<OutlineChapter[]>([]);
 
   async function handleImport(file: File) {
     setImporting(true);
@@ -50,6 +57,39 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     if (data.description) setDescription(data.description);
     if (data.durationHours) setDurationHours(String(data.durationHours));
     setImported(true);
+  }
+
+  async function handleGenerate() {
+    if (!title.trim() || !aiIntention.trim()) return;
+    setGenerating(true);
+    setGenerateError(null);
+    const res = await fetch("/api/courses/generate-outline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, intention: aiIntention }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setGenerating(false);
+    if (!res.ok) {
+      setGenerateError(data.error ?? "Échec de la génération.");
+      return;
+    }
+    if (data.description) setDescription(data.description);
+    if (data.objectives) setObjectives(data.objectives);
+    setOutline(Array.isArray(data.chapters) ? data.chapters : []);
+    setShowAiPrompt(false);
+    setImported(false);
+    setImportError(null);
+  }
+
+  function removeOutlineChapter(index: number) {
+    setOutline((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function removeOutlineModule(chapterIndex: number, moduleIndex: number) {
+    setOutline((prev) =>
+      prev.map((c, i) => (i === chapterIndex ? { ...c, modules: c.modules.filter((_, j) => j !== moduleIndex) } : c))
+    );
   }
 
   function addLearner(input: LearnerInput, label: string) {
@@ -89,11 +129,13 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     setDurationHours(String(template.durationHours));
     setImported(false);
     setImportError(null);
+    setOutline([]);
   }
 
   function reset() {
     setTitle("");
     setDescription("");
+    setObjectives("");
     setResponsibleIds(new Set());
     setSubcontractorIds(new Set());
     setDurationHours("");
@@ -102,6 +144,10 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     setError(null);
     setImportError(null);
     setImported(false);
+    setShowAiPrompt(false);
+    setAiIntention("");
+    setGenerateError(null);
+    setOutline([]);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -114,11 +160,13 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
       body: JSON.stringify({
         title,
         description: description || undefined,
+        objectives: objectives || undefined,
         responsibleUserIds: Array.from(responsibleIds),
         subcontractorIds: Array.from(subcontractorIds),
         durationHours: durationHours ? parseInt(durationHours, 10) : undefined,
         maxLearners: maxLearners ? parseInt(maxLearners, 10) : undefined,
         initialLearners: learners.map((l) => l.input),
+        outline: outline.length > 0 ? outline : undefined,
       }),
     });
     setLoading(false);
@@ -174,6 +222,47 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
           </label>
           {importError && <div className="text-[11.5px] text-rust">{importError}</div>}
           {imported && <div className="text-[11.5px] text-sage">Champs préremplis depuis le document — vérifiez-les avant de créer la formation.</div>}
+
+          {!showAiPrompt ? (
+            <button
+              type="button"
+              onClick={() => setShowAiPrompt(true)}
+              className="flex items-center gap-2 border border-dashed border-line rounded-md px-2.5 py-2 text-[12px] text-slate hover:border-ink-soft hover:text-ink"
+            >
+              <Sparkles size={14} className="shrink-0" />
+              Générer une ébauche avec l&apos;IA (objectifs + plan de chapitres)
+            </button>
+          ) : (
+            <div className="border border-line rounded-md p-2.5 flex flex-col gap-2">
+              <div className="text-[11.5px] text-slate">
+                À partir du titre ci-dessous et de ce que les apprenants doivent en retirer, l&apos;IA propose une description,
+                des objectifs pédagogiques et un plan de chapitres — à vérifier avant de créer la formation, rien n&apos;est
+                généré automatiquement.
+              </div>
+              <textarea
+                value={aiIntention}
+                onChange={(e) => setAiIntention(e.target.value)}
+                placeholder="Ce que les apprenants doivent savoir / savoir faire à la fin (ex. « gérer un entretien annuel difficile sans le laisser dégénérer »)"
+                rows={2}
+                className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
+              />
+              {generateError && <div className="text-[11.5px] text-rust">{generateError}</div>}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={generating || !title.trim() || !aiIntention.trim()}
+                  className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+                >
+                  {generating ? "Génération…" : "Générer"}
+                </button>
+                <button type="button" onClick={() => setShowAiPrompt(false)} className="text-[12px] text-slate hover:text-ink">
+                  Annuler
+                </button>
+                {!title.trim() && <span className="text-[11px] text-slate">Renseignez d&apos;abord le titre ci-dessous.</span>}
+              </div>
+            </div>
+          )}
           <label className="flex items-center gap-2 border border-line rounded-md px-2.5 py-2 text-[12px] text-slate hover:border-ink-soft hover:text-ink cursor-pointer">
             <LayoutTemplate size={14} className="shrink-0" />
             <span className="shrink-0">Ou partir d&apos;un modèle</span>
@@ -214,6 +303,38 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
             rows={2}
             className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
           />
+          <textarea
+            value={objectives}
+            onChange={(e) => setObjectives(e.target.value)}
+            placeholder="Objectifs pédagogiques (optionnel — ce que l'apprenant saura faire à l'issue)"
+            rows={2}
+            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
+          />
+          {outline.length > 0 && (
+            <div className="border border-line rounded-md p-2.5 flex flex-col gap-2">
+              <div className="text-[11px] text-slate uppercase tracking-wide">
+                Plan de chapitres proposé — créé avec la formation, à compléter ensuite
+              </div>
+              {outline.map((chapter, ci) => (
+                <div key={ci} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[12.5px] font-medium text-ink">{chapter.title}</div>
+                    <button type="button" onClick={() => removeOutlineChapter(ci)} className="text-slate hover:text-rust">
+                      <X size={12} />
+                    </button>
+                  </div>
+                  {chapter.modules.map((moduleTitle, mi) => (
+                    <div key={mi} className="flex items-center justify-between gap-2 pl-3 text-[12px] text-slate">
+                      <span>· {moduleTitle}</span>
+                      <button type="button" onClick={() => removeOutlineModule(ci, mi)} className="text-slate hover:text-rust shrink-0">
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
           <input
             value={durationHours}
             onChange={(e) => setDurationHours(e.target.value)}

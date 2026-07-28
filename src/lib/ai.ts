@@ -275,6 +275,54 @@ export async function summarizeQualiopiIndicator(params: {
   });
 }
 
+export type CourseOutline = {
+  description: string;
+  objectives: string;
+  chapters: { title: string; modules: string[] }[];
+};
+
+// Phase 4 §B1 (see the S4 UX audit's action plan) — drafts a *structure*
+// for a brand-new course from a one-line intention, not its content: a
+// description, pedagogical objectives (Qualiopi indicator 1 material — see
+// extractCourseInfoFromDocument's own comment on why this app never lets AI
+// write a compliance field unreviewed), and chapter/module TITLES only.
+// Deliberately stops there — no module bodies, no quiz questions, nothing
+// that could be mistaken for a finished course if a reviewer skims too
+// fast. CreateCourseForm drops every field into its own editable input;
+// nothing here is ever persisted directly.
+export async function generateCourseOutline(params: { title: string; intention: string }): Promise<CourseOutline> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error(NOT_CONFIGURED_ERROR);
+
+  const raw = await chatCompletion(apiKey, {
+    system:
+      'Tu conçois la structure d\'une formation professionnelle pour un organisme de formation français (OFP), à partir de son titre et d\'une courte intention pédagogique. Réponds UNIQUEMENT avec un objet JSON valide de la forme {"description": "", "objectives": "", "chapters": [{"title": "", "modules": ["", ""]}]}. "description" résume la formation en 2-3 phrases. "objectives" liste en 3 à 5 phrases ce que l\'apprenant saura ou saura faire à l\'issue de la formation (objectifs pédagogiques concrets et vérifiables, jamais vagues). "chapters" est un plan de 3 à 6 chapitres, chacun avec 2 à 4 titres de modules — des TITRES seulement, aucun contenu, aucune question de quiz. Reste réaliste par rapport à la durée implicite d\'une formation professionnelle standard.',
+    user: `Titre de la formation : ${params.title}\nIntention pédagogique : ${params.intention}`,
+    json: true,
+    temperature: 0.6,
+  });
+
+  try {
+    const parsed = JSON.parse(raw);
+    const chapters = Array.isArray(parsed.chapters)
+      ? parsed.chapters
+          .filter((c: unknown) => c && typeof c === "object" && typeof (c as { title?: unknown }).title === "string")
+          .map((c: { title: string; modules?: unknown }) => ({
+            title: c.title.trim(),
+            modules: Array.isArray(c.modules) ? c.modules.filter((m: unknown) => typeof m === "string" && m.trim()).map((m: string) => m.trim()) : [],
+          }))
+          .filter((c: { title: string }) => c.title)
+      : [];
+    return {
+      description: typeof parsed.description === "string" ? parsed.description.trim() : "",
+      objectives: typeof parsed.objectives === "string" ? parsed.objectives.trim() : "",
+      chapters,
+    };
+  } catch {
+    throw new Error("Réponse de l'IA illisible — réessayez.");
+  }
+}
+
 // Column-mapping assist for the CSV/Excel data import (see lib/dataImport.ts
 // and /api/import/analyze): given the file's raw headers and a couple of
 // sample rows, propose which header feeds which Jalon field. Only called

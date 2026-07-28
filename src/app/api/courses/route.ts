@@ -27,15 +27,25 @@ const learnerSchema = z.union([
     .merge(enrollmentCategorySchema),
 ]);
 
+const outlineSchema = z.array(
+  z.object({ title: z.string().min(1), modules: z.array(z.string().min(1)).optional() })
+);
+
 const schema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
+  objectives: z.string().optional(),
   responsibleUserIds: z.array(z.string()).optional(),
   subcontractorIds: z.array(z.string()).optional(),
   durationHours: z.number().int().positive().optional(),
   priceCents: z.number().int().positive().optional(),
   maxLearners: z.number().int().positive().optional(),
   initialLearners: z.array(learnerSchema).optional(),
+  // Phase 4 §B1 — an AI-drafted chapter/module title outline the staff
+  // reviewed and kept (see generateCourseOutline). Titles only: every
+  // module is created as an empty "page" stub, same as clicking "+ Nouveau
+  // module" by hand, just faster to scaffold.
+  outline: outlineSchema.optional(),
 });
 
 export async function POST(request: Request) {
@@ -71,6 +81,7 @@ export async function POST(request: Request) {
       organizationId: session.organizationId,
       title: parsed.data.title,
       description: parsed.data.description || null,
+      objectives: parsed.data.objectives || null,
       durationHours: parsed.data.durationHours ?? null,
       priceCents: parsed.data.priceCents ?? null,
       maxLearners: parsed.data.maxLearners ?? null,
@@ -83,6 +94,26 @@ export async function POST(request: Request) {
     },
     include: { responsibleUsers: true, subcontractors: true },
   });
+
+  if (parsed.data.outline?.length) {
+    let order = 0;
+    for (const chapter of parsed.data.outline) {
+      await prisma.chapter.create({
+        data: {
+          courseId: course.id,
+          title: chapter.title,
+          modules: {
+            create: (chapter.modules ?? []).map((title) => ({
+              courseId: course.id,
+              title,
+              type: "page",
+              order: order++,
+            })),
+          },
+        },
+      });
+    }
+  }
 
   // A brand-new course has zero sessions, so this always hits the
   // "auto-create one" branch in resolveEnrollmentSession — no ambiguity to
