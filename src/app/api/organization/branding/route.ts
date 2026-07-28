@@ -6,6 +6,8 @@ import { Role } from "@prisma/client";
 
 const schema = z.object({
   brandColor: z.union([z.string().regex(/^#[0-9A-Fa-f]{6}$/), z.literal("")]).optional(),
+  publicContactEmail: z.union([z.string().email(), z.literal("")]).optional(),
+  publicContactPhone: z.string().max(30).optional(),
 });
 
 // The color half of marque blanche — the logo lives at /api/organization/logo
@@ -23,7 +25,11 @@ export async function PATCH(request: Request) {
 
   const updated = await prisma.organization.update({
     where: { id: session.organizationId },
-    data: { brandColor: parsed.data.brandColor || null },
+    data: {
+      ...(parsed.data.brandColor !== undefined ? { brandColor: parsed.data.brandColor || null } : {}),
+      ...(parsed.data.publicContactEmail !== undefined ? { publicContactEmail: parsed.data.publicContactEmail || null } : {}),
+      ...(parsed.data.publicContactPhone !== undefined ? { publicContactPhone: parsed.data.publicContactPhone || null } : {}),
+    },
   });
 
   return NextResponse.json({ brandColor: updated.brandColor });

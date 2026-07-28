@@ -37,6 +37,12 @@ model Organization {
   qualiopiCertificateUntil  DateTime? // date de fin de validité (cycle de 3 ans)
   qualiopiCategories        String? // catégories L.6313-1 couvertes, texte libre
 
+  // Public-facing contact shown on the public course pages (indicator 1's
+  // "contacts" item) — deliberately separate from billing identity and
+  // from any staff member's personal email.
+  publicContactEmail String?
+  publicContactPhone String?
+
   // Billing identity for the ORGANIZATION'S OWN Jalon subscription —
   // the org is the paying customer, so this is what a real invoice from
   // Jalon to them would need (Stripe customer creation, French invoice
@@ -613,6 +619,22 @@ model Course {
   // different duration. Null means "no expiry," the default for most
   // courses.
   certificateValidityMonths Int?
+
+  // The 10 mandatory public-information items of RNQ indicator 1 that the
+  // free-text description can't reliably carry (the pilot's real 2022 NC:
+  // "absence de prérequis" simply wasn't stated anywhere). All free text,
+  // all optional — the PUBLIC page renders an explicit "Sans prérequis"
+  // when prerequisites is empty, turning the 2022 trap into a default.
+  prerequisites        String?
+  objectives           String?
+  accessDelay          String? // délai d'accès estimé (demande → début)
+  accessModalities     String? // processus d'inscription
+  teachingMethods      String? // méthodes mobilisées
+  evaluationModalities String?
+  // Opt-in publication of the public course page (/catalogue/[id]) — the
+  // OF decides per course; archived courses never render publicly.
+  isPublic             Boolean @default(false)
+
   // Cap on total enrolled learners across ALL of this course's sessions,
   // on top of the per-session Session.capacity (a rolling course's
   // auto-created session gets a generous default capacity, so without

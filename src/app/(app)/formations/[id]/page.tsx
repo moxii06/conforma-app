@@ -13,6 +13,7 @@ import { NewModuleForm } from "@/components/NewModuleForm";
 import { NewChapterForm } from "@/components/NewChapterForm";
 import { ChapterHeader } from "@/components/ChapterHeader";
 import { ModuleChapterSelect } from "@/components/ModuleChapterSelect";
+import { CoursePublicToggle } from "@/components/CoursePublicToggle";
 import { AssignLearnersPanel } from "@/components/AssignLearnersPanel";
 import { RevokeAccessButton } from "@/components/RevokeAccessButton";
 import { DeleteModuleButton } from "@/components/DeleteModuleButton";
@@ -252,9 +253,28 @@ function ResumeTab({
               priceCents: course.priceCents,
               certificateValidityMonths: course.certificateValidityMonths,
               maxLearners: course.maxLearners,
+              prerequisites: course.prerequisites,
+              objectives: course.objectives,
+              accessDelay: course.accessDelay,
+              accessModalities: course.accessModalities,
+              teachingMethods: course.teachingMethods,
+              evaluationModalities: course.evaluationModalities,
             }}
           />
           <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
+        </div>
+      )}
+
+      {canManage && (
+        <div className="border-t border-line pt-3.5 flex flex-col gap-1.5">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
+            Fiche formation publique
+          </div>
+          <div className="text-[11.5px] text-slate">
+            Les informations obligatoires de l&apos;indicateur Qualiopi 1 (prérequis, objectifs, tarifs, délais et
+            modalités d&apos;accès, accessibilité…) publiées sur une page ouverte au public.
+          </div>
+          <CoursePublicToggle courseId={course.id} isPublic={course.isPublic} />
         </div>
       )}
 

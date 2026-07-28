@@ -23,6 +23,12 @@ export function EditCourseForm({
     priceCents: number | null;
     certificateValidityMonths: number | null;
     maxLearners: number | null;
+    prerequisites: string | null;
+    objectives: string | null;
+    accessDelay: string | null;
+    accessModalities: string | null;
+    teachingMethods: string | null;
+    evaluationModalities: string | null;
   };
 }) {
   const router = useRouter();
@@ -37,6 +43,12 @@ export function EditCourseForm({
     initial.certificateValidityMonths != null ? String(initial.certificateValidityMonths) : ""
   );
   const [maxLearners, setMaxLearners] = useState(initial.maxLearners != null ? String(initial.maxLearners) : "");
+  const [prerequisites, setPrerequisites] = useState(initial.prerequisites ?? "");
+  const [objectives, setObjectives] = useState(initial.objectives ?? "");
+  const [accessDelay, setAccessDelay] = useState(initial.accessDelay ?? "");
+  const [accessModalities, setAccessModalities] = useState(initial.accessModalities ?? "");
+  const [teachingMethods, setTeachingMethods] = useState(initial.teachingMethods ?? "");
+  const [evaluationModalities, setEvaluationModalities] = useState(initial.evaluationModalities ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +86,12 @@ export function EditCourseForm({
         priceCents: price ? Math.round(parseFloat(price) * 100) : null,
         certificateValidityMonths: certificateValidityMonths ? parseInt(certificateValidityMonths, 10) : null,
         maxLearners: maxLearners ? parseInt(maxLearners, 10) : null,
+        prerequisites: prerequisites || null,
+        objectives: objectives || null,
+        accessDelay: accessDelay || null,
+        accessModalities: accessModalities || null,
+        teachingMethods: teachingMethods || null,
+        evaluationModalities: evaluationModalities || null,
       }),
     });
     setLoading(false);
@@ -129,6 +147,40 @@ export function EditCourseForm({
           className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft flex-1"
         />
       </div>
+      <div className="border-t border-line pt-2.5 flex flex-col gap-2.5">
+        <div className="text-[11px] text-slate uppercase tracking-wide">
+          Informations publiques (fiche formation — indicateur Qualiopi 1)
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate">Prérequis — laisser vide affichera « Sans prérequis »</span>
+          <input value={prerequisites} onChange={(e) => setPrerequisites(e.target.value)} placeholder="ex. Maîtriser les bases d'Excel" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate">Objectifs opérationnels et évaluables</span>
+          <textarea value={objectives} onChange={(e) => setObjectives(e.target.value)} rows={3} placeholder={"ex.\n- Identifier les emails de phishing\n- Appliquer la politique de mots de passe"} className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none" />
+        </label>
+        <div className="flex gap-2">
+          <label className="flex flex-col gap-1 flex-1">
+            <span className="text-[11px] text-slate">Délai d&apos;accès</span>
+            <input value={accessDelay} onChange={(e) => setAccessDelay(e.target.value)} placeholder="ex. Sous 15 jours" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+          </label>
+          <label className="flex flex-col gap-1 flex-1">
+            <span className="text-[11px] text-slate">Modalités d&apos;accès</span>
+            <input value={accessModalities} onChange={(e) => setAccessModalities(e.target.value)} placeholder="ex. Inscription en ligne ou par email" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+          </label>
+        </div>
+        <div className="flex gap-2">
+          <label className="flex flex-col gap-1 flex-1">
+            <span className="text-[11px] text-slate">Méthodes mobilisées</span>
+            <input value={teachingMethods} onChange={(e) => setTeachingMethods(e.target.value)} placeholder="ex. E-learning : vidéos, supports, quiz" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+          </label>
+          <label className="flex flex-col gap-1 flex-1">
+            <span className="text-[11px] text-slate">Modalités d&apos;évaluation</span>
+            <input value={evaluationModalities} onChange={(e) => setEvaluationModalities(e.target.value)} placeholder="ex. Quiz par module, score minimal 70 %" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+          </label>
+        </div>
+      </div>
+
       <label className="flex flex-col gap-1">
         <span className="text-[11px] text-slate uppercase tracking-wide">
           Nombre de places — laisser vide pour illimité

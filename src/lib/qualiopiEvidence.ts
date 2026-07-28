@@ -33,6 +33,7 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     qualityRisks,
     auditFindingsHandled,
     intervenantEvaluations,
+    publicCoursePages,
   ] = await Promise.all([
     prisma.resultIndicator.count({ where: { organizationId } }),
     prisma.resultIndicator.count({ where: { organizationId, published: true } }),
@@ -56,6 +57,7 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     prisma.intervenantEvaluation.count({
       where: { organizationId, evaluatedAt: { gte: new Date(Date.now() - 366 * 24 * 60 * 60 * 1000) } },
     }),
+    prisma.course.count({ where: { organizationId, isPublic: true, archivedAt: null } }),
   ]);
 
   const watchCount = (type: string) => watchByType.find((w: { watchType: string }) => w.watchType === type)?._count ?? 0;
@@ -68,6 +70,7 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     map.set(indicator, list);
   };
 
+  add(1, "fiche(s) formation publique(s) en ligne (10 items obligatoires)", publicCoursePages, "/formations");
   add(1, "indicateur(s) de résultats publié(s)", publishedResultIndicators, "/qualiopi?tab=resultats");
   add(2, "indicateur(s) de résultats calculé(s) avec méthode", resultIndicators, "/qualiopi?tab=resultats");
   add(4, "recueil(s) des besoins complété(s)", needsAssessmentsCompleted, "/dossiers");

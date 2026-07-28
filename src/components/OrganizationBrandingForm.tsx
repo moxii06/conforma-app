@@ -8,10 +8,12 @@ const DEFAULT_COLOR = "#C9A15A"; // matches the app's own --seal fallback swatch
 export function OrganizationBrandingForm({
   initial,
 }: {
-  initial: { logoUrl: string | null; brandColor: string | null };
+  initial: { logoUrl: string | null; brandColor: string | null; publicContactEmail?: string | null; publicContactPhone?: string | null };
 }) {
   const [logoUrl, setLogoUrl] = useState(initial.logoUrl);
   const [color, setColor] = useState(initial.brandColor ?? "");
+  const [publicContactEmail, setPublicContactEmail] = useState(initial.publicContactEmail ?? "");
+  const [publicContactPhone, setPublicContactPhone] = useState(initial.publicContactPhone ?? "");
   const [uploading, setUploading] = useState(false);
   const [savingColor, setSavingColor] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function OrganizationBrandingForm({
     const res = await fetch("/api/organization/branding", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brandColor: color }),
+      body: JSON.stringify({ brandColor: color, publicContactEmail, publicContactPhone }),
     });
     setSavingColor(false);
     if (!res.ok) {
@@ -134,6 +136,25 @@ export function OrganizationBrandingForm({
         </div>
       </label>
 
+      <div className="flex flex-col gap-1">
+        <span className="text-[11px] text-slate uppercase tracking-wide">Contact public (affiché sur les fiches formation publiques)</span>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={publicContactEmail}
+            onChange={(e) => { setPublicContactEmail(e.target.value); setSaved(false); }}
+            placeholder="contact@votre-organisme.fr"
+            className="flex-1 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          />
+          <input
+            value={publicContactPhone}
+            onChange={(e) => { setPublicContactPhone(e.target.value); setSaved(false); }}
+            placeholder="01 23 45 67 89"
+            className="w-40 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          />
+        </div>
+      </div>
+
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -141,7 +162,7 @@ export function OrganizationBrandingForm({
           disabled={savingColor}
           className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
         >
-          {savingColor ? "…" : "Enregistrer la couleur"}
+          {savingColor ? "…" : "Enregistrer"}
         </button>
         {saved && <span className="text-[12px] text-sage">Enregistrée.</span>}
         {error && <span className="text-[12px] text-rust">{error}</span>}

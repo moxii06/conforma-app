@@ -13,6 +13,13 @@ const schema = z.object({
   priceCents: z.number().int().positive().nullable().optional(),
   certificateValidityMonths: z.number().int().positive().nullable().optional(),
   maxLearners: z.number().int().positive().nullable().optional(),
+  prerequisites: z.string().nullable().optional(),
+  objectives: z.string().nullable().optional(),
+  accessDelay: z.string().nullable().optional(),
+  accessModalities: z.string().nullable().optional(),
+  teachingMethods: z.string().nullable().optional(),
+  evaluationModalities: z.string().nullable().optional(),
+  isPublic: z.boolean().optional(),
 });
 
 // Single PATCH for both "edit the course's details" and "archive/unarchive
@@ -65,6 +72,13 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(data.priceCents !== undefined ? { priceCents: data.priceCents } : {}),
       ...(data.certificateValidityMonths !== undefined ? { certificateValidityMonths: data.certificateValidityMonths } : {}),
       ...(data.maxLearners !== undefined ? { maxLearners: data.maxLearners } : {}),
+      ...(data.prerequisites !== undefined ? { prerequisites: data.prerequisites || null } : {}),
+      ...(data.objectives !== undefined ? { objectives: data.objectives || null } : {}),
+      ...(data.accessDelay !== undefined ? { accessDelay: data.accessDelay || null } : {}),
+      ...(data.accessModalities !== undefined ? { accessModalities: data.accessModalities || null } : {}),
+      ...(data.teachingMethods !== undefined ? { teachingMethods: data.teachingMethods || null } : {}),
+      ...(data.evaluationModalities !== undefined ? { evaluationModalities: data.evaluationModalities || null } : {}),
+      ...(data.isPublic !== undefined ? { isPublic: data.isPublic } : {}),
     },
     include: { responsibleUsers: true, subcontractors: true },
   });
