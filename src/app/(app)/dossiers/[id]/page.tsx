@@ -106,7 +106,7 @@ export default async function DossierPage(
         prisma.funder.findMany({
           where: { organizationId, archivedAt: null },
           orderBy: { name: "asc" },
-          select: { id: true, name: true, type: true },
+          select: { id: true, name: true, type: true, hourlyRateCents: true, maxAmountCents: true },
         }),
       ])
     : [[], []];
@@ -218,6 +218,7 @@ export default async function DossierPage(
               canEdit={can(role, "invoicing") !== "none"}
               funders={funders}
               readiness={fundingReadiness}
+              durationHours={dossier.session.course.durationHours}
               commitments={fundingCommitments.map((c) => ({
                 id: c.id,
                 funderId: c.funderId,

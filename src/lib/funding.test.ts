@@ -5,6 +5,7 @@ import {
   computeFundingReadiness,
   isAwaitingFunderTooLong,
   isAgreementExpiringSoon,
+  estimateFundingAmountCents,
 } from "./funding";
 
 // Money split across several funders is exactly the kind of arithmetic that
@@ -180,6 +181,27 @@ describe("computeFundingReadiness", () => {
       NOW2,
     );
     expect(items.find((i) => i.key === "calendrier")?.ok).toBe(true);
+  });
+});
+
+describe("estimateFundingAmountCents", () => {
+  it("multiplies the hourly rate by the course duration", () => {
+    expect(estimateFundingAmountCents({ hourlyRateCents: 1500, maxAmountCents: null }, 21)).toBe(31500);
+  });
+
+  it("caps the estimate at the per-dossier ceiling", () => {
+    expect(estimateFundingAmountCents({ hourlyRateCents: 1500, maxAmountCents: 20000 }, 21)).toBe(20000);
+  });
+
+  it("falls back to the ceiling alone — a forfait — when no rate is set", () => {
+    expect(estimateFundingAmountCents({ hourlyRateCents: null, maxAmountCents: 300000 }, 21)).toBe(300000);
+    expect(estimateFundingAmountCents({ hourlyRateCents: 1500, maxAmountCents: 300000 }, null)).toBe(300000);
+  });
+
+  it("says nothing when the barème can't — never a made-up number", () => {
+    expect(estimateFundingAmountCents({ hourlyRateCents: null, maxAmountCents: null }, 21)).toBeNull();
+    expect(estimateFundingAmountCents({ hourlyRateCents: 1500, maxAmountCents: null }, null)).toBeNull();
+    expect(estimateFundingAmountCents({ hourlyRateCents: 1500, maxAmountCents: null }, 0)).toBeNull();
   });
 });
 

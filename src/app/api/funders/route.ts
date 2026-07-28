@@ -9,6 +9,8 @@ const schema = z.object({
   contactEmail: z.string().email().max(180).optional().or(z.literal("")),
   contactPhone: z.string().max(40).optional(),
   notes: z.string().max(2000).optional(),
+  hourlyRateCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  maxAmountCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
 });
 
 // The funder referential is money-side data, so it follows "invoicing"
@@ -40,6 +42,8 @@ export async function POST(request: Request) {
       contactEmail: parsed.data.contactEmail || null,
       contactPhone: parsed.data.contactPhone || null,
       notes: parsed.data.notes || null,
+      hourlyRateCents: parsed.data.hourlyRateCents ?? null,
+      maxAmountCents: parsed.data.maxAmountCents ?? null,
     },
   });
   return NextResponse.json(funder, { status: 201 });

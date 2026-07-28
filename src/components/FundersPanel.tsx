@@ -11,6 +11,8 @@ export type FunderRow = {
   type: string;
   contactEmail: string | null;
   contactPhone: string | null;
+  hourlyRateCents: number | null;
+  maxAmountCents: number | null;
   archivedAt: string | null;
   /** Commitments referencing this funder — drives archive-vs-delete. */
   usageCount: number;
@@ -20,7 +22,15 @@ export type FunderRow = {
 
 const TYPES = Object.entries(FUNDER_TYPE_LABELS);
 
-const EMPTY = { name: "", type: "opco", contactEmail: "", contactPhone: "" };
+// Barème fields are kept as € strings while typing and converted to cents
+// (or null) only at submit — same convention as the funding panel's amount.
+const EMPTY = { name: "", type: "opco", contactEmail: "", contactPhone: "", hourlyRate: "", maxAmount: "" };
+
+function euroStringToCents(value: string): number | null {
+  if (value.trim() === "") return null;
+  const cents = Math.round(parseFloat(value.replace(",", ".")) * 100);
+  return Number.isNaN(cents) || cents < 0 ? null : cents;
+}
 
 export function FundersPanel({ funders, canWrite }: { funders: FunderRow[]; canWrite: boolean }) {
   const router = useRouter();
@@ -41,7 +51,14 @@ export function FundersPanel({ funders, canWrite }: { funders: FunderRow[]; canW
     const res = await fetch(url, {
       method: editingId ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        name: form.name,
+        type: form.type,
+        contactEmail: form.contactEmail,
+        contactPhone: form.contactPhone,
+        hourlyRateCents: euroStringToCents(form.hourlyRate),
+        maxAmountCents: euroStringToCents(form.maxAmount),
+      }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -89,6 +106,8 @@ export function FundersPanel({ funders, canWrite }: { funders: FunderRow[]; canW
       type: f.type,
       contactEmail: f.contactEmail ?? "",
       contactPhone: f.contactPhone ?? "",
+      hourlyRate: f.hourlyRateCents != null ? (f.hourlyRateCents / 100).toString() : "",
+      maxAmount: f.maxAmountCents != null ? (f.maxAmountCents / 100).toString() : "",
     });
   }
 
@@ -140,6 +159,12 @@ export function FundersPanel({ funders, canWrite }: { funders: FunderRow[]; canW
                         {f.contactEmail || "Sans contact"}
                         {f.contactPhone && ` · ${f.contactPhone}`}
                       </div>
+                      {(f.hourlyRateCents != null || f.maxAmountCents != null) && (
+                        <div className="text-[11px] text-slate">
+                          Barème{f.hourlyRateCents != null && ` ${formatCents(f.hourlyRateCents)}/h`}
+                          {f.maxAmountCents != null && ` · plafond ${formatCents(f.maxAmountCents)} par dossier`}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-[12px] text-ink tabular-nums">{formatCents(f.securedCents)}</div>
@@ -291,6 +316,32 @@ function FunderForm({
             className={field}
           />
         </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <div>
+          <label className={label}>Barème horaire (€/h, optionnel)</label>
+          <input
+            value={form.hourlyRate}
+            onChange={(e) => setForm({ ...form, hourlyRate: e.target.value })}
+            inputMode="decimal"
+            placeholder="ex. 15"
+            className={field}
+          />
+        </div>
+        <div>
+          <label className={label}>Plafond par dossier (€, optionnel)</label>
+          <input
+            value={form.maxAmount}
+            onChange={(e) => setForm({ ...form, maxAmount: e.target.value })}
+            inputMode="decimal"
+            placeholder="ex. 3000"
+            className={field}
+          />
+        </div>
+      </div>
+      <div className="text-[10.5px] text-slate -mt-1">
+        Sert uniquement à pré-remplir le montant demandé sur les dossiers — la prise en charge réelle reste
+        celle de l&apos;accord écrit du financeur.
       </div>
       <div className="flex items-center gap-2.5">
         <button

@@ -7,6 +7,7 @@ import { X, TriangleAlert } from "lucide-react";
 import {
   computeFundingSummary,
   formatCents,
+  estimateFundingAmountCents,
   COMMITMENT_STATUS_LABELS,
   FUNDER_TYPE_LABELS,
   AWAITING_FUNDER,
@@ -15,7 +16,19 @@ import {
 } from "@/lib/funding";
 import { CheckCircle2, Circle } from "lucide-react";
 
-export type FunderOption = { id: string; name: string; type: string };
+export type FunderOption = {
+  id: string;
+  name: string;
+  type: string;
+  hourlyRateCents: number | null;
+  maxAmountCents: number | null;
+};
+
+type OpcoSuggestionView = {
+  siret: string;
+  companyName: string | null;
+  officialToolUrl: string;
+};
 
 export type CommitmentRow = {
   id: string;
@@ -54,6 +67,7 @@ export function DossierFundingPanel({
   funders,
   canEdit,
   readiness,
+  durationHours,
 }: {
   dossierId: string;
   totalCents: number;
@@ -64,6 +78,8 @@ export function DossierFundingPanel({
   canEdit: boolean;
   /** Computed server-side (computeFundingReadiness) — the deposit checklist. */
   readiness: ReadinessItem[];
+  /** The course's official duration — what funder barèmes are quoted against. */
+  durationHours: number | null;
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -72,10 +88,44 @@ export function DossierFundingPanel({
 
   const [funderId, setFunderId] = useState("");
   const [amount, setAmount] = useState("");
+  // Set the moment the user types in the amount field themselves — from then
+  // on, switching funders never overwrites what they wrote.
+  const [amountTouched, setAmountTouched] = useState(false);
   const [subrogation, setSubrogation] = useState(true);
   const [agreementNumber, setAgreementNumber] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [status, setStatus] = useState<CommitmentStatus>("draft");
+
+  // The employer's SIRET + a pointer to France Compétences' official
+  // "Quel est mon OPCO" tool. No automated lookup: their table requires a
+  // (free) reuse licence — see src/lib/opcoLookup.ts. Fetched once, the
+  // first time the add form opens; dossiers without a company SIRET stay
+  // silent — an absent hint needs no explanation.
+  const [opcoSuggestion, setOpcoSuggestion] = useState<OpcoSuggestionView | null>(null);
+  const [opcoChecked, setOpcoChecked] = useState(false);
+
+  function openAddForm() {
+    setAdding(true);
+    if (!opcoChecked) {
+      setOpcoChecked(true);
+      fetch(`/api/dossiers/${dossierId}/funding/opco-suggestion`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => setOpcoSuggestion(data?.suggestion ?? null))
+        .catch(() => {});
+    }
+  }
+
+  function selectFunder(id: string) {
+    setFunderId(id);
+    const funder = funders.find((f) => f.id === id);
+    if (funder && !amountTouched) {
+      const estimate = estimateFundingAmountCents(funder, durationHours);
+      if (estimate != null) setAmount((estimate / 100).toString());
+    }
+  }
+
+  const selectedFunder = funders.find((f) => f.id === funderId) ?? null;
+  const estimateCents = selectedFunder ? estimateFundingAmountCents(selectedFunder, durationHours) : null;
 
   const [editingPrice, setEditingPrice] = useState(false);
   const [priceInput, setPriceInput] = useState((totalCents / 100).toString());
@@ -118,6 +168,7 @@ export function DossierFundingPanel({
     setAdding(false);
     setFunderId("");
     setAmount("");
+    setAmountTouched(false);
     setAgreementNumber("");
     setValidUntil("");
     setStatus("draft");
@@ -366,7 +417,7 @@ export function DossierFundingPanel({
 
       {canEdit && funders.length > 0 && !adding && (
         <button
-          onClick={() => setAdding(true)}
+          onClick={openAddForm}
           className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink self-start"
         >
           + Ajouter un financeur
@@ -375,12 +426,28 @@ export function DossierFundingPanel({
 
       {canEdit && adding && (
         <form onSubmit={addCommitment} className="bg-linen border border-line rounded-md p-3 flex flex-col gap-2.5">
+          {opcoSuggestion && (
+            <div className="bg-white border border-line rounded-md px-3 py-2 text-[11.5px] text-ink">
+              Vous ne savez pas quel OPCO couvre
+              {opcoSuggestion.companyName ? <> <span className="font-medium">{opcoSuggestion.companyName}</span></> : " cette entreprise"} ?{" "}
+              <a
+                href={opcoSuggestion.officialToolUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium underline decoration-line hover:decoration-ink"
+              >
+                Vérifiez sur l&apos;outil officiel France Compétences
+              </a>{" "}
+              avec son SIRET <span className="font-mono">{opcoSuggestion.siret}</span>, puis confirmez avec
+              l&apos;entreprise avant le dépôt.
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <label className="text-[10.5px] font-semibold text-slate uppercase tracking-wide block mb-1">Financeur</label>
               <select
                 value={funderId}
-                onChange={(e) => setFunderId(e.target.value)}
+                onChange={(e) => selectFunder(e.target.value)}
                 required
                 className="w-full bg-white border border-line rounded-md px-2 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
               >
@@ -394,12 +461,27 @@ export function DossierFundingPanel({
               <label className="text-[10.5px] font-semibold text-slate uppercase tracking-wide block mb-1">Montant (€)</label>
               <input
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  setAmountTouched(true);
+                }}
                 required
                 inputMode="decimal"
                 placeholder="1200"
                 className="w-full bg-white border border-line rounded-md px-2 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal placeholder:text-ash"
               />
+              {estimateCents != null && (
+                <div className="text-[10.5px] text-slate mt-1">
+                  Estimation d&apos;après le barème de {selectedFunder!.name}
+                  {selectedFunder!.hourlyRateCents != null && durationHours ? (
+                    <> : {formatCents(selectedFunder!.hourlyRateCents)}/h × {durationHours} h</>
+                  ) : null}
+                  {selectedFunder!.maxAmountCents != null && (
+                    <>, plafond {formatCents(selectedFunder!.maxAmountCents)}</>
+                  )}{" "}
+                  — modifiable, l&apos;accord écrit fait foi.
+                </div>
+              )}
             </div>
           </div>
 

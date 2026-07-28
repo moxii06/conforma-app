@@ -118,6 +118,8 @@ export default async function FacturationPage(
               type: f.type,
               contactEmail: f.contactEmail,
               contactPhone: f.contactPhone,
+              hourlyRateCents: f.hourlyRateCents,
+              maxAmountCents: f.maxAmountCents,
               archivedAt: f.archivedAt ? f.archivedAt.toISOString() : null,
               // Distinct dossiers, not commitments: nothing stops two lines
               // from the same funder on one dossier (a top-up, a correction),

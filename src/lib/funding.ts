@@ -163,6 +163,25 @@ export function formatCents(cents: number): string {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
 
+/**
+ * What a funder's barème suggests asking for: rate × the course's official
+ * duration, capped at the per-dossier ceiling. With only a ceiling it IS the
+ * estimate (a forfait). Null when the barème can't say anything — the caller
+ * must then leave the amount field alone. An estimate to prefill, never a
+ * decision: the funder's written accord is the only real number.
+ */
+export function estimateFundingAmountCents(
+  funder: { hourlyRateCents: number | null; maxAmountCents: number | null },
+  durationHours: number | null,
+): number | null {
+  if (funder.hourlyRateCents && durationHours && durationHours > 0) {
+    const base = funder.hourlyRateCents * durationHours;
+    return funder.maxAmountCents ? Math.min(base, funder.maxAmountCents) : base;
+  }
+  if (funder.maxAmountCents) return funder.maxAmountCents;
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Dossier de financement : les pièces qu'un financeur exige, vérifiées
 // contre ce qui existe réellement — jamais déclarées à la main.

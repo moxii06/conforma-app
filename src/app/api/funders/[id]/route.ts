@@ -9,6 +9,8 @@ const schema = z.object({
   contactEmail: z.string().email().max(180).nullable().optional().or(z.literal("")),
   contactPhone: z.string().max(40).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  hourlyRateCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
+  maxAmountCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
   archived: z.boolean().optional(),
 });
 
@@ -50,6 +52,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(d.contactEmail !== undefined ? { contactEmail: d.contactEmail || null } : {}),
       ...(d.contactPhone !== undefined ? { contactPhone: d.contactPhone || null } : {}),
       ...(d.notes !== undefined ? { notes: d.notes || null } : {}),
+      ...(d.hourlyRateCents !== undefined ? { hourlyRateCents: d.hourlyRateCents } : {}),
+      ...(d.maxAmountCents !== undefined ? { maxAmountCents: d.maxAmountCents } : {}),
       ...(d.archived !== undefined ? { archivedAt: d.archived ? new Date() : null } : {}),
     },
   });

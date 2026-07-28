@@ -2011,6 +2011,12 @@ model Funder {
   contactEmail String?
   contactPhone String?
   notes        String?
+  // The funder's usual barème, as the OF experiences it: a rate per training
+  // hour and/or a per-dossier cap. Only ever used to PREFILL a commitment's
+  // amount as an editable estimate — real prise-en-charge decisions come from
+  // the funder's written accord, never from these two numbers.
+  hourlyRateCents Int?
+  maxAmountCents  Int?
   // Soft delete: a funder that stops being used must not disappear from the
   // dossiers it already funded.
   archivedAt   DateTime?
