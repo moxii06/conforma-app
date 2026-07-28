@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "postinstall": "prisma generate",
-    "build": "(prisma migrate resolve --rolled-back 20260728050000_correct_qualiopi_indicators_and_templates || true) && prisma migrate deploy && next build",
+    "build": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
