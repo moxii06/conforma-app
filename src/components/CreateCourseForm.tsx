@@ -35,6 +35,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [importError, setImportError] = useState<string | null>(null);
   const [imported, setImported] = useState(false);
   const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [aiIntention, setAiIntention] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     setImported(false);
     setImportError(null);
     setOutline([]);
+    setShowTemplatePicker(false);
   }
 
   function reset() {
@@ -148,6 +150,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     setAiIntention("");
     setGenerateError(null);
     setOutline([]);
+    setShowTemplatePicker(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -188,11 +191,18 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     );
   }
 
+  const fieldLabelClass = "text-[10.5px] font-semibold text-slate uppercase tracking-wide block mb-1";
+  const fieldClass = "w-full bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-seal placeholder:text-ash";
+  const quickStartButtonClass = (active: boolean) =>
+    `flex flex-col items-center justify-center gap-1.5 rounded-md border px-2 py-3 text-[11px] text-center leading-snug transition-colors ${
+      active ? "border-seal bg-[#F0E7D4] text-seal-dark" : "border-line text-slate hover:border-ink-soft hover:text-ink hover:bg-linen"
+    }`;
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-[13.5px] font-semibold text-ink">Créer une formation</div>
+      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-line shrink-0">
+          <div className="text-[15px] font-display text-ink">Créer une formation</div>
           <button
             type="button"
             onClick={() => {
@@ -204,181 +214,223 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
             <X size={16} />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2.5">
-          <label className="flex items-center gap-2 border border-dashed border-line rounded-md px-2.5 py-2 text-[12px] text-slate hover:border-ink-soft hover:text-ink cursor-pointer">
-            <FileUp size={14} className="shrink-0" />
-            {importing ? "Analyse du document…" : "Importer un programme existant (PDF) pour préremplir le titre, la description et la durée"}
-            <input
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              disabled={importing}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImport(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
-          {importError && <div className="text-[11.5px] text-rust">{importError}</div>}
-          {imported && <div className="text-[11.5px] text-sage">Champs préremplis depuis le document — vérifiez-les avant de créer la formation.</div>}
 
-          {!showAiPrompt ? (
-            <button
-              type="button"
-              onClick={() => setShowAiPrompt(true)}
-              className="flex items-center gap-2 border border-dashed border-line rounded-md px-2.5 py-2 text-[12px] text-slate hover:border-ink-soft hover:text-ink"
-            >
-              <Sparkles size={14} className="shrink-0" />
-              Générer une ébauche avec l&apos;IA (objectifs + plan de chapitres)
-            </button>
-          ) : (
-            <div className="border border-line rounded-md p-2.5 flex flex-col gap-2">
-              <div className="text-[11.5px] text-slate">
-                À partir du titre ci-dessous et de ce que les apprenants doivent en retirer, l&apos;IA propose une description,
-                des objectifs pédagogiques et un plan de chapitres — à vérifier avant de créer la formation, rien n&apos;est
-                généré automatiquement.
-              </div>
-              <textarea
-                value={aiIntention}
-                onChange={(e) => setAiIntention(e.target.value)}
-                placeholder="Ce que les apprenants doivent savoir / savoir faire à la fin (ex. « gérer un entretien annuel difficile sans le laisser dégénérer »)"
-                rows={2}
-                className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
-              />
-              {generateError && <div className="text-[11.5px] text-rust">{generateError}</div>}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  disabled={generating || !title.trim() || !aiIntention.trim()}
-                  className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-                >
-                  {generating ? "Génération…" : "Générer"}
-                </button>
-                <button type="button" onClick={() => setShowAiPrompt(false)} className="text-[12px] text-slate hover:text-ink">
-                  Annuler
-                </button>
-                {!title.trim() && <span className="text-[11px] text-slate">Renseignez d&apos;abord le titre ci-dessous.</span>}
-              </div>
+        <form id="create-course-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+          {/* Démarrage rapide */}
+          <div className="flex flex-col gap-2">
+            <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">Démarrage rapide (optionnel)</div>
+            <div className="grid grid-cols-3 gap-2">
+              <label className={`${quickStartButtonClass(importing)} cursor-pointer`}>
+                <FileUp size={16} />
+                {importing ? "Analyse…" : "Importer un PDF"}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  disabled={importing}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImport(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <button type="button" onClick={() => setShowAiPrompt((v) => !v)} className={quickStartButtonClass(showAiPrompt)}>
+                <Sparkles size={16} />
+                Générer avec l&apos;IA
+              </button>
+              <button type="button" onClick={() => setShowTemplatePicker((v) => !v)} className={quickStartButtonClass(showTemplatePicker)}>
+                <LayoutTemplate size={16} />
+                Partir d&apos;un modèle
+              </button>
             </div>
-          )}
-          <label className="flex items-center gap-2 border border-line rounded-md px-2.5 py-2 text-[12px] text-slate hover:border-ink-soft hover:text-ink cursor-pointer">
-            <LayoutTemplate size={14} className="shrink-0" />
-            <span className="shrink-0">Ou partir d&apos;un modèle</span>
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                if (e.target.value) applyTemplate(e.target.value);
-                e.target.value = "";
-              }}
-              className="flex-1 min-w-0 bg-transparent outline-none text-ink"
-            >
-              <option value="" disabled>
-                Sélectionner un thème…
-              </option>
-              {COURSE_TEMPLATE_SECTORS.map((sector) => (
-                <optgroup key={sector} label={sector}>
-                  {COURSE_TEMPLATES.filter((t) => t.sector === sector).map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titre de la formation"
-            required
-            autoFocus
-            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
-          />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (optionnel)"
-            rows={2}
-            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
-          />
-          <textarea
-            value={objectives}
-            onChange={(e) => setObjectives(e.target.value)}
-            placeholder="Objectifs pédagogiques (optionnel — ce que l'apprenant saura faire à l'issue)"
-            rows={2}
-            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none"
-          />
-          {outline.length > 0 && (
-            <div className="border border-line rounded-md p-2.5 flex flex-col gap-2">
-              <div className="text-[11px] text-slate uppercase tracking-wide">
-                Plan de chapitres proposé — créé avec la formation, à compléter ensuite
+
+            {importError && <div className="text-[11.5px] text-rust">{importError}</div>}
+            {imported && <div className="text-[11.5px] text-sage">Champs préremplis depuis le document — vérifiez-les avant de créer la formation.</div>}
+
+            {showAiPrompt && (
+              <div className="bg-linen border border-line rounded-md p-3 flex flex-col gap-2">
+                <div className="text-[11.5px] text-slate">
+                  À partir du titre ci-dessous et de ce que les apprenants doivent en retirer, l&apos;IA propose une description,
+                  des objectifs pédagogiques et un plan de chapitres — à vérifier avant de créer la formation, rien n&apos;est
+                  généré automatiquement.
+                </div>
+                <textarea
+                  value={aiIntention}
+                  onChange={(e) => setAiIntention(e.target.value)}
+                  placeholder="Ce que les apprenants doivent savoir / savoir faire à la fin (ex. « gérer un entretien annuel difficile sans le laisser dégénérer »)"
+                  rows={2}
+                  className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-seal resize-none placeholder:text-ash"
+                />
+                {generateError && <div className="text-[11.5px] text-rust">{generateError}</div>}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={generating || !title.trim() || !aiIntention.trim()}
+                    className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+                  >
+                    {generating ? "Génération…" : "Générer"}
+                  </button>
+                  <button type="button" onClick={() => setShowAiPrompt(false)} className="text-[12px] text-slate hover:text-ink">
+                    Annuler
+                  </button>
+                  {!title.trim() && <span className="text-[11px] text-slate">Renseignez d&apos;abord le titre ci-dessous.</span>}
+                </div>
               </div>
-              {outline.map((chapter, ci) => (
-                <div key={ci} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[12.5px] font-medium text-ink">{chapter.title}</div>
-                    <button type="button" onClick={() => removeOutlineChapter(ci)} className="text-slate hover:text-rust">
-                      <X size={12} />
-                    </button>
-                  </div>
-                  {chapter.modules.map((moduleTitle, mi) => (
-                    <div key={mi} className="flex items-center justify-between gap-2 pl-3 text-[12px] text-slate">
-                      <span>· {moduleTitle}</span>
-                      <button type="button" onClick={() => removeOutlineModule(ci, mi)} className="text-slate hover:text-rust shrink-0">
-                        <X size={11} />
+            )}
+
+            {showTemplatePicker && (
+              <select
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) applyTemplate(e.target.value);
+                }}
+                className="bg-linen border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-seal"
+              >
+                <option value="" disabled>
+                  Sélectionner un thème…
+                </option>
+                {COURSE_TEMPLATE_SECTORS.map((sector) => (
+                  <optgroup key={sector} label={sector}>
+                    {COURSE_TEMPLATES.filter((t) => t.sector === sector).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="border-t border-line" />
+
+          {/* Informations */}
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className={fieldLabelClass}>Titre de la formation</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="ex. Sécurité incendie et évacuation"
+                required
+                autoFocus
+                className={fieldClass}
+              />
+            </div>
+            <div>
+              <label className={fieldLabelClass}>Description (optionnel)</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Résumé en 2-3 phrases"
+                rows={2}
+                className={`${fieldClass} resize-none`}
+              />
+            </div>
+            <div>
+              <label className={fieldLabelClass}>Objectifs pédagogiques (optionnel)</label>
+              <textarea
+                value={objectives}
+                onChange={(e) => setObjectives(e.target.value)}
+                placeholder="Ce que l'apprenant saura faire à l'issue"
+                rows={2}
+                className={`${fieldClass} resize-none`}
+              />
+            </div>
+
+            {outline.length > 0 && (
+              <div className="border border-line rounded-md p-2.5 flex flex-col gap-2">
+                <div className="text-[11px] text-slate uppercase tracking-wide">
+                  Plan de chapitres proposé — créé avec la formation, à compléter ensuite
+                </div>
+                {outline.map((chapter, ci) => (
+                  <div key={ci} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[12.5px] font-medium text-ink">{chapter.title}</div>
+                      <button type="button" onClick={() => removeOutlineChapter(ci)} className="text-slate hover:text-rust">
+                        <X size={12} />
                       </button>
                     </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-          <input
-            value={durationHours}
-            onChange={(e) => setDurationHours(e.target.value)}
-            type="number"
-            min={1}
-            placeholder="Durée de la formation (heures)"
-            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
-          />
-          <input
-            value={maxLearners}
-            onChange={(e) => setMaxLearners(e.target.value)}
-            type="number"
-            min={1}
-            placeholder="Nombre de places (vide = illimité)"
-            className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
-          />
-          {members.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <div className="text-[11px] text-slate uppercase tracking-wide">Responsables / personnes concernées</div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {members.map((m) => (
-                  <label key={m.id} className="flex items-center gap-1.5 text-[12.5px] text-ink">
-                    <input type="checkbox" checked={responsibleIds.has(m.id)} onChange={() => toggleResponsible(m.id)} className="accent-sage" />
-                    {m.name}
-                  </label>
+                    {chapter.modules.map((moduleTitle, mi) => (
+                      <div key={mi} className="flex items-center justify-between gap-2 pl-3 text-[12px] text-slate">
+                        <span>· {moduleTitle}</span>
+                        <button type="button" onClick={() => removeOutlineModule(ci, mi)} className="text-slate hover:text-rust shrink-0">
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 ))}
               </div>
-            </div>
-          )}
-          {subcontractors.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <div className="text-[11px] text-slate uppercase tracking-wide">Prestataires externes</div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {subcontractors.map((s) => (
-                  <label key={s.id} className="flex items-center gap-1.5 text-[12.5px] text-ink">
-                    <input type="checkbox" checked={subcontractorIds.has(s.id)} onChange={() => toggleSubcontractor(s.id)} className="accent-sage" />
-                    {s.name}
-                  </label>
-                ))}
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={fieldLabelClass}>Durée (heures)</label>
+                <input
+                  value={durationHours}
+                  onChange={(e) => setDurationHours(e.target.value)}
+                  type="number"
+                  min={1}
+                  placeholder="ex. 7"
+                  className={fieldClass}
+                />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>Places</label>
+                <input
+                  value={maxLearners}
+                  onChange={(e) => setMaxLearners(e.target.value)}
+                  type="number"
+                  min={1}
+                  placeholder="Illimité"
+                  className={fieldClass}
+                />
               </div>
             </div>
+          </div>
+
+          {(members.length > 0 || subcontractors.length > 0) && (
+            <>
+              <div className="border-t border-line" />
+              <div className="flex flex-col gap-3">
+                {members.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">Responsables / personnes concernées</div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {members.map((m) => (
+                        <label key={m.id} className="flex items-center gap-1.5 text-[12.5px] text-ink">
+                          <input type="checkbox" checked={responsibleIds.has(m.id)} onChange={() => toggleResponsible(m.id)} className="accent-sage" />
+                          {m.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {subcontractors.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">Prestataires externes</div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {subcontractors.map((s) => (
+                        <label key={s.id} className="flex items-center gap-1.5 text-[12.5px] text-ink">
+                          <input type="checkbox" checked={subcontractorIds.has(s.id)} onChange={() => toggleSubcontractor(s.id)} className="accent-sage" />
+                          {s.name}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
           )}
+
+          <div className="border-t border-line" />
+
+          {/* Apprenants */}
           <div className="flex flex-col gap-1.5">
-            <div className="text-[11px] text-slate uppercase tracking-wide">Apprenants à inscrire (optionnel)</div>
+            <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">Apprenants à inscrire (optionnel)</div>
             {learners.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {learners.map((l) => (
@@ -403,7 +455,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                 value={accessDurationDays}
                 onChange={(e) => setAccessDurationDays(e.target.value)}
                 placeholder="ex. 90"
-                className="w-20 bg-white border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none focus:border-ink-soft"
+                className="w-20 bg-white border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none focus:border-seal"
               />
             </label>
             <SuggestedLearners
@@ -413,13 +465,19 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
             />
             <PersonPicker onSelect={addLearner} />
           </div>
-          <div className="flex items-center gap-2.5">
-            <button type="submit" disabled={loading || !title.trim()} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
-              {loading ? "…" : "Créer la formation"}
-            </button>
-          </div>
-          {error && <div className="text-[11.5px] text-rust">{error}</div>}
         </form>
+
+        <div className="flex items-center gap-2.5 px-5 py-4 border-t border-line shrink-0">
+          <button
+            type="submit"
+            form="create-course-form"
+            disabled={loading || !title.trim()}
+            className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+          >
+            {loading ? "…" : "Créer la formation"}
+          </button>
+          {error && <div className="text-[11.5px] text-rust">{error}</div>}
+        </div>
       </div>
     </div>
   );
