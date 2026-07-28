@@ -252,7 +252,8 @@ for what that means in practice for each one.
   real consent screen (`access_type=offline`, `prompt=consent` to guarantee
   a refresh token, a `state` cookie for CSRF protection); the callback at
   `/api/auth/callback/google` (named to match the redirect URI registered on
-  the Google Cloud OAuth client, not a NextAuth route) exchanges the code,
+  the Google Cloud OAuth client, not a NextAuth route — Google *sign-in* uses
+  the separate `/api/auth/callback/google-login`, see below) exchanges the code,
   resolves the connected account's email, and stores the tokens **encrypted
   at rest** (`src/lib/crypto.ts`, AES-256-GCM, `TOKEN_ENCRYPTION_KEY`) in
   `MailboxConnection`. "Synchroniser maintenant" on `/inbox` or
@@ -704,7 +705,7 @@ npx vercel env add DATABASE_URL production
 npx vercel env add NEXTAUTH_SECRET production   # generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 npx vercel env add NEXTAUTH_URL production      # the deployment's own https URL — set this AFTER the first deploy once you know it, then redeploy
 npx vercel env add TOKEN_ENCRYPTION_KEY production   # generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-npx vercel env add GOOGLE_CLIENT_ID production        # only if you want the real Gmail connection to work on this deployment
+npx vercel env add GOOGLE_CLIENT_ID production        # only if you want the real Gmail connection and/or "Continuer avec Google" on /login to work on this deployment
 npx vercel env add GOOGLE_CLIENT_SECRET production
 npx vercel env add OPENAI_API_KEY production          # only if you want AI (reply drafting / prospect extraction) active — platform-level, one key for every tenant
 npx vercel env add BREVO_API_KEY production           # only if you want real email delivery active — platform-level, one account for every tenant
@@ -714,9 +715,25 @@ npx vercel --prod --yes
 ```
 
 If you set up `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, add this deployment's
-callback URL as an authorized redirect URI on the Google Cloud OAuth client
-too: `{your-deployment-url}/api/auth/callback/google` (alongside the
-`localhost:3000` one for local dev — a single OAuth client can have both).
+callback URLs as authorized redirect URIs on the Google Cloud OAuth client
+too — **two of them**, one per feature (alongside the `localhost:3000`
+equivalents for local dev; a single OAuth client can hold all four):
+
+- `{your-deployment-url}/api/auth/callback/google` — connecting a Gmail
+  mailbox on `/integrations`.
+- `{your-deployment-url}/api/auth/callback/google-login` — "Continuer avec
+  Google" on `/login`. Deliberately not the default `google` provider id: in
+  the App Router the static `callback/google` route above wins over NextAuth's
+  `[...nextauth]` catch-all, so sharing the id would silently route sign-in
+  callbacks into the mailbox handler.
+
+Google sign-in **authenticates an existing account, it never creates one** —
+a Google profile carries no `organizationId` and no role, so the verified
+address must already match an `active`, non-`LEARNER` `User` or the attempt is
+refused with a single generic message (no account enumeration). Learners are
+excluded on purpose: their access is granted and revoked by the OF through the
+activation-token flow, and a self-service second door would work around that.
+The button is hidden entirely when the two env vars are unset.
 
 `package.json`'s `build` script is `prisma migrate deploy && next build` —
 every deploy applies any pending migrations against the production database

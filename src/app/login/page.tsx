@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { authOptions } from "@/lib/auth";
+import { authOptions, googleLoginEnabled } from "@/lib/auth";
 import { LoginForm } from "@/components/LoginForm";
 
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export default async function LoginPage() {
 
   return (
     <Suspense>
-      <LoginForm />
+      <LoginForm googleEnabled={googleLoginEnabled} />
     </Suspense>
   );
 }
