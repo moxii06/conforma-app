@@ -34,6 +34,8 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     auditFindingsHandled,
     intervenantEvaluations,
     publicCoursePages,
+    qualificationDocuments,
+    rnqEngagements,
   ] = await Promise.all([
     prisma.resultIndicator.count({ where: { organizationId } }),
     prisma.resultIndicator.count({ where: { organizationId, published: true } }),
@@ -58,6 +60,11 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
       where: { organizationId, evaluatedAt: { gte: new Date(Date.now() - 366 * 24 * 60 * 60 * 1000) } },
     }),
     prisma.course.count({ where: { organizationId, isPublic: true, archivedAt: null } }),
+    // Proof of indicator 17 (qualification of internal AND external staff) —
+    // the same Document model tracks both (userId for a staff member,
+    // subcontractorId for an external one), category cv/diploma either way.
+    prisma.document.count({ where: { organizationId, category: { in: ["cv", "diploma"] }, OR: [{ userId: { not: null } }, { subcontractorId: { not: null } }] } }),
+    prisma.document.count({ where: { organizationId, category: "rnq_engagement", subcontractorId: { not: null } } }),
   ]);
 
   const watchCount = (type: string) => watchByType.find((w: { watchType: string }) => w.watchType === type)?._count ?? 0;
@@ -80,6 +87,7 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
   add(11, "attestation(s) de réussite émise(s)", certificatesIssued, "/documents");
   add(12, "relance(s) automatique(s) envoyée(s) et horodatée(s)", systemOutreach, "/automatisations");
   add(12, "règle(s) de relance active(s)", activeRules, "/automatisations");
+  add(17, "pièce(s) CV/diplôme suivie(s) (formateurs internes et externes)", qualificationDocuments, "/team");
   add(17, "module(s) e-learning mis à disposition", moduleCount, "/formations");
   add(19, "document(s) complémentaire(s) fournis aux apprenants", attachmentCount, "/formations");
   add(20, "référent handicap désigné", org?.referentHandicapUserId ? 1 : 0, "/team");
@@ -91,6 +99,7 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
   add(25, "élément(s) de veille réseaux et partenariats", watchCount("reseaux_partenariats"), "/qualiopi?tab=veille");
   add(26, "demande(s) d'aménagement handicap traitée(s) confidentiellement", accommodationRequests, "/team");
   add(27, "sous-traitant(s)/intervenant(s) référencé(s) avec contrats suivis", activeSubcontractors, "/team");
+  add(27, "engagement(s) de conformité RNQ signé(s) par un sous-traitant", rnqEngagements, "/team?tab=prestataires");
   add(30, "questionnaire(s) de satisfaction complété(s)", satisfactionCompleted, "/qualiopi?tab=resultats");
   add(31, "réclamation(s) traitée(s) et résolue(s)", complaintsResolved, "/support");
   add(32, "risque(s)/action(s) au registre d'amélioration continue", qualityRisks, "/qualiopi?tab=amelioration-continue");

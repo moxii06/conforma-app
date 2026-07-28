@@ -61,7 +61,7 @@ export default async function SupportPage(props: { searchParams: Promise<{ tab?:
   const canManageComplaints = can(session.role, "dossiers") !== "none";
   const canViewSecureReports = canAccessSecureReports(session.role);
 
-  const [myDossiers, complaints, members] = await Promise.all([
+  const [myDossiers, complaints, members, resolvedComplaints] = await Promise.all([
     session.role === "LEARNER"
       ? prisma.dossier.findMany({
           where: { organizationId: session.organizationId, learnerUserId: session.userId },
@@ -77,7 +77,25 @@ export default async function SupportPage(props: { searchParams: Promise<{ tab?:
     canManageComplaints || canViewSecureReports
       ? prisma.user.findMany({ where: { organizationId: session.organizationId, role: { not: Role.LEARNER } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
+    // Indicateur Qualiopi 31 (constat réel de l'audit certificateur) : le
+    // délai de traitement des réclamations doit être affiché, pas seulement
+    // suivi en interne — calculé sur TOUTES les réclamations résolues, pas
+    // seulement celles de l'onglet actif, pour rester une mesure stable.
+    canManageComplaints
+      ? prisma.complaint.findMany({
+          where: { organizationId: session.organizationId, status: "resolved", resolvedAt: { not: null } },
+          select: { createdAt: true, resolvedAt: true },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const avgResolutionDays =
+    resolvedComplaints.length > 0
+      ? Math.round(
+          resolvedComplaints.reduce((sum, c) => sum + (c.resolvedAt!.getTime() - c.createdAt.getTime()) / (24 * 60 * 60 * 1000), 0) /
+            resolvedComplaints.length
+        )
+      : null;
 
   const myRightsRequests =
     session.role === "LEARNER" && !showArchived
@@ -147,8 +165,16 @@ export default async function SupportPage(props: { searchParams: Promise<{ tab?:
 
         {canManageComplaints && (
           <div className="bg-white border border-line rounded-card p-5">
-            <div className="text-[13.5px] font-semibold text-ink mb-3.5">
-              {showArchived ? "Réclamations archivées" : "Réclamations reçues"} ({complaints.length})
+            <div className="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
+              <div className="text-[13.5px] font-semibold text-ink">
+                {showArchived ? "Réclamations archivées" : "Réclamations reçues"} ({complaints.length})
+              </div>
+              {avgResolutionDays !== null && (
+                <div className="text-[11.5px] text-slate">
+                  Délai moyen de traitement : <span className="text-ink font-medium">{avgResolutionDays} jour{avgResolutionDays > 1 ? "s" : ""}</span>{" "}
+                  (sur {resolvedComplaints.length} résolue{resolvedComplaints.length > 1 ? "s" : ""})
+                </div>
+              )}
             </div>
             {complaints.map((c) => (
               <div key={c.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1.5">

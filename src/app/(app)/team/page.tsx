@@ -25,10 +25,13 @@ const SUBCONTRACTOR_STATUS_LABELS: Record<string, string> = { active: "Actif", e
 
 // Client feedback: a formateur specifically needs contrat/CV/diplôme/NDA
 // tracked — other subcontractor types just need a contrat. Drives the
-// tracking table's "pièces manquantes" column below.
+// tracking table's "pièces manquantes" column below. rnq_engagement only
+// applies to the two types actually delivering the certified pedagogical
+// action (indicator 27) — a pure technical provider isn't substituting for
+// the OF on the referential's scope.
 const REQUIRED_DOCS_BY_TYPE: Record<string, string[]> = {
-  formateur_externe: ["subcontractor_contract", "cv", "diploma", "nda"],
-  sous_traitant_pedagogique: ["subcontractor_contract"],
+  formateur_externe: ["subcontractor_contract", "cv", "diploma", "nda", "rnq_engagement"],
+  sous_traitant_pedagogique: ["subcontractor_contract", "rnq_engagement"],
   prestataire_technique: ["subcontractor_contract"],
   autre: ["subcontractor_contract"],
 };

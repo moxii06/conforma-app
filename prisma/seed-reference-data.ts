@@ -129,7 +129,7 @@ async function main() {
         "3. Tarifs et règlement — Les prix sont indiqués en euros. Modalités de paiement : [À COMPLÉTER].\n\n" +
         "4. Annulation et report — Conditions d'annulation, de report et de remplacement de participant : [À COMPLÉTER].\n\n" +
         "5. Accessibilité — Les personnes en situation de handicap peuvent contacter le référent handicap de l'organisme : [COORDONNÉES].\n\n" +
-        "6. Litiges — En cas de litige, les parties s'efforcent de trouver une solution amiable avant tout recours contentieux.",
+        "6. Litiges — En cas de litige, les parties s'efforcent de trouver une solution amiable avant tout recours contentieux. Conformément aux articles L.616-1 et R.616-1 du Code de la consommation, si le client est un consommateur et qu'aucune solution amiable n'a pu être trouvée, il peut recourir gratuitement au service de médiation de la consommation suivant, dans un délai d'un an à compter de sa réclamation écrite auprès de l'organisme : [NOM ET COORDONNÉES DU MÉDIATEUR DE LA CONSOMMATION — voir mediation-conso.fr pour la liste des médiateurs agréés].",
     },
     {
       category: "internal_rules",
@@ -279,6 +279,45 @@ async function main() {
         "Résultat global : [À COMPLÉTER]\n\n" +
         "Fait à [VILLE], le [DATE].\n" +
         "Signature du responsable pédagogique : [SIGNATURE]",
+    },
+    {
+      category: "subcontractor_contract",
+      title: "Contrat sous-traitant / intervenant",
+      bodyText:
+        DISCLAIMER +
+        "CONTRAT DE SOUS-TRAITANCE / PRESTATION PÉDAGOGIQUE\n\n" +
+        "Entre [NOM DE L'ORGANISME], d'une part, et [NOM DU PRESTATAIRE / INTERVENANT], d'autre part.\n\n" +
+        "Article 1 — Objet : le présent contrat a pour objet la réalisation, pour le compte de l'organisme, de tout ou partie de la prestation de formation suivante : [INTITULÉ DE LA FORMATION / MISSION].\n\n" +
+        "Article 2 — Durée : [DATE DE DÉBUT] au [DATE DE FIN, le cas échéant].\n\n" +
+        "Article 3 — Obligations du prestataire : qualifications et moyens mobilisés, respect du programme et des modalités pédagogiques définis par l'organisme : [À COMPLÉTER].\n\n" +
+        "Article 4 — Engagement de conformité au Référentiel National Qualité (RNQ) — indicateur 27 : le prestataire s'engage à exercer sa mission dans le respect des exigences du RNQ applicables à la prestation sous-traitée (information du public, adaptation aux publics, évaluation des acquis, accessibilité aux personnes en situation de handicap notamment), et à fournir à l'organisme, sur demande, tout justificatif permettant d'en attester dans le cadre d'un audit de certification.\n\n" +
+        "Article 5 — Rémunération et modalités de règlement : [À COMPLÉTER].\n\n" +
+        "Article 6 — Confidentialité : le prestataire s'engage à ne pas divulguer les informations dont il aurait connaissance dans le cadre de sa mission, notamment les données personnelles des bénéficiaires.\n\n" +
+        "Article 7 — Résiliation : conditions de résiliation anticipée du présent contrat par l'une ou l'autre des parties : [À COMPLÉTER].",
+    },
+    {
+      category: "handicap_partners",
+      title: "Répertoire des partenaires handicap",
+      bodyText:
+        DISCLAIMER +
+        "RÉPERTOIRE DES PARTENAIRES HANDICAP\n\n" +
+        "Réseau national d'acteurs mobilisables pour l'accueil, l'accompagnement et le maintien en formation des " +
+        "personnes en situation de handicap — à compléter avec vos contacts locaux et à tenir à disposition de " +
+        "votre référent handicap et de vos équipes (Qualiopi indicateur 26).\n\n" +
+        "AGEFIPH (Association de gestion du fonds pour l'insertion professionnelle des personnes handicapées) — " +
+        "financements et appuis pour l'emploi et la formation en milieu ordinaire (secteur privé). agefiph.fr\n\n" +
+        "FIPHFP (Fonds pour l'insertion des personnes handicapées dans la fonction publique) — équivalent Agefiph " +
+        "pour le secteur public. fiphfp.fr\n\n" +
+        "Cap emploi — réseau d'accompagnement vers et dans l'emploi des personnes handicapées, présent dans " +
+        "chaque département. Cap emploi le plus proche : [À COMPLÉTER].\n\n" +
+        "MDPH (Maison départementale des personnes handicapées) — reconnaissance des droits (RQTH notamment) et " +
+        "orientation. MDPH du département : [À COMPLÉTER — coordonnées locales].\n\n" +
+        "Pôle emploi / France Travail — référents handicap dédiés dans chaque agence pour l'accompagnement des " +
+        "demandeurs d'emploi en situation de handicap.\n\n" +
+        "Réseau Cheops (Coordination handicap et emploi des organismes de placement spécialisés) — fédère les " +
+        "Cap emploi au niveau national. cheops-ops.org\n\n" +
+        "Contact interne de l'organisme : le référent handicap désigné (voir fiche équipe) est le premier point " +
+        "d'entrée pour toute demande d'aménagement, avant orientation vers l'un de ces partenaires si nécessaire.",
     },
   ];
 
