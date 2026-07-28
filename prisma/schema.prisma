@@ -109,6 +109,8 @@ model Organization {
   mailboxConnections          MailboxConnection[]
   integrationCredentials      IntegrationCredential[]
   integrationRequests         IntegrationRequest[]
+  funders                     Funder[]
+  fundingCommitments          FundingCommitment[]
   clientOutreaches            ClientOutreach[]
   subscription                Subscription?
   qualityRisks                QualityRisk[]
@@ -568,6 +570,16 @@ model Dossier {
   // Null = "non renseigné", a real, expected state until staff fills it in.
   learnerCategory String? // employee | jobseeker | individual | apprentice
 
+  // Price actually agreed for THIS enrollment, in cents. Deliberately not
+  // read from Course.priceCents at display time: a catalogue price is a
+  // starting point, and the negotiated price is what the funding plan and
+  // the reste à charge have to be computed against. Null = "use the course
+  // price" (see resolveDossierPriceCents in src/lib/funding.ts), which is
+  // the common case and keeps every existing dossier correct.
+  agreedPriceCents Int?
+
+  fundingCommitments FundingCommitment[]
+
   // Idempotency guard for the automation-rule cron (see
   // /api/cron/automation-rules): stamped the first time an automatic
   // reminder email for that trigger goes out for this dossier, so a rule
@@ -1007,8 +1019,9 @@ model Invoice {
   fundingOrigin      String? // company | opco | public | individual
   createdAt          DateTime     @default(now())
 
-  payments         Payment[]
-  bankTransactions BankTransaction[]
+  payments           Payment[]
+  bankTransactions   BankTransaction[]
+  fundingCommitments FundingCommitment[]
 
   @@index([organizationId])
 }
@@ -1951,6 +1964,88 @@ model IntegrationCredential {
 
   @@unique([organizationId, provider])
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Funding: who actually pays for a training, and how much of it.
+//
+// A French training is very often paid by several parties at once — an OPCO
+// covers part of it, the employer the rest; or CPF plus an employer top-up.
+// Invoice.fundingOrigin (a single category, kept for the BPF breakdown)
+// cannot express that, which is why this pair of models exists rather than
+// more fields on Invoice.
+// ---------------------------------------------------------------------------
+
+// The organisation's own list of funders it deals with. A referential rather
+// than free text on each commitment: an OF works with the same handful of
+// OPCOs all year, and typing "OPCO Atlas" slightly differently each time
+// would make any per-funder total meaningless.
+model Funder {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  name String
+  // opco | cpf | france_travail | agefice | company | individual | public | other
+  // Drives nothing functionally yet — it exists so the BPF breakdown can be
+  // derived from real commitments later instead of Invoice.fundingOrigin.
+  type String @default("opco")
+
+  contactEmail String?
+  contactPhone String?
+  notes        String?
+  // Soft delete: a funder that stops being used must not disappear from the
+  // dossiers it already funded.
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  commitments FundingCommitment[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+// One funder's share of one dossier. Several per dossier is the normal case.
+model FundingCommitment {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  dossier        Dossier      @relation(fields: [dossierId], references: [id])
+  dossierId      String
+  funder         Funder       @relation(fields: [funderId], references: [id])
+  funderId       String
+
+  amountCents Int
+
+  // Subrogation — the single most consequential field here: it decides WHO
+  // gets invoiced. True (the usual case for an OPCO) means the OF bills the
+  // funder directly; false means the learner/employer pays and claims the
+  // money back themselves, so this amount still belongs on their invoice.
+  subrogation Boolean @default(true)
+
+  // The "accord de prise en charge". Its expiry is the most common reason a
+  // funder ends up not paying, which is why the date is a real field and not
+  // a line in `notes`.
+  agreementNumber String?
+  agreementDate   DateTime?
+  validUntil      DateTime?
+
+  // requested | granted | refused | invoiced | paid
+  // Only granted/invoiced/paid count towards what's actually secured — see
+  // computeFundingSummary in src/lib/funding.ts, which is the one place that
+  // arithmetic lives.
+  status String @default("requested")
+
+  // Set once the (subrogated) invoice for this funder's share is raised.
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+  invoiceId String?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([dossierId])
+  @@index([funderId])
 }
 
 // An OF asking Jalon to connect a tool we don't support yet. Persisted

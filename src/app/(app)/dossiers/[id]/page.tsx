@@ -25,6 +25,8 @@ import { DossierSwitcher } from "@/components/DossierSwitcher";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
+import { DossierFundingPanel } from "@/components/DossierFundingPanel";
+import { resolveDossierPriceCents } from "@/lib/funding";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -79,8 +81,32 @@ export default async function DossierPage(
   const sender = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } });
   const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
   const canAccessAccomm = canAccessAccommodations(role, userId, organization);
-  const TABS = canAccessAccomm ? [...BASE_TABS, { key: "accessibilite", label: "Accessibilité" }] : BASE_TABS;
+  // Funding is money data: same audience as /facturation, not the wider set
+  // of roles that can open a dossier. A trainer seeing who funds a learner
+  // is a confidentiality question, not just a permissions one.
+  const canSeeFunding = can(role, "invoicing") !== "none";
+  const TABS = [
+    ...BASE_TABS,
+    ...(canSeeFunding ? [{ key: "financement", label: "Financement" }] : []),
+    ...(canAccessAccomm ? [{ key: "accessibilite", label: "Accessibilité" }] : []),
+  ];
   if (activeTab === "accessibilite" && !canAccessAccomm) redirect(`/dossiers/${dossier.id}`);
+  if (activeTab === "financement" && !canSeeFunding) redirect(`/dossiers/${dossier.id}`);
+
+  const [fundingCommitments, funders] = canSeeFunding
+    ? await Promise.all([
+        prisma.fundingCommitment.findMany({
+          where: { dossierId: dossier.id, organizationId },
+          include: { funder: { select: { name: true, type: true } } },
+          orderBy: { createdAt: "asc" },
+        }),
+        prisma.funder.findMany({
+          where: { organizationId, archivedAt: null },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, type: true },
+        }),
+      ])
+    : [[], []];
 
   const members = canManageEmail
     ? await prisma.user.findMany({
@@ -134,6 +160,31 @@ export default async function DossierPage(
           <QualiopiEvidenceTab dossierId={dossier.id} />
         ) : activeTab === "accessibilite" ? (
           <AccessibilityTab dossierId={dossier.id} />
+        ) : activeTab === "financement" ? (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink mb-1">Financement</div>
+            <div className="text-[12px] text-slate mb-4">
+              Qui paie cette formation, et ce qui reste à la charge du client.
+            </div>
+            <DossierFundingPanel
+              dossierId={dossier.id}
+              totalCents={resolveDossierPriceCents(dossier, dossier.session.course)}
+              usesCoursePrice={dossier.agreedPriceCents == null}
+              canEdit={can(role, "invoicing") !== "none"}
+              funders={funders}
+              commitments={fundingCommitments.map((c) => ({
+                id: c.id,
+                funderId: c.funderId,
+                funderName: c.funder.name,
+                funderType: c.funder.type,
+                amountCents: c.amountCents,
+                subrogation: c.subrogation,
+                agreementNumber: c.agreementNumber,
+                validUntil: c.validUntil ? c.validUntil.toISOString() : null,
+                status: c.status,
+              }))}
+            />
+          </div>
         ) : (
           <InfoTab dossier={dossier} canEditCategory={canEditCategory} />
         )}
