@@ -35,6 +35,13 @@ export const config = {
     // api/v1 is the public REST API: it carries its own bearer-token auth
     // (see src/lib/apiAuth.ts), so a NextAuth session redirect here would
     // answer an API call with an HTML login page.
-    "/((?!login|formulaire|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/v1|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
+    //
+    // api/cron for the same reason, and it was a real bug: Vercel's
+    // scheduler carries no session, so both declared crons were being
+    // bounced to /login every day and had never actually run. They are
+    // gated by CRON_SECRET instead (see src/lib/cronAuth.ts), which now
+    // REFUSES in production when the variable is missing — without that,
+    // removing them from the middleware would leave them wide open.
+    "/((?!login|formulaire|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/v1|api/cron|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
   ],
 };

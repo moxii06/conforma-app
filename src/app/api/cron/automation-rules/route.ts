@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { assertCronRequest } from "@/lib/cronAuth";
 import { createSessionInvitation } from "@/lib/sessionInvitations";
 import { fillMergeTags, type MergeTagContext } from "@/lib/automationRules";
 import { sendSatisfactionSurvey } from "@/lib/satisfactionSurveys";
@@ -32,18 +33,13 @@ function mergeContext(contact: Contact, course: Course, session: Session, organi
 
 // Runs daily (see vercel.json) to act on AutomationRules with sendEmail
 // enabled — the task-only part of a rule is computed live by
-// getDashboardTasks and needs nothing here. Requires CRON_SECRET to be set
-// (Vercel sends it as `Authorization: Bearer <CRON_SECRET>` automatically
-// once the env var exists); until then this route is unreachable in
-// production, same "prepared but not yet wired" stance as the other
-// stubbed integrations (see /integrations).
+// getDashboardTasks and needs nothing here. Requires CRON_SECRET, which
+// Vercel sends as `Authorization: Bearer <CRON_SECRET>` once the env var
+// exists; without it the route refuses in production rather than running
+// open (see assertCronRequest).
 export async function GET(request: Request) {
-  if (process.env.CRON_SECRET) {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const denied = assertCronRequest(request);
+  if (denied) return denied;
 
   const origin = new URL(request.url).origin;
 

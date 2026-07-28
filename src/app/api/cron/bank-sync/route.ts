@@ -1,19 +1,17 @@
 import { NextResponse } from "next/server";
 import { syncBankTransactions } from "@/lib/bankSync";
+import { assertCronRequest } from "@/lib/cronAuth";
 
 export const maxDuration = 60;
 
 // Runs daily (see vercel.json) across every org with a linked bank
-// connection. Same CRON_SECRET gate as /api/cron/automation-rules —
-// unreachable in production until that env var exists, matching the
-// "prepared but not yet wired" stance of every stubbed integration here.
+// connection. Same CRON_SECRET gate as /api/cron/automation-rules — see
+// assertCronRequest for why a missing secret now refuses instead of letting
+// the route run open.
 export async function GET(request: Request) {
-  if (process.env.CRON_SECRET) {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
-    }
-  }
+  const denied = assertCronRequest(request);
+  if (denied) return denied;
+
   const result = await syncBankTransactions();
   return NextResponse.json(result);
 }
