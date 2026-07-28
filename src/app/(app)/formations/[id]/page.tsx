@@ -79,8 +79,8 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
   const params = await props.params;
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "planning") === "none" || role === "LEARNER") redirect("/formations");
-  const canManage = can(role, "planning") === "full";
+  if (can(role, "courses") === "none" || role === "LEARNER") redirect("/formations");
+  const canManage = can(role, "courses") === "full";
   const canToolkit = can(role, "toolkit") !== "none";
   const canSeeMoney = can(role, "invoicing") !== "none";
   const activeTab = searchParams.tab && TABS.some((t) => t.key === searchParams.tab) ? searchParams.tab : "resume";

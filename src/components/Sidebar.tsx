@@ -51,7 +51,7 @@ const NAV_GROUPS: { label: string | null; items: { href: string; label: string; 
     label: "Pédagogie",
     items: [
       { href: "/planning", label: "Planning des sessions", icon: Calendar, feature: "planning" },
-      { href: "/formations", label: "Catalogue de formations", icon: GraduationCap, feature: "planning" },
+      { href: "/formations", label: "Catalogue de formations", icon: GraduationCap, feature: "courses" },
       { href: "/dossiers", label: "Dossiers apprenants", icon: FileText, feature: "dossiers" },
       { href: "/documents", label: "Bibliothèque de documents", icon: Library, feature: "toolkit" },
     ],

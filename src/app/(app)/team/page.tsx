@@ -130,8 +130,9 @@ export default async function TeamPage(props: { searchParams: Promise<{ tab?: st
               <div className="text-[12.5px] font-semibold text-ink mb-3">Inviter un membre</div>
               <InviteMemberForm />
               <div className="text-[11.5px] text-slate mt-2.5">
-                L&apos;envoi d&apos;email d&apos;invitation n&apos;est pas encore branché (spec §3 prévoit Brevo) — le
-                membre est créé avec le statut « invité » et devra recevoir son accès par un autre biais pour l&apos;instant.
+                Le membre reçoit son lien d&apos;activation par email et reste au statut « invité » tant qu&apos;il
+                ne l&apos;a pas utilisé. Si l&apos;envoi échoue, le lien s&apos;affiche ici pour que vous puissiez
+                le transmettre vous-même.
               </div>
             </div>
 

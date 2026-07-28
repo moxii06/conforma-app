@@ -54,6 +54,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   crm: "CRM commercial",
   invoicing: "Facturation",
   planning: "Planning des sessions",
+  courses: "Catalogue de formations",
   dossiers: "Dossiers apprenants",
   qualiopi: "Conformité Qualiopi",
   rgpd: "Registre RGPD",
@@ -72,7 +73,15 @@ export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
   dashboard: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
   crm: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "limited", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   invoicing: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
-  planning: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "limited", DPO_EXTERNAL: "none" },
+  planning: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
+  // Split out of "planning" so a LEARNER can reach /formations — which for
+  // them is "Mes formations", their own enrolled courses — without that also
+  // granting /planning, where they could read every session of the whole
+  // organisation (and every course title through the global search, see
+  // /api/search). Same reasoning as the "automations" key below: a distinct
+  // key rather than a role carve-out inside the pages, so the matrix stays
+  // the one place access is decided.
+  courses: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "limited", DPO_EXTERNAL: "none" },
   dossiers: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
   qualiopi: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "none", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
   rgpd: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "limited" },

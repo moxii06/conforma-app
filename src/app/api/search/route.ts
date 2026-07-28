@@ -42,6 +42,10 @@ export async function GET(req: Request) {
           take: 6,
         })
       : Promise.resolve([]),
+    // Gated on "planning", not "courses", on purpose: the hits below link to
+    // /formations/[id], the staff management screen, which redirects a
+    // LEARNER. Using "courses" here would hand them the whole organisation's
+    // catalogue as search results they can't open.
     can(role, "planning") !== "none"
       ? prisma.course.findMany({
           where: {

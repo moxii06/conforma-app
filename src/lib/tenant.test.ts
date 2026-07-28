@@ -26,6 +26,23 @@ describe("can", () => {
     expect(can(Role.LEARNER, "dashboard")).toBe("none");
   });
 
+  // Regression guard: "planning" and "courses" used to be one key, which let
+  // a LEARNER open /planning and read every session of the organisation (and
+  // every course title through the global search) purely so that /formations
+  // could show them their own enrolled courses. Splitting the two is what
+  // fixes that, so both halves are asserted here — collapsing them back
+  // reopens the leak.
+  it("lets LEARNER reach their own courses without reaching the session planner", () => {
+    expect(can(Role.LEARNER, "courses")).toBe("limited");
+    expect(can(Role.LEARNER, "planning")).toBe("none");
+  });
+
+  it("keeps staff access identical across the courses/planning split", () => {
+    for (const role of [Role.ADMIN_OF, Role.ADMIN_MANAGER, Role.SALES, Role.TRAINER]) {
+      expect(can(role, "courses")).toBe(can(role, "planning"));
+    }
+  });
+
   it("gives TRAINER and LEARNER full access to the portal, and staff none", () => {
     expect(can(Role.TRAINER, "portal")).toBe("full");
     expect(can(Role.LEARNER, "portal")).toBe("full");

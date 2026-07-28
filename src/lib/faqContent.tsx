@@ -27,9 +27,9 @@ export type FaqCategory = {
   // page you'll only ever get redirected away from is noise.
   feature: string;
   // Excludes LEARNER even when the permission matrix would let them through.
-  // Needed because "planning" is `limited` for learners (see the note in the
-  // README/backlog about that being over-permissive), so a purely
-  // permission-driven filter would hand them the staff-facing guides.
+  // Needed for the "courses" key, which is `limited` for a learner so they
+  // can reach their own course list — that must not also hand them the
+  // staff-facing catalogue guides.
   staffOnly?: boolean;
   // Mirror image of staffOnly: "portal" is `full` for TRAINER too, but their
   // /mon-espace is a read-only list of their own sessions — none of the
@@ -191,7 +191,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
     label: "Formations & e-learning",
     description: "Catalogue, contenu des modules, quiz, attestations.",
     icon: GraduationCap,
-    feature: "planning",
+    feature: "courses",
     staffOnly: true,
     guides: [
       {

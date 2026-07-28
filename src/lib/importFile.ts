@@ -11,10 +11,10 @@ import type { Role } from "@prisma/client";
 export const MAX_IMPORT_FILE_BYTES = 4 * 1024 * 1024;
 
 // Same permission story as the rest of the app: contacts import is a CRM
-// write, courses import is a catalog (planning-side) write, bank statement
-// import is a facturation write.
+// write, courses import is a catalog write, bank statement import is a
+// facturation write.
 export function importPermissionError(role: Role, kind: ImportKind): NextResponse | null {
-  const feature = kind === "contacts" ? "crm" : kind === "courses" ? "planning" : "invoicing";
+  const feature = kind === "contacts" ? "crm" : kind === "courses" ? "courses" : "invoicing";
   if (can(role, feature) !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
