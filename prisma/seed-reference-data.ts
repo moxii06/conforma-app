@@ -13,39 +13,48 @@ async function main() {
   // the scaffold; verify wording against the official France Compétences
   // referential before relying on them for an actual audit (see comment on
   // the QualiopiIndicator model in schema.prisma).
+  // Corrected against the official RNQ structure (décret n°2019-565, guide de
+  // lecture) — the array below replaces an earlier scaffold version whose
+  // numbering/critère groupings from indicator 7 onward didn't match the
+  // real referential (critère 3 was truncated to 7 items instead of 8,
+  // "positionnement à l'entrée" was misplaced under critère 3 instead of 2,
+  // "référent handicap" was attached to a CFA-only indicator 20 instead of
+  // the general indicator 26, etc.). Cross-checked against two independent
+  // sources plus the real AB Certification audit documents used to build
+  // the S1/S2/S3 audit reports in this project's history.
   const QUALIOPI_INDICATORS: { number: number; criterionNumber: number; label: string }[] = [
     { number: 1, criterionNumber: 1, label: "Information accessible au public sur les prestations, délais d'accès et résultats obtenus" },
     { number: 2, criterionNumber: 1, label: "Diffusion d'indicateurs de résultats adaptés à la nature des prestations et des publics" },
-    { number: 3, criterionNumber: 1, label: "Information du public sur les prérequis et modalités d'accès à la prestation" },
+    { number: 3, criterionNumber: 1, label: "Information du public sur le taux d'obtention des certifications visées, le cas échéant" },
     { number: 4, criterionNumber: 2, label: "Analyse du besoin du bénéficiaire en lien avec l'entreprise et/ou le financeur" },
     { number: 5, criterionNumber: 2, label: "Détermination d'objectifs opérationnels et évaluables de la prestation" },
     { number: 6, criterionNumber: 2, label: "Détermination de contenus et modalités adaptés aux objectifs de la prestation" },
-    { number: 7, criterionNumber: 3, label: "Information sur les conditions de déroulement de la prestation" },
-    { number: 8, criterionNumber: 3, label: "Information sur les moyens de suivre l'exécution et d'apprécier les résultats" },
-    { number: 9, criterionNumber: 3, label: "Adaptation de la prestation, son suivi et son évaluation aux publics bénéficiaires" },
-    { number: 10, criterionNumber: 3, label: "Évaluation de l'atteinte par les bénéficiaires des objectifs de la prestation" },
-    { number: 11, criterionNumber: 3, label: "Mesures favorisant l'engagement des bénéficiaires et prévenant les ruptures de parcours" },
-    { number: 12, criterionNumber: 3, label: "Coordination avec les autres acteurs intervenant dans la prestation" },
-    { number: 13, criterionNumber: 3, label: "Accompagnement spécifique des publics en situation de handicap" },
-    { number: 14, criterionNumber: 4, label: "Adéquation des moyens pédagogiques, techniques et d'encadrement aux prestations" },
-    { number: 15, criterionNumber: 4, label: "Mise à disposition de ressources pédagogiques et d'un environnement adaptés" },
-    { number: 16, criterionNumber: 4, label: "Adaptations mises en œuvre et suivies pour les publics en situation de handicap" },
-    { number: 17, criterionNumber: 5, label: "Qualification et compétences des intervenants internes et/ou externes" },
-    { number: 18, criterionNumber: 5, label: "Complétude et actualisation des compétences des personnels" },
-    { number: 19, criterionNumber: 5, label: "Coordination et supervision des différents intervenants" },
-    { number: 20, criterionNumber: 5, label: "Désignation d'un référent handicap" },
-    { number: 21, criterionNumber: 5, label: "Développement des compétences des personnels chargés des prestations" },
-    { number: 22, criterionNumber: 6, label: "Veille légale et réglementaire sur son secteur d'activité" },
-    { number: 23, criterionNumber: 6, label: "Veille sur les évolutions des compétences, métiers et emplois" },
-    { number: 24, criterionNumber: 6, label: "Veille sur les innovations pédagogiques et technologiques" },
-    { number: 25, criterionNumber: 6, label: "Mobilisation des expertises, réseaux professionnels ou partenariats utiles" },
-    { number: 26, criterionNumber: 7, label: "Recueil des appréciations des parties prenantes" },
-    { number: 27, criterionNumber: 7, label: "Traitement des difficultés, réclamations, litiges et abandons" },
-    { number: 28, criterionNumber: 7, label: "Mise en œuvre d'un dispositif d'amélioration continue" },
-    { number: 29, criterionNumber: 7, label: "Moyens mis à disposition pour recueillir et traiter les retours" },
-    { number: 30, criterionNumber: 7, label: "Communication sur les taux de réussite et la satisfaction client" },
-    { number: 31, criterionNumber: 7, label: "Enquêtes de satisfaction/suivi auprès des employeurs et bénéficiaires" },
-    { number: 32, criterionNumber: 7, label: "Mesure de la valeur ajoutée de la prestation (insertion, certifications...)" },
+    { number: 7, criterionNumber: 2, label: "Adéquation du contenu de la prestation aux exigences de la certification visée" },
+    { number: 8, criterionNumber: 2, label: "Détermination des procédures de positionnement et d'évaluation des acquis à l'entrée de la prestation" },
+    { number: 9, criterionNumber: 3, label: "Information sur les conditions de déroulement de la prestation" },
+    { number: 10, criterionNumber: 3, label: "Adaptation de la prestation, son suivi et son évaluation aux publics bénéficiaires" },
+    { number: 11, criterionNumber: 3, label: "Évaluation de l'atteinte par les bénéficiaires des objectifs de la prestation" },
+    { number: 12, criterionNumber: 3, label: "Mesures favorisant l'engagement des bénéficiaires et prévenant les ruptures de parcours" },
+    { number: 13, criterionNumber: 3, label: "Coordination entre le centre de formation et l'entreprise pour le suivi des apprentis (alternance)" },
+    { number: 14, criterionNumber: 3, label: "Accompagnement socio-professionnel et exercice de la citoyenneté des apprentis (alternance)" },
+    { number: 15, criterionNumber: 3, label: "Information des apprentis sur leurs droits et devoirs (alternance)" },
+    { number: 16, criterionNumber: 3, label: "Conditions de présentation des candidats aux épreuves de certification (alternance)" },
+    { number: 17, criterionNumber: 4, label: "Adéquation des moyens humains et techniques mobilisés à la prestation" },
+    { number: 18, criterionNumber: 4, label: "Coordination des différents intervenants mobilisés sur la prestation" },
+    { number: 19, criterionNumber: 4, label: "Mise à disposition de ressources pédagogiques et d'un environnement adaptés, y compris à distance" },
+    { number: 20, criterionNumber: 4, label: "Personnel dédié à l'accompagnement des apprentis : mobilité, référent handicap, conseil de perfectionnement (CFA)" },
+    { number: 21, criterionNumber: 5, label: "Détermination et mobilisation des compétences des intervenants internes et/ou externes" },
+    { number: 22, criterionNumber: 5, label: "Complétude et actualisation des compétences des personnels chargés des prestations" },
+    { number: 23, criterionNumber: 6, label: "Veille légale et réglementaire sur son secteur d'activité" },
+    { number: 24, criterionNumber: 6, label: "Veille sur les évolutions des compétences, métiers et emplois" },
+    { number: 25, criterionNumber: 6, label: "Veille sur les innovations pédagogiques et technologiques" },
+    { number: 26, criterionNumber: 6, label: "Accueil et accompagnement des personnes en situation de handicap, avec un référent identifié" },
+    { number: 27, criterionNumber: 6, label: "Conformité de la sous-traitance ou de la cotraitance au référentiel qualité" },
+    { number: 28, criterionNumber: 6, label: "Mobilisation d'un réseau de partenaires socio-économiques utiles à la prestation" },
+    { number: 29, criterionNumber: 6, label: "Insertion professionnelle et poursuite d'étude des bénéficiaires à l'issue de la prestation" },
+    { number: 30, criterionNumber: 7, label: "Recueil des appréciations des parties prenantes (bénéficiaires, financeurs, équipes pédagogiques)" },
+    { number: 31, criterionNumber: 7, label: "Traitement des difficultés, réclamations, litiges et abandons signalés" },
+    { number: 32, criterionNumber: 7, label: "Mise en œuvre d'un dispositif d'amélioration continue à partir des appréciations et réclamations" },
   ];
 
   // "rnq2022v1" is the fixed id the qualiopi_referentiel_version migration
@@ -94,11 +103,9 @@ async function main() {
   });
 
   const REFORME_2026_INDICATORS: { number: number; criterionNumber: number; label: string }[] = [
-    ...QUALIOPI_INDICATORS.filter((i) => ![13, 16, 20, 22].includes(i.number)),
-    { number: 13, criterionNumber: 3, label: "Accompagnement des publics en situation de handicap, avec traçabilité des aménagements accordés par bénéficiaire" },
-    { number: 16, criterionNumber: 4, label: "Adaptations pédagogiques et techniques pour le handicap, documentées et suivies dans le temps" },
-    { number: 20, criterionNumber: 5, label: "Référent handicap désigné, formé, et ses actions tracées" },
-    { number: 22, criterionNumber: 6, label: "Veille légale et réglementaire documentée (source, date, décision, preuve d'exploitation)" },
+    ...QUALIOPI_INDICATORS.filter((i) => ![23, 26].includes(i.number)),
+    { number: 23, criterionNumber: 6, label: "Veille légale et réglementaire documentée (source, date, décision, preuve d'exploitation)" },
+    { number: 26, criterionNumber: 6, label: "Accueil et accompagnement des personnes en situation de handicap, avec traçabilité des aménagements accordés par bénéficiaire et référent handicap formé et actif" },
     { number: 33, criterionNumber: 7, label: "Indicateurs de résultats définis par une méthode de calcul explicite (formule, source, population, exclusions)" },
   ];
 
