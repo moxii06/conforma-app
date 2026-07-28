@@ -385,9 +385,14 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                   onChange={(e) => setMaxLearners(e.target.value)}
                   type="number"
                   min={1}
-                  placeholder="Illimité"
+                  placeholder="ex. 12"
                   className={fieldClass}
                 />
+                {/* The field is a number input, so "illimité" can't be typed —
+                    an empty value IS the unlimited case (Course.maxLearners is
+                    nullable). Say so explicitly rather than leaving it to a
+                    placeholder that reads like an instruction to type it. */}
+                <div className="text-[11px] text-slate mt-1">Laisser vide = places illimitées</div>
               </div>
             </div>
           </div>
