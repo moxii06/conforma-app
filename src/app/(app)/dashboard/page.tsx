@@ -31,6 +31,8 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   satisfaction_not_collected: "Satisfaction",
   learner_inactive: "Décrochage",
   bank_transaction_pending: "Rapprochement bancaire",
+  funding_no_reply: "Financeur",
+  funding_agreement_expiring: "Financeur",
   qualiopi_certificate_expiring: "Certificat Qualiopi",
   qualiopi_audit_upcoming: "Audit Qualiopi",
   qualiopi_finding_open: "Non-conformité",

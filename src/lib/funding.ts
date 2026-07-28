@@ -44,6 +44,43 @@ export const FUNDER_TYPE_LABELS: Record<string, string> = {
 // an OF ends up discovering a hole after the training has already run.
 const SECURED: CommitmentStatus[] = ["granted", "invoiced", "paid"];
 
+// Default follow-up thresholds. 30 days of funder silence is the point where
+// OPCOs' own processing targets are exceeded and a phone call actually helps;
+// 30 days before an agreement lapses leaves time to issue and settle the
+// invoice. Shared by the dashboard tasks and the dossier panel.
+export const FUNDER_SILENCE_DAYS = 30;
+export const AGREEMENT_EXPIRY_WARNING_DAYS = 30;
+
+/**
+ * A deposited/instructing commitment that has sat unanswered long enough to
+ * chase. Anything without a depositedAt timestamp can't be "waiting" — it was
+ * created directly in a later status and there's no silence to measure.
+ */
+export function isAwaitingFunderTooLong(
+  c: { status: string; depositedAt?: Date | null },
+  now: Date,
+  silenceDays = FUNDER_SILENCE_DAYS,
+): boolean {
+  if (!AWAITING_FUNDER.includes(c.status as CommitmentStatus)) return false;
+  if (!c.depositedAt) return false;
+  return now.getTime() - c.depositedAt.getTime() >= silenceDays * 86_400_000;
+}
+
+/**
+ * A secured agreement whose validity window is closing while its money is
+ * still on the way (granted → invoice to issue, invoiced → payment to chase).
+ * Once paid, expiry is harmless and this never fires.
+ */
+export function isAgreementExpiringSoon(
+  c: { status: string; validUntil?: Date | null },
+  now: Date,
+  warningDays = AGREEMENT_EXPIRY_WARNING_DAYS,
+): boolean {
+  if (!SECURED.includes(c.status as CommitmentStatus) || c.status === "paid") return false;
+  if (!c.validUntil) return false;
+  return c.validUntil <= new Date(now.getTime() + warningDays * 86_400_000);
+}
+
 export type FundingCommitmentInput = {
   amountCents: number;
   status: string;
@@ -86,8 +123,7 @@ export function computeFundingSummary(
   options?: { now?: Date; expiryWarningDays?: number },
 ): FundingSummary {
   const now = options?.now ?? new Date();
-  const warningDays = options?.expiryWarningDays ?? 30;
-  const warningCutoff = new Date(now.getTime() + warningDays * 24 * 60 * 60 * 1000);
+  const warningDays = options?.expiryWarningDays ?? AGREEMENT_EXPIRY_WARNING_DAYS;
 
   let securedCents = 0;
   let pendingCents = 0;
@@ -99,9 +135,7 @@ export function computeFundingSummary(
     if (isSecured) {
       securedCents += c.amountCents;
       if (c.subrogation) subrogatedCents += c.amountCents;
-      // Only warn on money that is still waiting to arrive: an agreement
-      // that already paid out can expire without consequence.
-      if (c.status !== "paid" && c.validUntil && c.validUntil <= warningCutoff) {
+      if (isAgreementExpiringSoon(c, now, warningDays)) {
         expiringSoon.push(c);
       }
     } else if (c.status === "draft" || AWAITING_FUNDER.includes(c.status as CommitmentStatus)) {

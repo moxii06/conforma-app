@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { addDays } from "date-fns";
 import { canWriteRgpd } from "@/lib/tenant";
 import { getCourseCompletion } from "@/lib/lms";
+import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } from "@/lib/funding";
 
 // "Relances" thresholds — how long to wait before a pending step counts as
 // needing a follow-up. Not spec-mandated numbers, just sane defaults; make
@@ -48,6 +49,8 @@ export type DashboardTask = {
     | "satisfaction_not_collected"
     | "learner_inactive"
     | "bank_transaction_pending"
+    | "funding_no_reply"
+    | "funding_agreement_expiring"
     | "qualiopi_certificate_expiring"
     | "qualiopi_audit_upcoming"
     | "qualiopi_finding_open"
@@ -456,6 +459,55 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         href: "/facturation?tab=factures",
         overdue: true,
       });
+    }
+  }
+
+  // Funder follow-ups — the two moments OPCO money silently dies: a
+  // deposited dossier the funder never answered (chase before it stalls past
+  // their own processing deadlines), and a granted agreement whose validity
+  // window is closing while the invoice still isn't issued or settled (past
+  // validUntil, the funder no longer owes anything). Thresholds and status
+  // semantics live in lib/funding.ts next to the rest of the arithmetic.
+  if (canSeeGeneral) {
+    const now = new Date();
+    const commitments = await prisma.fundingCommitment.findMany({
+      where: { organizationId, status: { in: [...AWAITING_FUNDER, "granted", "invoiced"] } },
+      include: {
+        funder: { select: { name: true } },
+        dossier: { include: { contact: true } },
+      },
+    });
+    for (const c of commitments) {
+      const contactName = `${c.dossier.contact.firstName} ${c.dossier.contact.lastName}`;
+      if (isAwaitingFunderTooLong(c, now)) {
+        const silentDays = Math.floor((now.getTime() - c.depositedAt!.getTime()) / 86_400_000);
+        results.push({
+          id: c.id,
+          kind: "funding_no_reply",
+          label: `Dossier ${c.funder.name} sans réponse depuis ${silentDays} j — relancez le financeur`,
+          contactName,
+          since: c.depositedAt!,
+          href: `/dossiers/${c.dossierId}?tab=financement`,
+          overdue: true,
+        });
+      }
+      if (isAgreementExpiringSoon(c, now)) {
+        const expired = c.validUntil! < now;
+        const dateLabel = c.validUntil!.toLocaleDateString("fr-FR");
+        results.push({
+          id: c.id,
+          kind: "funding_agreement_expiring",
+          label: expired
+            ? `Accord ${c.funder.name} expiré le ${dateLabel} — contactez le financeur au plus vite`
+            : c.status === "granted"
+              ? `Accord ${c.funder.name} valable jusqu'au ${dateLabel} — générez la facture avant cette date`
+              : `Accord ${c.funder.name} valable jusqu'au ${dateLabel} — faites régler la facture avant cette date`,
+          contactName,
+          since: c.validUntil!,
+          href: `/dossiers/${c.dossierId}?tab=financement`,
+          overdue: expired,
+        });
+      }
     }
   }
 

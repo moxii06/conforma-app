@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeFundingSummary, resolveDossierPriceCents, computeFundingReadiness } from "./funding";
+import {
+  computeFundingSummary,
+  resolveDossierPriceCents,
+  computeFundingReadiness,
+  isAwaitingFunderTooLong,
+  isAgreementExpiringSoon,
+} from "./funding";
 
 // Money split across several funders is exactly the kind of arithmetic that
 // looks obvious and silently goes wrong — a "requested" amount counted as
@@ -174,6 +180,49 @@ describe("computeFundingReadiness", () => {
       NOW2,
     );
     expect(items.find((i) => i.key === "calendrier")?.ok).toBe(true);
+  });
+});
+
+describe("isAwaitingFunderTooLong", () => {
+  it("fires on a deposited dossier silent past the threshold", () => {
+    expect(isAwaitingFunderTooLong({ status: "deposited", depositedAt: new Date("2026-06-01") }, NOW, 30)).toBe(true);
+    expect(isAwaitingFunderTooLong({ status: "instructing", depositedAt: new Date("2026-06-01") }, NOW, 30)).toBe(true);
+  });
+
+  it("stays quiet while the silence is still within the threshold", () => {
+    expect(isAwaitingFunderTooLong({ status: "deposited", depositedAt: new Date("2026-07-15") }, NOW, 30)).toBe(false);
+  });
+
+  it("never fires once the funder has answered, whatever the answer", () => {
+    const old = new Date("2026-01-01");
+    expect(isAwaitingFunderTooLong({ status: "granted", depositedAt: old }, NOW, 30)).toBe(false);
+    expect(isAwaitingFunderTooLong({ status: "refused", depositedAt: old }, NOW, 30)).toBe(false);
+  });
+
+  it("ignores commitments with no deposit timestamp — there is no silence to measure", () => {
+    expect(isAwaitingFunderTooLong({ status: "deposited", depositedAt: null }, NOW, 30)).toBe(false);
+  });
+});
+
+describe("isAgreementExpiringSoon", () => {
+  it("warns on granted and invoiced agreements inside the window", () => {
+    const soon = new Date("2026-08-10");
+    expect(isAgreementExpiringSoon({ status: "granted", validUntil: soon }, NOW, 30)).toBe(true);
+    expect(isAgreementExpiringSoon({ status: "invoiced", validUntil: soon }, NOW, 30)).toBe(true);
+  });
+
+  it("keeps warning after the date has passed — the money is now at risk, not safe", () => {
+    expect(isAgreementExpiringSoon({ status: "granted", validUntil: new Date("2026-07-01") }, NOW, 30)).toBe(true);
+  });
+
+  it("never warns once paid, and never on unsecured statuses", () => {
+    const soon = new Date("2026-08-10");
+    expect(isAgreementExpiringSoon({ status: "paid", validUntil: soon }, NOW, 30)).toBe(false);
+    expect(isAgreementExpiringSoon({ status: "deposited", validUntil: soon }, NOW, 30)).toBe(false);
+  });
+
+  it("ignores agreements with no expiry date", () => {
+    expect(isAgreementExpiringSoon({ status: "granted", validUntil: null }, NOW, 30)).toBe(false);
   });
 });
 
