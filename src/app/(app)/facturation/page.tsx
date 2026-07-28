@@ -15,6 +15,7 @@ import { BankConnectionPanel } from "@/components/BankConnectionPanel";
 import { isStripeConfigured } from "@/lib/stripe";
 import { isBridgeConfigured } from "@/lib/bridge";
 import { rankInvoiceMatches, CONFIDENT_MATCH_THRESHOLD } from "@/lib/bankReconciliation";
+import { FundersPanel } from "@/components/FundersPanel";
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -86,14 +87,46 @@ export default async function FacturationPage(
     { key: "devis", label: "Devis" },
     { key: "factures", label: "Factures" },
     { key: "a-valider", label: pendingBankCount > 0 ? `À valider (${pendingBankCount})` : "À valider" },
+    { key: "financeurs", label: "Financeurs" },
   ];
+
+  // Loaded only for its own tab: three extra queries on every invoice page
+  // view, for a referential most people open twice a year, isn't a trade
+  // worth making.
+  const funderRows =
+    activeTab === "financeurs"
+      ? await prisma.funder.findMany({
+          where: { organizationId },
+          orderBy: [{ archivedAt: "asc" }, { name: "asc" }],
+          include: {
+            commitments: { select: { amountCents: true, status: true } },
+          },
+        })
+      : [];
 
   return (
     <>
       <PageHeader title="Facturation" subtitle="Devis et factures, transmission via le portail public par défaut" />
       <Tabs basePath="/facturation" tabs={tabs} active={activeTab} />
       <div className="p-8 flex flex-col gap-4">
-        {activeTab === "a-valider" ? (
+        {activeTab === "financeurs" ? (
+          <FundersPanel
+            canWrite={canWrite}
+            funders={funderRows.map((f) => ({
+              id: f.id,
+              name: f.name,
+              type: f.type,
+              contactEmail: f.contactEmail,
+              contactPhone: f.contactPhone,
+              archivedAt: f.archivedAt ? f.archivedAt.toISOString() : null,
+              usageCount: f.commitments.length,
+              // Same rule as computeFundingSummary: only agreed money counts.
+              securedCents: f.commitments
+                .filter((c) => ["granted", "invoiced", "paid"].includes(c.status))
+                .reduce((sum, c) => sum + c.amountCents, 0),
+            }))}
+          />
+        ) : activeTab === "a-valider" ? (
           canWrite ? (
             <BankValidationTab organizationId={organizationId} />
           ) : null
