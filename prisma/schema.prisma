@@ -108,6 +108,7 @@ model Organization {
   emailMessages               EmailMessage[]
   mailboxConnections          MailboxConnection[]
   integrationCredentials      IntegrationCredential[]
+  integrationRequests         IntegrationRequest[]
   clientOutreaches            ClientOutreach[]
   subscription                Subscription?
   qualityRisks                QualityRisk[]
@@ -1939,6 +1940,40 @@ model IntegrationCredential {
   updatedAt      DateTime     @updatedAt
 
   @@unique([organizationId, provider])
+  @@index([organizationId])
+}
+
+// An OF asking Jalon to connect a tool we don't support yet. Persisted
+// rather than only emailed: an email is the notification, not the record —
+// if Brevo is down or the address changes, the request would vanish. Keeping
+// the row also lets the asking organisation see what it already requested,
+// so the same tool doesn't get sent three times by three people.
+//
+// Deliberately NOT modelled on Complaint: nothing here is tenant-internal
+// workflow. The audience is the Jalon team, and the only thing the OF does
+// with it afterwards is read the status.
+model IntegrationRequest {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  // Captured at submission from the (always authenticated, always ADMIN_OF)
+  // requester's session — same reasoning as Complaint.submittedByEmail: the
+  // Jalon team needs to be able to reply without going digging for who
+  // administers this organisation.
+  requestedByUserId String
+  requestedByName   String
+  requestedByEmail  String
+
+  toolName String
+  // What they'd actually do with it. The useful part of the request: "we
+  // want Pennylane" says much less than "our accountant is on Pennylane and
+  // we re-key every invoice by hand".
+  useCase  String
+
+  status    String   @default("new") // new | reviewing | planned | declined | done
+  createdAt DateTime @default(now())
+
   @@index([organizationId])
 }
 
