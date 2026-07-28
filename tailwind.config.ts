@@ -16,6 +16,11 @@ const config: Config = {
         paper: "#F5F4F0",
         seal: "#8C6B2E",
         "seal-dark": "#5C481D",
+        // Same brass hue, lightened until text set in it clears WCAG AA
+        // (4.5:1) on the `ink` background — plain `seal` measures 3.17:1
+        // there (Lighthouse a11y audit, S4). Only for gold text-on-dark;
+        // `seal` stays the default for icons/rings/light backgrounds.
+        "seal-light": "#B99446",
         sage: "#4B6358",
         rust: "#8E4433",
         slate: "#6A6D74",

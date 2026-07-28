@@ -169,9 +169,16 @@ export default async function CrmPage(
                 {opportunities.map((o) => (
                   <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-mist">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <Link href={contactHref(o.contact)} className="font-semibold text-ink hover:underline">
+                      <Link
+                        href={contactHref(o.contact)}
+                        className="font-semibold text-ink hover:underline"
+                        title={o.contact.dossiers.length > 0 ? "Ouvre le dossier de formation" : "Ouvre la fiche prospect"}
+                      >
                         {o.contact.firstName} {o.contact.lastName}
                       </Link>
+                      {o.contact.dossiers.length > 0 && (
+                        <span className="ml-1.5 text-[10px] text-slate align-middle">· dossier</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate max-w-[220px] truncate">{o.label}</td>
                     <td className="px-4 py-3 text-ink font-mono tabular-nums text-right whitespace-nowrap">{formatAmount(o.amountCents)}</td>
@@ -210,9 +217,16 @@ export default async function CrmPage(
                     return (
                       <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-mist">
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <Link href={contactHref(o.contact)} className="font-semibold text-ink hover:underline">
+                          <Link
+                            href={contactHref(o.contact)}
+                            className="font-semibold text-ink hover:underline"
+                            title={o.contact.dossiers.length > 0 ? "Ouvre le dossier de formation" : "Ouvre la fiche prospect"}
+                          >
                             {o.contact.firstName} {o.contact.lastName}
                           </Link>
+                          {o.contact.dossiers.length > 0 && (
+                            <span className="ml-1.5 text-[10px] text-slate align-middle">· dossier</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-slate max-w-[220px] truncate">{o.label}</td>
                         <td className="px-4 py-3 text-ink font-mono tabular-nums text-right whitespace-nowrap">{formatAmount(o.amountCents)}</td>

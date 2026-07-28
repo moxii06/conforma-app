@@ -36,7 +36,7 @@ export default async function PublicCoursePage(props: { params: Promise<{ course
   ];
 
   return (
-    <div className="min-h-screen bg-paper px-4 py-10">
+    <main className="min-h-screen bg-paper px-4 py-10">
       <div className="max-w-2xl mx-auto flex flex-col gap-5">
         <BrandedLogo name={org.name} logoUrl={org.logoUrl} brandColor={org.brandColor} size={28} />
 
@@ -122,6 +122,6 @@ export default async function PublicCoursePage(props: { params: Promise<{ course
           Fiche mise à jour le {new Date().toLocaleDateString("fr-FR")} — {org.name}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

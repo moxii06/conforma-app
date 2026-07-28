@@ -37,7 +37,7 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-paper flex items-center justify-center px-4">
+    <main className="min-h-screen bg-paper flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-3">
           <div className="w-8 h-8 rounded-md bg-seal flex items-center justify-center">
@@ -88,6 +88,6 @@ export function LoginForm() {
           </Link>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

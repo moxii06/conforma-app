@@ -134,6 +134,7 @@ export default function MarketingPage() {
         </div>
       </header>
 
+      <main>
       {/* ---- Hero ---- */}
       <section className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
         <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#F0E7D4] border border-[#D9C79E] rounded-full px-3 py-1 mb-6">
@@ -234,7 +235,7 @@ export default function MarketingPage() {
       {/* ---- Conformité ---- */}
       <section id="conformite" className="border-t border-line bg-ink">
         <div className="max-w-3xl mx-auto px-6 py-16 text-center">
-          <div className="text-[12px] font-semibold text-seal uppercase tracking-wide mb-2">Notre différence</div>
+          <div className="text-[12px] font-semibold text-seal-light uppercase tracking-wide mb-2">Notre différence</div>
           <h2 className="font-display text-[28px] text-white mb-4 text-balance">
             La conformité comme sous-produit, pas comme corvée
           </h2>
@@ -292,7 +293,7 @@ export default function MarketingPage() {
               <Link
                 href={`/essai?plan=${plan.slug}`}
                 className={`text-center text-[13.5px] font-medium rounded-md px-4 py-2.5 ${
-                  plan.featured ? "bg-seal text-ink hover:bg-[#A9884A]" : "bg-ink text-white hover:bg-ink-soft"
+                  plan.featured ? "bg-seal text-mist hover:bg-[#7E6029]" : "bg-ink text-white hover:bg-ink-soft"
                 }`}
               >
                 Commencer l&apos;essai
@@ -340,6 +341,7 @@ export default function MarketingPage() {
           </div>
         </div>
       </section>
+      </main>
 
       {/* ---- Footer ---- */}
       <footer className="border-t border-line">

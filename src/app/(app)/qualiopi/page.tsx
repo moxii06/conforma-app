@@ -87,13 +87,14 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
 
 async function IndicatorsTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
   const activeVersion = await getActiveVersion(organizationId);
-  const [org, indicators, evidence, versions] = await Promise.all([
+  const [org, indicators, evidence, versions, autoEvidence] = await Promise.all([
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
     activeVersion
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: activeVersion.id }, orderBy: { number: "asc" } })
       : Promise.resolve([]),
     prisma.qualiopiIndicatorEvidence.findMany({ where: { organizationId } }),
     prisma.qualiopiReferentielVersion.findMany({ where: { status: { not: "archive" } }, orderBy: { createdAt: "asc" } }),
+    getAutomaticEvidence(organizationId),
   ]);
 
   const coveredNumbers = new Set(evidence.map((e) => e.indicatorNumber));
@@ -106,6 +107,14 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
   const totalCovered = criteria.reduce((sum, c) => sum + c.covered, 0);
   const totalIndicators = indicators.length || 32;
   const overallScore = totalIndicators ? Math.round((totalCovered / totalIndicators) * 100) : 0;
+  // Audit UX S4 : le score manuel ("cases cochées par vous") affiché seul
+  // et en premier laissait croire à une conformité quasi nulle, alors que
+  // la couche de preuve automatique (qualiopiEvidence.ts) — invisible tant
+  // qu'on n'a pas cliqué sur l'onglet Préparation audit — raconte une
+  // histoire bien plus favorable. Les deux chiffres cohabitent maintenant
+  // ici, et la carte pointe directement vers le détail.
+  const autoCount = indicators.filter((ind) => (autoEvidence.get(ind.number)?.length ?? 0) > 0).length;
+  const isAuditOverdue = Boolean(org.nextAuditDate && org.nextAuditDate < new Date());
 
   return (
     <div className="flex flex-col gap-6">
@@ -113,10 +122,14 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
         <MetricCard
           label="Score de conformité"
           value={`${overallScore}%`}
-          hint={`${totalCovered}/${totalIndicators} indicateurs couverts`}
+          hint={`${totalCovered}/${totalIndicators} cochés par vous · ${autoCount}/${totalIndicators} avec activité tracée automatiquement`}
+          href="/qualiopi?tab=preparation-audit"
         />
         <div className="bg-white border border-line rounded-card p-4 flex-1">
-          <div className="text-[12.5px] text-slate mb-2">Prochain audit</div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-[12.5px] text-slate">Prochain audit</div>
+            {isAuditOverdue && <Pill tone="danger">En retard</Pill>}
+          </div>
           <div className="text-2xl font-display text-ink mb-2">
             {org.nextAuditDate ? format(org.nextAuditDate, "d MMMM yyyy", { locale: fr }) : "Non planifié"}
           </div>
