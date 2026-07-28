@@ -6,6 +6,7 @@ import { ReferentHandicapSelect } from "@/components/ReferentHandicapSelect";
 import { SubcontractorForm } from "@/components/SubcontractorForm";
 import { SubcontractorStatusSelect } from "@/components/SubcontractorStatusSelect";
 import { MemberRoleSelect } from "@/components/MemberRoleSelect";
+import { IntervenantEvaluationForm } from "@/components/IntervenantEvaluationForm";
 import { PrintButton } from "@/components/PrintButton";
 import { ArchiveOrgChartButton } from "@/components/ArchiveOrgChartButton";
 import { OrgChartView } from "@/components/OrgChartView";
@@ -35,6 +36,7 @@ const REQUIRED_DOCS_BY_TYPE: Record<string, string[]> = {
 const TABS = [
   { key: "membres", label: "Membres" },
   { key: "prestataires", label: "Sous-traitants & intervenants" },
+  { key: "evaluations", label: "Évaluations" },
   { key: "organigramme", label: "Organigramme" },
   { key: "permissions", label: "Permissions" },
 ];
@@ -78,6 +80,8 @@ export default async function TeamPage(props: { searchParams: Promise<{ tab?: st
       <div className="p-8 flex flex-col gap-6">
         {activeTab === "prestataires" ? (
           <SubcontractorsTab subcontractors={subcontractors} />
+        ) : activeTab === "evaluations" ? (
+          <EvaluationsTab organizationId={session.organizationId} />
         ) : activeTab === "organigramme" ? (
           <OrgChartTab
             organizationName={organization.name}
@@ -306,6 +310,96 @@ function OrgChartTab({
         )}
       </div>
     </>
+  );
+}
+
+// Évaluation périodique des compétences des intervenants (indicateurs
+// Qualiopi 21-22) : une seule vue "qui doit être évalué" couvrant les
+// formateurs internes (User TRAINER) et les sous-traitants actifs — le
+// dirigeant multi-casquettes voit d'un coup d'œil les évaluations à
+// refaire (> 12 mois ou jamais) sans parcourir deux listes.
+const EVALUATION_DUE_MONTHS = 12;
+
+async function EvaluationsTab({ organizationId }: { organizationId: string }) {
+  const [trainers, subs, evaluations] = await Promise.all([
+    prisma.user.findMany({
+      where: { organizationId, role: Role.TRAINER, status: "active" },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.subcontractor.findMany({
+      where: { organizationId, status: "active" },
+      select: { id: true, name: true, type: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.intervenantEvaluation.findMany({ where: { organizationId }, orderBy: { evaluatedAt: "desc" } }),
+  ]);
+
+  const dueThreshold = Date.now() - EVALUATION_DUE_MONTHS * 30.5 * 24 * 60 * 60 * 1000;
+  const rows = [
+    ...trainers.map((t) => ({
+      key: `user-${t.id}`,
+      name: t.name || t.email,
+      kind: "Formateur interne",
+      userId: t.id as string | undefined,
+      subcontractorId: undefined as string | undefined,
+      evals: evaluations.filter((e) => e.userId === t.id),
+    })),
+    ...subs.map((s) => ({
+      key: `sub-${s.id}`,
+      name: s.name,
+      kind: SUBCONTRACTOR_TYPE_LABELS[s.type] ?? s.type,
+      userId: undefined as string | undefined,
+      subcontractorId: s.id as string | undefined,
+      evals: evaluations.filter((e) => e.subcontractorId === s.id),
+    })),
+  ];
+
+  return (
+    <div className="bg-white border border-line rounded-card p-5 max-w-3xl">
+      <div className="text-[13.5px] font-semibold text-ink mb-1">Évaluation des intervenants</div>
+      <div className="text-[11.5px] text-slate mb-4">
+        Une trace écrite et datée de l&apos;évaluation des compétences de chaque intervenant, et du développement prévu
+        (indicateurs Qualiopi 21-22). Recommandé : une évaluation par an et par intervenant.
+      </div>
+      {rows.length === 0 && <div className="text-[12.5px] text-slate">Aucun formateur ni sous-traitant actif.</div>}
+      {rows.map((r) => {
+        const latest = r.evals[0];
+        const isDue = !latest || latest.evaluatedAt.getTime() < dueThreshold;
+        return (
+          <div key={r.key} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-2">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="text-[13px] font-medium text-ink">{r.name}</span>
+              <span className="text-[11px] text-slate">{r.kind}</span>
+              {isDue ? (
+                <Pill tone="warn">{latest ? "Évaluation à refaire (plus de 12 mois)" : "Jamais évalué"}</Pill>
+              ) : (
+                <Pill tone="good">Évalué le {format(latest.evaluatedAt, "d MMM yyyy", { locale: fr })}</Pill>
+              )}
+              <div className="flex-1" />
+              <IntervenantEvaluationForm userId={r.userId} subcontractorId={r.subcontractorId} />
+            </div>
+            {r.evals.length > 0 && (
+              <details className="text-[11.5px] text-slate">
+                <summary className="cursor-pointer">Historique ({r.evals.length})</summary>
+                <div className="flex flex-col gap-1.5 mt-1.5 pl-2.5">
+                  {r.evals.map((e) => (
+                    <div key={e.id} className="border-l-2 border-line pl-2.5">
+                      <div className="text-ink">
+                        {format(e.evaluatedAt, "d MMMM yyyy", { locale: fr })} — par {e.evaluatorName}
+                      </div>
+                      {e.strengths && <div>Points forts : {e.strengths}</div>}
+                      {e.developmentPlan && <div>Développement prévu : {e.developmentPlan}</div>}
+                      {e.comment && <div>{e.comment}</div>}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

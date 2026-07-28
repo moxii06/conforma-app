@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SURVEY_KIND_LABELS, type SurveyKind } from "@/lib/satisfactionSurveys";
+import { SURVEY_SEND_LABELS, type SurveyKind } from "@/lib/satisfactionSurveys";
 
 export function SendSatisfactionSurveyButton({ dossierId, kind }: { dossierId: string; kind: SurveyKind }) {
   const router = useRouter();
@@ -30,7 +30,7 @@ export function SendSatisfactionSurveyButton({ dossierId, kind }: { dossierId: s
         disabled={loading}
         className="border border-line rounded-md px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-ink-soft disabled:opacity-60"
       >
-        {loading ? "…" : `Envoyer l'${SURVEY_KIND_LABELS[kind].toLowerCase()}`}
+        {loading ? "…" : SURVEY_SEND_LABELS[kind]}
       </button>
       {error && <span className="text-[11px] text-rust mt-1">{error}</span>}
     </div>

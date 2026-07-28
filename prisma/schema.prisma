@@ -93,6 +93,7 @@ model Organization {
   sessionInvitations          SessionInvitation[]
   nonConformities             NonConformity[]
   qualiopiAudits              QualiopiAudit[]
+  intervenantEvaluations      IntervenantEvaluation[]
   rightsRequests              RightsRequest[]
   dataBreaches                DataBreach[]
   documents                   Document[]
@@ -334,7 +335,8 @@ model Subcontractor {
   linkedUser   User?   @relation(fields: [linkedUserId], references: [id])
   linkedUserId String? @unique
 
-  documents Document[]
+  documents   Document[]
+  evaluations IntervenantEvaluation[]
   courses   Course[]   @relation("CourseSubcontractors")
 
   createdAt DateTime @default(now())
@@ -438,6 +440,7 @@ model User {
   trainerSessions                  Session[]      @relation("SessionTrainer")
   learnerDossiers                  Dossier[]      @relation("DossierLearnerUser")
   referentHandicapForOrganizations Organization[] @relation("ReferentHandicap")
+  intervenantEvaluations           IntervenantEvaluation[]
   responsibleForCourses            Course[]       @relation("CourseResponsibles")
   subcontractorRecord              Subcontractor?
   documents                        Document[]     @relation("UserDocuments")
@@ -1321,6 +1324,36 @@ model DataBreach {
 // currently auditing itself against (Organization.activeReferentielVersion)
 // so switching to a new version — or previewing a still-draft one ahead of
 // its application date — never silently rewrites another org's checklist.
+// Périodic competency evaluation of an intervenant (internal TRAINER or
+// external Subcontractor) — Qualiopi indicators 21-22, and the pilot's own
+// real NC majeure from its 2022 initial audit ("l'organisme ne prévoit pas
+// l'évaluation des compétences des différents intervenants"; the fix the
+// auditor accepted was a systematic written evaluation). subjectName is
+// denormalized so the evaluation history survives the person leaving.
+// developmentPlan is the ind. 22 half: not just "how good are they" but
+// "what professional development is planned".
+model IntervenantEvaluation {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  user            User?          @relation(fields: [userId], references: [id])
+  userId          String?
+  subcontractor   Subcontractor? @relation(fields: [subcontractorId], references: [id])
+  subcontractorId String?
+  subjectName     String
+
+  evaluatedAt     DateTime
+  evaluatorName   String
+  strengths       String?
+  developmentPlan String?
+  comment         String?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}
+
 // One row per certification-body audit (initial, surveillance,
 // renouvellement, complémentaire) — the org's real audit history, modeled
 // on actual certifier paperwork (AB Certification "Synthèse de l'audit"

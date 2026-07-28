@@ -289,7 +289,19 @@ function ResumeTab({
 
       {canManage && (
         <div className="border-t border-line pt-3.5 flex flex-col gap-3">
-          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Enquêtes de satisfaction</div>
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">Positionnement et satisfaction</div>
+          <SatisfactionSurveyEditor
+            courseId={course.id}
+            kind="positioning"
+            initialQuestions={
+              course.satisfactionSurveys.find((s) => s.kind === "positioning")?.questions.map((q) => ({
+                id: q.id,
+                type: q.type,
+                prompt: q.prompt,
+                options: q.options as { id: string; text: string }[] | null,
+              })) ?? []
+            }
+          />
           <SatisfactionSurveyEditor
             courseId={course.id}
             kind="hot"

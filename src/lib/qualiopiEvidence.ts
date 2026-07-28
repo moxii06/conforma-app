@@ -28,9 +28,11 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     watchByType,
     activeSubcontractors,
     satisfactionCompleted,
+    positioningCompleted,
     complaintsResolved,
     qualityRisks,
     auditFindingsHandled,
+    intervenantEvaluations,
   ] = await Promise.all([
     prisma.resultIndicator.count({ where: { organizationId } }),
     prisma.resultIndicator.count({ where: { organizationId, published: true } }),
@@ -46,10 +48,14 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     prisma.accommodationRequest.count({ where: { organizationId } }),
     prisma.regulatoryWatch.groupBy({ by: ["watchType"], where: { organizationId }, _count: true }),
     prisma.subcontractor.count({ where: { organizationId, status: "active" } }),
-    prisma.satisfactionSurveyResponse.count({ where: { organizationId, status: "completed" } }),
+    prisma.satisfactionSurveyResponse.count({ where: { organizationId, status: "completed", survey: { kind: { in: ["hot", "cold"] } } } }),
+    prisma.satisfactionSurveyResponse.count({ where: { organizationId, status: "completed", survey: { kind: "positioning" } } }),
     prisma.complaint.count({ where: { organizationId, status: "resolved" } }),
     prisma.qualityRisk.count({ where: { organizationId } }),
     prisma.qualiopiAuditFinding.count({ where: { audit: { organizationId }, status: { in: ["levee", "soldee"] } } }),
+    prisma.intervenantEvaluation.count({
+      where: { organizationId, evaluatedAt: { gte: new Date(Date.now() - 366 * 24 * 60 * 60 * 1000) } },
+    }),
   ]);
 
   const watchCount = (type: string) => watchByType.find((w: { watchType: string }) => w.watchType === type)?._count ?? 0;
@@ -65,6 +71,7 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
   add(1, "indicateur(s) de résultats publié(s)", publishedResultIndicators, "/qualiopi?tab=resultats");
   add(2, "indicateur(s) de résultats calculé(s) avec méthode", resultIndicators, "/qualiopi?tab=resultats");
   add(4, "recueil(s) des besoins complété(s)", needsAssessmentsCompleted, "/dossiers");
+  add(8, "test(s) de positionnement à l'entrée complété(s)", positioningCompleted, "/dossiers");
   add(11, "module(s) terminé(s) par des apprenants (suivi réel)", modulesCompleted, "/formations");
   add(11, "quiz réussi(s) (correction serveur)", quizPassed, "/formations");
   add(11, "attestation(s) de réussite émise(s)", certificatesIssued, "/documents");
@@ -73,6 +80,8 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
   add(17, "module(s) e-learning mis à disposition", moduleCount, "/formations");
   add(19, "document(s) complémentaire(s) fournis aux apprenants", attachmentCount, "/formations");
   add(20, "référent handicap désigné", org?.referentHandicapUserId ? 1 : 0, "/team");
+  add(21, "évaluation(s) d'intervenant datée(s) sur les 12 derniers mois", intervenantEvaluations, "/team?tab=evaluations");
+  add(22, "évaluation(s) avec plan de développement des compétences", intervenantEvaluations, "/team?tab=evaluations");
   add(23, "élément(s) de veille légale et réglementaire", watchCount("legal"), "/qualiopi?tab=veille");
   add(24, "élément(s) de veille emplois, métiers et compétences", watchCount("metiers_competences"), "/qualiopi?tab=veille");
   add(25, "élément(s) de veille pédagogique et technologique", watchCount("pedagogique_technologique"), "/qualiopi?tab=veille");

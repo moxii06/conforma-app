@@ -50,7 +50,8 @@ export type DashboardTask = {
     | "bank_transaction_pending"
     | "qualiopi_certificate_expiring"
     | "qualiopi_audit_upcoming"
-    | "qualiopi_finding_open";
+    | "qualiopi_finding_open"
+    | "intervenant_evaluation_due";
   label: string;
   contactName: string;
   since: Date;
@@ -614,6 +615,48 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         since: f.audit.auditDate,
         href: "/qualiopi?tab=audits",
         overdue: f.audit.auditDate < addDays(now, -30),
+      });
+    }
+
+    // Annual intervenant evaluation (indicators 21-22 — the pilot's own
+    // 2022 NC majeure): every active internal trainer and subcontractor
+    // should have a written evaluation less than 12 months old.
+    const evalThreshold = addDays(now, -366);
+    const [activeTrainers, activeSubs, recentEvals] = await Promise.all([
+      prisma.user.findMany({
+        where: { organizationId, role: Role.TRAINER, status: "active" },
+        select: { id: true, name: true, email: true },
+      }),
+      prisma.subcontractor.findMany({ where: { organizationId, status: "active" }, select: { id: true, name: true } }),
+      prisma.intervenantEvaluation.findMany({
+        where: { organizationId, evaluatedAt: { gte: evalThreshold } },
+        select: { userId: true, subcontractorId: true },
+      }),
+    ]);
+    const evaluatedUserIds = new Set(recentEvals.map((e) => e.userId).filter(Boolean));
+    const evaluatedSubIds = new Set(recentEvals.map((e) => e.subcontractorId).filter(Boolean));
+    for (const t of activeTrainers) {
+      if (evaluatedUserIds.has(t.id)) continue;
+      results.push({
+        id: `eval-user-${t.id}`,
+        kind: "intervenant_evaluation_due",
+        label: "Évaluation annuelle de l'intervenant à réaliser (indicateurs 21-22)",
+        contactName: t.name || t.email,
+        since: now,
+        href: "/team?tab=evaluations",
+        overdue: false,
+      });
+    }
+    for (const s of activeSubs) {
+      if (evaluatedSubIds.has(s.id)) continue;
+      results.push({
+        id: `eval-sub-${s.id}`,
+        kind: "intervenant_evaluation_due",
+        label: "Évaluation annuelle de l'intervenant à réaliser (indicateurs 21-22)",
+        contactName: s.name,
+        since: now,
+        href: "/team?tab=evaluations",
+        overdue: false,
       });
     }
   }

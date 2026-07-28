@@ -310,6 +310,7 @@ async function FormationsTab({
                       signatureHtml={signatureHtml}
                     />
                   )}
+                  {canManageOutreach && <SendSatisfactionSurveyButton dossierId={d.id} kind="positioning" />}
                   {canManageOutreach && <SendSatisfactionSurveyButton dossierId={d.id} kind="hot" />}
                   {canManageOutreach && <SendSatisfactionSurveyButton dossierId={d.id} kind="cold" />}
                 </div>
