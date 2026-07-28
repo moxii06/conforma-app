@@ -79,6 +79,17 @@ export default async function DossierPage(
   return (
     <>
       <PageHeader title={`${dossier.contact.firstName} ${dossier.contact.lastName}`} subtitle={dossier.session.course.title} />
+      <div className="px-8 pt-3.5 flex items-center gap-3 text-[12px] text-slate">
+        <Link href={`/planning/${dossier.session.id}`} className="hover:text-ink hover:underline decoration-line">
+          {dossier.session.mode === "ROLLING"
+            ? "Voir la session (formation en continu) →"
+            : `Voir la session (${format(dossier.session.startsAt, "d MMM yyyy", { locale: fr })}) →`}
+        </Link>
+        <span className="text-line">·</span>
+        <Link href={`/formations/${dossier.session.course.id}`} className="hover:text-ink hover:underline decoration-line">
+          Voir la fiche formation →
+        </Link>
+      </div>
       <Tabs basePath={`/dossiers/${dossier.id}`} tabs={TABS} active={activeTab} />
       <div className="p-8 max-w-xl">
         {activeTab === "formations" ? (

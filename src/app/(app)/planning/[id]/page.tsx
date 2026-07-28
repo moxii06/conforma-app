@@ -313,9 +313,12 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                 <details key={d.id} className="border border-line rounded-md group">
                   <summary className="flex items-center gap-3 px-3.5 py-2.5 cursor-pointer list-none">
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13px] text-ink font-medium">
+                      <Link
+                        href={`/dossiers/${d.id}`}
+                        className="text-[13px] text-ink font-medium hover:underline decoration-line"
+                      >
                         {d.contact.firstName} {d.contact.lastName}
-                      </div>
+                      </Link>
                       {otherFormations.length > 0 && (
                         <div className="text-[11px] text-slate mt-0.5 truncate">
                           + {otherFormations.length} autre{otherFormations.length > 1 ? "s" : ""} formation

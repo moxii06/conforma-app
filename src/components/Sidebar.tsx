@@ -22,6 +22,7 @@ import {
 import { can, ROLE_LABELS, type SessionContext } from "@/lib/tenant";
 import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationBell } from "@/components/NotificationBell";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { getDashboardTasks } from "@/lib/dashboardTasks";
 
 // Each entry's `feature` key must match a key in PERMISSIONS
@@ -128,6 +129,11 @@ export async function Sidebar({
         </div>
         <div className="text-xs text-white/60 mt-1 pl-9">{brandSubtitle}</div>
       </div>
+      {can(user.role, "dashboard") !== "none" && (
+        <div className="px-2.5 pt-2.5 shrink-0">
+          <GlobalSearch />
+        </div>
+      )}
       {/* min-h-0 overrides the flex-item default of min-height:auto, which
           is what let 14 nav items push this taller than the viewport and
           shove the footer (user name + sign out) out of view instead of
