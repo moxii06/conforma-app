@@ -44,9 +44,19 @@ function buildOrderBy(sort?: string): Prisma.QuoteOrderByWithRelationInput | Pri
   }
 }
 
+// Parses a `?from=`/`?to=` URL param (yyyy-mm-dd, from an <input type="date">)
+// into a Date usable in a Prisma `createdAt` range filter — `to` is bumped to
+// the end of that calendar day so "01/07 au 31/07" actually includes every
+// invoice created on the 31st, not just up to midnight.
+function parseDateParam(value: string | undefined, endOfDay: boolean): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}`);
+  return isNaN(date.getTime()) ? undefined : date;
+}
+
 export default async function FacturationPage(
   props: {
-    searchParams: Promise<{ tab?: string; status?: string; sort?: string }>;
+    searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -56,6 +66,8 @@ export default async function FacturationPage(
   const activeTab = searchParams.tab ?? "devis";
   const statusFilter = searchParams.status && searchParams.status in DocStatus ? (searchParams.status as DocStatus) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
+  const dateFrom = parseDateParam(searchParams.from, false);
+  const dateTo = parseDateParam(searchParams.to, true);
 
   const [contacts, dossiers, pendingBankCount] = await Promise.all([
     prisma.contact.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true }, orderBy: { lastName: "asc" } }),
@@ -89,9 +101,9 @@ export default async function FacturationPage(
           <>
             <DocFilterBar />
             {activeTab === "factures" ? (
-              <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
+              <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} />
             ) : (
-              <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} />
+              <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} />
             )}
           </>
         )}
@@ -189,6 +201,8 @@ async function QuotesTab({
   dossierOptions,
   statusFilter,
   orderBy,
+  dateFrom,
+  dateTo,
 }: {
   organizationId: string;
   canWrite: boolean;
@@ -196,9 +210,15 @@ async function QuotesTab({
   dossierOptions: { id: string; label: string }[];
   statusFilter?: DocStatus;
   orderBy: Prisma.QuoteOrderByWithRelationInput;
+  dateFrom?: Date;
+  dateTo?: Date;
 }) {
   const quotes = await prisma.quote.findMany({
-    where: { organizationId, ...(statusFilter ? { status: statusFilter } : {}) },
+    where: {
+      organizationId,
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
+    },
     include: { contact: true },
     orderBy,
   });
@@ -233,6 +253,8 @@ async function InvoicesTab({
   dossierOptions,
   statusFilter,
   orderBy,
+  dateFrom,
+  dateTo,
 }: {
   organizationId: string;
   canWrite: boolean;
@@ -240,11 +262,14 @@ async function InvoicesTab({
   dossierOptions: { id: string; label: string }[];
   statusFilter?: DocStatus;
   orderBy: Prisma.InvoiceOrderByWithRelationInput;
+  dateFrom?: Date;
+  dateTo?: Date;
 }) {
   const [invoices, stripeConfigured] = await Promise.all([
     prisma.invoice.findMany({
       where: {
         organizationId,
+        ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
         // "En retard" (from DocFilterBar or the dashboard's "Factures en
         // retard" card) means the same auto-detected set as
         // dashboardTasks.ts and the dashboard total, not a strict status

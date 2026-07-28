@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Contact = { id: string; firstName: string; lastName: string; email: string; phone: string | null };
+type Contact = { id: string; firstName: string; lastName: string; email: string; phone: string | null; address: string | null };
 
 export function EditContactForm({ contact }: { contact: Contact }) {
   const router = useRouter();
@@ -12,6 +12,7 @@ export function EditContactForm({ contact }: { contact: Contact }) {
   const [lastName, setLastName] = useState(contact.lastName);
   const [email, setEmail] = useState(contact.email);
   const [phone, setPhone] = useState(contact.phone ?? "");
+  const [address, setAddress] = useState(contact.address ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,7 @@ export function EditContactForm({ contact }: { contact: Contact }) {
         lastName: lastName.trim(),
         email: email.trim(),
         phone: phone.trim() || null,
+        address: address.trim() || null,
       }),
     });
     setSaving(false);
@@ -57,6 +59,10 @@ export function EditContactForm({ contact }: { contact: Contact }) {
         <div>
           <div className="text-[11px] text-slate uppercase tracking-wide">Téléphone</div>
           <div className="text-[13px] text-ink">{contact.phone || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[11px] text-slate uppercase tracking-wide">Adresse</div>
+          <div className="text-[13px] text-ink">{contact.address || "—"}</div>
         </div>
         <button
           type="button"
@@ -96,6 +102,12 @@ export function EditContactForm({ contact }: { contact: Contact }) {
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="Téléphone (optionnel)"
+        className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+      />
+      <input
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+        placeholder="Adresse (optionnel)"
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
       />
       <div className="flex items-center gap-2.5 mt-1">

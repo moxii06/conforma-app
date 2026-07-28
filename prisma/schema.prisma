@@ -491,6 +491,11 @@ model Contact {
   lastName               String
   email                  String
   phone                  String?
+  // The person's own postal address — distinct from Company.address (the
+  // employer's business address, entered separately via EditCompanyForm).
+  // Single free-text field, same convention as Company.address, not split
+  // into street/postal/city.
+  address                String?
   company                Company?     @relation(fields: [companyId], references: [id])
   companyId              String?
   createdAt              DateTime     @default(now())
