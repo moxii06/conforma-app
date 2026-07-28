@@ -4,6 +4,13 @@ import { useState } from "react";
 
 export function NeedsAssessmentForm({ token }: { token: string }) {
   const [responseText, setResponseText] = useState("");
+  // Indicator 4 (and the pilot's own 2022 NC majeure): the needs analysis
+  // must take potential handicap situations into account at entry. The
+  // details are sensitive data (RGPD art. 9) — they are routed to the
+  // confidential accommodation channel server-side, never into the
+  // regular response text that all dossier-level staff can read.
+  const [adaptationNeeded, setAdaptationNeeded] = useState(false);
+  const [adaptationDetails, setAdaptationDetails] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -16,7 +23,11 @@ export function NeedsAssessmentForm({ token }: { token: string }) {
     const res = await fetch(`/api/public/needs-assessment/${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ responseText }),
+      body: JSON.stringify({
+        responseText,
+        adaptationNeeded,
+        adaptationDetails: adaptationNeeded && adaptationDetails ? adaptationDetails : undefined,
+      }),
     });
 
     setLoading(false);
@@ -48,6 +59,37 @@ export function NeedsAssessmentForm({ token }: { token: string }) {
         placeholder="Décrivez votre situation, vos objectifs et vos contraintes…"
         className="border border-line rounded-md px-3 py-2.5 text-[13px] text-ink outline-none focus:border-seal leading-relaxed"
       />
+
+      <div className="border-t border-line pt-3 flex flex-col gap-2">
+        <label className="flex items-start gap-2.5 text-[12.5px] text-ink cursor-pointer">
+          <input
+            type="checkbox"
+            checked={adaptationNeeded}
+            onChange={(e) => setAdaptationNeeded(e.target.checked)}
+            className="mt-0.5 accent-sage"
+          />
+          <span>
+            Je suis en situation de handicap ou j&apos;ai besoin d&apos;un aménagement particulier pour suivre la
+            formation.
+          </span>
+        </label>
+        {adaptationNeeded && (
+          <div className="flex flex-col gap-1.5 pl-6">
+            <textarea
+              value={adaptationDetails}
+              onChange={(e) => setAdaptationDetails(e.target.value)}
+              rows={3}
+              placeholder="Décrivez, si vous le souhaitez, votre situation et les aménagements qui vous aideraient…"
+              className="border border-line rounded-md px-3 py-2.5 text-[13px] text-ink outline-none focus:border-seal leading-relaxed"
+            />
+            <div className="text-[11px] text-slate">
+              Ces informations sont facultatives et confidentielles : elles ne sont transmises qu&apos;au référent
+              handicap de l&apos;organisme, qui vous contactera pour étudier les adaptations possibles.
+            </div>
+          </div>
+        )}
+      </div>
+
       <button
         type="submit"
         disabled={loading}

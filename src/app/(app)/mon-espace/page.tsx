@@ -36,13 +36,51 @@ export default async function MonEspacePage(props: { searchParams: Promise<{ tab
           activeTab === "documents" ? (
             <LearnerDocumentsTab userId={session.userId} organizationId={session.organizationId} />
           ) : (
-            <LearnerPortal userId={session.userId} organizationId={session.organizationId} />
+            <>
+              <LearnerPortal userId={session.userId} organizationId={session.organizationId} />
+              <ReferentHandicapCard organizationId={session.organizationId} />
+            </>
           )
         ) : (
           <TrainerPortal userId={session.userId} organizationId={session.organizationId} />
         )}
       </div>
     </>
+  );
+}
+
+// RNQ indicator 26 (and the practice the pilot's auditor accepted in
+// 2024) : the référent handicap's contact details must be reachable by
+// the learner from inside the platform, not just mentioned at enrollment.
+// Renders nothing when no referent is designated — the card must never
+// promise a contact that doesn't exist.
+async function ReferentHandicapCard({ organizationId }: { organizationId: string }) {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { referentHandicapUser: { select: { name: true, email: true } } },
+  });
+  if (!org?.referentHandicapUser) return null;
+  const referent = org.referentHandicapUser;
+  return (
+    <div className="mt-5 bg-linen border border-line rounded-card p-4">
+      <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-1">
+        Situation de handicap ou besoin d&apos;adaptation ?
+      </div>
+      <div className="text-[12.5px] text-ink">
+        Votre référent handicap : <span className="font-medium">{referent.name || referent.email}</span>
+        {referent.name && (
+          <>
+            {" — "}
+            <a href={`mailto:${referent.email}`} className="underline decoration-line hover:decoration-ink">
+              {referent.email}
+            </a>
+          </>
+        )}
+      </div>
+      <div className="text-[11.5px] text-slate mt-1">
+        Contactez-le en toute confidentialité pour étudier les aménagements possibles de votre formation.
+      </div>
+    </div>
   );
 }
 
