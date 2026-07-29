@@ -55,6 +55,53 @@ export function Pill({ children, tone = "neutral" }: { children: React.ReactNode
   );
 }
 
+// Initials avatar used by every identity/summary card (dossier, contact,
+// entreprise, session…) so they all read as the same family of screens.
+export function Avatar({ initials, size = "md" }: { initials: string; size?: "md" | "lg" }) {
+  const dims = size === "lg" ? "w-12 h-12 text-[17px]" : "w-10 h-10 text-[15px]";
+  return (
+    <div className={`${dims} rounded-lg bg-ink text-mist font-display flex items-center justify-center shrink-0`}>
+      {initials}
+    </div>
+  );
+}
+
+// One label/value line of an identity card's facts block.
+export function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3 text-[12.5px]">
+      <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5 shrink-0">{label}</span>
+      <span className="text-ink text-right min-w-0">{children}</span>
+    </div>
+  );
+}
+
+const BANNER_TONES: Record<string, string> = {
+  good: "bg-[#DEE5E0] border-[#c9d5cd] text-sage",
+  warn: "bg-[#EDDFC6] border-[#dccba8] text-seal-dark",
+  danger: "bg-[#E9D8D3] border-[#d9beb6] text-rust",
+};
+
+// Contextual status strip shown between the tabs and the page content —
+// one load-bearing fact about the record plus the action it points to,
+// never a stack of notifications.
+export function ContextBanner({
+  tone = "good",
+  children,
+  action,
+}: {
+  tone?: keyof typeof BANNER_TONES;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className={`mx-8 mt-4 flex items-center justify-between gap-3 border rounded-card px-4 py-2.5 text-[13px] ${BANNER_TONES[tone]}`}>
+      <span>{children}</span>
+      {action && <span className="shrink-0">{action}</span>}
+    </div>
+  );
+}
+
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between px-8 pt-5 pb-4 border-b border-line">

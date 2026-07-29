@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow, ContextBanner } from "@/components/ui";
 import { CheckCircle2, Circle } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -223,15 +223,17 @@ export default async function DossierPage(
       </div>
       <Tabs basePath={`/dossiers/${dossier.id}`} tabs={TABS} active={activeTab} />
       {dossier.contractSigned && (
-        <div className="mx-8 mt-4 flex items-center justify-between gap-3 bg-[#DEE5E0] border border-[#c9d5cd] rounded-card px-4 py-2.5 text-[13px] text-sage">
-          <span>
-            <strong className="font-semibold">Convention signée</strong> — session confirmée pour le{" "}
-            {format(dossier.session.startsAt, "d MMM yyyy", { locale: fr })}.
-          </span>
-          <Link href={`/dossiers/${dossier.id}?tab=documents`} className="text-ink font-semibold text-[12.5px] whitespace-nowrap hover:underline shrink-0">
-            Voir dans Documents →
-          </Link>
-        </div>
+        <ContextBanner
+          tone="good"
+          action={
+            <Link href={`/dossiers/${dossier.id}?tab=documents`} className="text-ink font-semibold text-[12.5px] whitespace-nowrap hover:underline">
+              Voir dans Documents →
+            </Link>
+          }
+        >
+          <strong className="font-semibold">Convention signée</strong> — session confirmée pour le{" "}
+          {format(dossier.session.startsAt, "d MMM yyyy", { locale: fr })}.
+        </ContextBanner>
       )}
       <div className={activeTab === "formations" ? "p-8 max-w-5xl" : "p-8 max-w-xl"}>
         {activeTab === "formations" ? (
@@ -406,9 +408,7 @@ async function FormationsTab({
     <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 items-start">
       {current && (
         <div className="bg-white border border-line rounded-card p-5 lg:sticky lg:top-6">
-          <div className="w-10 h-10 rounded-lg bg-ink text-mist font-display text-[15px] flex items-center justify-center">
-            {initials}
-          </div>
+          <Avatar initials={initials} />
           <div className="font-display text-[18px] text-ink mt-3">
             {contact.firstName} {contact.lastName}
           </div>
@@ -430,28 +430,16 @@ async function FormationsTab({
             </div>
           )}
           <div className="mt-4 pt-4 border-t border-line flex flex-col gap-2.5">
-            {contact.company && (
-              <div className="flex justify-between gap-3 text-[12.5px]">
-                <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Entreprise</span>
-                <span className="text-ink text-right">{contact.company.name}</span>
-              </div>
-            )}
-            <div className="flex justify-between gap-3 text-[12.5px]">
-              <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Formateur</span>
-              <span className="text-ink text-right">{current.session.trainer?.name ?? "Non assigné"}</span>
-            </div>
-            <div className="flex justify-between gap-3 text-[12.5px]">
-              <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Session</span>
-              <span className="text-ink text-right">
-                {current.session.mode === "ROLLING"
-                  ? "Formation en continu"
-                  : `${format(current.session.startsAt, "d MMM yyyy", { locale: fr })} · ${FORMAT_LABELS[current.session.format] ?? current.session.format}`}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3 text-[12.5px]">
-              <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Email</span>
-              <span className="text-ink text-right break-all">{contact.email}</span>
-            </div>
+            {contact.company && <InfoRow label="Entreprise">{contact.company.name}</InfoRow>}
+            <InfoRow label="Formateur">{current.session.trainer?.name ?? "Non assigné"}</InfoRow>
+            <InfoRow label="Session">
+              {current.session.mode === "ROLLING"
+                ? "Formation en continu"
+                : `${format(current.session.startsAt, "d MMM yyyy", { locale: fr })} · ${FORMAT_LABELS[current.session.format] ?? current.session.format}`}
+            </InfoRow>
+            <InfoRow label="Email">
+              <span className="break-all">{contact.email}</span>
+            </InfoRow>
           </div>
         </div>
       )}
