@@ -167,9 +167,74 @@ export function SendDocumentDialog({
     );
   }
 
+  // Shared between the two-column "template" layout (Document | Diffusion)
+  // and the single-column "upload" layout, so neither duplicates the field.
+  const titleInput = (
+    <input
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      placeholder="Titre du document"
+      required
+      className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+    />
+  );
+
+  const messageField = (
+    <div className="flex flex-col gap-1">
+      <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
+      <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
+      <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
+    </div>
+  );
+
+  const requiresSignatureField = (
+    <div className="flex flex-col gap-2">
+      <label className="flex items-center gap-2 text-[12px] text-ink">
+        <input
+          type="checkbox"
+          checked={requiresSignature}
+          onChange={(e) => setRequiresSignature(e.target.checked)}
+          className="accent-sage"
+        />
+        Demander une signature électronique pour ce document
+      </label>
+      {requiresSignature && (
+        <div className="text-[11px] text-slate bg-linen rounded-md px-2.5 py-2">
+          Après l&apos;envoi : <span className="text-seal-dark font-medium">en attente de signature</span> → <span className="text-sage font-medium">signé</span>. Le lien de signature est inclus dans l&apos;email.
+        </div>
+      )}
+    </div>
+  );
+
+  const sendButtons = (
+    <div className="flex items-center gap-2.5">
+      <button
+        type="submit"
+        disabled={sending || !title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
+        className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+      >
+        {sending ? "Envoi…" : "Envoyer au client"}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(false);
+          reset();
+        }}
+        className="text-[12.5px] text-slate hover:text-ink"
+      >
+        Annuler
+      </button>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
+      <div
+        className={`bg-white rounded-card border border-line w-full ${
+          mode === "template" && !(pending && pending.length > 0) ? "max-w-2xl" : "max-w-lg"
+        } max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5`}
+      >
         <div className="flex items-center justify-between">
           <div className="text-[13.5px] font-semibold text-ink">Envoyer un document</div>
           <button
@@ -267,19 +332,13 @@ export function SendDocumentDialog({
                   {loadingPreview ? "…" : "Continuer"}
                 </button>
               </div>
-            ) : (
-              <>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Titre du document"
-                  required
-                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-                />
-
-                {mode === "template" ? (
+            ) : mode === "template" ? (
+              <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] gap-5">
+                <div className="flex flex-col gap-2">
+                  <div className="text-[11px] text-slate uppercase tracking-wide">Document</div>
+                  {titleInput}
                   <div className="flex flex-col gap-1">
-                    <div className="text-[11px] text-slate uppercase tracking-wide">Contenu du document (PDF envoyé en pièce jointe)</div>
+                    <div className="text-[11px] text-slate uppercase tracking-wide">Contenu (PDF envoyé en pièce jointe)</div>
                     <RichTextEditor
                       html={bodyHtml}
                       onChange={setBodyHtml}
@@ -287,63 +346,39 @@ export function SendDocumentDialog({
                       placeholder={loadingPreview ? "Chargement…" : "Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."}
                     />
                   </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-                    >
-                      {DOCUMENT_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {CATEGORY_LABELS[c]}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="file"
-                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                      required
-                      className="text-[12px] text-ink"
-                    />
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-1">
-                  <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
-                  <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
-                  <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
                 </div>
-
-                <label className="flex items-center gap-2 text-[12px] text-ink">
+                <div className="flex flex-col gap-3 md:border-l md:border-line md:pl-5">
+                  <div className="text-[11px] text-slate uppercase tracking-wide">Diffusion</div>
+                  {messageField}
+                  {requiresSignatureField}
+                  {sendButtons}
+                </div>
+              </div>
+            ) : (
+              <>
+                {titleInput}
+                <div className="flex flex-col gap-2">
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                  >
+                    {DOCUMENT_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {CATEGORY_LABELS[c]}
+                      </option>
+                    ))}
+                  </select>
                   <input
-                    type="checkbox"
-                    checked={requiresSignature}
-                    onChange={(e) => setRequiresSignature(e.target.checked)}
-                    className="accent-sage"
+                    type="file"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    required
+                    className="text-[12px] text-ink"
                   />
-                  Demander une signature électronique pour ce document
-                </label>
-
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={sending || !title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
-                    className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-                  >
-                    {sending ? "Envoi…" : "Envoyer au client"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      reset();
-                    }}
-                    className="text-[12.5px] text-slate hover:text-ink"
-                  >
-                    Annuler
-                  </button>
                 </div>
+                {messageField}
+                {requiresSignatureField}
+                {sendButtons}
               </>
             )}
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
