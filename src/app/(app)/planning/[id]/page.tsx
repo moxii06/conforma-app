@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow, ContextBanner } from "@/components/ui";
 import { requireSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -141,96 +141,109 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   }
   const defaultConvocationSubject = `Convocation — ${courseTitle} du ${dateLabel}`;
 
+  const statusPill = (
+    <Pill tone={isCancelled ? "danger" : isManuallyArchived ? "neutral" : isPast ? "warn" : isValidated ? "good" : "warn"}>
+      {isCancelled ? "Annulée" : isManuallyArchived ? "Archivée" : isPast ? "Terminée" : isValidated ? "Validée" : "Brouillon"}
+    </Pill>
+  );
+  // Skip pure-punctuation "words" (em-dashes in titles like "Excel — niveau 2").
+  const courseInitials = session.course.title
+    .split(/\s+/)
+    .filter((w) => /[\p{L}\p{N}]/u.test(w))
+    .slice(0, 2)
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase();
+
   return (
     <>
       <PageHeader title={session.course.title} subtitle={`${format(session.startsAt, "EEEE d MMMM yyyy", { locale: fr })} · ${FORMAT_LABELS[session.format]}`} />
-      <div className="p-8 flex flex-col gap-5 max-w-3xl">
-        <div className="bg-white border border-line rounded-card p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Pill tone={isCancelled ? "danger" : isManuallyArchived ? "neutral" : isPast ? "warn" : isValidated ? "good" : "warn"}>
-                {isCancelled ? "Annulée" : isManuallyArchived ? "Archivée" : isPast ? "Terminée" : isValidated ? "Validée" : "Brouillon"}
-              </Pill>
-              {isFull && !isCancelled && <Pill tone="neutral">Complet</Pill>}
-            </div>
-            {canEdit && (
-              <div className="flex items-center gap-3">
-                {!isReadOnly && (
-                  <>
-                    <EditSessionForm
-                      sessionId={session.id}
-                      trainers={trainers}
-                      initial={{
-                        trainerId: session.trainerId,
-                        startsAt: session.startsAt,
-                        endsAt: session.endsAt,
-                        format: session.format,
-                        location: session.location,
-                        capacity: session.capacity,
-                      }}
-                    />
-                    <ValidateSessionButton sessionId={session.id} isValidated={isValidated} />
-                    <CancelSessionButton sessionId={session.id} />
-                  </>
-                )}
-                <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />
-              </div>
-            )}
+      {isCancelled ? (
+        <ContextBanner tone="danger">
+          <strong className="font-semibold">Session annulée</strong> — la liste des inscrits est figée, aucune convocation ne peut partir.
+        </ContextBanner>
+      ) : !isValidated && !isPast ? (
+        <ContextBanner tone="warn">
+          <strong className="font-semibold">Session en brouillon</strong> — validez-la pour activer l&apos;envoi des convocations.
+        </ContextBanner>
+      ) : isPast && !isManuallyArchived ? (
+        <ContextBanner tone="warn">
+          <strong className="font-semibold">Session terminée</strong> — vérifiez la clôture ci-dessous avant d&apos;archiver.
+        </ContextBanner>
+      ) : null}
+      <div className="p-8 max-w-5xl">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5 items-start">
+        <div className="bg-white border border-line rounded-card p-5 lg:sticky lg:top-6">
+          <Avatar initials={courseInitials} />
+          <div className="font-display text-[18px] text-ink mt-3 leading-snug">{session.course.title}</div>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {statusPill}
+            {isFull && !isCancelled && <Pill tone="neutral">Complet</Pill>}
           </div>
-          <div className="flex items-center gap-6 text-[12.5px]">
-            <div>
-              <div className="text-slate mb-1">Horaires</div>
-              <div className="text-ink font-medium">
-                {format(session.startsAt, "HH:mm")}–{format(session.endsAt, "HH:mm")}
-              </div>
-            </div>
-            <div>
-              <div className="text-slate mb-1">Formateur</div>
-              <div className="text-ink font-medium">{session.trainer?.name ?? "À assigner"}</div>
-            </div>
-            <div>
-              <div className="text-slate mb-1">Lieu</div>
-              <div className="text-ink font-medium">{session.location ?? "Non renseigné"}</div>
-            </div>
-            <div>
-              <div className="text-slate mb-1">Places</div>
-              <div className="text-ink font-medium">
-                {session.dossiers.length}/{session.capacity}
-                {isFull && !isCancelled && <span className="text-rust"> · Complet</span>}
-              </div>
+
+          <div className="mt-4">
+            <div className="text-[12px] text-slate mb-1">Places</div>
+            <div className={`text-2xl font-mono font-semibold tabular-nums ${isFull && !isCancelled ? "text-rust" : "text-ink"}`}>
+              {session.dossiers.length}/{session.capacity}
             </div>
           </div>
 
-          {(isRemote || isInPerson) && (
-            <div className="mt-4 pt-4 border-t border-line flex flex-col gap-2 text-[12.5px]">
-              {isRemote && (
-                <div className="flex items-center gap-2">
-                  <Pill tone="neutral">Visio</Pill>
-                  {session.meetingLink ? (
-                    <a href={session.meetingLink} target="_blank" rel="noreferrer" className="text-ink underline decoration-line hover:decoration-ink truncate">
-                      {session.meetingLink}
-                    </a>
-                  ) : (
-                    <span className="text-slate">Généré automatiquement au premier envoi d&apos;invitation</span>
-                  )}
-                </div>
+          <div className="mt-4 pt-4 border-t border-line flex flex-col gap-2.5">
+            <InfoRow label="Horaires">
+              {format(session.startsAt, "HH:mm")}–{format(session.endsAt, "HH:mm")}
+            </InfoRow>
+            <InfoRow label="Formateur">{session.trainer?.name ?? "À assigner"}</InfoRow>
+            <InfoRow label="Format">{FORMAT_LABELS[session.format]}</InfoRow>
+            {isInPerson && (
+              <InfoRow label="Lieu">
+                {mapLink ? (
+                  <a href={mapLink} target="_blank" rel="noreferrer" className="underline decoration-line hover:decoration-ink">
+                    {session.location}
+                  </a>
+                ) : (
+                  "Non renseigné"
+                )}
+              </InfoRow>
+            )}
+            {isRemote && (
+              <InfoRow label="Visio">
+                {session.meetingLink ? (
+                  <a href={session.meetingLink} target="_blank" rel="noreferrer" className="underline decoration-line hover:decoration-ink break-all">
+                    Lien de connexion
+                  </a>
+                ) : (
+                  "Généré au premier envoi"
+                )}
+              </InfoRow>
+            )}
+          </div>
+
+          {canEdit && (
+            <div className="mt-4 pt-4 border-t border-line flex items-center gap-3 flex-wrap">
+              {!isReadOnly && (
+                <>
+                  <EditSessionForm
+                    sessionId={session.id}
+                    trainers={trainers}
+                    initial={{
+                      trainerId: session.trainerId,
+                      startsAt: session.startsAt,
+                      endsAt: session.endsAt,
+                      format: session.format,
+                      location: session.location,
+                      capacity: session.capacity,
+                    }}
+                  />
+                  <ValidateSessionButton sessionId={session.id} isValidated={isValidated} />
+                  <CancelSessionButton sessionId={session.id} />
+                </>
               )}
-              {isInPerson && (
-                <div className="flex items-center gap-2">
-                  <Pill tone="neutral">Lieu</Pill>
-                  {mapLink ? (
-                    <a href={mapLink} target="_blank" rel="noreferrer" className="text-ink underline decoration-line hover:decoration-ink">
-                      Voir l&apos;itinéraire
-                    </a>
-                  ) : (
-                    <span className="text-slate">Adresse non renseignée sur la session</span>
-                  )}
-                </div>
-              )}
+              <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />
             </div>
           )}
         </div>
 
+        <div className="flex flex-col gap-5">
         {canEdit && !isReadOnly && (
           <div className="bg-white border border-line rounded-card p-5">
             <div className="text-[13.5px] font-semibold text-ink mb-3.5">Ajouter un apprenant</div>
@@ -383,6 +396,8 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
             })}
             {session.dossiers.length === 0 && <div className="text-[12.5px] text-slate">Aucun apprenant inscrit.</div>}
           </div>
+        </div>
+        </div>
         </div>
       </div>
     </>
