@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Contact = { id: string; firstName: string; lastName: string; email: string; phone: string | null; address: string | null };
 
-export function EditContactForm({ contact }: { contact: Contact }) {
+export function EditContactForm({ contact, title }: { contact: Contact; title: string }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [firstName, setFirstName] = useState(contact.firstName);
@@ -41,42 +41,58 @@ export function EditContactForm({ contact }: { contact: Contact }) {
     router.refresh();
   }
 
-  if (!editing) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <div>
-          <div className="text-[11px] text-slate uppercase tracking-wide">Prénom</div>
-          <div className="text-[13px] text-ink">{contact.firstName}</div>
-        </div>
-        <div>
-          <div className="text-[11px] text-slate uppercase tracking-wide">Nom</div>
-          <div className="text-[13px] text-ink">{contact.lastName}</div>
-        </div>
-        <div>
-          <div className="text-[11px] text-slate uppercase tracking-wide">Email</div>
-          <div className="text-[13px] text-ink">{contact.email}</div>
-        </div>
-        <div>
-          <div className="text-[11px] text-slate uppercase tracking-wide">Téléphone</div>
-          <div className="text-[13px] text-ink">{contact.phone || "—"}</div>
-        </div>
-        <div>
-          <div className="text-[11px] text-slate uppercase tracking-wide">Adresse</div>
-          <div className="text-[13px] text-ink">{contact.address || "—"}</div>
-        </div>
+  // Client feedback: "Modifier" used to sit below every field, easy to
+  // miss — it's now on the same row as the card's own title, the first
+  // place someone looks for an edit action.
+  const header = (
+    <div className="flex items-center justify-between mb-3">
+      <div className="text-[13.5px] font-semibold text-ink">{title}</div>
+      {!editing && (
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink self-start mt-1"
+          className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink"
         >
           Modifier
         </button>
-      </div>
+      )}
+    </div>
+  );
+
+  if (!editing) {
+    return (
+      <>
+        {header}
+        <div className="flex flex-col gap-1.5">
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Prénom</div>
+            <div className="text-[13px] text-ink">{contact.firstName}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Nom</div>
+            <div className="text-[13px] text-ink">{contact.lastName}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Email</div>
+            <div className="text-[13px] text-ink">{contact.email}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Téléphone</div>
+            <div className="text-[13px] text-ink">{contact.phone || "—"}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Adresse</div>
+            <div className="text-[13px] text-ink">{contact.address || "—"}</div>
+          </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <>
+      {header}
+      <div className="flex flex-col gap-1.5">
       <div className="flex gap-1.5">
         <input
           value={firstName}
@@ -124,6 +140,7 @@ export function EditContactForm({ contact }: { contact: Contact }) {
         </button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
-    </div>
+      </div>
+    </>
   );
 }

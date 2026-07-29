@@ -19,10 +19,12 @@ export function EditLearnerCategoryForm({
   contactId,
   learnerCategory,
   company,
+  title,
 }: {
   contactId: string;
   learnerCategory: string | null;
   company: Company | null;
+  title: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -64,38 +66,50 @@ export function EditLearnerCategoryForm({
     router.refresh();
   }
 
-  if (!editing) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <div className="text-[13px] text-ink">{LEARNER_CATEGORY_LABELS[learnerCategory ?? "unset"]}</div>
+  const header = (
+    <div className="flex items-center justify-between mb-3">
+      <div className="text-[13.5px] font-semibold text-ink">{title}</div>
+      {!editing && (
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink self-start mt-1"
+          className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink"
         >
           Modifier
         </button>
-      </div>
+      )}
+    </div>
+  );
+
+  if (!editing) {
+    return (
+      <>
+        {header}
+        <div className="text-[13px] text-ink">{LEARNER_CATEGORY_LABELS[learnerCategory ?? "unset"]}</div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <LearnerCategoryFields category={category} onCategoryChange={setCategory} company={companyFields} onCompanyChange={setCompanyFields} />
-      <div className="flex items-center gap-2.5 mt-1">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-        >
-          {saving ? "…" : "Enregistrer"}
-        </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-[12px] text-slate hover:text-ink">
-          Annuler
-        </button>
+    <>
+      {header}
+      <div className="flex flex-col gap-1.5">
+        <LearnerCategoryFields category={category} onCategoryChange={setCategory} company={companyFields} onCompanyChange={setCompanyFields} />
+        <div className="flex items-center gap-2.5 mt-1">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+          >
+            {saving ? "…" : "Enregistrer"}
+          </button>
+          <button type="button" onClick={() => setEditing(false)} className="text-[12px] text-slate hover:text-ink">
+            Annuler
+          </button>
+        </div>
+        {error && <div className="text-[12px] text-rust">{error}</div>}
       </div>
-      {error && <div className="text-[12px] text-rust">{error}</div>}
-    </div>
+    </>
   );
 }

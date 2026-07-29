@@ -313,13 +313,11 @@ function InfoTab({
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-white border border-line rounded-card p-5">
-        <div className="text-[13.5px] font-semibold text-ink mb-3">Coordonnées</div>
-        <EditContactForm contact={dossier.contact} />
+        <EditContactForm contact={dossier.contact} title="Coordonnées" />
       </div>
       {dossier.contact.company && (
         <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13.5px] font-semibold text-ink mb-3">Société</div>
-          <EditCompanyForm company={dossier.contact.company} />
+          <EditCompanyForm company={dossier.contact.company} title="Société" />
         </div>
       )}
       {canEditCategory && (

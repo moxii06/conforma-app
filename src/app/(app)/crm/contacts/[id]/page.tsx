@@ -157,19 +157,24 @@ export default async function ContactRecordPage(
         ) : (
           <>
             <div className="bg-white border border-line rounded-card p-5">
-              <div className="text-[13.5px] font-semibold text-ink mb-3">Coordonnées</div>
-              <EditContactForm contact={{ id: contact.id, firstName: contact.firstName, lastName: contact.lastName, email: contact.email, phone: contact.phone, address: contact.address }} />
+              <EditContactForm
+                contact={{ id: contact.id, firstName: contact.firstName, lastName: contact.lastName, email: contact.email, phone: contact.phone, address: contact.address }}
+                title="Coordonnées"
+              />
             </div>
 
             <div className="bg-white border border-line rounded-card p-5">
-              <div className="text-[13.5px] font-semibold text-ink mb-3">Catégorie apprenant (BPF)</div>
-              <EditLearnerCategoryForm contactId={contact.id} learnerCategory={contact.defaultLearnerCategory} company={contact.company} />
+              <EditLearnerCategoryForm
+                contactId={contact.id}
+                learnerCategory={contact.defaultLearnerCategory}
+                company={contact.company}
+                title="Catégorie apprenant (BPF)"
+              />
             </div>
 
             {contact.company && (
               <div className="bg-white border border-line rounded-card p-5">
-                <div className="text-[13.5px] font-semibold text-ink mb-3">Société</div>
-                <EditCompanyForm company={contact.company} />
+                <EditCompanyForm company={contact.company} title="Société" />
               </div>
             )}
 

@@ -14,7 +14,7 @@ type Company = {
   responsablePhone: string | null;
 };
 
-export function EditCompanyForm({ company }: { company: Company }) {
+export function EditCompanyForm({ company, title }: { company: Company; title: string }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(company.name);
@@ -54,32 +54,45 @@ export function EditCompanyForm({ company }: { company: Company }) {
     router.refresh();
   }
 
-  if (!editing) {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <div className="text-[13px] text-ink">{company.name}</div>
-        {company.siret && <div className="text-[12px] text-slate">SIRET {company.siret}</div>}
-        {company.address && <div className="text-[12px] text-slate">{company.address}</div>}
-        {(company.responsableFirstName || company.responsableLastName) && (
-          <div className="text-[12.5px] text-ink mt-1.5">
-            Responsable : {company.responsableFirstName} {company.responsableLastName}
-          </div>
-        )}
-        {company.responsableEmail && <div className="text-[12px] text-slate">{company.responsableEmail}</div>}
-        {company.responsablePhone && <div className="text-[12px] text-slate">{company.responsablePhone}</div>}
+  const header = (
+    <div className="flex items-center justify-between mb-3">
+      <div className="text-[13.5px] font-semibold text-ink">{title}</div>
+      {!editing && (
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink self-start mt-1"
+          className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink"
         >
           Modifier
         </button>
-      </div>
+      )}
+    </div>
+  );
+
+  if (!editing) {
+    return (
+      <>
+        {header}
+        <div className="flex flex-col gap-1.5">
+          <div className="text-[13px] text-ink">{company.name}</div>
+          {company.siret && <div className="text-[12px] text-slate">SIRET {company.siret}</div>}
+          {company.address && <div className="text-[12px] text-slate">{company.address}</div>}
+          {(company.responsableFirstName || company.responsableLastName) && (
+            <div className="text-[12.5px] text-ink mt-1.5">
+              Responsable : {company.responsableFirstName} {company.responsableLastName}
+            </div>
+          )}
+          {company.responsableEmail && <div className="text-[12px] text-slate">{company.responsableEmail}</div>}
+          {company.responsablePhone && <div className="text-[12px] text-slate">{company.responsablePhone}</div>}
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <>
+      {header}
+      <div className="flex flex-col gap-1.5">
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -142,6 +155,7 @@ export function EditCompanyForm({ company }: { company: Company }) {
         </button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
-    </div>
+      </div>
+    </>
   );
 }
