@@ -26,7 +26,7 @@ import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { DossierFundingPanel } from "@/components/DossierFundingPanel";
-import { resolveDossierPriceCents, computeFundingReadiness } from "@/lib/funding";
+import { resolveDossierPriceCents, computeFundingReadiness, computeFundingSummary, formatCents } from "@/lib/funding";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -36,6 +36,28 @@ const OUTREACH_LABELS: Record<string, string> = {
 };
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
+
+// LEARNER_CATEGORY_LABELS is the BPF grouping vocabulary ("Salariés",
+// plural) — a pill describing one person needs the singular.
+const LEARNER_CATEGORY_PILL: Record<string, string> = {
+  employee: "Salarié",
+  jobseeker: "Demandeur d'emploi",
+  individual: "Particulier",
+  apprentice: "Apprenti",
+};
+
+// FUNDER_TYPE_LABELS spells out "CPF (Caisse des Dépôts)" — too long for a
+// pill that joins several sources ("CPF + OPCO").
+const FUNDER_SHORT_LABELS: Record<string, string> = {
+  opco: "OPCO",
+  cpf: "CPF",
+  france_travail: "France Travail",
+  agefice: "AGEFICE",
+  company: "Entreprise",
+  individual: "Particulier",
+  public: "Public",
+  other: "Autre",
+};
 
 const BASE_TABS = [
   { key: "info", label: "Info" },
@@ -153,6 +175,28 @@ export default async function DossierPage(
     });
   }
 
+  // Feeds the identity card in the Formations tab — money data, so gated
+  // by the same canSeeFunding as the Financement tab, never rendered for
+  // roles that can't see invoicing.
+  const identityFunding = canSeeFunding
+    ? (() => {
+        const summary = computeFundingSummary(
+          resolveDossierPriceCents(dossier, dossier.session.course),
+          fundingCommitments.map((c) => ({
+            amountCents: c.amountCents,
+            status: c.status,
+            subrogation: c.subrogation,
+            validUntil: c.validUntil,
+          })),
+        );
+        return {
+          totalCents: summary.totalCents,
+          remainderCents: summary.remainderCents,
+          funderTypes: [...new Set(fundingCommitments.map((c) => c.funder.type))],
+        };
+      })()
+    : null;
+
   const members = canManageEmail
     ? await prisma.user.findMany({
         where: { organizationId, status: "active", role: { not: Role.LEARNER } },
@@ -189,7 +233,7 @@ export default async function DossierPage(
           </Link>
         </div>
       )}
-      <div className="p-8 max-w-xl">
+      <div className={activeTab === "formations" ? "p-8 max-w-5xl" : "p-8 max-w-xl"}>
         {activeTab === "formations" ? (
           <FormationsTab
             contactId={dossier.contactId}
@@ -199,6 +243,7 @@ export default async function DossierPage(
             userId={userId}
             canManageOutreach={can(role, "dossiers") !== "none"}
             signatureHtml={signatureHtml}
+            funding={identityFunding}
           />
         ) : activeTab === "emails" ? (
           <EmailsTab contactId={dossier.contactId} dossierId={dossier.id} canManageEmail={canManageEmail} members={members} />
@@ -310,6 +355,7 @@ async function FormationsTab({
   userId,
   canManageOutreach,
   signatureHtml,
+  funding,
 }: {
   contactId: string;
   organizationId: string;
@@ -318,6 +364,7 @@ async function FormationsTab({
   userId: string;
   canManageOutreach: boolean;
   signatureHtml: string;
+  funding: { totalCents: number; remainderCents: number; funderTypes: string[] } | null;
 }) {
   const dossiers = await prisma.dossier.findMany({
     where: { contactId, organizationId },
@@ -328,7 +375,10 @@ async function FormationsTab({
   const now = new Date();
 
   const [contact, allDocuments, allSurveyResponses, allOutreaches, templates] = await Promise.all([
-    prisma.contact.findUniqueOrThrow({ where: { id: contactId }, select: { firstName: true } }),
+    prisma.contact.findUniqueOrThrow({
+      where: { id: contactId },
+      select: { firstName: true, lastName: true, email: true, company: { select: { name: true } } },
+    }),
     prisma.document.findMany({ where: { dossierId: { in: dossierIds } }, orderBy: { createdAt: "desc" } }),
     prisma.satisfactionSurveyResponse.findMany({
       where: { dossierId: { in: dossierIds }, status: "completed" },
@@ -344,8 +394,69 @@ async function FormationsTab({
       : Promise.resolve([]),
   ]);
 
+  const current = dossiers.find((d) => d.id === currentDossierId);
+  const initials = `${contact.firstName[0] ?? ""}${contact.lastName[0] ?? ""}`.toUpperCase();
+  const categoryPill = current?.learnerCategory ? LEARNER_CATEGORY_PILL[current.learnerCategory] : null;
+  const funderPill =
+    funding && funding.funderTypes.length > 0
+      ? funding.funderTypes.map((t) => FUNDER_SHORT_LABELS[t] ?? t).join(" + ")
+      : null;
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 items-start">
+      {current && (
+        <div className="bg-white border border-line rounded-card p-5 lg:sticky lg:top-6">
+          <div className="w-10 h-10 rounded-lg bg-ink text-mist font-display text-[15px] flex items-center justify-center">
+            {initials}
+          </div>
+          <div className="font-display text-[18px] text-ink mt-3">
+            {contact.firstName} {contact.lastName}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {categoryPill && <Pill tone="neutral">{categoryPill}</Pill>}
+            {funderPill && <Pill tone="warn">{funderPill}</Pill>}
+          </div>
+          {funding && (
+            <div className="mt-4">
+              <div className="text-[12px] text-slate mb-1">Montant formation</div>
+              <div className="text-2xl font-mono font-semibold tabular-nums text-ink">
+                {funding.totalCents > 0 ? formatCents(funding.totalCents) : "—"}
+              </div>
+              {funding.totalCents > 0 && funding.remainderCents > 0 && funding.remainderCents < funding.totalCents && (
+                <div className="text-[11.5px] text-slate mt-1">
+                  dont {formatCents(funding.remainderCents)} reste à charge client
+                </div>
+              )}
+            </div>
+          )}
+          <div className="mt-4 pt-4 border-t border-line flex flex-col gap-2.5">
+            {contact.company && (
+              <div className="flex justify-between gap-3 text-[12.5px]">
+                <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Entreprise</span>
+                <span className="text-ink text-right">{contact.company.name}</span>
+              </div>
+            )}
+            <div className="flex justify-between gap-3 text-[12.5px]">
+              <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Formateur</span>
+              <span className="text-ink text-right">{current.session.trainer?.name ?? "Non assigné"}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-[12.5px]">
+              <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Session</span>
+              <span className="text-ink text-right">
+                {current.session.mode === "ROLLING"
+                  ? "Formation en continu"
+                  : `${format(current.session.startsAt, "d MMM yyyy", { locale: fr })} · ${FORMAT_LABELS[current.session.format] ?? current.session.format}`}
+              </span>
+            </div>
+            <div className="flex justify-between gap-3 text-[12.5px]">
+              <span className="text-slate uppercase text-[10.5px] tracking-wide font-semibold pt-0.5">Email</span>
+              <span className="text-ink text-right break-all">{contact.email}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
       <div className="text-[12px] text-slate">
         {dossiers.length} formation{dossiers.length > 1 ? "s" : ""} pour {contact.firstName}.
       </div>
@@ -520,6 +631,7 @@ async function FormationsTab({
           </CollapsibleSection>
         );
       })}
+      </div>
     </div>
   );
 }
