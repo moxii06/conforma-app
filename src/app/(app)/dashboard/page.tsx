@@ -159,7 +159,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Tableau de bord" subtitle="Vue d'ensemble" />
+      <PageHeader title="Tableau de bord" subtitle={`Vue d'ensemble · ${format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}`} />
       <div className="p-8 flex flex-col gap-5">
         {subscription?.status === "trialing" && subscription.trialEndsAt && (
           <TrialBanner plan={subscription.plan} trialEndsAt={subscription.trialEndsAt} />
@@ -192,19 +192,30 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div className="flex gap-3.5">
-          <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} />
-          <MetricCard label="Non-conformités ouvertes" value={String(openNonConformities)} />
+        <div className="flex flex-col gap-2">
+          <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Activité</div>
+          <div className="flex gap-3.5">
+            <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} href="/planning" />
+            <MetricCard
+              label="Non-conformités ouvertes"
+              value={String(openNonConformities)}
+              tone={openNonConformities > 0 ? "danger" : "ink"}
+              href="/qualiopi"
+            />
+          </div>
         </div>
 
-        <div className="flex gap-3.5">
-          <div className="bg-white border border-line rounded-card p-4 flex-1">
-            <div className="text-[12.5px] text-slate mb-3">Pipeline commercial par étape</div>
-            <BarChart data={pipelineData} color="#8C6B2E" />
-          </div>
-          <div className="bg-white border border-line rounded-card p-4 flex-1">
-            <div className="text-[12.5px] text-slate mb-3">Sessions programmées (6 prochaines semaines)</div>
-            <BarChart data={weekBuckets.map((w) => ({ label: w.label, value: w.value }))} color="#4B6358" />
+        <div className="flex flex-col gap-2">
+          <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Pilotage</div>
+          <div className="flex gap-3.5">
+            <div className="bg-white border border-line rounded-card p-4 flex-1">
+              <div className="text-[12.5px] text-slate mb-3">Pipeline commercial par étape</div>
+              <BarChart data={pipelineData} color="#8C6B2E" />
+            </div>
+            <div className="bg-white border border-line rounded-card p-4 flex-1">
+              <div className="text-[12.5px] text-slate mb-3">Sessions programmées (6 prochaines semaines)</div>
+              <BarChart data={weekBuckets.map((w) => ({ label: w.label, value: w.value }))} color="#4B6358" />
+            </div>
           </div>
         </div>
 
