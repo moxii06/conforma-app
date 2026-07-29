@@ -10,6 +10,15 @@ export const LEARNER_CATEGORY_LABELS: Record<string, string> = {
   unset: "Non renseigné",
 };
 
+// Singular variants for pills describing one person — the BPF labels above
+// are grouping headings ("Salariés"), wrong on an individual's card.
+export const LEARNER_CATEGORY_SINGULAR: Record<string, string> = {
+  employee: "Salarié",
+  jobseeker: "Demandeur d'emploi",
+  individual: "Particulier",
+  apprentice: "Apprenti",
+};
+
 export const FUNDING_ORIGIN_LABELS: Record<string, string> = {
   company: "Entreprise",
   opco: "OPCO",

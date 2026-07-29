@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow } from "@/components/ui";
 import { PipelineStage, DocStatus, Role } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -12,7 +12,7 @@ import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { EditContactForm } from "@/components/EditContactForm";
 import { EditLearnerCategoryForm } from "@/components/EditLearnerCategoryForm";
-import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
+import { LEARNER_CATEGORY_LABELS, LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCategories";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -53,6 +53,7 @@ function formatAmount(cents: number | null) {
 
 const TABS = [
   { key: "info", label: "Info" },
+  { key: "activite", label: "Activité" },
   { key: "emails", label: "Emails" },
   { key: "documents", label: "Documents & envois" },
 ];
@@ -98,6 +99,10 @@ export default async function ContactRecordPage(
   const totalPaid = contact.invoices.filter((i) => i.status === "PAID").reduce((sum, i) => sum + i.amountCents, 0);
   const totalDue = contact.invoices.filter((i) => i.status === "SENT" || i.status === "OVERDUE").reduce((sum, i) => sum + i.amountCents, 0);
 
+  const initials = `${contact.firstName[0] ?? ""}${contact.lastName[0] ?? ""}`.toUpperCase();
+  const latestOpportunity = contact.opportunities[0] ?? null;
+  const categoryPill = contact.defaultLearnerCategory ? LEARNER_CATEGORY_SINGULAR[contact.defaultLearnerCategory] : null;
+
   return (
     <>
       <PageHeader
@@ -105,11 +110,50 @@ export default async function ContactRecordPage(
         subtitle={contact.company?.name ?? LEARNER_CATEGORY_LABELS[contact.defaultLearnerCategory ?? "unset"]}
       />
       <Tabs basePath={`/crm/contacts/${contact.id}`} tabs={TABS} active={activeTab} />
-      <div className="p-8 max-w-xl flex flex-col gap-4">
+      <div className="p-8 max-w-5xl">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 items-start">
+          <div className="bg-white border border-line rounded-card p-5 lg:sticky lg:top-6">
+            <Avatar initials={initials} />
+            <div className="font-display text-[18px] text-ink mt-3">
+              {contact.firstName} {contact.lastName}
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {latestOpportunity && <Pill tone={latestOpportunity.stage === "PAID" ? "good" : "neutral"}>{STAGE_LABELS[latestOpportunity.stage]}</Pill>}
+              {categoryPill && <Pill tone="neutral">{categoryPill}</Pill>}
+            </div>
+            {canSeePayments && (totalPaid > 0 || totalDue > 0) && (
+              <div className="mt-4">
+                <div className="text-[12px] text-slate mb-1">Total payé</div>
+                <div className="text-2xl font-mono font-semibold tabular-nums text-ink">{formatAmount(totalPaid)}</div>
+                {totalDue > 0 && <div className="text-[11.5px] text-slate mt-1">{formatAmount(totalDue)} en attente de paiement</div>}
+              </div>
+            )}
+            <div className="mt-4 pt-4 border-t border-line flex flex-col gap-2.5">
+              {contact.company && <InfoRow label="Entreprise">{contact.company.name}</InfoRow>}
+              {contact.phone && <InfoRow label="Téléphone">{contact.phone}</InfoRow>}
+              <InfoRow label="Email">
+                <span className="break-all">{contact.email}</span>
+              </InfoRow>
+              <InfoRow label="Opportunités">{contact.opportunities.length}</InfoRow>
+              <InfoRow label="Formations">
+                {contact.dossiers.length > 0 ? (
+                  <Link href={`/dossiers/${contact.dossiers[0].id}`} className="underline decoration-line hover:decoration-ink">
+                    {contact.dossiers.length} dossier{contact.dossiers.length > 1 ? "s" : ""}
+                  </Link>
+                ) : (
+                  "Aucune"
+                )}
+              </InfoRow>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
         {activeTab === "emails" ? (
           <EmailsTab contactId={contact.id} canManageEmail={canManageEmail} members={members} />
         ) : activeTab === "documents" ? (
           <DocumentsAndOutreachTab dossierIds={contact.dossiers.map((d) => d.id)} outreaches={contact.clientOutreaches} />
+        ) : activeTab === "activite" ? (
+          <ActivityTab contact={contact} canSeePayments={canSeePayments} />
         ) : (
           <>
             <div className="bg-white border border-line rounded-card p-5">
@@ -198,8 +242,108 @@ export default async function ContactRecordPage(
             )}
           </>
         )}
+          </div>
+        </div>
       </div>
     </>
+  );
+}
+
+// Chronological feed built entirely from records that already exist
+// (outreaches, emails, documents, quotes/invoices, enrollments) — no
+// separate activity-log model to keep in sync.
+async function ActivityTab({
+  contact,
+  canSeePayments,
+}: {
+  contact: {
+    id: string;
+    firstName: string;
+    clientOutreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
+    quotes: { id: string; reference: string; amountCents: number; status: DocStatus; createdAt: Date }[];
+    invoices: { id: string; reference: string; amountCents: number; status: DocStatus; createdAt: Date }[];
+    dossiers: { id: string; createdAt: Date; session: { course: { title: string } } }[];
+  };
+  canSeePayments: boolean;
+}) {
+  const emails = await prisma.emailMessage.findMany({
+    where: { contactId: contact.id },
+    orderBy: { receivedAt: "desc" },
+    select: { id: true, subject: true, direction: true, receivedAt: true },
+    take: 50,
+  });
+
+  type Event = { id: string; at: Date; text: string; meta: string; dot: "sage" | "seal" | "slate" };
+  const events: Event[] = [
+    ...contact.clientOutreaches.map((o): Event => ({
+      id: `o-${o.id}`,
+      at: o.sentAt,
+      text: `${OUTREACH_LABELS[o.type] ?? o.type} envoyé`,
+      meta: `${o.sentByName} · ${format(o.sentAt, "d MMM yyyy, HH:mm", { locale: fr })}`,
+      dot: o.status === "acknowledged" ? "sage" : "seal",
+    })),
+    ...emails.map((m): Event => ({
+      id: `m-${m.id}`,
+      at: m.receivedAt,
+      text: m.direction === "in" ? `Email reçu — « ${m.subject} »` : `Email envoyé — « ${m.subject} »`,
+      meta: format(m.receivedAt, "d MMM yyyy, HH:mm", { locale: fr }),
+      dot: "slate",
+    })),
+    ...contact.dossiers.map((d): Event => ({
+      id: `d-${d.id}`,
+      at: d.createdAt,
+      text: `Inscrit à la formation « ${d.session.course.title} »`,
+      meta: format(d.createdAt, "d MMM yyyy", { locale: fr }),
+      dot: "sage",
+    })),
+    ...(canSeePayments
+      ? [
+          ...contact.quotes.map((q): Event => ({
+            id: `q-${q.id}`,
+            at: q.createdAt,
+            text: `Devis ${q.reference} — ${formatAmount(q.amountCents)}`,
+            meta: format(q.createdAt, "d MMM yyyy", { locale: fr }),
+            dot: "seal",
+          })),
+          ...contact.invoices.map((i): Event => ({
+            id: `i-${i.id}`,
+            at: i.createdAt,
+            text: `Facture ${i.reference} — ${formatAmount(i.amountCents)}${i.status === "PAID" ? " (payée)" : ""}`,
+            meta: format(i.createdAt, "d MMM yyyy", { locale: fr }),
+            dot: i.status === "PAID" ? "sage" : "seal",
+          })),
+        ]
+      : []),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  const DOT_CLASSES: Record<Event["dot"], string> = {
+    sage: "bg-sage",
+    seal: "bg-seal-light",
+    slate: "bg-ash",
+  };
+
+  return (
+    <div className="bg-white border border-line rounded-card p-5">
+      <div className="flex items-baseline justify-between mb-4">
+        <div className="text-[13.5px] font-semibold text-ink">Activité</div>
+        <div className="text-[12px] text-slate">{events.length} événement{events.length > 1 ? "s" : ""}</div>
+      </div>
+      <div className="flex flex-col">
+        {events.map((e, i) => (
+          <div key={e.id} className="flex gap-3 pb-4 relative">
+            {i < events.length - 1 && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-line" />}
+            <span className={`w-[11px] h-[11px] rounded-full mt-0.5 shrink-0 z-10 ${DOT_CLASSES[e.dot]}`} />
+            <div className="min-w-0">
+              <div className="text-[12.5px] text-ink leading-snug">{e.text}</div>
+              <div className="text-[11px] text-slate mt-0.5">{e.meta}</div>
+            </div>
+          </div>
+        ))}
+        {events.length === 0 && (
+          <div className="text-[12.5px] text-slate">Aucune activité pour l&apos;instant — les envois, emails et inscriptions de {contact.firstName} apparaîtront ici.</div>
+        )}
+      </div>
+    </div>
   );
 }
 

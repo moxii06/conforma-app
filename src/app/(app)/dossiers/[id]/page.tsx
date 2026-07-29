@@ -27,6 +27,7 @@ import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { DossierFundingPanel } from "@/components/DossierFundingPanel";
 import { resolveDossierPriceCents, computeFundingReadiness, computeFundingSummary, formatCents } from "@/lib/funding";
+import { LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCategories";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -36,15 +37,6 @@ const OUTREACH_LABELS: Record<string, string> = {
 };
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
-
-// LEARNER_CATEGORY_LABELS is the BPF grouping vocabulary ("Salariés",
-// plural) — a pill describing one person needs the singular.
-const LEARNER_CATEGORY_PILL: Record<string, string> = {
-  employee: "Salarié",
-  jobseeker: "Demandeur d'emploi",
-  individual: "Particulier",
-  apprentice: "Apprenti",
-};
 
 // FUNDER_TYPE_LABELS spells out "CPF (Caisse des Dépôts)" — too long for a
 // pill that joins several sources ("CPF + OPCO").
@@ -398,7 +390,7 @@ async function FormationsTab({
 
   const current = dossiers.find((d) => d.id === currentDossierId);
   const initials = `${contact.firstName[0] ?? ""}${contact.lastName[0] ?? ""}`.toUpperCase();
-  const categoryPill = current?.learnerCategory ? LEARNER_CATEGORY_PILL[current.learnerCategory] : null;
+  const categoryPill = current?.learnerCategory ? LEARNER_CATEGORY_SINGULAR[current.learnerCategory] : null;
   const funderPill =
     funding && funding.funderTypes.length > 0
       ? funding.funderTypes.map((t) => FUNDER_SHORT_LABELS[t] ?? t).join(" + ")
