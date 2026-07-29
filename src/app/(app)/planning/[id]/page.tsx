@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar, InfoRow, ContextBanner } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow, ContextBanner, initialsOf } from "@/components/ui";
 import { requireSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -146,14 +146,7 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
       {isCancelled ? "Annulée" : isManuallyArchived ? "Archivée" : isPast ? "Terminée" : isValidated ? "Validée" : "Brouillon"}
     </Pill>
   );
-  // Skip pure-punctuation "words" (em-dashes in titles like "Excel — niveau 2").
-  const courseInitials = session.course.title
-    .split(/\s+/)
-    .filter((w) => /[\p{L}\p{N}]/u.test(w))
-    .slice(0, 2)
-    .map((w) => w[0] ?? "")
-    .join("")
-    .toUpperCase();
+  const courseInitials = initialsOf(session.course.title);
 
   return (
     <>

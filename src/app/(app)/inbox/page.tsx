@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar, MetricCard } from "@/components/ui";
+import { PageHeader, Pill, Avatar, MetricCard, initialsOf } from "@/components/ui";
 import { requireSessionContext, can, canWriteRgpd } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -143,13 +143,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
             <MailboxFilterSelect connections={connections.map((c) => ({ id: c.id, provider: c.provider, accountEmail: c.accountEmail }))} />
           </div>
           {unsorted.map((m) => {
-            const initials = (m.fromName ?? m.fromAddress)
-              .split(/\s+/)
-              .filter((w) => /[\p{L}\p{N}]/u.test(w))
-              .slice(0, 2)
-              .map((w) => w[0] ?? "")
-              .join("")
-              .toUpperCase();
+            const initials = initialsOf(m.fromName ?? m.fromAddress);
             return (
               <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex gap-3">
                 <Avatar initials={initials} />

@@ -55,6 +55,18 @@ export function Pill({ children, tone = "neutral" }: { children: React.ReactNode
   );
 }
 
+// Two-letter monogram from any display name — skips pure-punctuation
+// "words" (em-dashes in course titles like "Excel — niveau 2").
+export function initialsOf(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter((w) => /[\p{L}\p{N}]/u.test(w))
+    .slice(0, 2)
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase();
+}
+
 // Initials avatar used by every identity/summary card (dossier, contact,
 // entreprise, session…) so they all read as the same family of screens.
 export function Avatar({ initials, size = "md" }: { initials: string; size?: "md" | "lg" }) {

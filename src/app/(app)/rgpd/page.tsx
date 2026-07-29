@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, MetricCard } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, canWriteRgpd, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -47,11 +47,38 @@ export default async function RgpdPage(props: { searchParams: Promise<{ tab?: st
   const activeTab = searchParams.tab ?? "registre";
   const canWrite = canWriteRgpd(session.role);
 
+  // The one legally time-bound thing on this page: a rights request has a
+  // hard RGPD deadline — surfaced as a number, not buried in a tab.
+  const [openRequests, overdueRequests, openBreaches, activityCount] = await Promise.all([
+    prisma.rightsRequest.count({ where: { organizationId: session.organizationId, status: { not: "closed" } } }),
+    prisma.rightsRequest.count({
+      where: { organizationId: session.organizationId, status: { not: "closed" }, deadline: { lt: new Date() } },
+    }),
+    prisma.dataBreach.count({ where: { organizationId: session.organizationId, status: { not: "closed" } } }),
+    prisma.processingActivity.count({ where: { organizationId: session.organizationId } }),
+  ]);
+
   return (
     <>
       <PageHeader title="Registre RGPD" subtitle="Documentation et preuves de conformité" />
       <Tabs basePath="/rgpd" tabs={TABS} active={activeTab} />
-      <div className="p-8">
+      <div className="p-8 flex flex-col gap-4">
+        <div className="flex gap-3.5">
+          <MetricCard
+            label="Demandes de droits ouvertes"
+            value={String(openRequests)}
+            hint={overdueRequests > 0 ? `${overdueRequests} au-delà du délai légal d'un mois` : undefined}
+            tone={overdueRequests > 0 ? "danger" : "ink"}
+            href="/rgpd?tab=droits"
+          />
+          <MetricCard
+            label="Violations en cours"
+            value={String(openBreaches)}
+            tone={openBreaches > 0 ? "danger" : "ink"}
+            href="/rgpd?tab=violations"
+          />
+          <MetricCard label="Traitements au registre" value={String(activityCount)} href="/rgpd?tab=registre" />
+        </div>
         {activeTab === "dpia" ? (
           <DpiaTab organizationId={session.organizationId} canWrite={canWrite} />
         ) : activeTab === "sous-traitants" ? (

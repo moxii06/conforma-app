@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar, InfoRow } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow, initialsOf } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
@@ -140,13 +140,7 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
   ]);
 
   const learnerCount = course.sessions.reduce((n, s) => n + s.dossiers.length, 0);
-  const courseInitials = course.title
-    .split(/\s+/)
-    .filter((w) => /[\p{L}\p{N}]/u.test(w))
-    .slice(0, 2)
-    .map((w) => w[0] ?? "")
-    .join("")
-    .toUpperCase();
+  const courseInitials = initialsOf(course.title);
   const formatAmountCard = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
   return (

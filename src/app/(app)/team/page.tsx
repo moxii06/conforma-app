@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Avatar, initialsOf } from "@/components/ui";
 import { requireSessionContext, can, PERMISSIONS, FEATURE_LABELS, ROLE_LABELS } from "@/lib/tenant";
 import { InviteMemberForm } from "@/components/InviteMemberForm";
 import { ReferentHandicapSelect } from "@/components/ReferentHandicapSelect";
@@ -111,8 +111,9 @@ export default async function TeamPage(props: { searchParams: Promise<{ tab?: st
             </div>
             {members.map((m) => (
               <div key={m.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
-                <div className="flex-[1.5]">
-                  <Link href={`/team/members/${m.id}`} className="font-medium text-ink underline decoration-line hover:decoration-ink">
+                <div className="flex-[1.5] flex items-center gap-2.5 min-w-0">
+                  <Avatar initials={initialsOf(m.name)} />
+                  <Link href={`/team/members/${m.id}`} className="font-medium text-ink underline decoration-line hover:decoration-ink truncate">
                     {m.name}
                   </Link>
                 </div>
