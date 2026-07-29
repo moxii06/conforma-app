@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Avatar, MetricCard } from "@/components/ui";
 import { requireSessionContext, can, canWriteRgpd } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -70,6 +70,14 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
     <>
       <PageHeader title="Boîte mail" subtitle="Triage des emails entrants" />
       <div className="p-8 flex flex-col gap-6 max-w-3xl">
+        <div className="flex gap-3.5">
+          <MetricCard label="À trier" value={String(unsorted.length)} tone={unsorted.length > 0 ? "danger" : "ink"} />
+          {canHandleRgpd && (
+            <MetricCard label="Suggestions RGPD" value={String(rgpdSuggested.length)} tone={rgpdSuggested.length > 0 ? "danger" : "ink"} />
+          )}
+          <MetricCard label="Rattachements suggérés" value={String(suggested.length)} />
+        </div>
+
         <div className="bg-white border border-line rounded-card p-4">
           <div className="text-[13px] font-semibold text-ink mb-2">Boîtes connectées</div>
           {connections.length === 0 ? (
@@ -134,24 +142,36 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
             <div className="text-[13px] font-semibold text-ink">À trier ({unsorted.length})</div>
             <MailboxFilterSelect connections={connections.map((c) => ({ id: c.id, provider: c.provider, accountEmail: c.accountEmail }))} />
           </div>
-          {unsorted.map((m) => (
-            <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[12.5px] text-ink font-medium">
-                  {m.fromName ? `${m.fromName} — ${m.fromAddress}` : m.fromAddress}
+          {unsorted.map((m) => {
+            const initials = (m.fromName ?? m.fromAddress)
+              .split(/\s+/)
+              .filter((w) => /[\p{L}\p{N}]/u.test(w))
+              .slice(0, 2)
+              .map((w) => w[0] ?? "")
+              .join("")
+              .toUpperCase();
+            return (
+              <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex gap-3">
+                <Avatar initials={initials} />
+                <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[12.5px] text-ink font-medium truncate">
+                      {m.fromName ? `${m.fromName} — ${m.fromAddress}` : m.fromAddress}
+                    </div>
+                    <div className="text-[11px] text-slate shrink-0">{format(m.receivedAt, "d MMM yyyy HH:mm", { locale: fr })}</div>
+                  </div>
+                  <div className="text-[12.5px] text-ink">{m.subject}</div>
+                  <div className="text-[12px] text-slate">{m.snippet}</div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {canWrite && <InboxMessageActions messageId={m.id} contacts={contacts} fromName={m.fromName} />}
+                    {canWrite && (
+                      <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
+                    )}
+                  </div>
                 </div>
-                <div className="text-[11px] text-slate shrink-0">{format(m.receivedAt, "d MMM yyyy HH:mm", { locale: fr })}</div>
               </div>
-              <div className="text-[12.5px] text-ink">{m.subject}</div>
-              <div className="text-[12px] text-slate">{m.snippet}</div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {canWrite && <InboxMessageActions messageId={m.id} contacts={contacts} fromName={m.fromName} />}
-                {canWrite && (
-                  <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {unsorted.length === 0 && <div className="text-[12.5px] text-slate">Rien à trier.</div>}
         </div>
 

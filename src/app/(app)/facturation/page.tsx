@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, MetricCard } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -70,7 +70,7 @@ export default async function FacturationPage(
   const dateFrom = parseDateParam(searchParams.from, false);
   const dateTo = parseDateParam(searchParams.to, true);
 
-  const [contacts, dossiers, pendingBankCount] = await Promise.all([
+  const [contacts, dossiers, pendingBankCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
     prisma.contact.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true }, orderBy: { lastName: "asc" } }),
     prisma.dossier.findMany({
       where: { organizationId },
@@ -78,6 +78,21 @@ export default async function FacturationPage(
       orderBy: { createdAt: "desc" },
     }),
     prisma.bankTransaction.count({ where: { organizationId, status: "pending" } }),
+    // Strip totals — "en attente" excludes anything the overdue card counts,
+    // so the two never double-comptent une même facture.
+    prisma.invoice.aggregate({
+      where: { organizationId, status: "SENT", OR: [{ dueDate: null }, { dueDate: { gte: new Date() } }] },
+      _sum: { amountCents: true },
+      _count: true,
+    }),
+    // Same auto-detection as the dashboard: dueDate passed counts as late
+    // even if staff hasn't flipped the status yet.
+    prisma.invoice.aggregate({
+      where: { organizationId, status: { notIn: ["PAID", "DRAFT"] }, OR: [{ status: "OVERDUE" }, { dueDate: { lt: new Date() } }] },
+      _sum: { amountCents: true },
+      _count: true,
+    }),
+    prisma.invoice.aggregate({ where: { organizationId, status: "PAID" }, _sum: { amountCents: true } }),
   ]);
   const dossierOptions = dossiers.map((d) => ({
     id: d.id,
@@ -109,6 +124,30 @@ export default async function FacturationPage(
       <PageHeader title="Facturation" subtitle="Devis et factures, transmission via le portail public par défaut" />
       <Tabs basePath="/facturation" tabs={tabs} active={activeTab} />
       <div className="p-8 flex flex-col gap-4">
+        {(activeTab === "devis" || activeTab === "factures") && (
+          <div className="flex gap-3.5">
+            <MetricCard
+              label="En attente de paiement"
+              value={formatAmount(awaitingAgg._sum.amountCents ?? 0)}
+              hint={awaitingAgg._count > 0 ? `${awaitingAgg._count} facture${awaitingAgg._count > 1 ? "s" : ""}` : undefined}
+              href="/facturation?tab=factures&status=SENT"
+            />
+            <MetricCard
+              label="En retard"
+              value={formatAmount(overdueAgg._sum.amountCents ?? 0)}
+              hint={overdueAgg._count > 0 ? `${overdueAgg._count} facture${overdueAgg._count > 1 ? "s" : ""}` : undefined}
+              tone={overdueAgg._count > 0 ? "danger" : "ink"}
+              href="/facturation?tab=factures&status=OVERDUE"
+            />
+            <MetricCard label="Encaissé" value={formatAmount(paidAgg._sum.amountCents ?? 0)} tone="good" href="/facturation?tab=factures&status=PAID" />
+            <MetricCard
+              label="Rapprochements à valider"
+              value={String(pendingBankCount)}
+              tone={pendingBankCount > 0 ? "danger" : "ink"}
+              href="/facturation?tab=a-valider"
+            />
+          </div>
+        )}
         {activeTab === "financeurs" ? (
           <FundersPanel
             canWrite={canWrite}
