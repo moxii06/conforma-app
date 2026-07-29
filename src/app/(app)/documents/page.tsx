@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, MetricCard } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
@@ -114,8 +114,16 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
     .filter((g) => g.templates.length > 0);
   const nothingFound = q != null && q !== "" && visibleGlobal.length === 0 && visibleGeneral.length === 0 && visibleByCourse.length === 0;
 
+  const conditionalCount = [...globalTemplates, ...orgTemplates].filter((t) => t.blocks.length > 0).length;
+
   return (
     <div className="p-8 flex flex-col gap-6 max-w-4xl">
+      <div className="flex gap-3.5">
+        <MetricCard label="Modèles fournis par Jalon" value={String(globalTemplates.length)} hint="prêts à l'emploi, adaptables" />
+        <MetricCard label="Modèles de votre organisme" value={String(orgTemplates.length)} hint="adaptés ou créés par vous" />
+        <MetricCard label="Modèles conditionnels" value={String(conditionalCount)} hint="paragraphes ajustés selon le dossier" />
+      </div>
+
       <div className="flex items-center gap-2.5 flex-wrap">
         <SearchInput placeholder="Rechercher un modèle (titre, catégorie)…" />
         <div className="text-[12px] text-slate">
