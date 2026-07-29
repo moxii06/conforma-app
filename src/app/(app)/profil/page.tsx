@@ -72,6 +72,7 @@ export default async function ProfilePage() {
                 rcsCity: organization.rcsCity ?? "",
                 rcsNumber: organization.rcsNumber ?? "",
                 legalRepresentativeName: organization.legalRepresentativeName ?? "",
+                activityDeclarationNumber: organization.activityDeclarationNumber ?? "",
               }}
             />
           </div>

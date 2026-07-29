@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { mergeTemplate } from "@/lib/mergeTemplate";
-import { resolveAnswers, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
+import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
 import { Role } from "@prisma/client";
 
 // Merges a template against this dossier's contact/session WITHOUT
@@ -39,7 +40,11 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
   const dossier = await prisma.dossier.findFirst({
     where: { id: params.id, organizationId: auth.organizationId },
-    include: { contact: true, session: { include: { course: true } }, fundingCommitments: true },
+    include: {
+      contact: { include: { company: true } },
+      session: { include: { course: true } },
+      fundingCommitments: { include: { funder: { select: { name: true } } } },
+    },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   if (auth.role === Role.TRAINER && dossier.session.trainerId !== auth.userId) {
@@ -71,12 +76,22 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   }
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
+  const fundingSummary = computeFundingSummary(
+    resolveDossierPriceCents(dossier, dossier.session.course),
+    dossier.fundingCommitments,
+  );
   const bodyText = mergeTemplate(bodyTextSource, {
     contact: dossier.contact,
     organization,
     session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },
     dossier: { retentionUntil: dossier.retentionUntil },
     course: dossier.session.course,
+    company: dossier.contact.company ? { name: dossier.contact.company.name, siret: dossier.contact.company.siret } : null,
+    funder: (() => {
+      const name = resolveSubrogatedFunderName(dossier.fundingCommitments);
+      return name ? { name } : null;
+    })(),
+    funding: { totalCents: fundingSummary.totalCents, remainderCents: fundingSummary.remainderCents },
   });
 
   return NextResponse.json({

@@ -11,6 +11,7 @@ const schema = z.object({
   rcsCity: z.string().trim().max(100).optional(),
   rcsNumber: z.string().trim().max(100).optional(),
   legalRepresentativeName: z.string().trim().max(150).optional(),
+  activityDeclarationNumber: z.string().trim().max(100).optional(),
 });
 
 // Mentions légales printed on documents the OFP sends to its own clients —

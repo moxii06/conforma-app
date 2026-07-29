@@ -429,7 +429,7 @@ export async function seedBase(prisma: PrismaClient) {
       blocks: [
         {
           bodyText:
-            "CONTRAT DE FORMATION PROFESSIONNELLE\n(articles L.6353-3 et suivants du Code du travail — personne physique s'inscrivant à titre individuel et à ses frais)\n\nEntre [NOM DE L'ORGANISME], organisme de formation enregistré sous le numéro [NUMÉRO DE DÉCLARATION D'ACTIVITÉ], d'une part, et [NOM ET PRÉNOM DU STAGIAIRE], d'autre part.\n\nArticle 1 — Objet : le présent contrat a pour objet la réalisation de l'action de formation suivante : [INTITULÉ DE LA FORMATION].\n\nArticle 2 — Nature et durée : [DATES, DURÉE].",
+            "CONTRAT DE FORMATION PROFESSIONNELLE\n(articles L.6353-3 et suivants du Code du travail — personne physique s'inscrivant à titre individuel et à ses frais)\n\nEntre {{organization.name}}, organisme de formation enregistré sous le numéro de déclaration d'activité {{organization.activityDeclarationNumber}}, d'une part, et {{contact.firstName}} {{contact.lastName}}, d'autre part.\n\nArticle 1 — Objet : le présent contrat a pour objet la réalisation de l'action de formation suivante : {{course.title}}.\n\nArticle 2 — Nature et durée : {{session.startsAt}} — {{course.duration}}.",
           conditions: null,
         },
         {
@@ -438,7 +438,7 @@ export async function seedBase(prisma: PrismaClient) {
           conditions: null,
         },
         {
-          bodyText: "Article 4 — Lieu de la formation : [ADRESSE DU LIEU DE FORMATION].",
+          bodyText: "Article 4 — Lieu de la formation : {{session.location}}.",
           conditions: [{ questionKey: "modalite", in: ["IN_PERSON", "HYBRID"] }],
         },
         {
@@ -448,12 +448,12 @@ export async function seedBase(prisma: PrismaClient) {
         },
         {
           bodyText:
-            "Article 5 — Prise en charge par un tiers financeur : tout ou partie du coût de la formation est réglé directement par [NOM DU FINANCEUR] par subrogation. Le stagiaire s'engage à fournir à l'organisme les justificatifs nécessaires à cette prise en charge. [À VALIDER PAR UN JURISTE : conséquences en cas de refus ou de retrait de la prise en charge.]",
+            "Article 5 — Prise en charge par un tiers financeur : tout ou partie du coût de la formation est réglé directement par {{funder.name}} par subrogation. Le stagiaire s'engage à fournir à l'organisme les justificatifs nécessaires à cette prise en charge. [À VALIDER PAR UN JURISTE : conséquences en cas de refus ou de retrait de la prise en charge.]",
           conditions: [{ questionKey: "subrogation", in: ["oui"] }],
         },
         {
           bodyText:
-            "Article 6 — Prix et modalités de règlement : le prix de la formation, déduction faite de toute prise en charge par un tiers financeur, s'élève à [MONTANT] € TTC, payable selon les modalités suivantes : [À COMPLÉTER — comptant / échéancier].",
+            "Article 6 — Prix et modalités de règlement : le prix de la formation, déduction faite de toute prise en charge par un tiers financeur, s'élève à {{funding.remainder}} TTC, payable selon les modalités suivantes : [À COMPLÉTER — comptant / échéancier].",
           conditions: [{ questionKey: "resteACharge", in: ["oui"] }],
         },
         {
@@ -475,11 +475,11 @@ export async function seedBase(prisma: PrismaClient) {
       blocks: [
         {
           bodyText:
-            "CONVENTION DE FORMATION PROFESSIONNELLE\n(article L.6353-1 et suivants du Code du travail)\n\nEntre [NOM DE L'ORGANISME], organisme de formation enregistré sous le numéro [NUMÉRO DE DÉCLARATION D'ACTIVITÉ], d'une part, et [NOM DU CLIENT / ENTREPRISE], d'autre part.\n\nArticle 1 — Objet : la présente convention a pour objet la réalisation de l'action de formation suivante : [INTITULÉ DE LA FORMATION].\n\nArticle 2 — Nature et durée : [DATES, DURÉE].\n\nArticle 3 — Effectifs : [NOMBRE DE STAGIAIRES].",
+            "CONVENTION DE FORMATION PROFESSIONNELLE\n(article L.6353-1 et suivants du Code du travail)\n\nEntre {{organization.name}}, organisme de formation enregistré sous le numéro de déclaration d'activité {{organization.activityDeclarationNumber}}, d'une part, et {{company.name}}, d'autre part.\n\nArticle 1 — Objet : la présente convention a pour objet la réalisation de l'action de formation suivante : {{course.title}}, au bénéfice de {{contact.firstName}} {{contact.lastName}}.\n\nArticle 2 — Nature et durée : {{session.startsAt}} — {{course.duration}}.\n\nArticle 3 — Effectifs : [NOMBRE DE STAGIAIRES].",
           conditions: null,
         },
         {
-          bodyText: "Article 4 — Lieu de la formation : [ADRESSE DU LIEU DE FORMATION].",
+          bodyText: "Article 4 — Lieu de la formation : {{session.location}}.",
           conditions: [{ questionKey: "modalite", in: ["IN_PERSON", "HYBRID"] }],
         },
         {
@@ -489,16 +489,16 @@ export async function seedBase(prisma: PrismaClient) {
         },
         {
           bodyText:
-            "Article 5 — Règlement par subrogation : le coût de la formation est réglé directement à l'organisme par [NOM DU FINANCEUR], par subrogation, sur présentation des justificatifs de réalisation de l'action. [À VALIDER PAR UN JURISTE.]",
+            "Article 5 — Règlement par subrogation : le coût de la formation est réglé directement à l'organisme par {{funder.name}}, par subrogation, sur présentation des justificatifs de réalisation de l'action. [À VALIDER PAR UN JURISTE.]",
           conditions: [{ questionKey: "subrogation", in: ["oui"] }],
         },
         {
-          bodyText: "Article 5 — Règlement : le coût de la formation est réglé directement par [NOM DU CLIENT / ENTREPRISE].",
+          bodyText: "Article 5 — Règlement : le coût de la formation est réglé directement par {{company.name}}.",
           conditions: [{ questionKey: "subrogation", in: ["non"] }],
         },
         {
           bodyText:
-            "Article 6 — Reste à charge : après prise en charge partielle par [NOM DU FINANCEUR], le solde restant dû par le client s'élève à [MONTANT] € TTC, payable selon les modalités suivantes : [À COMPLÉTER].",
+            "Article 6 — Reste à charge : après prise en charge partielle par le financeur, le solde restant dû par le client s'élève à {{funding.remainder}} TTC, payable selon les modalités suivantes : [À COMPLÉTER].",
           conditions: [{ questionKey: "resteACharge", in: ["oui"] }],
         },
         {
@@ -672,16 +672,24 @@ export async function seedBase(prisma: PrismaClient) {
     },
   ];
 
+  // Upsert-by-title rather than create-only: these are Jalon's own authored
+  // rows (organizationId: null), never customer-edited (an org customizes
+  // its own fork instead — see ForkTemplateButton), so improving the
+  // wording here should reach every org's library view on the next seed
+  // run instead of requiring a one-off manual DB fix.
   for (const template of STARTER_TEMPLATES) {
+    const { blocks, ...templateData } = template;
     const existing = await prisma.documentTemplate.findFirst({
       where: { organizationId: null, category: template.category, title: template.title },
     });
-    if (!existing) {
-      const { blocks, ...templateData } = template;
-      const created = await prisma.documentTemplate.create({ data: { organizationId: null, ...templateData } });
-      if (blocks && blocks.length > 0) {
+    const row = existing
+      ? await prisma.documentTemplate.update({ where: { id: existing.id }, data: templateData })
+      : await prisma.documentTemplate.create({ data: { organizationId: null, ...templateData } });
+    if (blocks) {
+      await prisma.documentTemplateBlock.deleteMany({ where: { templateId: row.id } });
+      if (blocks.length > 0) {
         await prisma.documentTemplateBlock.createMany({
-          data: blocks.map((b, i) => ({ templateId: created.id, order: i, bodyText: b.bodyText, conditions: b.conditions ?? Prisma.JsonNull })),
+          data: blocks.map((b, i) => ({ templateId: row.id, order: i, bodyText: b.bodyText, conditions: b.conditions ?? Prisma.JsonNull })),
         });
       }
     }

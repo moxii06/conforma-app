@@ -13,6 +13,7 @@ export type MergeContext = {
     rcsCity?: string | null;
     rcsNumber?: string | null;
     legalRepresentativeName?: string | null;
+    activityDeclarationNumber?: string | null;
   };
   session?: { courseTitle: string; startsAt: Date; location: string | null } | null;
   dossier?: { retentionUntil: Date | null } | null;
@@ -21,7 +22,24 @@ export type MergeContext = {
   // directly — distinct from `session`, which is about a specific dated
   // cohort (start time, room), not the course offering itself.
   course?: { title: string; durationHours: number | null; priceCents: number | null } | null;
+  // The contact's employer, when the training is company-funded (contact
+  // has no company for an individual paying themselves) — feeds a
+  // "convention" template's [NOM DU CLIENT / ENTREPRISE]-style clauses.
+  company?: { name: string; siret: string | null } | null;
+  // The subrogated funder on this dossier, if any — see
+  // lib/documentQuestionnaire.ts's subrogation question. Only ever the
+  // funder actually named in the funding plan, never a guess.
+  funder?: { name: string } | null;
+  // Snapshot of the dossier's funding arithmetic (lib/funding.ts) — the
+  // total price and what's left for the client to pay after any secured
+  // funding. Computed by the caller, not here, since it needs the full
+  // FundingCommitment list this module deliberately doesn't depend on.
+  funding?: { totalCents: number; remainderCents: number } | null;
 };
+
+function formatEuros(cents: number): string {
+  return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+}
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
 
@@ -38,6 +56,7 @@ export function mergeTemplate(bodyText: string, ctx: MergeContext): string {
     "organization.rcsCity": ctx.organization.rcsCity ?? "",
     "organization.rcsNumber": ctx.organization.rcsNumber ?? "",
     "organization.legalRepresentativeName": ctx.organization.legalRepresentativeName ?? "",
+    "organization.activityDeclarationNumber": ctx.organization.activityDeclarationNumber ?? "",
     "session.courseTitle": ctx.session?.courseTitle ?? "",
     "session.startsAt": ctx.session ? ctx.session.startsAt.toLocaleDateString("fr-FR", DATE_FORMAT) : "",
     "session.location": ctx.session?.location ?? "",
@@ -46,7 +65,12 @@ export function mergeTemplate(bodyText: string, ctx: MergeContext): string {
       : "",
     "course.title": ctx.course?.title ?? "",
     "course.duration": ctx.course?.durationHours != null ? `${ctx.course.durationHours} heures` : "",
-    "course.price": ctx.course?.priceCents != null ? (ctx.course.priceCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "",
+    "course.price": ctx.course?.priceCents != null ? formatEuros(ctx.course.priceCents) : "",
+    "company.name": ctx.company?.name ?? "",
+    "company.siret": ctx.company?.siret ?? "",
+    "funder.name": ctx.funder?.name ?? "",
+    "funding.total": ctx.funding ? formatEuros(ctx.funding.totalCents) : "",
+    "funding.remainder": ctx.funding ? formatEuros(ctx.funding.remainderCents) : "",
   };
 
   return bodyText.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) =>
@@ -66,6 +90,7 @@ export const AVAILABLE_MERGE_FIELDS = [
   "organization.rcsCity",
   "organization.rcsNumber",
   "organization.legalRepresentativeName",
+  "organization.activityDeclarationNumber",
   "session.courseTitle",
   "session.startsAt",
   "session.location",
@@ -73,4 +98,9 @@ export const AVAILABLE_MERGE_FIELDS = [
   "course.title",
   "course.duration",
   "course.price",
+  "company.name",
+  "company.siret",
+  "funder.name",
+  "funding.total",
+  "funding.remainder",
 ];

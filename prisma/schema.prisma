@@ -67,6 +67,10 @@ model Organization {
   rcsCity                 String?
   rcsNumber               String?
   legalRepresentativeName String?
+  // Numéro de déclaration d'activité (NDA), délivré par la DREETS —
+  // obligatoire sur tout contrat/convention de formation (art. L.6351-1 du
+  // Code du travail). Distinct du numéro RCS ci-dessus.
+  activityDeclarationNumber String?
 
   // Marque blanche — what an OFP's own learners see never needs to say
   // "Jalon": the public token pages (recueil des besoins, satisfaction,

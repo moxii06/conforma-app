@@ -3,8 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { mergeTemplate } from "@/lib/mergeTemplate";
-import { resolveAnswers, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
+import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
 
 const schema = z.object({
   templateId: z.string().min(1),
@@ -35,7 +36,11 @@ export async function POST(request: Request) {
     }),
     prisma.dossier.findFirst({
       where: { id: parsed.data.dossierId, organizationId: session.organizationId },
-      include: { contact: true, session: { include: { course: true } }, fundingCommitments: true },
+      include: {
+        contact: { include: { company: true } },
+        session: { include: { course: true } },
+        fundingCommitments: { include: { funder: { select: { name: true } } } },
+      },
     }),
     prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } }),
   ]);
@@ -66,12 +71,22 @@ export async function POST(request: Request) {
     bodyTextSource = assembleBlocks(template.blocks, answers);
   }
 
+  const fundingSummary = computeFundingSummary(
+    resolveDossierPriceCents(dossier, dossier.session.course),
+    dossier.fundingCommitments,
+  );
   const merged = mergeTemplate(bodyTextSource, {
     contact: dossier.contact,
     organization,
     session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },
     dossier: { retentionUntil: dossier.retentionUntil },
     course: dossier.session.course,
+    company: dossier.contact.company ? { name: dossier.contact.company.name, siret: dossier.contact.company.siret } : null,
+    funder: (() => {
+      const name = resolveSubrogatedFunderName(dossier.fundingCommitments);
+      return name ? { name } : null;
+    })(),
+    funding: { totalCents: fundingSummary.totalCents, remainderCents: fundingSummary.remainderCents },
   });
 
   const document = await prisma.document.create({

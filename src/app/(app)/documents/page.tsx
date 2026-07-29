@@ -3,7 +3,8 @@ import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
-import { CATEGORY_LABELS, DOCUMENT_CATEGORIES } from "@/lib/documentCategories";
+import { ChevronRight } from "lucide-react";
+import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { ForkTemplateButton } from "@/components/ForkTemplateButton";
 import { TemplateEditor } from "@/components/TemplateEditor";
 import { TemplateBlocksEditor } from "@/components/TemplateBlocksEditor";
@@ -17,6 +18,16 @@ import { Pagination } from "@/components/Pagination";
 import { AVAILABLE_MERGE_FIELDS } from "@/lib/mergeTemplate";
 import { parseConditions } from "@/lib/documentAssembly";
 import type { BlockRow } from "@/components/TemplateBlocksEditor";
+import { StopSummaryToggle } from "@/components/StopSummaryToggle";
+
+type TemplateRow = {
+  id: string;
+  title: string;
+  category: string;
+  bodyText: string;
+  forkedFromId: string | null;
+  blocks: { bodyText: string; conditions: unknown }[];
+};
 
 function toBlockRows(blocks: { bodyText: string; conditions: unknown }[]): BlockRow[] {
   return blocks.map((b) => {
@@ -53,22 +64,22 @@ export default async function DocumentsPage(
       {activeTab === "mes-documents" ? (
         <MyDocumentsTab organizationId={organizationId} role={role} userId={userId} searchParams={searchParams} />
       ) : (
-        <TemplatesTab organizationId={organizationId} />
+        <TemplatesTab organizationId={organizationId} query={searchParams.q} />
       )}
     </>
   );
 }
 
-async function TemplatesTab({ organizationId }: { organizationId: string }) {
+async function TemplatesTab({ organizationId, query }: { organizationId: string; query?: string }) {
   const [globalTemplates, orgTemplates, dossiers, courses] = await Promise.all([
     prisma.documentTemplate.findMany({
       where: { organizationId: null },
-      orderBy: { title: "asc" },
+      orderBy: [{ category: "asc" }, { title: "asc" }],
       include: { blocks: { orderBy: { order: "asc" } } },
     }),
     prisma.documentTemplate.findMany({
       where: { organizationId },
-      orderBy: { title: "asc" },
+      orderBy: [{ category: "asc" }, { title: "asc" }],
       include: { blocks: { orderBy: { order: "asc" } } },
     }),
     prisma.dossier.findMany({
@@ -92,96 +103,87 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
     .map((c) => ({ course: c, templates: orgTemplates.filter((t) => t.courseId === c.id) }))
     .filter((g) => g.templates.length > 0);
 
+  const q = query?.trim().toLowerCase();
+  const matches = (t: { title: string; category: string }) =>
+    !q || t.title.toLowerCase().includes(q) || (CATEGORY_LABELS[t.category] ?? t.category).toLowerCase().includes(q);
+
+  const visibleGlobal = globalTemplates.filter(matches);
+  const visibleGeneral = generalOrgTemplates.filter(matches);
+  const visibleByCourse = coursesWithTemplates
+    .map((g) => ({ ...g, templates: g.templates.filter((t) => matches(t) || g.course.title.toLowerCase().includes(q ?? "")) }))
+    .filter((g) => g.templates.length > 0);
+  const nothingFound = q != null && q !== "" && visibleGlobal.length === 0 && visibleGeneral.length === 0 && visibleByCourse.length === 0;
+
   return (
-    <div className="p-8 flex flex-col gap-6 max-w-3xl">
-      <div className="text-[11.5px] text-slate">
-        Les modèles fournis par Jalon sont des points de départ génériques — à faire relire par un juriste avant
-        tout usage réel (voir le texte d&apos;avertissement inclus dans chaque modèle). Insérez des champs de
-        fusion dans le texte d&apos;un modèle pour qu&apos;ils soient remplacés automatiquement à la génération :{" "}
-        {AVAILABLE_MERGE_FIELDS.map((f) => (
-          <code key={f} className="bg-pebble rounded px-1 py-0.5 mr-1 text-[10.5px]">{`{{${f}}}`}</code>
-        ))}
+    <div className="p-8 flex flex-col gap-6 max-w-4xl">
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <SearchInput placeholder="Rechercher un modèle (titre, catégorie)…" />
+        <div className="text-[12px] text-slate">
+          {globalTemplates.length + orgTemplates.length} modèle{globalTemplates.length + orgTemplates.length > 1 ? "s" : ""}
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div className="text-[13.5px] font-semibold text-ink">Modèles fournis par Jalon</div>
-        {DOCUMENT_CATEGORIES.map((category) => {
-          const items = globalTemplates.filter((t) => t.category === category);
-          if (items.length === 0) return null;
-          return (
-            <div key={category} className="bg-white border border-line rounded-card p-4">
-              <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-2">
-                {CATEGORY_LABELS[category]}
-              </div>
-              {items.map((t) => {
-                const alreadyForked = orgTemplates.some((o) => o.forkedFromId === t.id);
-                return (
-                  <details key={t.id} className="border-t border-line first:border-t-0 py-2.5">
-                    <summary className="cursor-pointer list-none flex items-center justify-between gap-3">
-                      <span className="text-[13px] text-ink font-medium">{t.title}</span>
-                      {alreadyForked ? (
-                        <span className="text-[12px] text-sage">Déjà adapté ✓</span>
-                      ) : (
-                        <ForkTemplateButton templateId={t.id} />
-                      )}
-                    </summary>
-                    {t.blocks.length > 0 ? (
-                      <div className="mt-2.5">
-                        <TemplateBlocksEditor templateId={t.id} initialBlocks={toBlockRows(t.blocks)} canEdit={false} />
-                      </div>
-                    ) : (
-                      <pre className="whitespace-pre-wrap text-[12px] text-slate mt-2.5 font-sans leading-relaxed">
-                        {t.bodyText}
-                      </pre>
-                    )}
-                    <div className="mt-2">
-                      <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
-                    </div>
-                  </details>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
+      {nothingFound && (
+        <div className="text-[12.5px] text-slate">Aucun modèle ne correspond à « {query} ».</div>
+      )}
 
-      <div className="flex flex-col gap-3">
-        <div className="text-[13.5px] font-semibold text-ink">Documents généraux ({generalOrgTemplates.length})</div>
-        {generalOrgTemplates.length > 0 && (
-          <div className="bg-white border border-line rounded-card p-4">
-            {DOCUMENT_CATEGORIES.map((category) => {
-              const items = generalOrgTemplates.filter((t) => t.category === category);
-              if (items.length === 0) return null;
+      {visibleGlobal.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <div className="text-[13.5px] font-semibold text-ink mb-1">Modèles fournis par Jalon</div>
+          <div className="bg-white border border-line rounded-card">
+            {visibleGlobal.map((t) => {
+              const alreadyForked = orgTemplates.some((o) => o.forkedFromId === t.id);
               return (
-                <div key={category} className="mb-3 last:mb-0">
-                  <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide mb-2">
-                    {CATEGORY_LABELS[category]}
+                <TemplateRowDetails
+                  key={t.id}
+                  template={t}
+                  trailing={
+                    alreadyForked ? <span className="text-[11.5px] text-sage">Déjà adapté ✓</span> : <ForkTemplateButton templateId={t.id} />
+                  }
+                >
+                  {t.blocks.length > 0 ? (
+                    <TemplateBlocksEditor templateId={t.id} initialBlocks={toBlockRows(t.blocks)} canEdit={false} />
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-[12px] text-slate font-sans leading-relaxed">{t.bodyText}</pre>
+                  )}
+                  <div className="mt-2.5">
+                    <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
                   </div>
-                  {items.map((t) => (
-                    <details key={t.id} className="border-t border-line py-2.5">
-                      <summary className="cursor-pointer list-none text-[13px] text-ink font-medium">
-                        {t.title}
-                        {t.forkedFromId && <span className="text-slate font-normal"> (adapté d&apos;un modèle Jalon)</span>}
-                      </summary>
-                      <div className="mt-2.5 flex flex-col gap-2.5">
-                        <OrgTemplateBody template={t} />
-                        <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
-                      </div>
-                    </details>
-                  ))}
-                </div>
+                </TemplateRowDetails>
               );
             })}
           </div>
-        )}
+        </section>
+      )}
 
-        {coursesWithTemplates.length > 0 && (
-          <div className="flex flex-col gap-3">
-            <div className="text-[13.5px] font-semibold text-ink">Bibliothèques par formation</div>
-            {coursesWithTemplates.map(({ course, templates }) => (
-              <div key={course.id} className="bg-white border border-line rounded-card p-4">
-                <div className="text-[12.5px] font-semibold text-ink mb-0.5">{course.title}</div>
-                <div className="text-[11px] text-slate mb-2.5">
+      {visibleGeneral.length > 0 && (
+        <section className="flex flex-col gap-1">
+          <div className="text-[13.5px] font-semibold text-ink mb-1">Documents généraux ({generalOrgTemplates.length})</div>
+          <div className="bg-white border border-line rounded-card">
+            {visibleGeneral.map((t) => (
+              <TemplateRowDetails
+                key={t.id}
+                template={t}
+                subtitle={t.forkedFromId ? "Adapté d'un modèle Jalon" : undefined}
+              >
+                <OrgTemplateBody template={t} />
+                <div className="mt-2.5">
+                  <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
+                </div>
+              </TemplateRowDetails>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {visibleByCourse.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="text-[13.5px] font-semibold text-ink">Bibliothèques par formation</div>
+          {visibleByCourse.map(({ course, templates }) => (
+            <div key={course.id} className="bg-white border border-line rounded-card overflow-hidden">
+              <div className="px-4 py-3 bg-linen border-b border-line">
+                <div className="text-[12.5px] font-semibold text-ink">{course.title}</div>
+                <div className="text-[11px] text-slate mt-0.5">
                   {course.durationHours != null ? `${course.durationHours} h` : "Durée non renseignée"}
                   {" · "}
                   {course.priceCents != null
@@ -192,25 +194,76 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
                     modifier sur la fiche formation
                   </a>
                 </div>
-                {templates.map((t) => (
-                  <details key={t.id} className="border-t border-line py-2.5">
-                    <summary className="cursor-pointer list-none text-[13px] text-ink font-medium">
-                      {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
-                    </summary>
-                    <div className="mt-2.5 flex flex-col gap-2.5">
-                      <OrgTemplateBody template={t} />
-                      <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
-                    </div>
-                  </details>
-                ))}
               </div>
-            ))}
+              {templates.map((t) => (
+                <TemplateRowDetails key={t.id} template={t}>
+                  <OrgTemplateBody template={t} />
+                  <div className="mt-2.5">
+                    <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
+                  </div>
+                </TemplateRowDetails>
+              ))}
+            </div>
+          ))}
+        </section>
+      )}
+
+      <NewTemplateForm courses={courses} />
+
+      <details className="group text-[11.5px] text-slate">
+        <summary className="cursor-pointer list-none flex items-center gap-1.5 font-medium text-ink w-fit">
+          <ChevronRight size={13} className="transition-transform group-open:rotate-90 shrink-0" />
+          Aide : champs de fusion disponibles
+        </summary>
+        <div className="mt-2 pl-[19px]">
+          Les modèles fournis par Jalon sont des points de départ génériques — à faire relire par un juriste avant
+          tout usage réel (voir le texte d&apos;avertissement inclus dans chaque modèle). Insérez ces champs dans le
+          texte d&apos;un modèle pour qu&apos;ils soient remplacés automatiquement à la génération :{" "}
+          {AVAILABLE_MERGE_FIELDS.map((f) => (
+            <code key={f} className="inline-block bg-pebble rounded px-1 py-0.5 mr-1 mt-1 text-[10.5px]">{`{{${f}}}`}</code>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// One template row, collapsed to a scannable title + badges by default —
+// category and "conditionnel" (blocks-based) are visible without expanding,
+// so browsing the library is a glance instead of a click per row. `<details>`
+// stays the mechanism (no JS state needed for open/close); `group-open:`
+// rotates the chevron and CSS alone handles the rest.
+function TemplateRowDetails({
+  template,
+  trailing,
+  subtitle,
+  children,
+}: {
+  template: { id: string; title: string; category: string; blocks: unknown[] };
+  trailing?: React.ReactNode;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group border-t border-line first:border-t-0">
+      <summary className="cursor-pointer list-none flex items-center gap-2.5 px-4 py-3 hover:bg-linen">
+        <ChevronRight size={13} className="text-slate transition-transform group-open:rotate-90 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[13px] text-ink font-medium">{template.title}</span>
+            <Pill tone="neutral">{CATEGORY_LABELS[template.category] ?? template.category}</Pill>
+            {template.blocks.length > 0 && <Pill tone="good">Conditionnel</Pill>}
+          </div>
+          {subtitle && <div className="text-[11px] text-slate mt-0.5">{subtitle}</div>}
+        </div>
+        {trailing && (
+          <div className="shrink-0">
+            <StopSummaryToggle>{trailing}</StopSummaryToggle>
           </div>
         )}
-
-        <NewTemplateForm courses={courses} />
-      </div>
-    </div>
+      </summary>
+      <div className="px-4 pb-3.5 pl-[calc(1rem+13px+10px)]">{children}</div>
+    </details>
   );
 }
 
@@ -223,10 +276,10 @@ function OrgTemplateBody({ template }: { template: { id: string; title: string; 
     return <TemplateBlocksEditor templateId={template.id} initialBlocks={toBlockRows(template.blocks)} canEdit />;
   }
   return (
-    <>
+    <div className="flex flex-col gap-2.5">
       <TemplateEditor templateId={template.id} title={template.title} bodyText={template.bodyText} />
       <ActivateBlocksButton templateId={template.id} bodyText={template.bodyText} />
-    </>
+    </div>
   );
 }
 

@@ -124,3 +124,16 @@ export function resolveAnswers(
 
   return { answers, unresolved };
 }
+
+/**
+ * The funder actually named in a subrogation clause — same "active,
+ * subrogated" filter as the subrogation question's own resolver, so the
+ * name shown in a document always matches the branch that included the
+ * clause in the first place. Null when there's nothing to name.
+ */
+export function resolveSubrogatedFunderName(
+  fundingCommitments: { status: string; subrogation: boolean; funder: { name: string } }[],
+): string | null {
+  const active = fundingCommitments.find((c) => c.status !== "refused" && c.subrogation);
+  return active?.funder.name ?? null;
+}

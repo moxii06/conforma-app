@@ -9,6 +9,7 @@ type LegalInfo = {
   rcsCity: string;
   rcsNumber: string;
   legalRepresentativeName: string;
+  activityDeclarationNumber: string;
 };
 
 export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
@@ -91,15 +92,26 @@ export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
           />
         </label>
       </div>
-      <label className="flex flex-col gap-1">
-        <span className="text-[11px] text-slate uppercase tracking-wide">Représentant légal</span>
-        <input
-          value={values.legalRepresentativeName}
-          onChange={(e) => set("legalRepresentativeName", e.target.value)}
-          placeholder="Marie Lefèvre, gérante"
-          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
-        />
-      </label>
+      <div className="grid grid-cols-2 gap-2.5">
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate uppercase tracking-wide">Représentant légal</span>
+          <input
+            value={values.legalRepresentativeName}
+            onChange={(e) => set("legalRepresentativeName", e.target.value)}
+            placeholder="Marie Lefèvre, gérante"
+            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-slate uppercase tracking-wide">N° de déclaration d&apos;activité</span>
+          <input
+            value={values.activityDeclarationNumber}
+            onChange={(e) => set("activityDeclarationNumber", e.target.value)}
+            placeholder="11 75 12345 75"
+            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          />
+        </label>
+      </div>
       <div className="flex items-center gap-2.5 mt-1">
         <button
           type="button"

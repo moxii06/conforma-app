@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
+import { SearchableDossierSelect } from "@/components/SearchableDossierSelect";
 
 type Dossier = { id: string; label: string };
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
@@ -74,12 +75,10 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
   return (
     <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
-        <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal">
-          {dossiers.map((d) => (
-            <option key={d.id} value={d.id}>{d.label}</option>
-          ))}
-        </select>
-        <button onClick={handleGenerate} disabled={loading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+        <div className="w-56">
+          <SearchableDossierSelect dossiers={dossiers} value={dossierId} onChange={setDossierId} />
+        </div>
+        <button onClick={handleGenerate} disabled={loading || !dossierId} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60 shrink-0">
           {loading ? "…" : "Générer"}
         </button>
       </div>
