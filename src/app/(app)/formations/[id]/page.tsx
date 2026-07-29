@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
@@ -139,15 +139,55 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
       : Promise.resolve([]),
   ]);
 
+  const learnerCount = course.sessions.reduce((n, s) => n + s.dossiers.length, 0);
+  const courseInitials = course.title
+    .split(/\s+/)
+    .filter((w) => /[\p{L}\p{N}]/u.test(w))
+    .slice(0, 2)
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase();
+  const formatAmountCard = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+
   return (
     <>
       <PageHeader title={course.title} subtitle={course.archivedAt ? "Formation archivée" : "Gestion de la formation"} />
       <Tabs basePath={`/formations/${course.id}`} tabs={TABS} active={activeTab} />
-      <div className="p-8 flex flex-col gap-4 max-w-3xl">
-        <Link href="/formations" className="inline-flex items-center gap-1.5 text-[12.5px] text-slate hover:text-ink w-fit">
+      <div className="p-8 max-w-5xl">
+        <Link href="/formations" className="inline-flex items-center gap-1.5 text-[12.5px] text-slate hover:text-ink w-fit mb-4">
           <ArrowLeft size={14} /> Retour au catalogue
         </Link>
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 items-start">
+        <div className="bg-white border border-line rounded-card p-5 lg:sticky lg:top-6">
+          <Avatar initials={courseInitials} />
+          <div className="font-display text-[18px] text-ink mt-3 leading-snug">{course.title}</div>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {course.archivedAt ? <Pill tone="neutral">Archivée</Pill> : <Pill tone="good">Active</Pill>}
+            {rollingSessionCount > 0 && <Pill tone="neutral">En continu</Pill>}
+          </div>
+          <div className="mt-4">
+            <div className="text-[12px] text-slate mb-1">Prix catalogue</div>
+            <div className="text-2xl font-mono font-semibold tabular-nums text-ink">
+              {course.priceCents != null ? formatAmountCard(course.priceCents) : "—"}
+            </div>
+            {course.durationHours != null && <div className="text-[11.5px] text-slate mt-1">{course.durationHours} h de formation</div>}
+          </div>
+          <div className="mt-4 pt-4 border-t border-line flex flex-col gap-2.5">
+            <InfoRow label="Apprenants">
+              {course.maxLearners != null ? `${learnerCount}/${course.maxLearners}` : `${learnerCount} · illimité`}
+            </InfoRow>
+            <InfoRow label="Sessions">{course._count.sessions}</InfoRow>
+            {course.responsibleUsers.length > 0 && (
+              <InfoRow label="Responsables">{course.responsibleUsers.map((u) => u.name).join(", ")}</InfoRow>
+            )}
+            {course.subcontractors.length > 0 && (
+              <InfoRow label="Prestataires">{course.subcontractors.map((s) => s.name).join(", ")}</InfoRow>
+            )}
+            <InfoRow label="Modules">{course.elearningModules.length}</InfoRow>
+          </div>
+        </div>
 
+        <div className="flex flex-col gap-4">
         {activeTab === "resume" && (
           <ResumeTab
             course={course}
@@ -174,6 +214,8 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
             signedDocuments={signedDocuments}
           />
         )}
+        </div>
+        </div>
       </div>
     </>
   );
@@ -203,42 +245,16 @@ function ResumeTab({
   const formatAmount = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
   return (
     <div className="bg-white border border-line rounded-card p-4 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      {(course.description || course.certificateValidityMonths != null) && (
         <div>
-          {course.description && <div className="text-[11.5px] text-slate mt-0.5">{course.description}</div>}
-          {course.responsibleUsers.length > 0 && (
-            <div className="text-[11px] text-slate mt-0.5">
-              Responsable{course.responsibleUsers.length > 1 ? "s" : ""} : {course.responsibleUsers.map((u) => u.name).join(", ")}
-            </div>
-          )}
-          {course.subcontractors.length > 0 && (
-            <div className="text-[11px] text-slate mt-0.5">
-              Prestataire{course.subcontractors.length > 1 ? "s" : ""} : {course.subcontractors.map((s) => s.name).join(", ")}
-            </div>
-          )}
-          {(course.durationHours != null || course.priceCents != null) && (
-            <div className="text-[11px] text-slate mt-0.5">
-              {course.durationHours != null ? `${course.durationHours} h` : "Durée non renseignée"}
-              {" · "}
-              {course.priceCents != null ? formatAmount(course.priceCents) : "Prix non renseigné"}
-            </div>
-          )}
+          {course.description && <div className="text-[12px] text-slate">{course.description}</div>}
           {course.certificateValidityMonths != null && (
-            <div className="text-[11px] text-slate mt-0.5">
+            <div className="text-[11px] text-slate mt-1">
               Attestation valable {course.certificateValidityMonths} mois — renouvellement à prévoir
             </div>
           )}
-          <div className="text-[11px] text-slate mt-0.5">
-            {course.maxLearners != null
-              ? `${course.sessions.reduce((n, s) => n + s.dossiers.length, 0)}/${course.maxLearners} places occupées`
-              : "Places illimitées"}
-          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {rollingSessionCount > 0 && <Pill tone="neutral">{rollingSessionCount} en continu</Pill>}
-          <div className="text-[11.5px] text-slate">{sessionCount} session(s)</div>
-        </div>
-      </div>
+      )}
 
       {canManage && (
         <div className="flex items-center gap-3">
