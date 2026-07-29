@@ -361,7 +361,6 @@ async function MyDocumentsTab({
             rel="noreferrer"
             className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-linen"
           >
-            <Pill tone="neutral">{CATEGORY_LABELS[doc.category] ?? doc.category}</Pill>
             <div className="flex-1 min-w-0">
               <div className="text-[13px] text-ink font-medium truncate">{doc.title}</div>
               {doc.dossier && (
@@ -370,7 +369,8 @@ async function MyDocumentsTab({
                 </div>
               )}
             </div>
-            <div className="text-[11px] text-slate shrink-0">
+            <Pill tone="neutral">{CATEGORY_LABELS[doc.category] ?? doc.category}</Pill>
+            <div className="text-[11px] text-slate shrink-0 w-[74px] text-right">
               {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
             </div>
           </a>
