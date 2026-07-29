@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Avatar } from "@/components/ui";
 import Link from "next/link";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -73,28 +73,43 @@ export default async function DossiersPage(
           <div className="text-[12px] text-slate">{total} dossier{total > 1 ? "s" : ""}</div>
         </div>
         <div className="flex flex-col gap-2">
-          {dossiers.map((d) => (
-            <Link
-              key={d.id}
-              href={`/dossiers/${d.id}`}
-              className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center justify-between gap-4 hover:border-ink-soft"
-            >
-              <div className="min-w-0">
-                <div className="text-[13.5px] font-semibold text-ink truncate">
-                  {d.contact.firstName} {d.contact.lastName}
+          {dossiers.map((d) => {
+            const doneCount = [d.needsAssessmentDone, d.contractSigned, d.convocationSent, d.evaluationHotDone, d.evaluationColdDone].filter(Boolean).length;
+            // Same real signal as the dossier page's checklist: a fixed-date
+            // session already started without its convocation sent. ROLLING
+            // sessions carry placeholder dates — never "late" on this basis.
+            const convocationOverdue = d.session.mode === "FIXED_DATE" && !d.convocationSent && d.session.startsAt <= new Date();
+            return (
+              <Link
+                key={d.id}
+                href={`/dossiers/${d.id}`}
+                className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center justify-between gap-4 hover:border-ink-soft"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Avatar initials={`${d.contact.firstName[0] ?? ""}${d.contact.lastName[0] ?? ""}`.toUpperCase()} />
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-semibold text-ink truncate">
+                      {d.contact.firstName} {d.contact.lastName}
+                    </div>
+                    <div className="text-[12px] text-slate mt-0.5 truncate">
+                      {d.session.course.title} ·{" "}
+                      {d.session.mode === "ROLLING" ? "en continu" : format(d.session.startsAt, "d MMM yyyy", { locale: fr })}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-[12px] text-slate mt-0.5 truncate">
-                  {d.session.course.title} ·{" "}
-                  {d.session.mode === "ROLLING" ? "en continu" : format(d.session.startsAt, "d MMM yyyy", { locale: fr })}
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {convocationOverdue && <Pill tone="danger">Convocation en retard</Pill>}
+                  {!d.contractSigned && !convocationOverdue && <Pill tone="warn">Convention à signer</Pill>}
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-pebble rounded-full overflow-hidden">
+                      <div className="h-full bg-sage rounded-full" style={{ width: `${(doneCount / 5) * 100}%` }} />
+                    </div>
+                    <span className="text-[11.5px] text-slate tabular-nums font-mono">{doneCount}/5</span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Pill tone={d.needsAssessmentDone ? "good" : "warn"}>Recueil</Pill>
-                <Pill tone={d.contractSigned ? "good" : "warn"}>Convention</Pill>
-                <Pill tone={d.convocationSent ? "good" : "neutral"}>Convocation</Pill>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
           {dossiers.length === 0 && (
             <div className="text-[12.5px] text-slate">
               {q ? "Aucun dossier ne correspond à cette recherche." : "Aucun dossier."}

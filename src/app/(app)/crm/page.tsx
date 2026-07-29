@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, MetricCard } from "@/components/ui";
 import { PipelineStage, Prisma } from "@prisma/client";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -88,7 +88,7 @@ export default async function CrmPage(
   const stageFilter = searchParams.stage && searchParams.stage in PipelineStage ? (searchParams.stage as PipelineStage) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
 
-  const [opportunities, contacts, courses, templates] = await Promise.all([
+  const [opportunities, contacts, courses, templates, pipelineTotals] = await Promise.all([
     prisma.opportunity.findMany({
       where: {
         organizationId,
@@ -115,8 +115,25 @@ export default async function CrmPage(
           orderBy: { title: "asc" },
         })
       : Promise.resolve([]),
+    // Summary strip totals: same scope as the table (org + owner for SALES,
+    // non-archived) but deliberately NOT the stage filter — the strip stays
+    // stable while the table narrows, so the numbers keep meaning "my whole
+    // pipeline".
+    prisma.opportunity.groupBy({
+      by: ["stage"],
+      where: { organizationId, ...ownerFilter, contact: { archivedAt: null } },
+      _count: true,
+      _sum: { amountCents: true },
+    }),
   ]);
   const eSignatureAvailable = canWrite ? await isYousignConfigured(organizationId) : false;
+
+  const stageSum = (stages: PipelineStage[]) =>
+    pipelineTotals.filter((g) => stages.includes(g.stage)).reduce((sum, g) => sum + (g._sum.amountCents ?? 0), 0);
+  const activeCount = pipelineTotals.reduce((sum, g) => sum + g._count, 0);
+  const negotiationCents = stageSum(["PROSPECT", "QUOTE_SENT", "CONTRACT_SIGNED", "SESSION_SCHEDULED"]);
+  const toInvoiceCents = stageSum(["TO_INVOICE"]);
+  const wonCents = stageSum(["INVOICED", "PAID"]);
 
   return (
     <>
@@ -140,6 +157,14 @@ export default async function CrmPage(
         </Link>
       </div>
       <div className="p-8 flex flex-col gap-4">
+        {view === "table" && (
+          <div className="flex gap-3.5">
+            <MetricCard label="Prospects actifs" value={String(activeCount)} />
+            <MetricCard label="En négociation" value={formatAmount(negotiationCents)} hint="du premier contact à la session planifiée" />
+            <MetricCard label="À facturer" value={formatAmount(toInvoiceCents)} tone={toInvoiceCents > 0 ? "danger" : "ink"} href="/crm?stage=TO_INVOICE" />
+            <MetricCard label="Facturé & payé" value={formatAmount(wonCents)} tone="good" href="/facturation?tab=factures" />
+          </div>
+        )}
         {canWrite && view !== "archives" && (
           <div className="flex items-start gap-2.5">
             <NewOpportunityForm contacts={contacts} courses={courses} />
