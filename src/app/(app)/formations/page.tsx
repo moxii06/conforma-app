@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { MetricCard, PageHeader, Pill } from "@/components/ui";
+import { MetricCard, PageHeader, Pill, Avatar, initialsOf } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
@@ -141,16 +141,23 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
             <div className="flex flex-col gap-2.5">
               {courses.map((course) => {
                 const { pillLabel, pillTone, secondary } = summarizeSessions(course.sessions);
+                const learnerCount = course.sessions.reduce((sum, s) => sum + s._count.dossiers, 0);
                 return (
                   <Link
                     key={course.id}
                     href={`/formations/${course.id}`}
-                    className="bg-white border border-line rounded-card px-5 py-4 flex items-center justify-between gap-5 hover:border-ink-soft"
+                    className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center gap-3.5 hover:border-ink-soft"
                   >
-                    <div className="text-[13.5px] font-semibold text-ink truncate">{course.title}</div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <Avatar initials={initialsOf(course.title)} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-semibold text-ink truncate">{course.title}</div>
+                      <div className="text-[11.5px] text-slate mt-0.5">
+                        {learnerCount} apprenant{learnerCount > 1 ? "s" : ""} · {course._count.sessions} session{course._count.sessions > 1 ? "s" : ""}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0">
                       {pillLabel && <Pill tone={pillTone}>{pillLabel}</Pill>}
-                      <div className="text-[12px] text-slate w-16 text-right">{secondary}</div>
+                      <div className="text-[12px] text-slate whitespace-nowrap">{secondary}</div>
                     </div>
                   </Link>
                 );
@@ -165,12 +172,15 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
               {courses.map((course) => {
                 const learnerCount = course.sessions.reduce((sum, s) => sum + s._count.dossiers, 0);
                 return (
-                  <div key={course.id} className="bg-white border border-line rounded-card px-5 py-4 flex items-center justify-between gap-5">
-                    <Link href={`/formations/${course.id}`} className="min-w-0 hover:underline">
-                      <div className="text-[13.5px] font-semibold text-ink truncate">{course.title}</div>
-                      <div className="text-[11px] text-slate mt-0.5">
-                        {learnerCount} apprenant{learnerCount > 1 ? "s" : ""} · {course._count.sessions} session(s)
-                        {course.archivedAt && ` · archivée le ${format(course.archivedAt, "d MMM yyyy", { locale: fr })}`}
+                  <div key={course.id} className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center gap-3.5">
+                    <Link href={`/formations/${course.id}`} className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <Avatar initials={initialsOf(course.title)} />
+                      <div className="min-w-0">
+                        <div className="text-[13.5px] font-semibold text-ink truncate hover:underline">{course.title}</div>
+                        <div className="text-[11px] text-slate mt-0.5">
+                          {learnerCount} apprenant{learnerCount > 1 ? "s" : ""} · {course._count.sessions} session(s)
+                          {course.archivedAt && ` · archivée le ${format(course.archivedAt, "d MMM yyyy", { locale: fr })}`}
+                        </div>
                       </div>
                     </Link>
                     {canManage && <ArchiveCourseButton courseId={course.id} archived />}
