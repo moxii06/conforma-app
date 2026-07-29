@@ -12,6 +12,17 @@ import type { QuestionKey } from "@/lib/documentQuestionnaire";
 
 type Template = { id: string; title: string; category: string };
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
+type AppliedAnswer = { key: string; value: string };
+
+// Short badge wording for each resolved conditional variant — the
+// questionnaire's own option labels are full sentences, too long for a
+// "✓ Distanciel" chip above the assembled preview.
+const APPLIED_BADGE_LABELS: Record<string, Record<string, string>> = {
+  statutApprenant: { individual: "Particulier", company: "Salarié / entreprise" },
+  modalite: { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Hybride" },
+  subrogation: { oui: "Subrogation financeur", non: "Sans subrogation" },
+  resteACharge: { oui: "Reste à charge inclus", non: "Sans reste à charge" },
+};
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
@@ -66,6 +77,8 @@ export function SendDocumentDialog({
   // The editor stays empty until these are answered and re-submitted.
   const [pending, setPending] = useState<PendingQuestion[] | null>(null);
   const [pendingAnswers, setPendingAnswers] = useState<Partial<Record<QuestionKey, string>>>({});
+  // Variants the conditional template resolved to (empty for flat templates).
+  const [applied, setApplied] = useState<AppliedAnswer[]>([]);
 
   async function loadPreview(id: string, answers?: Partial<Record<QuestionKey, string>>) {
     setLoadingPreview(true);
@@ -87,6 +100,7 @@ export function SendDocumentDialog({
     setBodyHtml(plainTextToHtml(data.bodyText));
     setBodyResetKey((k) => k + 1);
     setCategory(data.category);
+    setApplied(data.applied ?? []);
   }
 
   async function handlePickTemplate(id: string) {
@@ -94,6 +108,7 @@ export function SendDocumentDialog({
     setError(null);
     setPending(null);
     setPendingAnswers({});
+    setApplied([]);
     if (!id) {
       setTitle("");
       setBodyHtml("");
@@ -121,6 +136,7 @@ export function SendDocumentDialog({
     setRequiresSignature(false);
     setPending(null);
     setPendingAnswers({});
+    setApplied([]);
     setResult(null);
     setError(null);
   }
@@ -257,6 +273,25 @@ export function SendDocumentDialog({
             <a href={result.documentUrl} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline break-all">
               {result.documentUrl}
             </a>
+            {requiresSignature && (
+              <div className="border border-line rounded-md p-3 mt-1 flex flex-col gap-2 max-w-xs">
+                <div className="text-[11px] text-slate uppercase tracking-wide">Suivi de signature</div>
+                <div className="flex items-center">
+                  <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-sage shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-sage" />
+                    Envoyé
+                  </div>
+                  <div className="flex-1 h-px bg-line mx-2.5 min-w-[28px]" />
+                  <div className="flex items-center gap-1.5 text-[11.5px] text-slate shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-pebble border border-ash" />
+                    Signé
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate">
+                  Le statut passera automatiquement à « Signé » — visible dans l&apos;onglet Documents du dossier.
+                </div>
+              </div>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -337,6 +372,18 @@ export function SendDocumentDialog({
                 <div className="flex flex-col gap-2">
                   <div className="text-[11px] text-slate uppercase tracking-wide">Document</div>
                   {titleInput}
+                  {applied.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {applied.map((a) => (
+                        <span
+                          key={a.key}
+                          className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sage bg-[#DEE5E0] rounded-md px-1.5 py-0.5"
+                        >
+                          ✓ {APPLIED_BADGE_LABELS[a.key]?.[a.value] ?? a.value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex flex-col gap-1">
                     <div className="text-[11px] text-slate uppercase tracking-wide">Contenu (PDF envoyé en pièce jointe)</div>
                     <RichTextEditor

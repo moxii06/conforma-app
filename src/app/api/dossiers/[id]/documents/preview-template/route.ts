@@ -58,6 +58,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
 
   let bodyTextSource = template.bodyText;
+  // Which variant each conditional question resolved to, for the questions
+  // this template actually references — lets the dialog show "✓ Distanciel"
+  // style badges explaining why the assembled text reads the way it does.
+  let applied: { key: string; value: string }[] = [];
   if (template.blocks.length > 0) {
     const { answers, unresolved } = resolveAnswers(
       {
@@ -68,11 +72,13 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       },
       manualAnswers,
     );
-    const stillMissing = collectQuestionKeys(template.blocks).filter((k) => unresolved.includes(k));
+    const referenced = collectQuestionKeys(template.blocks);
+    const stillMissing = referenced.filter((k) => unresolved.includes(k));
     if (stillMissing.length > 0) {
       return NextResponse.json({ unresolved: stillMissing.map((k) => QUESTION_BY_KEY[k]), category: template.category });
     }
     bodyTextSource = assembleBlocks(template.blocks, answers);
+    applied = referenced.flatMap((k) => (answers[k] != null ? [{ key: k, value: answers[k] }] : []));
   }
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
@@ -99,5 +105,6 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     bodyText,
     category: template.category,
     unresolved: [],
+    applied,
   });
 }
