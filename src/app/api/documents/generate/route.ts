@@ -3,8 +3,16 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { mergeTemplate } from "@/lib/mergeTemplate";
+import { resolveAnswers, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 
-const schema = z.object({ templateId: z.string().min(1), dossierId: z.string().min(1) });
+const schema = z.object({
+  templateId: z.string().min(1),
+  dossierId: z.string().min(1),
+  // Manual answers for questions the dossier's own data can't resolve —
+  // only used when the template has conditional blocks (see below).
+  answers: z.record(z.string()).optional(),
+});
 
 export async function POST(request: Request) {
   const session = await getSessionContext();
@@ -23,10 +31,11 @@ export async function POST(request: Request) {
         id: parsed.data.templateId,
         OR: [{ organizationId: session.organizationId }, { organizationId: null }],
       },
+      include: { blocks: { orderBy: { order: "asc" } } },
     }),
     prisma.dossier.findFirst({
       where: { id: parsed.data.dossierId, organizationId: session.organizationId },
-      include: { contact: true, session: { include: { course: true } } },
+      include: { contact: true, session: { include: { course: true } }, fundingCommitments: true },
     }),
     prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } }),
   ]);
@@ -34,7 +43,30 @@ export async function POST(request: Request) {
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
 
-  const merged = mergeTemplate(template.bodyText, {
+  // A conditional template (blocks.length > 0) replaces bodyText entirely —
+  // see the DocumentTemplate.blocks schema comment. Unresolved-and-needed
+  // questions block generation with 409 rather than guessing; the caller
+  // (GenerateDocumentButton) re-POSTs with `answers` once staff has filled
+  // them in.
+  let bodyTextSource = template.bodyText;
+  if (template.blocks.length > 0) {
+    const { answers, unresolved } = resolveAnswers(
+      {
+        dossier: { learnerCategory: dossier.learnerCategory, agreedPriceCents: dossier.agreedPriceCents },
+        session: { format: dossier.session.format },
+        course: { priceCents: dossier.session.course.priceCents },
+        fundingCommitments: dossier.fundingCommitments,
+      },
+      parsed.data.answers as Partial<Record<QuestionKey, string>> | undefined,
+    );
+    const stillMissing = collectQuestionKeys(template.blocks).filter((k) => unresolved.includes(k));
+    if (stillMissing.length > 0) {
+      return NextResponse.json({ unresolved: stillMissing.map((k) => QUESTION_BY_KEY[k]) }, { status: 409 });
+    }
+    bodyTextSource = assembleBlocks(template.blocks, answers);
+  }
+
+  const merged = mergeTemplate(bodyTextSource, {
     contact: dossier.contact,
     organization,
     session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },

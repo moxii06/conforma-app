@@ -1,4 +1,4 @@
-import { PrismaClient, PipelineStage, SessionFormat, Role } from "@prisma/client";
+import { PrismaClient, PipelineStage, SessionFormat, Role, Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 // Demo-only password, same for every seeded account. Never do this outside
@@ -381,7 +381,8 @@ export async function seedBase(prisma: PrismaClient) {
   const DISCLAIMER =
     "[Modèle de démarrage — à faire relire et valider par un juriste avant tout usage réel.]\n\n";
 
-  const STARTER_TEMPLATES: { category: string; title: string; bodyText: string }[] = [
+  type StarterBlock = { bodyText: string; conditions: { questionKey: string; in: string[] }[] | null };
+  const STARTER_TEMPLATES: { category: string; title: string; bodyText: string; blocks?: StarterBlock[] }[] = [
     {
       category: "cgv",
       title: "Conditions générales de vente",
@@ -420,6 +421,92 @@ export async function seedBase(prisma: PrismaClient) {
         "Article 3 — Effectifs : [NOMBRE DE STAGIAIRES].\n\n" +
         "Article 4 — Dispositions financières : coût total, modalités de règlement, prise en charge éventuelle : [À COMPLÉTER].\n\n" +
         "Article 5 — Sanction de la formation : attestation de fin de formation remise à l'issue de l'action.",
+    },
+    {
+      category: "contrat_formation",
+      title: "Contrat de formation professionnelle (particulier) — paragraphes conditionnels",
+      bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+      blocks: [
+        {
+          bodyText:
+            "CONTRAT DE FORMATION PROFESSIONNELLE\n(articles L.6353-3 et suivants du Code du travail — personne physique s'inscrivant à titre individuel et à ses frais)\n\nEntre [NOM DE L'ORGANISME], organisme de formation enregistré sous le numéro [NUMÉRO DE DÉCLARATION D'ACTIVITÉ], d'une part, et [NOM ET PRÉNOM DU STAGIAIRE], d'autre part.\n\nArticle 1 — Objet : le présent contrat a pour objet la réalisation de l'action de formation suivante : [INTITULÉ DE LA FORMATION].\n\nArticle 2 — Nature et durée : [DATES, DURÉE].",
+          conditions: null,
+        },
+        {
+          bodyText:
+            "Article 3 — Programme et objectifs pédagogiques : se reporter au programme détaillé remis au stagiaire avant son inscription (objectifs, prérequis, méthodes et modalités d'évaluation).",
+          conditions: null,
+        },
+        {
+          bodyText: "Article 4 — Lieu de la formation : [ADRESSE DU LIEU DE FORMATION].",
+          conditions: [{ questionKey: "modalite", in: ["IN_PERSON", "HYBRID"] }],
+        },
+        {
+          bodyText:
+            "Article 4 bis — Modalités à distance : la formation (ou une partie de celle-ci) est dispensée à distance, via [NOM DE LA PLATEFORME]. Le stagiaire dispose des accès nécessaires (identifiants, prérequis techniques) communiqués avant le début de l'action. [À VALIDER PAR UN JURISTE : engagement d'assistance technique et pédagogique à distance, art. L.6353-1.]",
+          conditions: [{ questionKey: "modalite", in: ["REMOTE", "HYBRID"] }],
+        },
+        {
+          bodyText:
+            "Article 5 — Prise en charge par un tiers financeur : tout ou partie du coût de la formation est réglé directement par [NOM DU FINANCEUR] par subrogation. Le stagiaire s'engage à fournir à l'organisme les justificatifs nécessaires à cette prise en charge. [À VALIDER PAR UN JURISTE : conséquences en cas de refus ou de retrait de la prise en charge.]",
+          conditions: [{ questionKey: "subrogation", in: ["oui"] }],
+        },
+        {
+          bodyText:
+            "Article 6 — Prix et modalités de règlement : le prix de la formation, déduction faite de toute prise en charge par un tiers financeur, s'élève à [MONTANT] € TTC, payable selon les modalités suivantes : [À COMPLÉTER — comptant / échéancier].",
+          conditions: [{ questionKey: "resteACharge", in: ["oui"] }],
+        },
+        {
+          bodyText:
+            "Article 7 — Délai de rétractation : à compter de la signature du présent contrat, le stagiaire a un délai de dix jours pour se rétracter. Il en informe l'organisme par lettre recommandée avec accusé de réception. Aucune somme ne peut être exigée du stagiaire avant l'expiration de ce délai. [À VALIDER PAR UN JURISTE : articulation avec un premier paiement déjà perçu, articles L.6353-3 à L.6353-9.]",
+          conditions: null,
+        },
+        {
+          bodyText:
+            "Article 8 — Sanction de la formation : une attestation de fin de formation est remise au stagiaire à l'issue de l'action, mentionnant les objectifs, la nature et la durée de l'action ainsi que les résultats de l'évaluation des acquis.\n\nArticle 9 — Litiges : en cas de litige, les parties s'efforcent de trouver une solution amiable avant tout recours contentieux. Conformément aux articles L.616-1 et R.616-1 du Code de la consommation, le stagiaire peut recourir gratuitement au service de médiation de la consommation suivant : [NOM ET COORDONNÉES DU MÉDIATEUR — voir mediation-conso.fr].",
+          conditions: null,
+        },
+      ],
+    },
+    {
+      category: "convention",
+      title: "Convention de formation professionnelle — paragraphes conditionnels",
+      bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+      blocks: [
+        {
+          bodyText:
+            "CONVENTION DE FORMATION PROFESSIONNELLE\n(article L.6353-1 et suivants du Code du travail)\n\nEntre [NOM DE L'ORGANISME], organisme de formation enregistré sous le numéro [NUMÉRO DE DÉCLARATION D'ACTIVITÉ], d'une part, et [NOM DU CLIENT / ENTREPRISE], d'autre part.\n\nArticle 1 — Objet : la présente convention a pour objet la réalisation de l'action de formation suivante : [INTITULÉ DE LA FORMATION].\n\nArticle 2 — Nature et durée : [DATES, DURÉE].\n\nArticle 3 — Effectifs : [NOMBRE DE STAGIAIRES].",
+          conditions: null,
+        },
+        {
+          bodyText: "Article 4 — Lieu de la formation : [ADRESSE DU LIEU DE FORMATION].",
+          conditions: [{ questionKey: "modalite", in: ["IN_PERSON", "HYBRID"] }],
+        },
+        {
+          bodyText:
+            "Article 4 bis — Modalités à distance : la formation (ou une partie de celle-ci) est dispensée à distance, via [NOM DE LA PLATEFORME]. [À VALIDER PAR UN JURISTE : engagement d'assistance technique et pédagogique à distance.]",
+          conditions: [{ questionKey: "modalite", in: ["REMOTE", "HYBRID"] }],
+        },
+        {
+          bodyText:
+            "Article 5 — Règlement par subrogation : le coût de la formation est réglé directement à l'organisme par [NOM DU FINANCEUR], par subrogation, sur présentation des justificatifs de réalisation de l'action. [À VALIDER PAR UN JURISTE.]",
+          conditions: [{ questionKey: "subrogation", in: ["oui"] }],
+        },
+        {
+          bodyText: "Article 5 — Règlement : le coût de la formation est réglé directement par [NOM DU CLIENT / ENTREPRISE].",
+          conditions: [{ questionKey: "subrogation", in: ["non"] }],
+        },
+        {
+          bodyText:
+            "Article 6 — Reste à charge : après prise en charge partielle par [NOM DU FINANCEUR], le solde restant dû par le client s'élève à [MONTANT] € TTC, payable selon les modalités suivantes : [À COMPLÉTER].",
+          conditions: [{ questionKey: "resteACharge", in: ["oui"] }],
+        },
+        {
+          bodyText:
+            "Article 7 — Sanction de la formation : une attestation de fin de formation est remise à chaque stagiaire à l'issue de l'action.\n\nArticle 8 — Inexécution : en cas de résiliation par l'une des parties avant le début de la formation, ou en cas d'abandon en cours de formation, se référer aux conditions générales de vente de l'organisme.",
+          conditions: null,
+        },
+      ],
     },
     {
       category: "needs_assessment",
@@ -590,7 +677,13 @@ export async function seedBase(prisma: PrismaClient) {
       where: { organizationId: null, category: template.category, title: template.title },
     });
     if (!existing) {
-      await prisma.documentTemplate.create({ data: { organizationId: null, ...template } });
+      const { blocks, ...templateData } = template;
+      const created = await prisma.documentTemplate.create({ data: { organizationId: null, ...templateData } });
+      if (blocks && blocks.length > 0) {
+        await prisma.documentTemplateBlock.createMany({
+          data: blocks.map((b, i) => ({ templateId: created.id, order: i, bodyText: b.bodyText, conditions: b.conditions ?? Prisma.JsonNull })),
+        });
+      }
     }
   }
 

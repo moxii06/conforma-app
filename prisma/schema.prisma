@@ -1244,7 +1244,7 @@ model DocumentTemplate {
   id             String        @id @default(cuid())
   organization   Organization? @relation(fields: [organizationId], references: [id])
   organizationId String?
-  category       String // needs_assessment | convention | convocation | eval_hot | eval_cold | cgv | internal_rules | other
+  category       String // needs_assessment | convention | contrat_formation | convocation | eval_hot | eval_cold | cgv | internal_rules | other
   title          String
   bodyText       String
   forkedFromId   String?
@@ -1256,8 +1256,38 @@ model DocumentTemplate {
   course         Course?       @relation(fields: [courseId], references: [id])
   courseId       String?
 
+  // Ordered, conditional paragraphs — an alternative to the flat bodyText
+  // above for documents whose wording legally varies by situation (a
+  // convention/contrat de formation: statut de l'apprenant, modalité
+  // distance/présentiel, subrogation...). When this list is non-empty it
+  // REPLACES bodyText entirely at generation time (see
+  // lib/documentAssembly.ts) — bodyText stays untouched as a harmless
+  // leftover rather than a second, conflicting source of truth.
+  blocks DocumentTemplateBlock[]
+
   @@index([organizationId])
   @@index([courseId])
+}
+
+// One paragraph of a conditional DocumentTemplate. `conditions` is either
+// null (always included — the template's fixed/common text) or a JSON array
+// of { questionKey, in: string[] } — see lib/documentQuestionnaire.ts for
+// the question catalogue these keys reference — ANDed together, so a block
+// can require several answers at once (e.g. "statut = personne physique" ET
+// "modalité = distance"). Kept as a flat AND of equality checks rather than
+// a general boolean-expression language: it covers every real branching
+// case in a training contract without needing a non-technical admin to
+// write or debug expression syntax.
+model DocumentTemplateBlock {
+  id         String           @id @default(cuid())
+  template   DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  templateId String
+  order      Int
+  bodyText   String
+  conditions Json?
+  createdAt  DateTime         @default(now())
+
+  @@index([templateId])
 }
 
 // The "send the needs assessment to a prospect" tool from the CRM: a

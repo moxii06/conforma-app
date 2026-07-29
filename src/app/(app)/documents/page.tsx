@@ -6,6 +6,8 @@ import { Role, type Prisma } from "@prisma/client";
 import { CATEGORY_LABELS, DOCUMENT_CATEGORIES } from "@/lib/documentCategories";
 import { ForkTemplateButton } from "@/components/ForkTemplateButton";
 import { TemplateEditor } from "@/components/TemplateEditor";
+import { TemplateBlocksEditor } from "@/components/TemplateBlocksEditor";
+import { ActivateBlocksButton } from "@/components/ActivateBlocksButton";
 import { NewTemplateForm } from "@/components/NewTemplateForm";
 import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
 import { Tabs } from "@/components/Tabs";
@@ -13,6 +15,15 @@ import { SearchInput } from "@/components/SearchInput";
 import { DocumentCategoryFilter } from "@/components/DocumentCategoryFilter";
 import { Pagination } from "@/components/Pagination";
 import { AVAILABLE_MERGE_FIELDS } from "@/lib/mergeTemplate";
+import { parseConditions } from "@/lib/documentAssembly";
+import type { BlockRow } from "@/components/TemplateBlocksEditor";
+
+function toBlockRows(blocks: { bodyText: string; conditions: unknown }[]): BlockRow[] {
+  return blocks.map((b) => {
+    const conditions = parseConditions(b.conditions);
+    return { bodyText: b.bodyText, conditions: conditions.length > 0 ? conditions : null };
+  });
+}
 
 const PAGE_SIZE = 30;
 
@@ -50,8 +61,16 @@ export default async function DocumentsPage(
 
 async function TemplatesTab({ organizationId }: { organizationId: string }) {
   const [globalTemplates, orgTemplates, dossiers, courses] = await Promise.all([
-    prisma.documentTemplate.findMany({ where: { organizationId: null }, orderBy: { title: "asc" } }),
-    prisma.documentTemplate.findMany({ where: { organizationId }, orderBy: { title: "asc" } }),
+    prisma.documentTemplate.findMany({
+      where: { organizationId: null },
+      orderBy: { title: "asc" },
+      include: { blocks: { orderBy: { order: "asc" } } },
+    }),
+    prisma.documentTemplate.findMany({
+      where: { organizationId },
+      orderBy: { title: "asc" },
+      include: { blocks: { orderBy: { order: "asc" } } },
+    }),
     prisma.dossier.findMany({
       where: { organizationId },
       include: { contact: true, session: { include: { course: true } } },
@@ -106,9 +125,15 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
                         <ForkTemplateButton templateId={t.id} />
                       )}
                     </summary>
-                    <pre className="whitespace-pre-wrap text-[12px] text-slate mt-2.5 font-sans leading-relaxed">
-                      {t.bodyText}
-                    </pre>
+                    {t.blocks.length > 0 ? (
+                      <div className="mt-2.5">
+                        <TemplateBlocksEditor templateId={t.id} initialBlocks={toBlockRows(t.blocks)} canEdit={false} />
+                      </div>
+                    ) : (
+                      <pre className="whitespace-pre-wrap text-[12px] text-slate mt-2.5 font-sans leading-relaxed">
+                        {t.bodyText}
+                      </pre>
+                    )}
                     <div className="mt-2">
                       <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
                     </div>
@@ -139,7 +164,7 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
                         {t.forkedFromId && <span className="text-slate font-normal"> (adapté d&apos;un modèle Jalon)</span>}
                       </summary>
                       <div className="mt-2.5 flex flex-col gap-2.5">
-                        <TemplateEditor templateId={t.id} title={t.title} bodyText={t.bodyText} />
+                        <OrgTemplateBody template={t} />
                         <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
                       </div>
                     </details>
@@ -173,7 +198,7 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
                       {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
                     </summary>
                     <div className="mt-2.5 flex flex-col gap-2.5">
-                      <TemplateEditor templateId={t.id} title={t.title} bodyText={t.bodyText} />
+                      <OrgTemplateBody template={t} />
                       <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
                     </div>
                   </details>
@@ -186,6 +211,22 @@ async function TemplatesTab({ organizationId }: { organizationId: string }) {
         <NewTemplateForm courses={courses} />
       </div>
     </div>
+  );
+}
+
+// An org's own template: the flat editor for the common case, or the block
+// editor once it has conditional paragraphs — plus, for a still-flat
+// template, the one-way "activate" button that converts it (see
+// ActivateBlocksButton's own comment for why this is safe/non-destructive).
+function OrgTemplateBody({ template }: { template: { id: string; title: string; bodyText: string; blocks: { bodyText: string; conditions: unknown }[] } }) {
+  if (template.blocks.length > 0) {
+    return <TemplateBlocksEditor templateId={template.id} initialBlocks={toBlockRows(template.blocks)} canEdit />;
+  }
+  return (
+    <>
+      <TemplateEditor templateId={template.id} title={template.title} bodyText={template.bodyText} />
+      <ActivateBlocksButton templateId={template.id} bodyText={template.bodyText} />
+    </>
   );
 }
 

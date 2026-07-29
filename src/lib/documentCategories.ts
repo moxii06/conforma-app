@@ -5,6 +5,7 @@
 export const DOCUMENT_CATEGORIES = [
   "needs_assessment",
   "convention",
+  "contrat_formation",
   "convocation",
   "eval_hot",
   "eval_cold",
@@ -25,6 +26,7 @@ export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
 export const CATEGORY_LABELS: Record<string, string> = {
   needs_assessment: "Recueil des besoins",
   convention: "Convention de formation",
+  contrat_formation: "Contrat de formation (particulier)",
   convocation: "Convocation",
   eval_hot: "Évaluation à chaud",
   eval_cold: "Évaluation à froid",

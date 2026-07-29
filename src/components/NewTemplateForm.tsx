@@ -18,6 +18,7 @@ export function NewTemplateForm({ courses = [], fixedCourse }: { courses?: Cours
   const [courseId, setCourseId] = useState(fixedCourse?.id ?? "");
   const [title, setTitle] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [conditional, setConditional] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,10 +27,18 @@ export function NewTemplateForm({ courses = [], fixedCourse }: { courses?: Cours
     setLoading(true);
     setError(null);
 
+    // A conditional template's real content lives in its blocks, added
+    // after creation (see TemplateBlocksEditor) — bodyText just needs a
+    // non-empty placeholder to satisfy the API, and is ignored from then on.
     const res = await fetch("/api/documents/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category, title, bodyText, courseId: courseId || undefined }),
+      body: JSON.stringify({
+        category,
+        title,
+        bodyText: conditional ? "[Modèle avec paragraphes conditionnels — voir les blocs ci-dessous.]" : bodyText,
+        courseId: courseId || undefined,
+      }),
     });
 
     setLoading(false);
@@ -41,6 +50,7 @@ export function NewTemplateForm({ courses = [], fixedCourse }: { courses?: Cours
 
     setTitle("");
     setBodyText("");
+    setConditional(false);
     setCourseId(fixedCourse?.id ?? "");
     setOpen(false);
     router.refresh();
@@ -85,13 +95,24 @@ export function NewTemplateForm({ courses = [], fixedCourse }: { courses?: Cours
           </select>
         )
       )}
+      <label className="flex items-center gap-2 text-[12px] text-ink">
+        <input type="checkbox" checked={conditional} onChange={(e) => setConditional(e.target.checked)} className="accent-sage" />
+        Modèle avec paragraphes conditionnels
+        <span className="text-slate">(le texte varie selon les réponses du dossier — statut, modalité…)</span>
+      </label>
+      {conditional && (
+        <div className="text-[11px] text-slate">
+          Vous ajouterez les paragraphes juste après la création du modèle.
+        </div>
+      )}
       <textarea
-        required
-        placeholder="Contenu du modèle…"
+        required={!conditional}
+        disabled={conditional}
+        placeholder={conditional ? "Contenu géré par les paragraphes, après création." : "Contenu du modèle…"}
         value={bodyText}
         onChange={(e) => setBodyText(e.target.value)}
         rows={8}
-        className="border border-line rounded-md px-3 py-2 text-[12.5px] text-ink outline-none focus:border-seal font-mono leading-relaxed"
+        className="border border-line rounded-md px-3 py-2 text-[12.5px] text-ink outline-none focus:border-seal font-mono leading-relaxed disabled:bg-linen disabled:text-slate"
       />
       <div className="flex items-center gap-2.5">
         <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">

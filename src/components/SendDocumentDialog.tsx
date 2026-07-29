@@ -8,8 +8,10 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import type { QuestionKey } from "@/lib/documentQuestionnaire";
 
 type Template = { id: string; title: string; category: string };
+type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
@@ -59,28 +61,50 @@ export function SendDocumentDialog({
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ emailSent: boolean; documentUrl: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set when the picked template has conditional blocks the dossier's own
+  // data couldn't fully resolve — see preview-template's `unresolved`.
+  // The editor stays empty until these are answered and re-submitted.
+  const [pending, setPending] = useState<PendingQuestion[] | null>(null);
+  const [pendingAnswers, setPendingAnswers] = useState<Partial<Record<QuestionKey, string>>>({});
 
-  async function handlePickTemplate(id: string) {
-    setTemplateId(id);
-    setError(null);
-    if (!id) {
-      setTitle("");
-      setBodyHtml("");
-      setBodyResetKey((k) => k + 1);
-      return;
-    }
+  async function loadPreview(id: string, answers?: Partial<Record<QuestionKey, string>>) {
     setLoadingPreview(true);
-    const res = await fetch(`/api/dossiers/${dossierId}/documents/preview-template?templateId=${id}`);
+    const query = answers && Object.keys(answers).length > 0 ? `&answers=${encodeURIComponent(JSON.stringify(answers))}` : "";
+    const res = await fetch(`/api/dossiers/${dossierId}/documents/preview-template?templateId=${id}${query}`);
     setLoadingPreview(false);
     if (!res.ok) {
       setError("Impossible de charger le modèle.");
       return;
     }
     const data = await res.json();
+    if (data.unresolved && data.unresolved.length > 0) {
+      setPending(data.unresolved);
+      setCategory(data.category);
+      return;
+    }
+    setPending(null);
     setTitle(data.title);
     setBodyHtml(plainTextToHtml(data.bodyText));
     setBodyResetKey((k) => k + 1);
     setCategory(data.category);
+  }
+
+  async function handlePickTemplate(id: string) {
+    setTemplateId(id);
+    setError(null);
+    setPending(null);
+    setPendingAnswers({});
+    if (!id) {
+      setTitle("");
+      setBodyHtml("");
+      setBodyResetKey((k) => k + 1);
+      return;
+    }
+    await loadPreview(id);
+  }
+
+  async function handleAnswerAndPreview() {
+    await loadPreview(templateId, pendingAnswers);
   }
 
   function reset() {
@@ -95,6 +119,8 @@ export function SendDocumentDialog({
     setCategory("other");
     setFile(null);
     setRequiresSignature(false);
+    setPending(null);
+    setPendingAnswers({});
     setResult(null);
     setError(null);
   }
@@ -212,81 +238,114 @@ export function SendDocumentDialog({
               </select>
             )}
 
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Titre du document"
-              required
-              className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-            />
-
-            {mode === "template" ? (
-              <div className="flex flex-col gap-1">
-                <div className="text-[11px] text-slate uppercase tracking-wide">Contenu du document (PDF envoyé en pièce jointe)</div>
-                <RichTextEditor
-                  html={bodyHtml}
-                  onChange={setBodyHtml}
-                  resetKey={bodyResetKey}
-                  placeholder={loadingPreview ? "Chargement…" : "Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."}
-                />
+            {mode === "template" && pending && pending.length > 0 ? (
+              <div className="bg-linen border border-line rounded-md p-3 flex flex-col gap-2.5">
+                <div className="text-[11.5px] text-slate">
+                  Ce modèle varie selon quelques réponses que le dossier ne précise pas encore :
+                </div>
+                {pending.map((q) => (
+                  <div key={q.key} className="flex flex-col gap-1">
+                    <label className="text-[11.5px] text-ink font-medium">{q.label}</label>
+                    <select
+                      value={pendingAnswers[q.key] ?? ""}
+                      onChange={(e) => setPendingAnswers((prev) => ({ ...prev, [q.key]: e.target.value }))}
+                      className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                    >
+                      <option value="">Choisir…</option>
+                      {q.options.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleAnswerAndPreview}
+                  disabled={loadingPreview || pending.some((q) => !pendingAnswers[q.key])}
+                  className="self-start bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+                >
+                  {loadingPreview ? "…" : "Continuer"}
+                </button>
               </div>
             ) : (
-              <div className="flex flex-col gap-2">
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-                >
-                  {DOCUMENT_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {CATEGORY_LABELS[c]}
-                    </option>
-                  ))}
-                </select>
+              <>
                 <input
-                  type="file"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Titre du document"
                   required
-                  className="text-[12px] text-ink"
+                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
                 />
-              </div>
+
+                {mode === "template" ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="text-[11px] text-slate uppercase tracking-wide">Contenu du document (PDF envoyé en pièce jointe)</div>
+                    <RichTextEditor
+                      html={bodyHtml}
+                      onChange={setBodyHtml}
+                      resetKey={bodyResetKey}
+                      placeholder={loadingPreview ? "Chargement…" : "Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                    >
+                      {DOCUMENT_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {CATEGORY_LABELS[c]}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="file"
+                      onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                      required
+                      className="text-[12px] text-ink"
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1">
+                  <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
+                  <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
+                  <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
+                </div>
+
+                <label className="flex items-center gap-2 text-[12px] text-ink">
+                  <input
+                    type="checkbox"
+                    checked={requiresSignature}
+                    onChange={(e) => setRequiresSignature(e.target.checked)}
+                    className="accent-sage"
+                  />
+                  Demander une signature électronique pour ce document
+                </label>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="submit"
+                    disabled={sending || !title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
+                    className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+                  >
+                    {sending ? "Envoi…" : "Envoyer au client"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      reset();
+                    }}
+                    className="text-[12.5px] text-slate hover:text-ink"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </>
             )}
-
-            <div className="flex flex-col gap-1">
-              <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi</div>
-              <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
-              <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
-            </div>
-
-            <label className="flex items-center gap-2 text-[12px] text-ink">
-              <input
-                type="checkbox"
-                checked={requiresSignature}
-                onChange={(e) => setRequiresSignature(e.target.checked)}
-                className="accent-sage"
-              />
-              Demander une signature électronique pour ce document
-            </label>
-
-            <div className="flex items-center gap-2.5">
-              <button
-                type="submit"
-                disabled={sending || !title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
-                className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-              >
-                {sending ? "Envoi…" : "Envoyer au client"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  reset();
-                }}
-                className="text-[12.5px] text-slate hover:text-ink"
-              >
-                Annuler
-              </button>
-            </div>
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </form>
         )}
