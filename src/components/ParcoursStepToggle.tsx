@@ -28,12 +28,19 @@ export function ParcoursStepToggle({
   label,
   done,
   documentHref,
+  overdue,
+  hint,
 }: {
   dossierId: string;
   stepKey: StepKey;
   label: string;
   done: boolean;
   documentHref?: string;
+  // Real signals, not decorative: overdue means the session date has
+  // already passed without this step done; hint explains why a step
+  // can't be done yet (e.g. evaluations before the session ends).
+  overdue?: boolean;
+  hint?: string;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -56,10 +63,18 @@ export function ParcoursStepToggle({
         onClick={toggle}
         disabled={saving}
         title={done ? "Marquer comme non fait" : "Marquer comme fait"}
-        className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:bg-mist disabled:opacity-60 -my-2 py-2"
+        className="flex items-start gap-2.5 flex-1 min-w-0 text-left hover:bg-mist disabled:opacity-60 -my-2 py-2"
       >
-        {done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-ash" />}
-        <div className={`text-[13px] truncate ${done ? "text-ink" : "text-slate"}`}>{label}</div>
+        {done ? (
+          <CheckCircle2 size={16} className="text-sage mt-0.5 shrink-0" />
+        ) : (
+          <Circle size={16} className={`mt-0.5 shrink-0 ${overdue ? "text-rust" : "text-ash"}`} />
+        )}
+        <div className="min-w-0">
+          <div className={`text-[13px] truncate ${done ? "text-ink" : "text-slate"}`}>{label}</div>
+          {!done && overdue && <div className="text-[11px] text-rust font-medium">En retard</div>}
+          {!done && !overdue && hint && <div className="text-[11px] text-ash">{hint}</div>}
+        </div>
       </button>
       {done && documentHref && (
         <a

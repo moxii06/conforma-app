@@ -178,6 +178,17 @@ export default async function DossierPage(
         </Link>
       </div>
       <Tabs basePath={`/dossiers/${dossier.id}`} tabs={TABS} active={activeTab} />
+      {dossier.contractSigned && (
+        <div className="mx-8 mt-4 flex items-center justify-between gap-3 bg-[#DEE5E0] border border-[#c9d5cd] rounded-card px-4 py-2.5 text-[13px] text-sage">
+          <span>
+            <strong className="font-semibold">Convention signée</strong> — session confirmée pour le{" "}
+            {format(dossier.session.startsAt, "d MMM yyyy", { locale: fr })}.
+          </span>
+          <Link href={`/dossiers/${dossier.id}?tab=documents`} className="text-ink font-semibold text-[12.5px] whitespace-nowrap hover:underline shrink-0">
+            Voir dans Documents →
+          </Link>
+        </div>
+      )}
       <div className="p-8 max-w-xl">
         {activeTab === "formations" ? (
           <FormationsTab
@@ -314,6 +325,7 @@ async function FormationsTab({
     orderBy: { session: { startsAt: "desc" } },
   });
   const dossierIds = dossiers.map((d) => d.id);
+  const now = new Date();
 
   const [contact, allDocuments, allSurveyResponses, allOutreaches, templates] = await Promise.all([
     prisma.contact.findUniqueOrThrow({ where: { id: contactId }, select: { firstName: true } }),
@@ -353,13 +365,36 @@ async function FormationsTab({
           documentHrefByStep[`eval_${r.survey.kind}`] = `/dossiers/${d.id}/satisfaction/${r.survey.kind}`;
         }
 
-        const steps: { key: "needs_assessment" | "contract" | "convocation" | "eval_hot" | "eval_cold"; docCategory: string; label: string; done: boolean }[] = [
+        // overdue/hint are real signals derived from the session's own dates,
+        // not hand-declared: a convocation is overdue once the session has
+        // already started without one, and an evaluation genuinely can't be
+        // done before the session ends.
+        const steps: { key: "needs_assessment" | "contract" | "convocation" | "eval_hot" | "eval_cold"; docCategory: string; label: string; done: boolean; overdue?: boolean; hint?: string }[] = [
           { key: "needs_assessment", docCategory: "needs_assessment", label: "Recueil des besoins", done: d.needsAssessmentDone },
           { key: "contract", docCategory: "convention", label: "Convention signée", done: d.contractSigned },
-          { key: "convocation", docCategory: "convocation", label: "Convocation envoyée", done: d.convocationSent },
-          { key: "eval_hot", docCategory: "eval_hot", label: "Évaluation à chaud", done: d.evaluationHotDone },
-          { key: "eval_cold", docCategory: "eval_cold", label: "Évaluation à froid", done: d.evaluationColdDone },
+          {
+            key: "convocation",
+            docCategory: "convocation",
+            label: "Convocation envoyée",
+            done: d.convocationSent,
+            overdue: !d.convocationSent && d.session.startsAt <= now,
+          },
+          {
+            key: "eval_hot",
+            docCategory: "eval_hot",
+            label: "Évaluation à chaud",
+            done: d.evaluationHotDone,
+            hint: !d.evaluationHotDone && d.session.endsAt > now ? "Disponible après la session" : undefined,
+          },
+          {
+            key: "eval_cold",
+            docCategory: "eval_cold",
+            label: "Évaluation à froid",
+            done: d.evaluationColdDone,
+            hint: !d.evaluationColdDone && d.session.endsAt > now ? "Disponible après la session" : undefined,
+          },
         ];
+        const doneCount = steps.filter((s) => s.done).length;
 
         return (
           <CollapsibleSection
@@ -373,7 +408,10 @@ async function FormationsTab({
               {format(d.session.startsAt, "d MMM", { locale: fr })} au {format(d.session.endsAt, "d MMM yyyy", { locale: fr })}
             </div>
 
-            <div className="text-[11px] text-slate uppercase tracking-wide mb-1">Parcours de formation</div>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[11px] text-slate uppercase tracking-wide">Parcours de formation</div>
+              <div className="text-[11px] text-slate">{doneCount}/{steps.length} complétées</div>
+            </div>
             {steps.map((s) =>
               isCurrent && canManageOutreach ? (
                 <ParcoursStepToggle
@@ -383,12 +421,22 @@ async function FormationsTab({
                   label={s.label}
                   done={s.done}
                   documentHref={documentHrefByStep[s.docCategory]}
+                  overdue={s.overdue}
+                  hint={s.hint}
                 />
               ) : (
                 <div key={s.key} className="flex items-center justify-between gap-2.5 py-2 border-t border-line first:border-t-0">
-                  <div className="flex items-center gap-2.5">
-                    {s.done ? <CheckCircle2 size={16} className="text-sage" /> : <Circle size={16} className="text-ash" />}
-                    <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
+                  <div className="flex items-start gap-2.5">
+                    {s.done ? (
+                      <CheckCircle2 size={16} className="text-sage mt-0.5 shrink-0" />
+                    ) : (
+                      <Circle size={16} className={`mt-0.5 shrink-0 ${s.overdue ? "text-rust" : "text-ash"}`} />
+                    )}
+                    <div>
+                      <div className={`text-[13px] ${s.done ? "text-ink" : "text-slate"}`}>{s.label}</div>
+                      {!s.done && s.overdue && <div className="text-[11px] text-rust font-medium">En retard</div>}
+                      {!s.done && !s.overdue && s.hint && <div className="text-[11px] text-ash">{s.hint}</div>}
+                    </div>
                   </div>
                   {s.done && documentHrefByStep[s.docCategory] && (
                     <a
