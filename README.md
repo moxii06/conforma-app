@@ -434,13 +434,25 @@ for what that means in practice for each one.
   store fails with *"Cannot use private access on a public store"*), so this
   needed a **second store**, not a flag flip. Two now exist:
   `conforma-prive` (`cdg1`/Paris, private, `BLOB_PRIVATE_READ_WRITE_TOKEN`)
-  takes every new upload; `conforma-lms` (`iad1`, public,
-  `BLOB_READ_WRITE_TOKEN`) still holds the ~25 files predating the switch and
-  is only read from. The explicit `token` on every `put()`/`get()` is what
-  selects the store — the SDK would otherwise default to the public one.
-  Those older files are still publicly reachable by URL and that cannot be
-  undone; they need copying across (or deleting, if they are only demo
-  artifacts) before the old store is removed.
+  holds everything personal; `conforma-lms` (`iad1`, public,
+  `BLOB_READ_WRITE_TOKEN`) holds **only** brand marks now. The explicit
+  `token` on every `put()`/`get()` is what selects the store — the SDK would
+  otherwise default to the public one.
+  The 25 files predating the switch are dealt with: the 6 still referenced by
+  a row were copied across and their `fileUrl` repointed, and 15 orphans
+  (leftovers of replaced module files and deleted records — signed
+  conventions, a bank statement) were deleted. Those orphans were the worst
+  case of the original problem: the record was already gone, yet the file
+  stayed readable by URL, which is precisely the erasure that never happened.
+  A temporary `/admin/migrate-blobs` route + screen did the work and was
+  removed once the counts hit zero (see git history if it is ever needed
+  again).
+  The public store is kept, not deleted, because two upload paths must stay
+  public: `branding/…` (`/api/organization/logo`, rendered as `<img src>` on
+  `/catalogue`, `/activation`, `/satisfaction`, `/formulaire` — pages with no
+  session) and `signatures/…` (`/api/profile/signature-logo`, fetched by the
+  recipient's mail client, which likewise has none). They are brand marks,
+  not personal data, so public is correct for them rather than an oversight.
   Every consumer goes through an authenticated route that applies the same
   access rules as the record it hangs off:
   `/api/documents/[id]/file`, `/api/lms/modules/[id]/stream` (any type, not
