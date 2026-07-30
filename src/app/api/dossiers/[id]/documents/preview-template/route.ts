@@ -38,23 +38,28 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     }
   }
 
-  const dossier = await prisma.dossier.findFirst({
-    where: { id: params.id, organizationId: auth.organizationId },
-    include: {
-      contact: { include: { company: true } },
-      session: { include: { course: true } },
-      fundingCommitments: { include: { funder: { select: { name: true } } } },
-    },
-  });
+  const [dossier, template, organization] = await Promise.all([
+    prisma.dossier.findFirst({
+      where: { id: params.id, organizationId: auth.organizationId },
+      include: {
+        contact: { include: { company: true } },
+        session: { include: { course: true } },
+        fundingCommitments: { include: { funder: { select: { name: true } } } },
+      },
+    }),
+    prisma.documentTemplate.findFirst({
+      where: { id: templateId, OR: [{ organizationId: auth.organizationId }, { organizationId: null }] },
+      include: { blocks: { orderBy: { order: "asc" } } },
+    }),
+    prisma.organization.findUniqueOrThrow({
+      where: { id: auth.organizationId },
+      include: { referentHandicapUser: { select: { name: true } } },
+    }),
+  ]);
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   if (auth.role === Role.TRAINER && dossier.session.trainerId !== auth.userId) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
-
-  const template = await prisma.documentTemplate.findFirst({
-    where: { id: templateId, OR: [{ organizationId: auth.organizationId }, { organizationId: null }] },
-    include: { blocks: { orderBy: { order: "asc" } } },
-  });
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
 
   let bodyTextSource = template.bodyText;
@@ -67,8 +72,9 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       {
         dossier: { learnerCategory: dossier.learnerCategory, agreedPriceCents: dossier.agreedPriceCents },
         session: { format: dossier.session.format },
-        course: { priceCents: dossier.session.course.priceCents },
+        course: { priceCents: dossier.session.course.priceCents, certificationCode: dossier.session.course.certificationCode },
         fundingCommitments: dossier.fundingCommitments,
+        organization: { withdrawalAccessPolicy: organization.withdrawalAccessPolicy, cancellationFeePercent: organization.cancellationFeePercent },
       },
       manualAnswers,
     );
@@ -81,10 +87,6 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     applied = referenced.flatMap((k) => (answers[k] != null ? [{ key: k, value: answers[k] }] : []));
   }
 
-  const organization = await prisma.organization.findUniqueOrThrow({
-    where: { id: auth.organizationId },
-    include: { referentHandicapUser: { select: { name: true } } },
-  });
   const fundingSummary = computeFundingSummary(
     resolveDossierPriceCents(dossier, dossier.session.course),
     dossier.fundingCommitments,

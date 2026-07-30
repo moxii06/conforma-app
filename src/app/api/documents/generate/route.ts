@@ -62,8 +62,9 @@ export async function POST(request: Request) {
       {
         dossier: { learnerCategory: dossier.learnerCategory, agreedPriceCents: dossier.agreedPriceCents },
         session: { format: dossier.session.format },
-        course: { priceCents: dossier.session.course.priceCents },
+        course: { priceCents: dossier.session.course.priceCents, certificationCode: dossier.session.course.certificationCode },
         fundingCommitments: dossier.fundingCommitments,
+        organization: { withdrawalAccessPolicy: organization.withdrawalAccessPolicy, cancellationFeePercent: organization.cancellationFeePercent },
       },
       parsed.data.answers as Partial<Record<QuestionKey, string>> | undefined,
     );

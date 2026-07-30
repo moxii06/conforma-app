@@ -8,7 +8,16 @@ import { computeFundingSummary, resolveDossierPriceCents, type FundingCommitment
 // DB and is admin-editable from the Bibliothèque; the branching vocabulary
 // itself does not, since it needs to stay consistent with what the
 // resolvers below can actually compute from real dossier data.
-export type QuestionKey = "statutApprenant" | "modalite" | "subrogation" | "resteACharge";
+export type QuestionKey =
+  | "statutApprenant"
+  | "modalite"
+  | "subrogation"
+  | "resteACharge"
+  | "certificationVisee"
+  | "paiement"
+  | "accesImmediat"
+  | "droitImage"
+  | "indemniteAnnulation";
 
 export type QuestionOption = { value: string; label: string };
 
@@ -55,6 +64,48 @@ export const QUESTIONS: QuestionDefinition[] = [
       { value: "non", label: "Non" },
     ],
   },
+  {
+    key: "certificationVisee",
+    label: "La formation prépare-t-elle à une certification enregistrée (RNCP/RS) ?",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
+  {
+    key: "paiement",
+    label: "Le règlement s'effectue-t-il en une fois ou selon un échéancier ?",
+    options: [
+      { value: "comptant", label: "En une fois" },
+      { value: "echelonne", label: "Selon un échéancier" },
+    ],
+  },
+  {
+    key: "accesImmediat",
+    label: "Le bénéficiaire peut-il accéder à des contenus avant la fin du délai de rétractation ?",
+    hint: "Déterminé par la politique d'accès pendant le délai définie dans les réglages de l'organisme.",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
+  {
+    key: "droitImage",
+    label: "Une autorisation d'utilisation de l'image et de la voix est-elle jointe au contrat ?",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
+  {
+    key: "indemniteAnnulation",
+    label: "L'organisme applique-t-il une indemnité forfaitaire en cas d'annulation tardive ?",
+    hint: "Déterminé par le pourcentage d'indemnité défini dans les réglages de l'organisme.",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
 ];
 
 export const QUESTION_BY_KEY: Record<QuestionKey, QuestionDefinition> = Object.fromEntries(
@@ -70,13 +121,19 @@ export const SHORT_OPTION_LABELS: Record<string, Record<string, string>> = {
   modalite: { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Hybride" },
   subrogation: { oui: "Subrogation financeur", non: "Sans subrogation" },
   resteACharge: { oui: "Reste à charge inclus", non: "Sans reste à charge" },
+  certificationVisee: { oui: "Certification visée", non: "Sans certification" },
+  paiement: { comptant: "Paiement comptant", echelonne: "Paiement échelonné" },
+  accesImmediat: { oui: "Accès anticipé possible", non: "Accès fermé pendant le délai" },
+  droitImage: { oui: "Autorisation image jointe", non: "Sans autorisation image" },
+  indemniteAnnulation: { oui: "Indemnité d'annulation", non: "Sans indemnité d'annulation" },
 };
 
 export type ResolveContext = {
   dossier: { learnerCategory: string | null; agreedPriceCents: number | null };
   session: { format: SessionFormat };
-  course: { priceCents: number | null };
+  course: { priceCents: number | null; certificationCode?: string | null };
   fundingCommitments: FundingCommitmentInput[];
+  organization: { withdrawalAccessPolicy: string; cancellationFeePercent: number | null };
 };
 
 // Each resolver returns an answer already implied by real data, or null to
@@ -103,6 +160,24 @@ const RESOLVERS: Record<QuestionKey, (ctx: ResolveContext) => string | null> = {
     const summary = computeFundingSummary(total, ctx.fundingCommitments);
     return summary.remainderCents > 0 ? "oui" : "non";
   },
+  // Driven by the course's own certification fields — a course either leads
+  // to a registered certification or it doesn't, there's nothing per-dossier
+  // to ask.
+  certificationVisee: (ctx) => (ctx.course.certificationCode ? "oui" : "non"),
+  // No signal exists at generation time: the actual due dates/amounts are
+  // captured afterward, on the generated Document itself (paymentSchedule —
+  // see lib/paymentSchedule.ts), which doesn't exist yet while this
+  // question is being resolved. Always asked.
+  paiement: () => null,
+  // Driven by the organisation's own withdrawal-access setting (Mon profil /
+  // Bibliothèque) — never per-dossier.
+  accesImmediat: (ctx) => (ctx.organization.withdrawalAccessPolicy === "partial" ? "oui" : "non"),
+  // Whether a given beneficiary's image/voice gets used (testimonial, filmed
+  // session...) is a per-contract fact with no underlying record. Always asked.
+  droitImage: () => null,
+  // Driven by the organisation's own cancellation-fee setting (Bibliothèque
+  // › Clauses et politiques contractuelles) — never per-dossier.
+  indemniteAnnulation: (ctx) => (ctx.organization.cancellationFeePercent != null ? "oui" : "non"),
 };
 
 /**

@@ -5,8 +5,9 @@ import { resolveAnswers } from "./documentQuestionnaire";
 const baseCtx = {
   dossier: { learnerCategory: null as string | null, agreedPriceCents: null as number | null },
   session: { format: SessionFormat.IN_PERSON },
-  course: { priceCents: 100000 },
+  course: { priceCents: 100000, certificationCode: null as string | null },
   fundingCommitments: [] as { amountCents: number; status: string; subrogation: boolean; validUntil?: Date | null }[],
+  organization: { withdrawalAccessPolicy: "closed", cancellationFeePercent: null as number | null },
 };
 
 describe("resolveAnswers — statutApprenant", () => {
@@ -74,6 +75,61 @@ describe("resolveAnswers — resteACharge", () => {
   });
 });
 
+describe("resolveAnswers — certificationVisee", () => {
+  it("is 'non' when the course has no certification code", () => {
+    expect(resolveAnswers(baseCtx).answers.certificationVisee).toBe("non");
+  });
+
+  it("is 'oui' as soon as the course names a certification code", () => {
+    const ctx = { ...baseCtx, course: { ...baseCtx.course, certificationCode: "RS5839" } };
+    expect(resolveAnswers(ctx).answers.certificationVisee).toBe("oui");
+  });
+});
+
+describe("resolveAnswers — paiement", () => {
+  it("always stays unresolved — no signal exists before the document itself is created", () => {
+    const { unresolved } = resolveAnswers(baseCtx);
+    expect(unresolved).toContain("paiement");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { paiement: "echelonne" }).answers.paiement).toBe("echelonne");
+  });
+});
+
+describe("resolveAnswers — accesImmediat", () => {
+  it("is 'non' when the organisation keeps access closed during withdrawal", () => {
+    expect(resolveAnswers(baseCtx).answers.accesImmediat).toBe("non");
+  });
+
+  it("is 'oui' when the organisation allows partial early access", () => {
+    const ctx = { ...baseCtx, organization: { ...baseCtx.organization, withdrawalAccessPolicy: "partial" } };
+    expect(resolveAnswers(ctx).answers.accesImmediat).toBe("oui");
+  });
+});
+
+describe("resolveAnswers — droitImage", () => {
+  it("always stays unresolved — no per-beneficiary record exists", () => {
+    const { unresolved } = resolveAnswers(baseCtx);
+    expect(unresolved).toContain("droitImage");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { droitImage: "oui" }).answers.droitImage).toBe("oui");
+  });
+});
+
+describe("resolveAnswers — indemniteAnnulation", () => {
+  it("is 'non' when the organisation has set no cancellation fee", () => {
+    expect(resolveAnswers(baseCtx).answers.indemniteAnnulation).toBe("non");
+  });
+
+  it("is 'oui' as soon as the organisation has a cancellation fee percentage set", () => {
+    const ctx = { ...baseCtx, organization: { ...baseCtx.organization, cancellationFeePercent: 20 } };
+    expect(resolveAnswers(ctx).answers.indemniteAnnulation).toBe("oui");
+  });
+});
+
 describe("resolveAnswers — manual overrides", () => {
   it("prefers a manual answer over the auto-resolver", () => {
     const ctx = { ...baseCtx, dossier: { ...baseCtx.dossier, learnerCategory: "individual" } };
@@ -87,8 +143,22 @@ describe("resolveAnswers — manual overrides", () => {
 
   it("fills in exactly the unresolved questions, leaving auto-resolved ones untouched", () => {
     const ctx = { ...baseCtx, session: { format: SessionFormat.REMOTE } };
-    const { answers, unresolved } = resolveAnswers(ctx, { statutApprenant: "individual" });
-    expect(answers).toEqual({ statutApprenant: "individual", modalite: "REMOTE", subrogation: "non", resteACharge: "oui" });
+    const { answers, unresolved } = resolveAnswers(ctx, {
+      statutApprenant: "individual",
+      paiement: "comptant",
+      droitImage: "non",
+    });
+    expect(answers).toEqual({
+      statutApprenant: "individual",
+      modalite: "REMOTE",
+      subrogation: "non",
+      resteACharge: "oui",
+      certificationVisee: "non",
+      paiement: "comptant",
+      accesImmediat: "non",
+      droitImage: "non",
+      indemniteAnnulation: "non",
+    });
     expect(unresolved).toEqual([]);
   });
 });
