@@ -61,6 +61,17 @@ export const QUESTION_BY_KEY: Record<QuestionKey, QuestionDefinition> = Object.f
   QUESTIONS.map((q) => [q.key, q]),
 ) as Record<QuestionKey, QuestionDefinition>;
 
+// Chip-length wording for each resolved answer — the option labels above
+// are full sentences, right for a form but too long for a "✓ Distanciel"
+// badge over an assembled preview. Shared by SendDocumentDialog and
+// AdaptTemplateDialog so the same choice never reads differently.
+export const SHORT_OPTION_LABELS: Record<string, Record<string, string>> = {
+  statutApprenant: { individual: "Particulier", company: "Salarié / entreprise" },
+  modalite: { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Hybride" },
+  subrogation: { oui: "Subrogation financeur", non: "Sans subrogation" },
+  resteACharge: { oui: "Reste à charge inclus", non: "Sans reste à charge" },
+};
+
 export type ResolveContext = {
   dossier: { learnerCategory: string | null; agreedPriceCents: number | null };
   session: { format: SessionFormat };

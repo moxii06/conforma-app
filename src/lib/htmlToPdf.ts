@@ -9,8 +9,11 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 // safe here and avoids pulling in a headless-browser dependency that
 // doesn't run reliably in a Vercel serverless function.
 
-type Run = { text: string; bold: boolean; italic: boolean; underline: boolean; highlight: string | null; fontKey: FontKey };
-type FontKey = "sans" | "serif" | "mono";
+// Exported so htmlToDocx.ts can drive the exact same parsing without
+// duplicating it — a docx paragraph and a PDF line both start from the same
+// flat run list, they just draw it differently.
+export type Run = { text: string; bold: boolean; italic: boolean; underline: boolean; highlight: string | null; fontKey: FontKey };
+export type FontKey = "sans" | "serif" | "mono";
 
 const FONT_MAP: Record<FontKey, { normal: StandardFonts; bold: StandardFonts; italic: StandardFonts; boldItalic: StandardFonts }> = {
   sans: { normal: StandardFonts.Helvetica, bold: StandardFonts.HelveticaBold, italic: StandardFonts.HelveticaOblique, boldItalic: StandardFonts.HelveticaBoldOblique },
@@ -29,7 +32,7 @@ function resolveFontKey(face: string | null): FontKey {
   return "sans";
 }
 
-function splitIntoParagraphs(html: string): string[] {
+export function splitIntoParagraphs(html: string): string[] {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
     .split(/<\/(?:p|div)>/gi)
@@ -39,7 +42,7 @@ function splitIntoParagraphs(html: string): string[] {
 
 // Walks one paragraph's inline markup into a flat run list, tracking a
 // style stack so nested tags (<b><i>...</i></b>) combine correctly.
-function parseInlineRuns(fragment: string): Run[] {
+export function parseInlineRuns(fragment: string): Run[] {
   const runs: Run[] = [];
   const stack: { bold: boolean; italic: boolean; underline: boolean; highlight: string | null; fontKey: FontKey }[] = [
     { bold: false, italic: false, underline: false, highlight: null, fontKey: "sans" },

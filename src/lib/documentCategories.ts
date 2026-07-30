@@ -46,6 +46,30 @@ export const CATEGORY_LABELS: Record<string, string> = {
   rnq_engagement: "Engagement de conformité RNQ",
 };
 
+// Client feedback: a row titled "Convention de formation professionnelle"
+// next to a pill reading "Convention de formation" says the same thing
+// twice. The pill only earns its place when it adds information the title
+// doesn't carry — i.e. when at least one significant word of the category
+// label is absent from the title. Stopwords don't count as signal.
+const LABEL_STOPWORDS = new Set(["de", "du", "des", "la", "le", "les", "et", "à", "d", "l"]);
+
+function significantWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 1 && !LABEL_STOPWORDS.has(w));
+}
+
+export function categoryLabelIsRedundant(title: string, category: string): boolean {
+  const label = CATEGORY_LABELS[category];
+  if (!label) return false;
+  const titleWords = new Set(significantWords(title));
+  const labelWords = significantWords(label);
+  return labelWords.length > 0 && labelWords.every((w) => titleWords.has(w));
+}
+
 // Kept separate from DOCUMENT_CATEGORIES — client feedback: a formateur's
 // tracked documents are contrat/CV/diplômes/NDA specifically, a narrower
 // and different set than the dossier/library document categories above

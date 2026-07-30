@@ -4,11 +4,9 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
 import { ChevronRight } from "lucide-react";
-import { CATEGORY_LABELS } from "@/lib/documentCategories";
-import { ForkTemplateButton } from "@/components/ForkTemplateButton";
-import { TemplateEditor } from "@/components/TemplateEditor";
-import { TemplateBlocksEditor } from "@/components/TemplateBlocksEditor";
-import { ActivateBlocksButton } from "@/components/ActivateBlocksButton";
+import { CATEGORY_LABELS, categoryLabelIsRedundant } from "@/lib/documentCategories";
+import { AdaptTemplateDialog } from "@/components/AdaptTemplateDialog";
+import { OrganizationContractPolicyForm } from "@/components/OrganizationContractPolicyForm";
 import { NewTemplateForm } from "@/components/NewTemplateForm";
 import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
 import { Tabs } from "@/components/Tabs";
@@ -16,7 +14,8 @@ import { SearchInput } from "@/components/SearchInput";
 import { DocumentCategoryFilter } from "@/components/DocumentCategoryFilter";
 import { Pagination } from "@/components/Pagination";
 import { AVAILABLE_MERGE_FIELDS } from "@/lib/mergeTemplate";
-import { parseConditions } from "@/lib/documentAssembly";
+import { parseConditions, collectQuestionKeys } from "@/lib/documentAssembly";
+import { QUESTION_BY_KEY } from "@/lib/documentQuestionnaire";
 import type { BlockRow } from "@/components/TemplateBlocksEditor";
 import { StopSummaryToggle } from "@/components/StopSummaryToggle";
 
@@ -36,6 +35,15 @@ function toBlockRows(blocks: { bodyText: string; conditions: unknown }[]): Block
   });
 }
 
+// The questions this template's blocks actually branch on — what the
+// AdaptTemplateDialog asks before assembling (plain serializable objects,
+// safe to pass into a client component).
+function questionDefsOf(t: { blocks: { bodyText: string; conditions: unknown; order?: number }[] }) {
+  return collectQuestionKeys(t.blocks.map((b, i) => ({ order: b.order ?? i, bodyText: b.bodyText, conditions: b.conditions }))).map(
+    (k) => QUESTION_BY_KEY[k],
+  );
+}
+
 const PAGE_SIZE = 30;
 
 export default async function DocumentsPage(
@@ -52,10 +60,15 @@ export default async function DocumentsPage(
   const TABS = [
     ...(canToolkit ? [{ key: "modeles", label: "Modèles" }] : []),
     ...(canDossiers ? [{ key: "mes-documents", label: "Mes documents" }] : []),
+    // Contract-wide settings live WITH the templates they feed (client
+    // feedback: "mets ça au niveau de la bibliothèque") — an OFP thinks of
+    // them while looking at their contracts, not at their own profile.
+    ...(role === Role.ADMIN_OF ? [{ key: "reglages", label: "Réglages des contrats" }] : []),
   ];
   const activeTab = searchParams.tab ?? TABS[0].key;
   if (activeTab === "modeles" && !canToolkit) redirect("/documents");
   if (activeTab === "mes-documents" && !canDossiers) redirect("/documents");
+  if (activeTab === "reglages" && role !== Role.ADMIN_OF) redirect("/documents");
 
   return (
     <>
@@ -63,10 +76,36 @@ export default async function DocumentsPage(
       <Tabs basePath="/documents" tabs={TABS} active={activeTab} />
       {activeTab === "mes-documents" ? (
         <MyDocumentsTab organizationId={organizationId} role={role} userId={userId} searchParams={searchParams} />
+      ) : activeTab === "reglages" ? (
+        <ContractSettingsTab organizationId={organizationId} />
       ) : (
         <TemplatesTab organizationId={organizationId} query={searchParams.q} />
       )}
     </>
+  );
+}
+
+async function ContractSettingsTab({ organizationId }: { organizationId: string }) {
+  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
+  return (
+    <div className="p-8 max-w-2xl">
+      <div className="bg-white border border-line rounded-card p-5">
+        <div className="text-[13.5px] font-semibold text-ink mb-1">Clauses et politiques contractuelles</div>
+        <div className="text-[11.5px] text-slate mb-3">
+          Réglages repris automatiquement dans les contrats générés depuis les modèles ci-contre et dans l&apos;accès
+          à la formation en ligne pendant le délai de rétractation d&apos;un apprenant.
+        </div>
+        <OrganizationContractPolicyForm
+          initial={{
+            withdrawalAccessPolicy: organization.withdrawalAccessPolicy,
+            cancellationFeePercent: organization.cancellationFeePercent,
+            regionPrefecture: organization.regionPrefecture ?? "",
+            mediatorName: organization.mediatorName ?? "",
+            mediatorContact: organization.mediatorContact ?? "",
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -140,20 +179,26 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
           <div className="text-[13.5px] font-semibold text-ink mb-1">Modèles fournis par Jalon</div>
           <div className="bg-white border border-line rounded-card">
             {visibleGlobal.map((t) => {
-              const alreadyForked = orgTemplates.some((o) => o.forkedFromId === t.id);
+              const fork = orgTemplates.find((o) => o.forkedFromId === t.id);
               return (
                 <TemplateRowDetails
                   key={t.id}
                   template={t}
+                  subtitle={fork ? "Déjà adapté — votre copie est dans « Documents généraux »" : undefined}
                   trailing={
-                    alreadyForked ? <span className="text-[11.5px] text-sage">Déjà adapté ✓</span> : <ForkTemplateButton templateId={t.id} />
+                    <AdaptTemplateDialog
+                      templateId={t.id}
+                      title={t.title}
+                      triggerLabel="Adapter ce modèle"
+                      questions={questionDefsOf(t)}
+                      isGlobal
+                      fork={fork ? { id: fork.id, bodyText: fork.bodyText, blocks: toBlockRows(fork.blocks) } : null}
+                      bodyText={t.bodyText}
+                      blocks={toBlockRows(t.blocks)}
+                    />
                   }
                 >
-                  {t.blocks.length > 0 ? (
-                    <TemplateBlocksEditor templateId={t.id} initialBlocks={toBlockRows(t.blocks)} canEdit={false} />
-                  ) : (
-                    <pre className="whitespace-pre-wrap text-[12px] text-slate font-sans leading-relaxed">{t.bodyText}</pre>
-                  )}
+                  <TemplateRowSummary template={t} />
                   <div className="mt-2.5">
                     <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
                   </div>
@@ -173,8 +218,19 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
                 key={t.id}
                 template={t}
                 subtitle={t.forkedFromId ? "Adapté d'un modèle Jalon" : undefined}
+                trailing={
+                  <AdaptTemplateDialog
+                    templateId={t.id}
+                    title={t.title}
+                    triggerLabel="Utiliser ce modèle"
+                    questions={questionDefsOf(t)}
+                    isGlobal={false}
+                    bodyText={t.bodyText}
+                    blocks={toBlockRows(t.blocks)}
+                  />
+                }
               >
-                <OrgTemplateBody template={t} />
+                <TemplateRowSummary template={t} />
                 <div className="mt-2.5">
                   <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
                 </div>
@@ -204,8 +260,22 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
                 </div>
               </div>
               {templates.map((t) => (
-                <TemplateRowDetails key={t.id} template={t}>
-                  <OrgTemplateBody template={t} />
+                <TemplateRowDetails
+                  key={t.id}
+                  template={t}
+                  trailing={
+                    <AdaptTemplateDialog
+                      templateId={t.id}
+                      title={t.title}
+                      triggerLabel="Utiliser ce modèle"
+                      questions={questionDefsOf(t)}
+                      isGlobal={false}
+                      bodyText={t.bodyText}
+                      blocks={toBlockRows(t.blocks)}
+                    />
+                  }
+                >
+                  <TemplateRowSummary template={t} />
                   <div className="mt-2.5">
                     <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
                   </div>
@@ -259,7 +329,9 @@ function TemplateRowDetails({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[13px] text-ink font-medium">{template.title}</span>
-            <Pill tone="neutral">{CATEGORY_LABELS[template.category] ?? template.category}</Pill>
+            {!categoryLabelIsRedundant(template.title, template.category) && (
+              <Pill tone="neutral">{CATEGORY_LABELS[template.category] ?? template.category}</Pill>
+            )}
             {template.blocks.length > 0 && <Pill tone="good">Conditionnel</Pill>}
           </div>
           {subtitle && <div className="text-[11px] text-slate mt-0.5">{subtitle}</div>}
@@ -275,20 +347,23 @@ function TemplateRowDetails({
   );
 }
 
-// An org's own template: the flat editor for the common case, or the block
-// editor once it has conditional paragraphs — plus, for a still-flat
-// template, the one-way "activate" button that converts it (see
-// ActivateBlocksButton's own comment for why this is safe/non-destructive).
-function OrgTemplateBody({ template }: { template: { id: string; title: string; bodyText: string; blocks: { bodyText: string; conditions: unknown }[] } }) {
+// Client feedback: expanding a row used to dump every legal clause on
+// screen — "je ne dois pas avoir le détail de toutes les clauses". The
+// expansion now shows just enough to recognize the document; the full text,
+// the questionnaire, the downloads and the legal editing all live in the
+// AdaptTemplateDialog on the row's action button.
+function TemplateRowSummary({ template }: { template: { bodyText: string; blocks: unknown[] } }) {
   if (template.blocks.length > 0) {
-    return <TemplateBlocksEditor templateId={template.id} initialBlocks={toBlockRows(template.blocks)} canEdit />;
+    const n = template.blocks.length;
+    return (
+      <div className="text-[11.5px] text-slate">
+        {n} paragraphe{n > 1 ? "s" : ""} — le contenu s&apos;ajuste aux réponses (statut, modalité, financement…).
+        Aperçu complet et téléchargement via le bouton à droite.
+      </div>
+    );
   }
-  return (
-    <div className="flex flex-col gap-2.5">
-      <TemplateEditor templateId={template.id} title={template.title} bodyText={template.bodyText} />
-      <ActivateBlocksButton templateId={template.id} bodyText={template.bodyText} />
-    </div>
-  );
+  const excerpt = template.bodyText.length > 260 ? `${template.bodyText.slice(0, 260).trimEnd()}…` : template.bodyText;
+  return <p className="text-[11.5px] text-slate leading-relaxed whitespace-pre-wrap">{excerpt}</p>;
 }
 
 // A cross-dossier, searchable view of every generated/uploaded document —
@@ -369,7 +444,9 @@ async function MyDocumentsTab({
                 </div>
               )}
             </div>
-            <Pill tone="neutral">{CATEGORY_LABELS[doc.category] ?? doc.category}</Pill>
+            {!categoryLabelIsRedundant(doc.title, doc.category) && (
+              <Pill tone="neutral">{CATEGORY_LABELS[doc.category] ?? doc.category}</Pill>
+            )}
             <div className="text-[11px] text-slate shrink-0 w-[74px] text-right">
               {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
             </div>

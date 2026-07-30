@@ -11,7 +11,7 @@ import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { LibraryPanel } from "@/components/LibraryPanel";
 import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
 import type { Instalment } from "@/lib/paymentSchedule";
-import type { QuestionKey } from "@/lib/documentQuestionnaire";
+import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
 
 type Template = { id: string; title: string; category: string };
 
@@ -25,23 +25,140 @@ export type ScheduleContext = {
   capAcknowledged: boolean;
 };
 
+/** The dossier's session as it will appear in the contract's session.*
+ *  merge fields — so the sender SEES what dates (or absence of dates) the
+ *  document is about to carry, instead of discovering it in the PDF. */
+export type SessionInfo = {
+  mode: string; // FIXED_DATE | ROLLING
+  format: string; // IN_PERSON | REMOTE | HYBRID
+  startsAtLabel: string;
+  /** Whether this user may create sessions (planning permission). */
+  canSchedule: boolean;
+};
+
+const SESSION_FORMAT_LABELS: Record<string, string> = {
+  IN_PERSON: "Présentiel",
+  REMOTE: "Distanciel",
+  HYBRID: "Mixte",
+};
+
 // The schedule only means something on the documents that stipulate one.
 const SCHEDULED_CATEGORIES = new Set(["contrat_formation", "convention"]);
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
 type AppliedAnswer = { key: string; value: string };
 
-// Short badge wording for each resolved conditional variant — the
-// questionnaire's own option labels are full sentences, too long for a
-// "✓ Distanciel" chip above the assembled preview.
-const APPLIED_BADGE_LABELS: Record<string, Record<string, string>> = {
-  statutApprenant: { individual: "Particulier", company: "Salarié / entreprise" },
-  modalite: { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Hybride" },
-  subrogation: { oui: "Subrogation financeur", non: "Sans subrogation" },
-  resteACharge: { oui: "Reste à charge inclus", non: "Sans reste à charge" },
-};
-
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").trim();
+}
+
+// Contract categories carry session dates via the session.* merge fields.
+// A FIXED_DATE session just gets a confirmation line; a ROLLING (en
+// continu) one gets the honest warning that the contract will carry no
+// dates — plus, for roles allowed to plan, a one-step fix that creates a
+// real FIXED_DATE session in the Planning and moves the dossier onto it
+// (see /api/dossiers/[id]/schedule-session). Chosen over a free-text dates
+// field: dates typed only into the contract would exist nowhere else — no
+// convocation, no emargement, no agenda.
+function SessionDatesSection({
+  dossierId,
+  sessionInfo,
+  onScheduled,
+}: {
+  dossierId: string;
+  sessionInfo: SessionInfo;
+  onScheduled: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [format, setFormat] = useState("IN_PERSON");
+  const [location, setLocation] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (sessionInfo.mode === "FIXED_DATE") {
+    return (
+      <div className="text-[11px] text-slate bg-linen rounded-md px-2.5 py-2">
+        Dates de session reprises au contrat : <span className="text-ink font-medium">{sessionInfo.startsAtLabel}</span>
+        {" · "}
+        {SESSION_FORMAT_LABELS[sessionInfo.format] ?? sessionInfo.format}
+      </div>
+    );
+  }
+
+  async function handleSchedule() {
+    if (!date) {
+      setError("Choisissez une date.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const res = await fetch(`/api/dossiers/${dossierId}/schedule-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, startTime, endTime, format, location: location || undefined }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      setError(b.error ?? "La programmation a échoué.");
+      return;
+    }
+    setOpen(false);
+    onScheduled();
+  }
+
+  return (
+    <div className="text-[11px] bg-linen rounded-md px-2.5 py-2 flex flex-col gap-2">
+      <div className="text-slate">
+        Formation en continu — le contrat ne mentionnera pas de dates de session.
+        {sessionInfo.canSchedule && !open && (
+          <>
+            {" "}
+            <button type="button" onClick={() => setOpen(true)} className="text-ink underline decoration-line hover:decoration-ink font-medium">
+              Programmer des dates
+            </button>{" "}
+            (créées dans le Planning, le dossier y est rattaché).
+          </>
+        )}
+      </div>
+      {open && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex gap-1.5 flex-wrap">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[11.5px] text-ink outline-none focus:border-seal bg-white" />
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[11.5px] text-ink outline-none focus:border-seal bg-white w-24" />
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[11.5px] text-ink outline-none focus:border-seal bg-white w-24" />
+            <select value={format} onChange={(e) => setFormat(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[11.5px] text-ink outline-none focus:border-seal bg-white">
+              {Object.entries(SESSION_FORMAT_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder={format === "REMOTE" ? "Lien de visio (facultatif)" : "Lieu / adresse"}
+            className="border border-line rounded-md px-2 py-1 text-[11.5px] text-ink outline-none focus:border-seal bg-white"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSchedule}
+              disabled={saving}
+              className="bg-ink text-white text-[11.5px] font-medium rounded-md px-2.5 py-1 hover:bg-ink-soft disabled:opacity-60"
+            >
+              {saving ? "…" : "Créer la session et rattacher le dossier"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="text-slate hover:text-ink">
+              Annuler
+            </button>
+          </div>
+          {error && <div className="text-rust">{error}</div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Signature is appended at send time (see includeSignature below) rather
@@ -66,12 +183,14 @@ export function SendDocumentDialog({
   contactFirstName,
   signatureHtml,
   scheduleContext,
+  sessionInfo,
 }: {
   dossierId: string;
   templates: Template[];
   contactFirstName: string;
   signatureHtml: string;
   scheduleContext?: ScheduleContext;
+  sessionInfo?: SessionInfo;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -426,10 +545,20 @@ export function SendDocumentDialog({
                           key={a.key}
                           className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sage bg-[#DEE5E0] rounded-md px-1.5 py-0.5"
                         >
-                          ✓ {APPLIED_BADGE_LABELS[a.key]?.[a.value] ?? a.value}
+                          ✓ {SHORT_OPTION_LABELS[a.key]?.[a.value] ?? a.value}
                         </span>
                       ))}
                     </div>
+                  )}
+                  {sessionInfo && SCHEDULED_CATEGORIES.has(category) && (
+                    <SessionDatesSection
+                      dossierId={dossierId}
+                      sessionInfo={sessionInfo}
+                      onScheduled={() => {
+                        router.refresh();
+                        if (templateId) void loadPreview(templateId, pendingAnswers);
+                      }}
+                    />
                   )}
                   <div className="flex flex-col gap-1">
                     <div className="text-[11px] text-slate uppercase tracking-wide">Contenu (PDF envoyé en pièce jointe)</div>

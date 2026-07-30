@@ -170,6 +170,19 @@ export function mergeTemplate(bodyText: string, ctx: MergeContext): string {
   );
 }
 
+// Template-level adaptation (no dossier yet): fill what the organisation
+// alone can answer, and leave every learner/session-specific token VISIBLE
+// as {{…}} instead of blanking it — the downloaded Word file is a base the
+// OFP completes per client, and an invisible empty string where a name
+// belongs is exactly how a field gets forgotten.
+export function mergeTemplatePartial(bodyText: string, ctx: MergeContext): string {
+  const fields = buildMergeFields(ctx);
+
+  return bodyText.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (match, key: string) =>
+    key in fields && fields[key] !== "" ? fields[key] : match
+  );
+}
+
 // Derived from the resolver rather than restated beside it. The two used to
 // be separate lists, which is a standing invitation to drift: a field added
 // to one and forgotten in the other either never appears in the help panel,

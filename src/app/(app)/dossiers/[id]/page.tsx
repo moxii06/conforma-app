@@ -8,7 +8,7 @@ import { Role } from "@prisma/client";
 import { Tabs } from "@/components/Tabs";
 import { DossierCategorySelect } from "@/components/DossierCategorySelect";
 import { AddDossierDocumentForm } from "@/components/AddDossierDocumentForm";
-import { SendDocumentDialog, type ScheduleContext } from "@/components/SendDocumentDialog";
+import { SendDocumentDialog, type ScheduleContext, type SessionInfo } from "@/components/SendDocumentDialog";
 import { CreateRightsRequestButton } from "@/components/CreateRightsRequestButton";
 import { PlanRetentionForm } from "@/components/PlanRetentionForm";
 import { ParcoursStepToggle } from "@/components/ParcoursStepToggle";
@@ -114,6 +114,15 @@ export default async function DossierPage(
           capAcknowledged: organization.paymentCapAckAt != null,
         }
       : undefined;
+  // What the contract's session.* merge fields will say — shown in the send
+  // dialog so a ROLLING dossier's missing dates are visible BEFORE sending,
+  // with a one-step "programmer des dates" fix for roles allowed to plan.
+  const sessionInfo = {
+    mode: dossier.session.mode,
+    format: dossier.session.format,
+    startsAtLabel: format(dossier.session.startsAt, "d MMMM yyyy", { locale: fr }),
+    canSchedule: can(role, "planning") === "full",
+  };
   const TABS = [
     ...BASE_TABS,
     ...(canSeeFunding ? [{ key: "financement", label: "Financement" }] : []),
@@ -254,6 +263,7 @@ export default async function DossierPage(
             signatureHtml={signatureHtml}
             funding={identityFunding}
             scheduleContext={scheduleContext}
+            sessionInfo={sessionInfo}
           />
         ) : activeTab === "emails" ? (
           <EmailsTab contactId={dossier.contactId} dossierId={dossier.id} canManageEmail={canManageEmail} members={members} />
@@ -265,6 +275,7 @@ export default async function DossierPage(
             contactFirstName={dossier.contact.firstName}
             signatureHtml={signatureHtml}
             scheduleContext={scheduleContext}
+            sessionInfo={sessionInfo}
           />
         ) : activeTab === "donnees-personnelles" ? (
           <PersonalDataTab dossier={dossier} canWrite={canWriteRgpd(role)} />
@@ -366,6 +377,7 @@ async function FormationsTab({
   signatureHtml,
   funding,
   scheduleContext,
+  sessionInfo,
 }: {
   contactId: string;
   organizationId: string;
@@ -376,6 +388,7 @@ async function FormationsTab({
   signatureHtml: string;
   funding: { totalCents: number; remainderCents: number; funderTypes: string[] } | null;
   scheduleContext?: ScheduleContext;
+  sessionInfo?: SessionInfo;
 }) {
   const dossiers = await prisma.dossier.findMany({
     where: { contactId, organizationId },
@@ -597,6 +610,7 @@ async function FormationsTab({
                       // dossier's context to a sibling would print another
                       // contract's arithmetic, so siblings get none.
                       scheduleContext={d.id === currentDossierId ? scheduleContext : undefined}
+                      sessionInfo={d.id === currentDossierId ? sessionInfo : undefined}
                     />
                   )}
                   {canManageOutreach && <SendSatisfactionSurveyButton dossierId={d.id} kind="positioning" />}
@@ -687,6 +701,7 @@ async function DocumentsTab({
   contactFirstName,
   signatureHtml,
   scheduleContext,
+  sessionInfo,
 }: {
   dossierId: string;
   organizationId: string;
@@ -694,6 +709,7 @@ async function DocumentsTab({
   contactFirstName: string;
   signatureHtml: string;
   scheduleContext?: ScheduleContext;
+  sessionInfo?: SessionInfo;
 }) {
   const [documents, templates] = await Promise.all([
     prisma.document.findMany({ where: { dossierId }, orderBy: { createdAt: "desc" } }),
@@ -717,6 +733,7 @@ async function DocumentsTab({
             contactFirstName={contactFirstName}
             signatureHtml={signatureHtml}
             scheduleContext={scheduleContext}
+            sessionInfo={sessionInfo}
           />
         )}
       </div>
