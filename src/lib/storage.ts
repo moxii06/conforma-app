@@ -9,17 +9,26 @@ import { put, del } from "@vercel/blob";
 // (Document.fileUrl, dossier attachments) is still just a pasted external
 // link; this is the first real upload path.
 //
-// `access: "private"`, not "public". These are signed conventions, CVs,
-// diplomas and subcontractor contracts — personal data. A public blob URL
-// is unguessable but permanent and unauthenticated: once it leaks (a
-// forwarded email, a proxy log, browser history) it grants access forever,
-// and deleting the record in the database does not revoke it, so a GDPR
-// erasure request cannot actually be honoured. Private blobs are readable
-// only with the store token, server-side, which is why every consumer now
-// goes through an authenticated route (see src/lib/blobStream.ts).
+// STILL `access: "public"`, and that is the remaining hole — see the README.
 //
-// Files uploaded before this switch remain public — flipping the flag does
-// not retroactively change them. See the migration note in README.
+// These are signed conventions, CVs, diplomas and subcontractor contracts:
+// personal data. A public blob URL is unguessable but permanent and
+// unauthenticated, so once it leaks (a forwarded email, a proxy log, browser
+// history) it grants access forever, and deleting the row does not revoke
+// it — a GDPR erasure request cannot actually be honoured.
+//
+// `access: "private"` was tried and reverted: Vercel rejects it with
+// "Cannot use private access on a public store", because the access mode is
+// fixed on the STORE, not per upload. Closing this properly needs a
+// private-capable Blob store provisioned in the Vercel dashboard (an account
+// action, not a code change), after which these five call sites flip to
+// "private" and existing blobs get copied over.
+//
+// What is already in place: no raw storage URL reaches the browser any more.
+// Every read goes through an authenticated, tenant-scoped route (see
+// src/lib/blobStream.ts and the routes listed in the README), so the app no
+// longer hands out permanent links. That narrows the exposure to URLs that
+// leaked before this change; it does not make the objects themselves private.
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500MB — generous for video
 
 const NOT_CONFIGURED_ERROR =
@@ -40,7 +49,7 @@ export async function uploadModuleFile(params: {
   // filename without needing to check-then-write.
   const pathname = `lms/${params.organizationId}/${params.moduleId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "private",
+    access: "public",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
@@ -63,7 +72,7 @@ export async function uploadDossierDocument(params: {
 
   const pathname = `dossiers/${params.organizationId}/${params.dossierId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "private",
+    access: "public",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
@@ -86,7 +95,7 @@ export async function uploadSubcontractorDocument(params: {
 
   const pathname = `subcontractors/${params.organizationId}/${params.subcontractorId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "private",
+    access: "public",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
@@ -107,7 +116,7 @@ export async function uploadUserDocument(params: {
 
   const pathname = `team-members/${params.organizationId}/${params.userId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "private",
+    access: "public",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
