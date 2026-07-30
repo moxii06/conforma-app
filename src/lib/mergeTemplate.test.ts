@@ -187,6 +187,8 @@ describe("catalogue des champs disponibles", () => {
       "contact.birthDate",
       "company.address",
       "company.legalRepresentativeName",
+      "subcontractor.name",
+      "subcontractor.contractEndDate",
       "today",
     ]) {
       expect(AVAILABLE_MERGE_FIELDS, key).toContain(key);

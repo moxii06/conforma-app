@@ -67,20 +67,25 @@ export async function buildDocumentAttachment(params: {
 // Yousign key on file) and the real Yousign webhook
 // (src/app/api/webhooks/yousign/[organizationId]/route.ts) — so the
 // notification a staff member gets doesn't drift between the two.
-export async function notifyDocumentSigned(document: { id: string; title: string; sentByUserId: string | null; dossierId: string | null }, organizationId: string): Promise<void> {
-  if (!document.sentByUserId || !document.dossierId) return;
-  const [sender, organization, dossier] = await Promise.all([
+export async function notifyDocumentSigned(
+  document: { id: string; title: string; sentByUserId: string | null; dossierId: string | null; subcontractorId?: string | null },
+  organizationId: string,
+): Promise<void> {
+  if (!document.sentByUserId || (!document.dossierId && !document.subcontractorId)) return;
+  const [sender, organization, dossier, subcontractor] = await Promise.all([
     prisma.user.findUnique({ where: { id: document.sentByUserId } }),
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
-    prisma.dossier.findUnique({ where: { id: document.dossierId }, include: { contact: true } }),
+    document.dossierId ? prisma.dossier.findUnique({ where: { id: document.dossierId }, include: { contact: true } }) : null,
+    document.subcontractorId ? prisma.subcontractor.findUnique({ where: { id: document.subcontractorId } }) : null,
   ]);
-  if (!sender || !dossier) return;
+  if (!sender || (!dossier && !subcontractor)) return;
+  const signerName = dossier ? `${dossier.contact.firstName} ${dossier.contact.lastName}` : subcontractor!.name;
   try {
     await sendTransactionalEmail({
       to: sender.email,
       toName: sender.name,
       subject: `Document signé — ${document.title}`,
-      text: `${dossier.contact.firstName} ${dossier.contact.lastName} vient de signer « ${document.title} ».`,
+      text: `${signerName} vient de signer « ${document.title} ».`,
       senderName: organization.name,
     });
   } catch {

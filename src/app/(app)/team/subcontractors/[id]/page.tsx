@@ -11,7 +11,9 @@ import { AddSubcontractorDocumentForm } from "@/components/AddSubcontractorDocum
 import { InviteSubcontractorButton } from "@/components/InviteSubcontractorButton";
 import { DeleteSubcontractorButton } from "@/components/DeleteSubcontractorButton";
 import { DocumentActions } from "@/components/DocumentActions";
+import { SendSubcontractorDocumentDialog } from "@/components/SendSubcontractorDocumentDialog";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
+import { isYousignConfigured } from "@/lib/yousign";
 
 const SUBCONTRACTOR_TYPE_LABELS: Record<string, string> = {
   formateur_externe: "Formateur externe",
@@ -34,6 +36,16 @@ export default async function SubcontractorRecordPage(props: { params: Promise<{
     },
   });
   if (!subcontractor) notFound();
+
+  const [sender, templates, eSignatureAvailable] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id: session.userId }, select: { emailSignature: true } }),
+    prisma.documentTemplate.findMany({
+      where: { OR: [{ organizationId: session.organizationId }, { organizationId: null }] },
+      select: { id: true, title: true, category: true },
+      orderBy: { title: "asc" },
+    }),
+    isYousignConfigured(session.organizationId),
+  ]);
 
   const activeDocuments = subcontractor.documents.filter((d) => !d.archivedAt);
   const archivedDocuments = subcontractor.documents.filter((d) => d.archivedAt);
@@ -146,7 +158,19 @@ export default async function SubcontractorRecordPage(props: { params: Promise<{
         )}
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13.5px] font-semibold text-ink">Documents liés ({activeDocuments.length})</div>
+          <div className="flex items-center justify-between">
+            <div className="text-[13.5px] font-semibold text-ink">Documents liés ({activeDocuments.length})</div>
+            {subcontractor.contactEmail ? (
+              <SendSubcontractorDocumentDialog
+                subcontractorId={subcontractor.id}
+                templates={templates}
+                signatureHtml={sender.emailSignature ?? ""}
+                eSignatureAvailable={eSignatureAvailable}
+              />
+            ) : (
+              <span className="text-[11px] text-slate">Ajoutez un email de contact pour pouvoir envoyer un document</span>
+            )}
+          </div>
           {activeDocuments.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               {activeDocuments.map((doc) => (

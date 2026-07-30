@@ -62,6 +62,18 @@ export type MergeContext = {
   // lib/documentQuestionnaire.ts's subrogation question. Only ever the
   // funder actually named in the funding plan, never a guess.
   funder?: { name: string } | null;
+  // The other party on a Subcontractor-facing document (formateur contract,
+  // tournage vidéo...) — a structurally different counterpart from `contact`
+  // (a dossier's learner) or `company` (a dossier's funding employer): a
+  // Subcontractor has one free-text `name`, not firstName/lastName, so it
+  // gets its own slot rather than being forced into `contact`'s shape.
+  subcontractor?: {
+    name: string;
+    siret?: string | null;
+    address?: string | null;
+    contractStartDate?: Date | null;
+    contractEndDate?: Date | null;
+  } | null;
   // Snapshot of the dossier's funding arithmetic (lib/funding.ts) — the
   // total price and what's left for the client to pay after any secured
   // funding. Computed by the caller, not here, since it needs the full
@@ -139,6 +151,15 @@ export function buildMergeFields(ctx: MergeContext): Record<string, string> {
     "company.siret": ctx.company?.siret ?? "",
     "company.address": ctx.company?.address ?? "",
     "company.legalRepresentativeName": ctx.company?.legalRepresentativeName ?? "",
+    "subcontractor.name": ctx.subcontractor?.name ?? "",
+    "subcontractor.siret": ctx.subcontractor?.siret ?? "",
+    "subcontractor.address": ctx.subcontractor?.address ?? "",
+    "subcontractor.contractStartDate": ctx.subcontractor?.contractStartDate
+      ? ctx.subcontractor.contractStartDate.toLocaleDateString("fr-FR", DATE_FORMAT)
+      : "",
+    "subcontractor.contractEndDate": ctx.subcontractor?.contractEndDate
+      ? ctx.subcontractor.contractEndDate.toLocaleDateString("fr-FR", DATE_FORMAT)
+      : "",
     "funder.name": ctx.funder?.name ?? "",
     "funding.total": ctx.funding ? formatEuros(ctx.funding.totalCents) : "",
     "funding.remainder": ctx.funding ? formatEuros(ctx.funding.remainderCents) : "",
