@@ -57,7 +57,7 @@ export type MergeContext = {
   // The contact's employer, when the training is company-funded (contact
   // has no company for an individual paying themselves) — feeds a
   // "convention" template's [NOM DU CLIENT / ENTREPRISE]-style clauses.
-  company?: { name: string; siret: string | null } | null;
+  company?: { name: string; siret: string | null; address?: string | null; legalRepresentativeName?: string | null } | null;
   // The subrogated funder on this dossier, if any — see
   // lib/documentQuestionnaire.ts's subrogation question. Only ever the
   // funder actually named in the funding plan, never a guess.
@@ -137,6 +137,8 @@ export function buildMergeFields(ctx: MergeContext): Record<string, string> {
     "course.retakeConditions": ctx.course?.retakeConditions ?? "",
     "company.name": ctx.company?.name ?? "",
     "company.siret": ctx.company?.siret ?? "",
+    "company.address": ctx.company?.address ?? "",
+    "company.legalRepresentativeName": ctx.company?.legalRepresentativeName ?? "",
     "funder.name": ctx.funder?.name ?? "",
     "funding.total": ctx.funding ? formatEuros(ctx.funding.totalCents) : "",
     "funding.remainder": ctx.funding ? formatEuros(ctx.funding.remainderCents) : "",

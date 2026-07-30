@@ -334,7 +334,7 @@ function InfoTab({
   dossier: {
     id: string;
     learnerCategory: string | null;
-    contact: { id: string; firstName: string; lastName: string; email: string; phone: string | null; address: string | null; company: { id: string; name: string; siret: string | null; address: string | null; responsableFirstName: string | null; responsableLastName: string | null; responsableEmail: string | null; responsablePhone: string | null } | null };
+    contact: { id: string; firstName: string; lastName: string; email: string; phone: string | null; address: string | null; company: { id: string; name: string; siret: string | null; address: string | null; responsableFirstName: string | null; responsableLastName: string | null; responsableEmail: string | null; responsablePhone: string | null; legalRepresentativeName: string | null } | null };
   };
   canEditCategory: boolean;
 }) {

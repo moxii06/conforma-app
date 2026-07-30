@@ -531,6 +531,16 @@ model Company {
   responsableLastName  String?
   responsableEmail     String?
   responsablePhone     String?
+  // Free-text "Name, Fonction" (e.g. "Julie Martin, DRH") — the person who
+  // signs a convention on the company's behalf. Deliberately not split into
+  // separate name/title fields, same shape as Organization.legalRepresentativeName;
+  // distinct from responsable* above, which is the day-to-day HR contact and
+  // not necessarily the signatory. Nullable: only needed once a convention is
+  // actually generated, and legal identity (forme juridique, capital social,
+  // RCS) was deliberately left out of this model — a training convention's
+  // client-company header only needs name + SIRET + signatory to be usable,
+  // unlike the OF's own header where the fuller identity is standard.
+  legalRepresentativeName String?
 
   contacts Contact[]
 

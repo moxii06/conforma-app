@@ -11,6 +11,7 @@ const schema = z.object({
   responsableLastName: z.string().optional(),
   responsableEmail: z.string().email().optional().or(z.literal("")),
   responsablePhone: z.string().optional(),
+  legalRepresentativeName: z.string().optional(),
 });
 
 // Client feedback: staff need to correct/complete a company's info (and its
@@ -41,6 +42,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       responsableLastName: parsed.data.responsableLastName || null,
       responsableEmail: parsed.data.responsableEmail || null,
       responsablePhone: parsed.data.responsablePhone || null,
+      legalRepresentativeName: parsed.data.legalRepresentativeName || null,
     },
   });
 

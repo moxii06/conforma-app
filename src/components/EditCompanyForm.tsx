@@ -12,6 +12,7 @@ type Company = {
   responsableLastName: string | null;
   responsableEmail: string | null;
   responsablePhone: string | null;
+  legalRepresentativeName: string | null;
 };
 
 export function EditCompanyForm({ company, title }: { company: Company; title: string }) {
@@ -24,6 +25,7 @@ export function EditCompanyForm({ company, title }: { company: Company; title: s
   const [responsableLastName, setResponsableLastName] = useState(company.responsableLastName ?? "");
   const [responsableEmail, setResponsableEmail] = useState(company.responsableEmail ?? "");
   const [responsablePhone, setResponsablePhone] = useState(company.responsablePhone ?? "");
+  const [legalRepresentativeName, setLegalRepresentativeName] = useState(company.legalRepresentativeName ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,6 +44,7 @@ export function EditCompanyForm({ company, title }: { company: Company; title: s
         responsableLastName: responsableLastName.trim() || undefined,
         responsableEmail: responsableEmail.trim() || undefined,
         responsablePhone: responsablePhone.trim() || undefined,
+        legalRepresentativeName: legalRepresentativeName.trim() || undefined,
       }),
     });
     setSaving(false);
@@ -84,6 +87,9 @@ export function EditCompanyForm({ company, title }: { company: Company; title: s
           )}
           {company.responsableEmail && <div className="text-[12px] text-slate">{company.responsableEmail}</div>}
           {company.responsablePhone && <div className="text-[12px] text-slate">{company.responsablePhone}</div>}
+          {company.legalRepresentativeName && (
+            <div className="text-[12px] text-slate mt-1.5">Représentant légal : {company.legalRepresentativeName}</div>
+          )}
         </div>
       </>
     );
@@ -141,6 +147,13 @@ export function EditCompanyForm({ company, title }: { company: Company; title: s
           className="flex-1 bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
         />
       </div>
+      <div className="text-[11px] font-medium text-slate mt-1">Représentant légal</div>
+      <input
+        value={legalRepresentativeName}
+        onChange={(e) => setLegalRepresentativeName(e.target.value)}
+        placeholder="Nom, fonction (ex. Julie Martin, DRH) — pour signer une convention"
+        className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+      />
       <div className="flex items-center gap-2.5 mt-1">
         <button
           type="button"

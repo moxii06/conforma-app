@@ -85,7 +85,14 @@ export async function POST(request: Request) {
     session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },
     dossier: { retentionUntil: dossier.retentionUntil },
     course: dossier.session.course,
-    company: dossier.contact.company ? { name: dossier.contact.company.name, siret: dossier.contact.company.siret } : null,
+    company: dossier.contact.company
+      ? {
+          name: dossier.contact.company.name,
+          siret: dossier.contact.company.siret,
+          address: dossier.contact.company.address,
+          legalRepresentativeName: dossier.contact.company.legalRepresentativeName,
+        }
+      : null,
     funder: (() => {
       const name = resolveSubrogatedFunderName(dossier.fundingCommitments);
       return name ? { name } : null;

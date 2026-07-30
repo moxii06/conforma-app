@@ -185,6 +185,8 @@ describe("catalogue des champs disponibles", () => {
       "course.certificationCode",
       "organization.mediatorName",
       "contact.birthDate",
+      "company.address",
+      "company.legalRepresentativeName",
       "today",
     ]) {
       expect(AVAILABLE_MERGE_FIELDS, key).toContain(key);
