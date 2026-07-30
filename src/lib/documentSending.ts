@@ -2,9 +2,10 @@ import { put } from "@vercel/blob";
 import { generatePdfFromRichText } from "@/lib/htmlToPdf";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { privateStoreToken } from "@/lib/storage";
 
 const NOT_CONFIGURED_ERROR =
-  "Stockage de fichiers momentanément indisponible — BLOB_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
+  "Stockage de fichiers momentanément indisponible — BLOB_PRIVATE_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
 
 // Shared by the dossier and CRM-prospect "envoyer un document" send routes:
 // turns either a rich-text template (→ a real generated PDF) or an
@@ -20,7 +21,7 @@ export async function buildDocumentAttachment(params: {
   organizationId: string;
   ownerKey: string; // dossierId, or `opportunity-<id>` for a prospect with no dossier yet
 }): Promise<{ fileUrl: string; fileName: string; sizeBytes: number; contentBase64: string; mimeType: string }> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
+  if (!privateStoreToken()) throw new Error(NOT_CONFIGURED_ERROR);
 
   let buffer: Buffer;
   let fileName: string;
@@ -38,11 +39,18 @@ export async function buildDocumentAttachment(params: {
     mimeType = params.file.type || "application/octet-stream";
   }
 
-  // Still "public", like every other upload path — see the long note in
-  // src/lib/storage.ts: private access is a store-level setting on Vercel
-  // Blob, so it cannot be switched on per upload from here.
+  // Private, like every other upload path — see the note in src/lib/storage.ts.
+  // These are the signed conventions and contracts themselves. The recipient
+  // still gets the actual bytes as an email attachment, so making the stored
+  // copy private costs them nothing; it only closes the permanent
+  // unauthenticated back door the public URL used to be.
   const pathname = `documents/${params.organizationId}/${params.ownerKey}/${fileName}`;
-  const blob = await put(pathname, buffer, { access: "public", addRandomSuffix: true, contentType: mimeType });
+  const blob = await put(pathname, buffer, {
+    access: "private",
+    addRandomSuffix: true,
+    contentType: mimeType,
+    token: privateStoreToken(),
+  });
 
   return {
     fileUrl: blob.url,

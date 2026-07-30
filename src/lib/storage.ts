@@ -1,133 +1,110 @@
 import { put, del } from "@vercel/blob";
 
-// Real file storage for LMS module content (video/document) — platform-
-// level, like AI/Brevo (Jalon hosts the files, not each OFP's own
-// infrastructure), via Vercel Blob: one BLOB_READ_WRITE_TOKEN env var,
-// works identically in local dev and on Vercel (unlike writing to local
-// disk, which would silently break in production — serverless functions
-// don't have a persistent filesystem). Every other `fileUrl` in this app
-// (Document.fileUrl, dossier attachments) is still just a pasted external
-// link; this is the first real upload path.
+// Real file storage for uploads (LMS module content, dossier documents,
+// subcontractor and team-member records) — platform-level, like AI/Brevo:
+// Jalon hosts the files, not each OFP's own infrastructure.
 //
-// STILL `access: "public"`, and that is the remaining hole — see the README.
+// `access: "private"`. These are signed conventions, CVs, diplomas and
+// subcontractor contracts: personal data. A public blob URL is unguessable
+// but permanent and unauthenticated, so once it leaks (a forwarded email, a
+// proxy log, browser history) it grants access forever, and deleting the row
+// does not revoke it — a GDPR erasure request could not actually be honoured.
+// Private blobs are readable only server-side with the store token, which is
+// why every consumer goes through an authenticated route (see blobStream.ts).
 //
-// These are signed conventions, CVs, diplomas and subcontractor contracts:
-// personal data. A public blob URL is unguessable but permanent and
-// unauthenticated, so once it leaks (a forwarded email, a proxy log, browser
-// history) it grants access forever, and deleting the row does not revoke
-// it — a GDPR erasure request cannot actually be honoured.
-//
-// `access: "private"` was tried and reverted: Vercel rejects it with
-// "Cannot use private access on a public store", because the access mode is
-// fixed on the STORE, not per upload. Closing this properly needs a
-// private-capable Blob store provisioned in the Vercel dashboard (an account
-// action, not a code change), after which these five call sites flip to
-// "private" and existing blobs get copied over.
-//
-// What is already in place: no raw storage URL reaches the browser any more.
-// Every read goes through an authenticated, tenant-scoped route (see
-// src/lib/blobStream.ts and the routes listed in the README), so the app no
-// longer hands out permanent links. That narrows the exposure to URLs that
-// leaked before this change; it does not make the objects themselves private.
+// Two stores exist during the transition, hence the explicit `token`:
+//   - `conforma-prive` (cdg1/Paris, private) — everything uploaded from now
+//     on. Its token is BLOB_PRIVATE_READ_WRITE_TOKEN.
+//   - `conforma-lms` (iad1, public) — the ~25 files uploaded before the
+//     switch. Still reachable via BLOB_READ_WRITE_TOKEN, which the SDK picks
+//     up by default; blobStream.ts falls back to it on read.
+// Access mode is fixed per store on Vercel ("Cannot use private access on a
+// public store"), which is why this is a second store and not a flag flip.
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500MB — generous for video
 
 const NOT_CONFIGURED_ERROR =
-  "Stockage de fichiers momentanément indisponible — BLOB_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
+  "Stockage de fichiers momentanément indisponible — BLOB_PRIVATE_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
+
+export function privateStoreToken(): string | undefined {
+  return process.env.BLOB_PRIVATE_READ_WRITE_TOKEN;
+}
+
+// The four upload helpers below differ only in how they namespace the
+// pathname; sharing the body keeps their access mode and size limit from
+// drifting apart, which is exactly the kind of gap a per-function copy grows.
+async function uploadPrivate(pathname: string, file: File) {
+  const token = privateStoreToken();
+  if (!token) throw new Error(NOT_CONFIGURED_ERROR);
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    throw new Error("Fichier trop volumineux (limite 500 Mo).");
+  }
+
+  // addRandomSuffix avoids collisions on repeat uploads of the same filename
+  // without needing to check-then-write. It is not a security measure — the
+  // store's access mode is.
+  const blob = await put(pathname, file, {
+    access: "private",
+    addRandomSuffix: true,
+    contentType: file.type || undefined,
+    token,
+  });
+
+  return { url: blob.url, fileName: file.name, sizeBytes: file.size };
+}
 
 export async function uploadModuleFile(params: {
   organizationId: string;
   moduleId: string;
   file: File;
 }): Promise<{ url: string; fileName: string; sizeBytes: number }> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
-  if (params.file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error("Fichier trop volumineux (limite 500 Mo).");
-  }
-
-  // Path is namespaced by org + module — never guessable across tenants,
-  // and addRandomSuffix avoids collisions on repeat uploads of the same
-  // filename without needing to check-then-write.
-  const pathname = `lms/${params.organizationId}/${params.moduleId}/${params.file.name}`;
-  const blob = await put(pathname, params.file, {
-    access: "public",
-    addRandomSuffix: true,
-    contentType: params.file.type || undefined,
-  });
-
-  return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
+  return uploadPrivate(`lms/${params.organizationId}/${params.moduleId}/${params.file.name}`, params.file);
 }
 
-// Same real Blob storage as uploadModuleFile, for the "envoyer un document"
-// dialog's local-file path (dossier records, not LMS module content) —
-// separate pathname namespace, same upload mechanics.
+// The "envoyer un document" dialog's local-file path (dossier records, not
+// LMS module content) — separate pathname namespace, same mechanics.
 export async function uploadDossierDocument(params: {
   organizationId: string;
   dossierId: string;
   file: File;
 }): Promise<{ url: string; fileName: string; sizeBytes: number }> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
-  if (params.file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error("Fichier trop volumineux (limite 500 Mo).");
-  }
-
-  const pathname = `dossiers/${params.organizationId}/${params.dossierId}/${params.file.name}`;
-  const blob = await put(pathname, params.file, {
-    access: "public",
-    addRandomSuffix: true,
-    contentType: params.file.type || undefined,
-  });
-
-  return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
+  return uploadPrivate(`dossiers/${params.organizationId}/${params.dossierId}/${params.file.name}`, params.file);
 }
 
-// Same real Blob storage, for a subcontractor's tracked documents
-// (contrat/CV/diplôme/NDA) — replaces the old paste-a-URL flow, which
-// required staff to have already hosted the file somewhere else.
+// A subcontractor's tracked documents (contrat/CV/diplôme/NDA).
 export async function uploadSubcontractorDocument(params: {
   organizationId: string;
   subcontractorId: string;
   file: File;
 }): Promise<{ url: string; fileName: string; sizeBytes: number }> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
-  if (params.file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error("Fichier trop volumineux (limite 500 Mo).");
-  }
-
-  const pathname = `subcontractors/${params.organizationId}/${params.subcontractorId}/${params.file.name}`;
-  const blob = await put(pathname, params.file, {
-    access: "public",
-    addRandomSuffix: true,
-    contentType: params.file.type || undefined,
-  });
-
-  return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
+  return uploadPrivate(
+    `subcontractors/${params.organizationId}/${params.subcontractorId}/${params.file.name}`,
+    params.file,
+  );
 }
 
-// Same real Blob storage, for a team member's own documents (CV, diplôme...).
+// A team member's own documents (CV, diplôme...).
 export async function uploadUserDocument(params: {
   organizationId: string;
   userId: string;
   file: File;
 }): Promise<{ url: string; fileName: string; sizeBytes: number }> {
-  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error(NOT_CONFIGURED_ERROR);
-  if (params.file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error("Fichier trop volumineux (limite 500 Mo).");
-  }
-
-  const pathname = `team-members/${params.organizationId}/${params.userId}/${params.file.name}`;
-  const blob = await put(pathname, params.file, {
-    access: "public",
-    addRandomSuffix: true,
-    contentType: params.file.type || undefined,
-  });
-
-  return { url: blob.url, fileName: params.file.name, sizeBytes: params.file.size };
+  return uploadPrivate(`team-members/${params.organizationId}/${params.userId}/${params.file.name}`, params.file);
 }
 
+// Deletion has to cover both stores: a blob uploaded today lives in the
+// private one, an older one in the public one, and the caller has no reason
+// to know which. Non-fatal either way — the DB row is the source of truth,
+// and an orphaned blob costs storage, not correctness.
 export async function deleteModuleFile(url: string): Promise<void> {
+  const token = privateStoreToken();
+  if (token) {
+    try {
+      await del(url, { token });
+      return;
+    } catch {
+      // Not in the private store — fall through to the legacy one.
+    }
+  }
   if (!process.env.BLOB_READ_WRITE_TOKEN) return;
-  await del(url).catch(() => {
-    // Non-fatal — the DB row is still the source of truth; an orphaned
-    // blob costs storage, not correctness.
-  });
+  await del(url).catch(() => {});
 }

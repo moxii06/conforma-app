@@ -1,17 +1,19 @@
 import { get } from "@vercel/blob";
+import { privateStoreToken } from "@/lib/storage";
 
 /**
  * Reads a stored file and returns it as a response, whatever its access mode.
  *
- * Uploads are `access: "private"` now (see src/lib/storage.ts): the blob URL
+ * Uploads go to the private store now (see src/lib/storage.ts): the blob URL
  * on its own no longer grants access, so every read has to come through an
  * authenticated route that has already checked the caller may see this
  * particular record. Callers do that check; this only moves the bytes.
  *
- * Files uploaded before that switch are still public. Rather than guess from
- * the URL shape which era a file belongs to, this tries the authenticated
- * read first and falls back to a plain fetch — correct for both, and it stays
- * correct if Vercel ever changes how private URLs look.
+ * The ~25 files uploaded before the switch still live in the old public
+ * store. Rather than guess from the URL shape which store a file belongs to,
+ * this tries the authenticated read first and falls back to a plain fetch —
+ * correct for both, and it stays correct if Vercel ever changes how private
+ * URLs look. The fallback is what keeps those older files working.
  *
  * Range support matters for video: without it the <video> element can't seek
  * without re-downloading, and Safari/iOS won't play at all.
@@ -53,9 +55,15 @@ async function readPrivate(
   fileUrl: string,
   range?: string | null,
 ): Promise<{ stream: ReadableStream; headers: Headers; status: number; contentType?: string } | null> {
+  // Explicit token: the SDK would otherwise default to BLOB_READ_WRITE_TOKEN,
+  // which belongs to the OLD public store and cannot read the private one.
+  const token = privateStoreToken();
+  if (!token) return null;
+
   try {
     const result = await get(fileUrl, {
       access: "private",
+      token,
       ...(range ? { headers: { Range: range } } : {}),
     });
     if (!result?.stream) return null;

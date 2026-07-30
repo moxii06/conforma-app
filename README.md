@@ -424,31 +424,35 @@ for what that means in practice for each one.
   - **Pennylane/Sellsy and IMAP/SMTP** stay inherently per-organization —
     each connects to a distinct external account (the OFP's own
     accounting tool, or a specific mailbox) that can't be shared.
-- **Uploaded files are served through authenticated routes** — signed
-  conventions, CVs, diplomas and subcontractor contracts are personal data,
-  and they are stored with `access: "public"`: unguessable URLs, but
-  permanent and unauthenticated, so one leak (a forwarded email, a proxy
-  log, browser history) grants access forever and deleting the record does
-  **not** revoke it — a GDPR erasure request cannot actually be honoured.
-  **This is only half-fixed.** `access: "private"` was tried and reverted:
-  Vercel answers *"Cannot use private access on a public store"* — the
-  access mode is a property of the STORE, not of each upload, so closing
-  this needs a private-capable Blob store provisioned in the Vercel
-  dashboard (an account action), after which the five `put()` call sites in
-  `storage.ts`/`documentSending.ts` flip to `"private"` and existing blobs
-  are copied across with `copy()` + `del()`.
-  What *is* done: no raw storage URL reaches the browser any more. Every
-  consumer goes through an authenticated route that applies the same access
-  rules as the record it hangs off:
+- **Uploaded files are private blobs, served through authenticated routes** —
+  signed conventions, CVs, diplomas and subcontractor contracts are personal
+  data. They used to be stored with `access: "public"`: unguessable URLs, but
+  permanent and unauthenticated, so one leak (a forwarded email, a proxy log,
+  browser history) granted access forever and deleting the record did **not**
+  revoke it — a GDPR erasure request could not actually be honoured.
+  Access mode is fixed per store on Vercel (`access: "private"` on the old
+  store fails with *"Cannot use private access on a public store"*), so this
+  needed a **second store**, not a flag flip. Two now exist:
+  `conforma-prive` (`cdg1`/Paris, private, `BLOB_PRIVATE_READ_WRITE_TOKEN`)
+  takes every new upload; `conforma-lms` (`iad1`, public,
+  `BLOB_READ_WRITE_TOKEN`) still holds the ~25 files predating the switch and
+  is only read from. The explicit `token` on every `put()`/`get()` is what
+  selects the store — the SDK would otherwise default to the public one.
+  Those older files are still publicly reachable by URL and that cannot be
+  undone; they need copying across (or deleting, if they are only demo
+  artifacts) before the old store is removed.
+  Every consumer goes through an authenticated route that applies the same
+  access rules as the record it hangs off:
   `/api/documents/[id]/file`, `/api/lms/modules/[id]/stream` (any type, not
   just video), `/api/lms/modules/attachments/[attachmentId]`,
   `/api/lms/modules/versions/[versionId]/file`. No raw storage URL reaches
   the browser any more — including as a prop on a client component, which
   would put it in the page payload even when nothing renders it (that is
   why `LmsModulePlayer` takes `hasFile` rather than `fileUrl`).
-  `src/lib/blobStream.ts` already tries an authenticated `get()` first and
-  falls back to a plain fetch, so the day the store becomes private-capable
-  the read path needs no change at all — only the `put()` calls do.
+  `src/lib/blobStream.ts` tries the authenticated `get()` against the private
+  store first and falls back to a plain fetch, which is what keeps the older
+  public-store files working without needing to know which store any given
+  URL belongs to.
 - **Rate limiting on the unauthenticated surface** (`src/lib/rateLimit.ts`)
   — login, password reset, signup and the public forms (demo, newsletter,
   diagnostic) are the only endpoints reachable without a session, so they
