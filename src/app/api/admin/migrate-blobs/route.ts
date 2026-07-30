@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { put, del } from "@vercel/blob";
+import { put, del, list } from "@vercel/blob";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
@@ -85,6 +85,46 @@ function targetPathname(fileUrl: string): string {
   return path.replace(/-[A-Za-z0-9]{20,}(\.[^.]+)?$/, (_m, ext: string | undefined) => ext ?? "");
 }
 
+// Prefixes that legitimately stay in the public store, and must survive the
+// orphan sweep. Both are fetched by clients that have no session to
+// authenticate with — a public page's <img>, and the recipient's mail client
+// — so they are public by design, not by omission. They are brand marks, not
+// personal data.
+//
+// Matched by prefix rather than by looking them up in the database, because
+// signature logos are referenced from inside rich-text HTML (User.signature),
+// not from a column a query could join on. A prefix rule cannot miss one.
+const KEEP_PUBLIC_PREFIXES = ["branding/", "signatures/"];
+
+// Blobs in the old public store that no row points at: leftovers from
+// replaced module files and deleted records. They are the same GDPR problem
+// as the migrated ones and worse — the record is already gone, yet the file
+// is still readable by URL.
+async function findOrphans(): Promise<{ url: string; pathname: string; size: number }[]> {
+  const referenced = new Set((await collectLegacyRows()).map((r) => r.fileUrl));
+  // logoUrl is not in collectLegacyRows (it is deliberately never migrated),
+  // so add it explicitly — the prefix rule already covers it, but a blob
+  // referenced by a live row must not depend on a single guard.
+  const orgs = await prisma.organization.findMany({
+    where: { logoUrl: { not: null } },
+    select: { logoUrl: true },
+  });
+  for (const o of orgs) if (o.logoUrl) referenced.add(o.logoUrl);
+
+  const orphans: { url: string; pathname: string; size: number }[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await list({ cursor, limit: 1000 });
+    for (const blob of page.blobs) {
+      if (KEEP_PUBLIC_PREFIXES.some((p) => blob.pathname.startsWith(p))) continue;
+      if (referenced.has(blob.url)) continue;
+      orphans.push({ url: blob.url, pathname: blob.pathname, size: blob.size });
+    }
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return orphans;
+}
+
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
@@ -95,8 +135,31 @@ export async function POST(request: Request) {
   const token = privateStoreToken();
   if (!token) return NextResponse.json({ error: "BLOB_PRIVATE_READ_WRITE_TOKEN absent." }, { status: 503 });
 
-  const body = (await request.json().catch(() => ({}))) as { dryRun?: boolean; batch?: number };
+  const body = (await request.json().catch(() => ({}))) as {
+    dryRun?: boolean;
+    batch?: number;
+    orphans?: "list" | "purge";
+  };
   const batch = Math.min(Math.max(body.batch ?? DEFAULT_BATCH, 1), 25);
+
+  if (body.orphans) {
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json({ error: "BLOB_READ_WRITE_TOKEN absent." }, { status: 503 });
+    }
+    const orphans = await findOrphans();
+    if (body.orphans === "list") {
+      return NextResponse.json({
+        orphans: orphans.length,
+        bytes: orphans.reduce((n, o) => n + o.size, 0),
+        sample: orphans.slice(0, 40).map((o) => o.pathname),
+      });
+    }
+    const slice = orphans.slice(0, batch);
+    // No default token here on purpose: these all live in the public store,
+    // and del() picks that store from BLOB_READ_WRITE_TOKEN.
+    await del(slice.map((o) => o.url));
+    return NextResponse.json({ deleted: slice.length, remaining: orphans.length - slice.length });
+  }
 
   const rows = await collectLegacyRows();
   // Several rows can point at one blob (a module and the version row
