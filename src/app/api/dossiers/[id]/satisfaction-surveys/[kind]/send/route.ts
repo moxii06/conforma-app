@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { SURVEY_KIND_VALUES, sendSatisfactionSurvey } from "@/lib/satisfactionSurveys";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 // Manual counterpart to the automatic sends in the daily cron (hot at
 // session end, cold per the existing satisfaction_not_collected rule) —
@@ -39,7 +40,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
-  const origin = new URL(request.url).origin;
+  const origin = resolveAppOrigin(request);
   const response = await sendSatisfactionSurvey({
     organization,
     dossier,

@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can, canManageOpportunity } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -50,7 +51,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     },
   });
 
-  const formUrl = `${new URL(request.url).origin}/formulaire/${token}`;
+  const formUrl = `${resolveAppOrigin(request)}/formulaire/${token}`;
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
   let emailSent = false;

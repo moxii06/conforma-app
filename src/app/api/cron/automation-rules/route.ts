@@ -11,6 +11,7 @@ import { syncAllMailboxConnections } from "@/lib/mailboxCron";
 import { sendDailyDigests } from "@/lib/dailyDigest";
 import { getCourseCompletion } from "@/lib/lms";
 import type { Contact, Course, Session, Organization } from "@prisma/client";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 // Headroom for the extra work now bundled into this same daily run
 // (mailbox sync + digest emails across every org/user, see below) — Vercel
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
   const denied = assertCronRequest(request);
   if (denied) return denied;
 
-  const origin = new URL(request.url).origin;
+  const origin = resolveAppOrigin(request);
 
   const rules = await prisma.automationRule.findMany({
     where: { active: true, sendEmail: true },

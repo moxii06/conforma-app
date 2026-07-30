@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
 import { Role } from "@prisma/client";
 import { billingConfigured, createSubscriptionCheckout, type PlanKey } from "@/lib/billing";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 const schema = z.object({ plan: z.enum(["solo", "team", "growth"]) });
 
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       plan: parsed.data.plan as PlanKey,
       customerEmail: session.email,
       existingCustomerId: subscription?.stripeCustomerId ?? null,
-      origin: new URL(request.url).origin,
+      origin: resolveAppOrigin(request),
     });
     return NextResponse.json({ url });
   } catch (err) {

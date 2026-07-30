@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { createInvoiceCheckoutLink } from "@/lib/stripe";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 // Generates a real Stripe Checkout link on the organization's OWN Stripe
 // account (see stripe.ts for why this is per-org, not platform-level) for
@@ -19,7 +20,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const invoice = await prisma.invoice.findFirst({ where: { id: params.id, organizationId: auth.organizationId } });
   if (!invoice) return NextResponse.json({ error: "Facture introuvable." }, { status: 404 });
 
-  const origin = new URL(request.url).origin;
+  const origin = resolveAppOrigin(request);
 
   try {
     const result = await createInvoiceCheckoutLink({

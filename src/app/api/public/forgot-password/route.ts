@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 const schema = z.object({ email: z.string().email() });
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1h — see the User.passwordResetToken comment in schema.prisma
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     });
 
     const organization = await prisma.organization.findUnique({ where: { id: user.organizationId } });
-    const resetUrl = `${new URL(request.url).origin}/reinitialiser-mot-de-passe/${token}`;
+    const resetUrl = `${resolveAppOrigin(request)}/reinitialiser-mot-de-passe/${token}`;
     try {
       await sendTransactionalEmail({
         to: user.email,

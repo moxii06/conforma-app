@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
 import { Role } from "@prisma/client";
 import { billingConfigured, createBillingPortalSession } from "@/lib/billing";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 // Opens Stripe's Customer Portal: payment method, invoice history, plan
 // change, cancellation. All four hosted by Stripe.
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const url = await createBillingPortalSession(subscription.stripeCustomerId, new URL(request.url).origin);
+    const url = await createBillingPortalSession(subscription.stripeCustomerId, resolveAppOrigin(request));
     return NextResponse.json({ url });
   } catch (err) {
     return NextResponse.json(

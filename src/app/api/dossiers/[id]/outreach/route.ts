@@ -7,6 +7,7 @@ import { getSessionContext, can, canManageSessionInvitations } from "@/lib/tenan
 import { mergeTemplate } from "@/lib/mergeTemplate";
 import { createSessionInvitation } from "@/lib/sessionInvitations";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 const schema = z.object({ type: z.enum(["contract", "convocation", "platform_access"]) });
 
@@ -36,7 +37,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   if (!parsed.success) return NextResponse.json({ error: "Type d'envoi invalide." }, { status: 400 });
 
   const sentByName = auth.name || auth.email;
-  const origin = new URL(request.url).origin;
+  const origin = resolveAppOrigin(request);
 
   if (parsed.data.type === "convocation") {
     if (!canManageSessionInvitations(auth.role, auth.userId, dossier.session)) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { createConnectSession, isBridgeConfigured, BridgeError } from "@/lib/bridge";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 // Step 1 of connecting a bank: create a pending BankConnection row (our own
 // cuid is the correlation token — passed as Bridge's "context" param, which
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const origin = new URL(request.url).origin;
+  const origin = resolveAppOrigin(request);
   try {
     const { url } = await createConnectSession({
       organizationId: auth.organizationId,

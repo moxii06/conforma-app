@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { getSessionContext, can } from "@/lib/tenant";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 // Kicks off the real Google OAuth flow for "connect a mailbox" (spec §5.11)
 // — this is a data-source link, not a login, so it's deliberately separate
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/integrations?google_error=not_configured", request.url));
   }
 
-  const origin = new URL(request.url).origin;
+  const origin = resolveAppOrigin(request);
   const redirectUri = `${origin}/api/auth/callback/google`;
   const state = randomBytes(16).toString("hex");
 

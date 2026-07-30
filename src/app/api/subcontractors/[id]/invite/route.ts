@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 const schema = z.object({ role: z.nativeEnum(Role).default(Role.TRAINER) });
 
@@ -50,7 +51,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   await prisma.subcontractor.update({ where: { id: subcontractor.id }, data: { linkedUserId: member.id } });
 
-  const activationUrl = `${new URL(request.url).origin}/activation/${activationToken}`;
+  const activationUrl = `${resolveAppOrigin(request)}/activation/${activationToken}`;
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
   let emailSent = false;
   try {

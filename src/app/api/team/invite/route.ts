@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 const inviteSchema = z.object({
   name: z.string().min(1),
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const activationUrl = `${new URL(request.url).origin}/activation/${activationToken}`;
+  const activationUrl = `${resolveAppOrigin(request)}/activation/${activationToken}`;
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
   let emailSent = false;

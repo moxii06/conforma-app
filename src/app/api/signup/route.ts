@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendWelcomeEmail } from "@/lib/onboardingEmails";
+import { resolveAppOrigin } from "@/lib/appUrl";
 
 // Billing identity (SIRET + adresse) is intentionally OPTIONAL at signup:
 // it's only needed once a trial converts to a paid Jalon subscription (not
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
   // Email de bienvenue (J0 de la séquence d'onboarding) — non bloquant :
   // no-op si Brevo n'est pas configuré, et n'échoue jamais la création du
   // compte si l'envoi échoue. La suite de la séquence part du cron quotidien.
-  const baseUrl = process.env.NEXTAUTH_URL || new URL(request.url).origin;
+  const baseUrl = resolveAppOrigin(request);
   await sendWelcomeEmail(baseUrl, {
     email,
     name: `${data.firstName} ${data.lastName}`,
