@@ -12,6 +12,7 @@ export const AUTOMATION_TRIGGER_VALUES = [
   "satisfaction_not_collected",
   "session_reminder",
   "certificate_expiring",
+  "invoice_overdue",
 ] as const;
 
 export const AUTOMATION_TRIGGER_LABELS: Record<string, string> = {
@@ -22,6 +23,7 @@ export const AUTOMATION_TRIGGER_LABELS: Record<string, string> = {
   satisfaction_not_collected: "Avis de satisfaction non recueilli",
   session_reminder: "Rappel de session à venir",
   certificate_expiring: "Attestation bientôt expirée (renouvellement)",
+  invoice_overdue: "Échéance de paiement en retard",
 };
 
 export { MERGE_TAGS, fillMergeTags, type MergeTagContext } from "@/lib/mergeTags";

@@ -1096,6 +1096,10 @@ model Invoice {
   // Null on every invoice created by hand.
   installmentNumber  Int?
   installmentTotal   Int?
+  // Idempotency stamp for the invoice_overdue automation trigger — same
+  // pattern as the dossier's *AutoReminderSentAt fields: one automated
+  // nudge per invoice, ever. Staff relances stay manual and unlimited.
+  overdueReminderSentAt DateTime?
   createdAt          DateTime     @default(now())
 
   payments           Payment[]

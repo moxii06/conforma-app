@@ -27,11 +27,13 @@ const AFTER_DAYS_PHRASING: Record<string, string> = {
   satisfaction_not_collected: "Relancer après",
   session_reminder: "Envoyer le rappel",
   certificate_expiring: "Envoyer le rappel de renouvellement",
+  invoice_overdue: "Relancer après",
 };
 const AFTER_DAYS_SUFFIX: Record<string, string> = {
   convocation_missing: "jours avant la session",
   rolling_duration_expiring: "jours avant la fin de la durée d'accès",
   session_reminder: "jours avant la session",
+  invoice_overdue: "jours de retard",
   certificate_expiring: "jours avant l'expiration de l'attestation",
 };
 

@@ -79,8 +79,15 @@ export async function GET(request: Request) {
       sent += await sendSessionReminders(rule);
     } else if (rule.trigger === "certificate_expiring") {
       sent += await sendCertificateExpiryReminders(rule);
+    } else if (rule.trigger === "invoice_overdue") {
+      sent += await sendInvoiceOverdueReminders(rule);
     }
   }
+
+  // Contract instalments: issue what falls due soon. A global sweep, not a
+  // per-rule handler — an instalment exists because a signed contract says
+  // so, and it must go out whether or not the course has any AutomationRule.
+  const instalmentsIssued = await issueDueInstalments();
 
   // Séquence d'onboarding d'essai (marketing propre de Jalon) — indépendante
   // des AutomationRules ci-dessus. Voir src/lib/onboardingEmails.ts.
@@ -96,7 +103,130 @@ export async function GET(request: Request) {
   // du jour — voir src/lib/dailyDigest.ts.
   const digest = await sendDailyDigests(origin);
 
-  return NextResponse.json({ sent, onboardingSent, mailboxSync, digest });
+  return NextResponse.json({ sent, instalmentsIssued, onboardingSent, mailboxSync, digest });
+}
+
+function formatEuros(cents: number): string {
+  return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+}
+
+// Flips a scheduled instalment DRAFT → SENT shortly before it falls due,
+// with the notification email. This staging is the whole reason instalments
+// are born DRAFT (see materialiseScheduleFromSignedDocument): without it the
+// learner would receive the entire schedule as invoices on signature day —
+// and the overdue detection in dashboardTasks, which deliberately ignores
+// DRAFT, would never see an unissued instalment slip past its date.
+//
+// The status flip is the idempotency guard: once SENT, the row never
+// matches this query again.
+const ISSUE_AHEAD_DAYS = 7;
+
+async function issueDueInstalments() {
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      status: "DRAFT",
+      installmentNumber: { not: null },
+      dueDate: { lte: addDays(new Date(), ISSUE_AHEAD_DAYS) },
+    },
+    include: { contact: true, organization: true },
+  });
+
+  let issued = 0;
+  for (const inv of invoices) {
+    const dueLabel = inv.dueDate!.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    try {
+      await sendTransactionalEmail({
+        to: inv.contact.email,
+        toName: `${inv.contact.firstName} ${inv.contact.lastName}`,
+        subject: `${inv.organization.name} — échéance ${inv.installmentNumber}/${inv.installmentTotal} (${inv.reference})`,
+        text:
+          `Bonjour ${inv.contact.firstName},\n\n` +
+          `Conformément à l'échéancier prévu par votre contrat de formation, l'échéance ` +
+          `${inv.installmentNumber} sur ${inv.installmentTotal}, d'un montant de ${formatEuros(inv.amountCents)}, ` +
+          `est à régler pour le ${dueLabel} (référence ${inv.reference}).\n\n` +
+          `À bientôt,\nL'équipe ${inv.organization.name}`,
+        senderName: inv.organization.name,
+      });
+    } catch {
+      // Non-fatal — the invoice still flips to SENT below: it IS due, and
+      // dashboardTasks will surface it; only the courtesy email failed.
+    }
+    await prisma.$transaction([
+      prisma.invoice.update({ where: { id: inv.id }, data: { status: "SENT" } }),
+      prisma.clientOutreach.create({
+        data: {
+          organizationId: inv.organizationId,
+          contactId: inv.contactId,
+          dossierId: inv.dossierId,
+          type: "instalment_issued",
+          sentByUserId: "system",
+          sentByName: "Automatisation (échéancier)",
+        },
+      }),
+    ]);
+    issued++;
+  }
+  return issued;
+}
+
+// The learner-facing half of "l'OFP doit être informé si une échéance n'a
+// pas été régularisée": the staff half already exists (dashboardTasks flags
+// any SENT/OVERDUE invoice past its dueDate, instalment or not). This adds
+// the automated nudge to the learner, per course rule, once per invoice —
+// overdueReminderSentAt is the stamp, same pattern as every other trigger.
+async function sendInvoiceOverdueReminders(rule: Rule) {
+  const threshold = addDays(new Date(), -rule.afterDays);
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      organizationId: rule.organizationId,
+      status: { in: ["SENT", "OVERDUE"] },
+      dueDate: { lte: threshold },
+      overdueReminderSentAt: null,
+      dossier: { session: { courseId: rule.courseId } },
+    },
+    include: { contact: true, dossier: { include: { session: true } } },
+  });
+
+  let sent = 0;
+  for (const inv of invoices) {
+    const d = inv.dossier;
+    if (!d) continue;
+    const ctx = mergeContext(inv.contact, rule.course, d.session, rule.organization);
+    const dueLabel = inv.dueDate!.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    const instalmentLabel =
+      inv.installmentNumber != null ? `l'échéance ${inv.installmentNumber} sur ${inv.installmentTotal}` : `la facture ${inv.reference}`;
+    try {
+      await sendTransactionalEmail({
+        to: inv.contact.email,
+        toName: `${inv.contact.firstName} ${inv.contact.lastName}`,
+        subject: rule.emailSubject
+          ? fillMergeTags(rule.emailSubject, ctx)
+          : `${rule.organization.name} — rappel : règlement en attente (${inv.reference})`,
+        text: rule.emailBody
+          ? fillMergeTags(rule.emailBody, ctx)
+          : `Bonjour ${inv.contact.firstName},\n\nSauf erreur de notre part, ${instalmentLabel}, d'un montant de ${formatEuros(inv.amountCents)} et échue le ${dueLabel}, reste en attente de règlement.\n\nSi votre paiement est déjà parti, merci de ne pas tenir compte de ce message.\n\nÀ bientôt,\nL'équipe ${rule.organization.name}`,
+        senderName: rule.organization.name,
+      });
+    } catch {
+      // Non-fatal — still stamped below so a bad address doesn't retry
+      // forever; the invoice stays visible in the dashboard's overdue list.
+    }
+    await prisma.$transaction([
+      prisma.invoice.update({ where: { id: inv.id }, data: { overdueReminderSentAt: new Date() } }),
+      prisma.clientOutreach.create({
+        data: {
+          organizationId: rule.organizationId,
+          contactId: inv.contactId,
+          dossierId: inv.dossierId,
+          type: "invoice_overdue_reminder",
+          sentByUserId: "system",
+          sentByName: "Automatisation (règle formation)",
+        },
+      }),
+    ]);
+    sent++;
+  }
+  return sent;
 }
 
 type Rule = Awaited<ReturnType<typeof prisma.automationRule.findMany>>[number] & { organization: Organization; course: Course };

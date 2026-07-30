@@ -24,6 +24,8 @@ const AUTO_OUTREACH_LABELS: Record<string, string> = {
   message: "Enquête de satisfaction envoyée",
   session_reminder: "Rappel de session",
   certificate_expiring: "Rappel de renouvellement (attestation)",
+  instalment_issued: "Échéance de paiement émise",
+  invoice_overdue_reminder: "Relance d'échéance en retard",
 };
 
 export default async function AutomationsPage() {

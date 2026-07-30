@@ -3,6 +3,7 @@ import { generatePdfFromRichText } from "@/lib/htmlToPdf";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { privateStoreToken } from "@/lib/storage";
+import { nextInvoiceReference } from "@/lib/invoiceReference";
 
 const NOT_CONFIGURED_ERROR =
   "Stockage de fichiers momentanément indisponible — BLOB_PRIVATE_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
@@ -102,4 +103,89 @@ export async function notifyDocumentSigned(document: { id: string; title: string
 export async function syncParcoursFromSignedDocument(document: { category: string; dossierId: string | null }): Promise<void> {
   if (document.category !== "convention" || !document.dossierId) return;
   await prisma.dossier.update({ where: { id: document.dossierId }, data: { contractSigned: true } });
+}
+
+// The moment a contract carrying a payment schedule is signed, its
+// instalments become money owed — and money owed, in this app, is an
+// Invoice row. That single fact is what makes everything downstream work
+// without new code: overdue detection (dashboardTasks), bank
+// reconciliation, automatic PAID once covered (recordInvoicePayment).
+//
+// Deliberately AT SIGNATURE, not at send: the schedule sits inert on
+// Document.paymentSchedule until then, so a contract that is never signed
+// never leaves phantom instalments in Facturation. Called from the same two
+// places as the helpers above — the internal stub and the Yousign webhook —
+// so a schedule becomes invoices in exactly one way regardless of how the
+// signature happened.
+//
+// Instalments are born DRAFT, dated from the schedule: the daily cron
+// issues each one (DRAFT → SENT, with the notification email) shortly
+// before it falls due, instead of the whole schedule landing in the
+// learner's inbox on signature day.
+export async function materialiseScheduleFromSignedDocument(document: {
+  id: string;
+  organizationId: string;
+  dossierId: string | null;
+  category: string;
+  paymentSchedule: unknown;
+}): Promise<number> {
+  if (!document.dossierId) return 0;
+  const schedule = parseStoredSchedule(document.paymentSchedule);
+  if (schedule.length === 0) return 0;
+
+  // Idempotency: one set of instalments per dossier, ever. Both signature
+  // paths can fire for one document (stub then webhook), and a corrected
+  // contract re-signed later must not double-bill the learner — if the
+  // schedule genuinely changed, staff adjusts the existing invoices in
+  // Facturation, where the money now lives.
+  const existing = await prisma.invoice.count({
+    where: { dossierId: document.dossierId, installmentNumber: { not: null } },
+  });
+  if (existing > 0) return 0;
+
+  const dossier = await prisma.dossier.findUnique({
+    where: { id: document.dossierId },
+    select: { contactId: true },
+  });
+  if (!dossier) return 0;
+
+  // Sequential on purpose: nextInvoiceReference counts existing rows, so
+  // creating in parallel would hand several instalments the same reference.
+  let created = 0;
+  for (const [i, instalment] of schedule.entries()) {
+    await prisma.invoice.create({
+      data: {
+        organizationId: document.organizationId,
+        contactId: dossier.contactId,
+        dossierId: document.dossierId,
+        reference: await nextInvoiceReference(document.organizationId),
+        amountCents: instalment.amountCents,
+        status: "DRAFT",
+        dueDate: new Date(`${instalment.dueDate}T00:00:00.000Z`),
+        installmentNumber: i + 1,
+        installmentTotal: schedule.length,
+        // BPF vocabulary: a contrat_formation is by definition the learner's
+        // own money; a convention's schedule is the company's.
+        fundingOrigin: document.category === "contrat_formation" ? "individual" : "company",
+      },
+    });
+    created++;
+  }
+  return created;
+}
+
+// Defensive re-parse of Document.paymentSchedule (Json?): it was validated
+// by the send route, but a Json column proves nothing at read time. A
+// malformed entry drops silently — better no invoice than a wrong one.
+function parseStoredSchedule(raw: unknown): { dueDate: string; amountCents: number; label?: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (e): e is { dueDate: string; amountCents: number; label?: string } =>
+      e != null &&
+      typeof e === "object" &&
+      typeof (e as Record<string, unknown>).dueDate === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test((e as { dueDate: string }).dueDate) &&
+      typeof (e as Record<string, unknown>).amountCents === "number" &&
+      (e as { amountCents: number }).amountCents > 0,
+  );
 }

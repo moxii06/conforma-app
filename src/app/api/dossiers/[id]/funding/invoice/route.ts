@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { addDays } from "date-fns";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
+import { nextInvoiceReference } from "@/lib/invoiceReference";
 
 // Two invoices can come out of a funding plan, and this route generates
 // both kinds:
@@ -27,17 +28,6 @@ const FUNDER_TYPE_TO_ORIGIN: Record<string, string> = {
   company: "company",
   individual: "individual",
 };
-
-async function nextReference(organizationId: string): Promise<string> {
-  const year = new Date().getFullYear();
-  // Count-based, not max-based: references are free text and staff may have
-  // typed their own formats, so "count this year + 1" is the least surprising
-  // continuation. A collision is cosmetic (no unique constraint), not fatal.
-  const count = await prisma.invoice.count({
-    where: { organizationId, createdAt: { gte: new Date(`${year}-01-01`) } },
-  });
-  return `FAC-${year}-${String(count + 1).padStart(3, "0")}`;
-}
 
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -85,7 +75,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         contactId: dossier.contactId,
         dossierId: dossier.id,
         funderId: commitment.funderId,
-        reference: await nextReference(session.organizationId),
+        reference: await nextInvoiceReference(session.organizationId),
         amountCents: commitment.amountCents,
         status: "DRAFT",
         dueDate: addDays(new Date(), 30),
@@ -125,7 +115,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       organizationId: session.organizationId,
       contactId: dossier.contactId,
       dossierId: dossier.id,
-      reference: await nextReference(session.organizationId),
+      reference: await nextInvoiceReference(session.organizationId),
       amountCents: summary.remainderCents,
       status: "DRAFT",
       dueDate: addDays(new Date(), 30),
