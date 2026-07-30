@@ -220,6 +220,11 @@ export function SendDocumentDialog({
   const [pendingAnswers, setPendingAnswers] = useState<Partial<Record<QuestionKey, string>>>({});
   // Variants the conditional template resolved to (empty for flat templates).
   const [applied, setApplied] = useState<AppliedAnswer[]>([]);
+  // Organisation fields the template references but that resolved empty —
+  // see mergeTemplate.ts's findEmptyMergeFields. Shown as a warning, never
+  // blocks: staff can still send, e.g. if the gap doesn't matter for this
+  // particular client.
+  const [missingFields, setMissingFields] = useState<{ key: string; label: string; fixHref: string }[]>([]);
   const [schedule, setSchedule] = useState<Instalment[]>([]);
   const [capAcknowledged, setCapAcknowledged] = useState(scheduleContext?.capAcknowledged ?? false);
   const showSchedule = scheduleContext != null && SCHEDULED_CATEGORIES.has(category);
@@ -245,6 +250,7 @@ export function SendDocumentDialog({
     setBodyResetKey((k) => k + 1);
     setCategory(data.category);
     setApplied(data.applied ?? []);
+    setMissingFields(data.missingFields ?? []);
   }
 
   async function handlePickTemplate(id: string) {
@@ -253,6 +259,7 @@ export function SendDocumentDialog({
     setPending(null);
     setPendingAnswers({});
     setApplied([]);
+    setMissingFields([]);
     if (!id) {
       setTitle("");
       setBodyHtml("");
@@ -281,6 +288,7 @@ export function SendDocumentDialog({
     setPending(null);
     setPendingAnswers({});
     setApplied([]);
+    setMissingFields([]);
     setResult(null);
     setError(null);
   }
@@ -559,6 +567,28 @@ export function SendDocumentDialog({
                         if (templateId) void loadPreview(templateId, pendingAnswers);
                       }}
                     />
+                  )}
+                  {missingFields.length > 0 && (
+                    <div className="text-[11px] bg-linen rounded-md px-2.5 py-2 flex flex-col gap-1">
+                      <div className="text-seal-dark font-medium">
+                        {missingFields.length === 1
+                          ? "Un champ de ce modèle n'a pas pu être rempli automatiquement :"
+                          : `${missingFields.length} champs de ce modèle n'ont pas pu être remplis automatiquement :`}
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {missingFields.map((f) => (
+                          <a
+                            key={f.key}
+                            href={f.fixHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-ink underline decoration-line hover:decoration-ink"
+                          >
+                            {f.label} →
+                          </a>
+                        ))}
+                      </div>
+                    </div>
                   )}
                   <div className="flex flex-col gap-1">
                     <div className="text-[11px] text-slate uppercase tracking-wide">Contenu (PDF envoyé en pièce jointe)</div>

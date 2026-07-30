@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { mergeTemplate, buildMergeFields, AVAILABLE_MERGE_FIELDS, type MergeContext } from "./mergeTemplate";
+import {
+  mergeTemplate,
+  mergeTemplatePartial,
+  buildMergeFields,
+  findEmptyMergeFields,
+  describeMissingFields,
+  AVAILABLE_MERGE_FIELDS,
+  type MergeContext,
+} from "./mergeTemplate";
 
 // The substitution half of this engine is hard to get wrong. The calculated
 // half is not: it produces the figures a training contract is enforced on —
@@ -96,6 +104,69 @@ describe("substitution", () => {
     expect(f["contact.address"]).toBe("8 allée des Tilleuls");
     expect(f["course.objectives"]).toBe("Prospecter");
     expect(f["course.evaluationModalities"]).toBe("Quiz");
+  });
+});
+
+describe("champs manquants", () => {
+  it("signale un champ organisation référencé mais non renseigné", () => {
+    const body = "Déclaration d'activité n° {{organization.activityDeclarationNumber}}.";
+    const missing = findEmptyMergeFields(body, ctx());
+    expect(missing).toContain("organization.activityDeclarationNumber");
+  });
+
+  it("ignore un champ non référencé par le modèle", () => {
+    const missing = findEmptyMergeFields("Bonjour {{contact.firstName}}.", ctx());
+    expect(missing).toEqual([]);
+  });
+
+  it("ne signale pas un champ vide légitimement (pas de lien de visio en présentiel)", () => {
+    // session.meetingLink being empty is the CORRECT value for an in-person
+    // session — only organization.* fields are ever flagged, see
+    // MERGE_FIELD_HINTS's own comment.
+    const missing = findEmptyMergeFields(
+      "{{session.meetingLink}}",
+      ctx({ session: { courseTitle: "B2B", startsAt: new Date(), location: "12 rue des Écoles" } }),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("ne signale pas un champ organisation sans écran de réglage connu", () => {
+    // organization.siret has no settings form yet — flagging it would send
+    // staff to a dead end, see describeMissingFields.
+    const missing = findEmptyMergeFields("{{organization.siret}}", ctx());
+    expect(missing).toEqual([]);
+  });
+
+  it("fournit un libellé et un lien de correction pour chaque champ signalé", () => {
+    const described = describeMissingFields(["organization.activityDeclarationNumber", "organization.rcsNumber"]);
+    expect(described).toEqual([
+      { key: "organization.activityDeclarationNumber", label: "Numéro de déclaration d'activité", fixHref: "/profil" },
+      { key: "organization.rcsNumber", label: "Numéro RCS", fixHref: "/profil" },
+    ]);
+  });
+
+  it("ne signale plus rien une fois le champ renseigné", () => {
+    const filled = ctx({ organization: { name: "Nova", activityDeclarationNumber: "11 75 12345 75" } });
+    const missing = findEmptyMergeFields("{{organization.activityDeclarationNumber}}", filled);
+    expect(missing).toEqual([]);
+  });
+});
+
+describe("mergeTemplatePartial (aperçu de modèle, sans dossier)", () => {
+  it("laisse visible un champ vide plutôt que de le vider", () => {
+    // No course in ctx() — course.title resolves empty and must stay a
+    // token; contact.firstName is known (the fixture always sets it) and
+    // fills in normally.
+    const out = mergeTemplatePartial("Bonjour {{contact.firstName}}, formation {{course.title}}.", ctx());
+    expect(out).toBe("Bonjour Julien, formation {{course.title}}.");
+  });
+
+  it("remplit quand même ce que le contexte connaît déjà", () => {
+    const out = mergeTemplatePartial(
+      "{{organization.name}} — {{course.title}}",
+      ctx({ organization: { name: "Formations Nova" } }),
+    );
+    expect(out).toBe("Formations Nova — {{course.title}}");
   });
 });
 

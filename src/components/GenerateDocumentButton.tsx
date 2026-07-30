@@ -11,7 +11,7 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
   const [open, setOpen] = useState(false);
   const [dossierId, setDossierId] = useState(dossiers[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ id: string; title: string } | null>(null);
+  const [result, setResult] = useState<{ id: string; title: string; missingFields: { key: string; label: string; fixHref: string }[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Set only when the template has conditional blocks and the dossier's own
   // data couldn't resolve every question they reference — see
@@ -40,7 +40,7 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
       return;
     }
     const doc = await res.json();
-    setResult({ id: doc.id, title: doc.title });
+    setResult({ id: doc.id, title: doc.title, missingFields: doc.missingFields ?? [] });
     setPending(null);
   }
 
@@ -112,8 +112,24 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
       )}
 
       {result && (
-        <div className="text-[11.5px] text-sage">
-          Document créé : <a href={`/api/documents/generated/${result.id}`} target="_blank" rel="noreferrer" className="underline">{result.title}</a>
+        <div className="flex flex-col gap-1">
+          <div className="text-[11.5px] text-sage">
+            Document créé : <a href={`/api/documents/generated/${result.id}`} target="_blank" rel="noreferrer" className="underline">{result.title}</a>
+          </div>
+          {result.missingFields.length > 0 && (
+            <div className="text-[11px] bg-linen rounded-md px-2 py-1.5 flex flex-col gap-1 max-w-xs">
+              <div className="text-seal-dark font-medium">
+                {result.missingFields.length === 1 ? "Un champ n'a pas pu être rempli automatiquement :" : `${result.missingFields.length} champs n'ont pas pu être remplis automatiquement :`}
+              </div>
+              <div className="flex flex-wrap gap-x-2.5 gap-y-1">
+                {result.missingFields.map((f) => (
+                  <a key={f.key} href={f.fixHref} target="_blank" rel="noreferrer" className="text-ink underline decoration-line hover:decoration-ink">
+                    {f.label} →
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {error && <div className="text-[11.5px] text-rust">{error}</div>}

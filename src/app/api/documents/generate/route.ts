@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { mergeTemplate } from "@/lib/mergeTemplate";
+import { mergeTemplate, findEmptyMergeFields, describeMissingFields } from "@/lib/mergeTemplate";
 import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
@@ -42,7 +42,10 @@ export async function POST(request: Request) {
         fundingCommitments: { include: { funder: { select: { name: true } } } },
       },
     }),
-    prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } }),
+    prisma.organization.findUniqueOrThrow({
+      where: { id: session.organizationId },
+      include: { referentHandicapUser: { select: { name: true } } },
+    }),
   ]);
 
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
@@ -75,9 +78,9 @@ export async function POST(request: Request) {
     resolveDossierPriceCents(dossier, dossier.session.course),
     dossier.fundingCommitments,
   );
-  const merged = mergeTemplate(bodyTextSource, {
+  const mergeContext = {
     contact: dossier.contact,
-    organization,
+    organization: { ...organization, referentHandicapName: organization.referentHandicapUser?.name ?? null },
     session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },
     dossier: { retentionUntil: dossier.retentionUntil },
     course: dossier.session.course,
@@ -87,7 +90,8 @@ export async function POST(request: Request) {
       return name ? { name } : null;
     })(),
     funding: { totalCents: fundingSummary.totalCents, remainderCents: fundingSummary.remainderCents },
-  });
+  };
+  const merged = mergeTemplate(bodyTextSource, mergeContext);
 
   const document = await prisma.document.create({
     data: {
@@ -100,5 +104,10 @@ export async function POST(request: Request) {
     },
   });
 
-  return NextResponse.json(document, { status: 201 });
+  // Non-blocking: the document is created either way (see mergeTemplate.ts's
+  // comment on why this warns instead of refusing) — the caller decides
+  // whether to surface it.
+  const missingFields = describeMissingFields(findEmptyMergeFields(bodyTextSource, mergeContext));
+
+  return NextResponse.json({ ...document, missingFields }, { status: 201 });
 }

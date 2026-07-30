@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { mergeTemplate } from "@/lib/mergeTemplate";
+import { mergeTemplate, findEmptyMergeFields, describeMissingFields } from "@/lib/mergeTemplate";
 import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
@@ -81,14 +81,17 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     applied = referenced.flatMap((k) => (answers[k] != null ? [{ key: k, value: answers[k] }] : []));
   }
 
-  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
+  const organization = await prisma.organization.findUniqueOrThrow({
+    where: { id: auth.organizationId },
+    include: { referentHandicapUser: { select: { name: true } } },
+  });
   const fundingSummary = computeFundingSummary(
     resolveDossierPriceCents(dossier, dossier.session.course),
     dossier.fundingCommitments,
   );
-  const bodyText = mergeTemplate(bodyTextSource, {
+  const mergeContext = {
     contact: dossier.contact,
-    organization,
+    organization: { ...organization, referentHandicapName: organization.referentHandicapUser?.name ?? null },
     session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },
     dossier: { retentionUntil: dossier.retentionUntil },
     course: dossier.session.course,
@@ -98,7 +101,8 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       return name ? { name } : null;
     })(),
     funding: { totalCents: fundingSummary.totalCents, remainderCents: fundingSummary.remainderCents },
-  });
+  };
+  const bodyText = mergeTemplate(bodyTextSource, mergeContext);
 
   return NextResponse.json({
     title: `${template.title} — ${dossier.contact.firstName} ${dossier.contact.lastName}`,
@@ -106,5 +110,9 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     category: template.category,
     unresolved: [],
     applied,
+    // Client feedback: a field the org never filled in used to just vanish
+    // from the text — this tells the sender exactly what's missing and
+    // where to fix it, without blocking the send (see mergeTemplate.ts).
+    missingFields: describeMissingFields(findEmptyMergeFields(bodyTextSource, mergeContext)),
   });
 }

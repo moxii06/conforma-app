@@ -170,6 +170,50 @@ export function mergeTemplate(bodyText: string, ctx: MergeContext): string {
   );
 }
 
+// Client feedback: a missing field ({{organization.activityDeclarationNumber}}
+// etc.) used to just disappear — an empty string leaves no trace in the
+// generated text, so nobody proofreading noticed the sentence around it had
+// gone quietly wrong. This finds every merge token a template ACTUALLY uses
+// that resolves to "" against the real context, so a caller can ask instead
+// of silently shipping the gap.
+//
+// Deliberately scoped to organization.* only, via MERGE_FIELD_HINTS below —
+// most other empty fields (no meetingLink for an in-person session, no
+// funder.name with no subrogation, no course.certificationName for a
+// non-certifying course) are the CORRECT value for that record, not a gap.
+// organization.* is different: it's OFP-configured once, has a real settings
+// screen to fix it on, and every field in the hint list is something a real
+// contract or convention genuinely needs — so its absence is always worth
+// flagging, never noise.
+export function findEmptyMergeFields(bodyText: string, ctx: MergeContext): string[] {
+  const fields = buildMergeFields(ctx);
+  const found = new Set<string>();
+  for (const match of bodyText.matchAll(/\{\{\s*([\w.]+)\s*\}\}/g)) {
+    const key = match[1];
+    if (key in fields && fields[key] === "" && key in MERGE_FIELD_HINTS) found.add(key);
+  }
+  return Array.from(found);
+}
+
+export const MERGE_FIELD_HINTS: Record<string, { label: string; fixHref: string }> = {
+  "organization.legalForm": { label: "Forme juridique", fixHref: "/profil" },
+  "organization.shareCapital": { label: "Capital social", fixHref: "/profil" },
+  "organization.legalAddress": { label: "Adresse du siège social", fixHref: "/profil" },
+  "organization.rcsCity": { label: "Ville du RCS", fixHref: "/profil" },
+  "organization.rcsNumber": { label: "Numéro RCS", fixHref: "/profil" },
+  "organization.legalRepresentativeName": { label: "Représentant légal", fixHref: "/profil" },
+  "organization.activityDeclarationNumber": { label: "Numéro de déclaration d'activité", fixHref: "/profil" },
+  "organization.publicContactEmail": { label: "Email de contact public", fixHref: "/profil" },
+  "organization.publicContactPhone": { label: "Téléphone de contact public", fixHref: "/profil" },
+  "organization.regionPrefecture": { label: "Préfecture de région compétente", fixHref: "/documents?tab=reglages" },
+  "organization.mediatorName": { label: "Médiateur de la consommation", fixHref: "/documents?tab=reglages" },
+  "organization.mediatorContact": { label: "Coordonnées du médiateur", fixHref: "/documents?tab=reglages" },
+};
+
+export function describeMissingFields(keys: string[]): { key: string; label: string; fixHref: string }[] {
+  return keys.flatMap((key) => (key in MERGE_FIELD_HINTS ? [{ key, ...MERGE_FIELD_HINTS[key] }] : []));
+}
+
 // Template-level adaptation (no dossier yet): fill what the organisation
 // alone can answer, and leave every learner/session-specific token VISIBLE
 // as {{…}} instead of blanking it — the downloaded Word file is a base the
