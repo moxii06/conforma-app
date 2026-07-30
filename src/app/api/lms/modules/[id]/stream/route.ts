@@ -4,8 +4,9 @@ import { getSessionContext, can } from "@/lib/tenant";
 import { streamStoredFile } from "@/lib/blobStream";
 
 // Proxies the actual video bytes instead of handing out the raw Vercel Blob
-// URL to the client — that URL is otherwise a public, permanent, shareable
-// link (Blob storage here is `access: "public"`, chosen for simplicity),
+// URL to the client. Uploads land in the private store now, so that URL no
+// longer grants access on its own — but it used to, permanently and to
+// anyone holding it, which is why nothing downstream is given it,
 // which defeats any client-side "don't allow download" UI entirely: anyone
 // with the link could fetch it directly regardless of what the <video>
 // element's controls allow. Routing through here means the video is only
