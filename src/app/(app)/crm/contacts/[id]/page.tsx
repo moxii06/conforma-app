@@ -13,6 +13,9 @@ import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { EditContactForm } from "@/components/EditContactForm";
 import { EditLearnerCategoryForm } from "@/components/EditLearnerCategoryForm";
 import { LEARNER_CATEGORY_LABELS, LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCategories";
+import { SendDocumentDialog } from "@/components/SendDocumentDialog";
+import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
+import { isYousignConfigured } from "@/lib/yousign";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -74,7 +77,10 @@ export default async function ContactRecordPage(
     where: { id: params.id, organizationId },
     include: {
       company: true,
-      opportunities: { orderBy: { createdAt: "desc" } },
+      opportunities: {
+        orderBy: { createdAt: "desc" },
+        include: { needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 } },
+      },
       quotes: { orderBy: { createdAt: "desc" } },
       invoices: { orderBy: { createdAt: "desc" } },
       dossiers: { include: { session: { include: { course: true } } }, orderBy: { createdAt: "desc" } },
@@ -86,6 +92,7 @@ export default async function ContactRecordPage(
 
   const canManageEmail = can(role, "inbox") !== "none";
   const canSeePayments = can(role, "invoicing") !== "none";
+  const canWrite = can(role, "crm") !== "none";
   const members = canManageEmail
     ? await prisma.user.findMany({
         where: { organizationId, status: "active", role: { not: Role.LEARNER } },
@@ -93,6 +100,25 @@ export default async function ContactRecordPage(
         orderBy: { name: "asc" },
       })
     : [];
+  // "Documents & envois" send action: a dossier (already enrolled) takes
+  // priority over an opportunity (still prospecting) when a contact has
+  // both — sending training paperwork is the more common case for someone
+  // who's already a learner. Kept intentionally simple: this tab is a
+  // convenience overview, not a replacement for the dossier page's fuller
+  // flow (payment schedule, session dates) or the CRM table's per-opportunity
+  // one.
+  const [sender, templates, eSignatureAvailable] = canWrite
+    ? await Promise.all([
+        prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } }),
+        prisma.documentTemplate.findMany({
+          where: { OR: [{ organizationId }, { organizationId: null }] },
+          select: { id: true, title: true, category: true },
+          orderBy: { title: "asc" },
+        }),
+        isYousignConfigured(organizationId),
+      ])
+    : [null, [], false];
+  const signatureHtml = sender ? (sender.emailSignature ?? `Cordialement,<br>${sender.name}`) : "";
 
   const hasUnpaidInvoice = contact.invoices.some((i) => i.status === "SENT" || i.status === "OVERDUE");
   const hasQuote = contact.quotes.length > 0;
@@ -151,7 +177,21 @@ export default async function ContactRecordPage(
         {activeTab === "emails" ? (
           <EmailsTab contactId={contact.id} canManageEmail={canManageEmail} members={members} />
         ) : activeTab === "documents" ? (
-          <DocumentsAndOutreachTab dossierIds={contact.dossiers.map((d) => d.id)} outreaches={contact.clientOutreaches} />
+          <DocumentsAndOutreachTab
+            dossierIds={contact.dossiers.map((d) => d.id)}
+            outreaches={contact.clientOutreaches}
+            canWrite={canWrite}
+            contactFirstName={contact.firstName}
+            signatureHtml={signatureHtml}
+            templates={templates}
+            eSignatureAvailable={eSignatureAvailable}
+            latestDossierId={contact.dossiers[0]?.id ?? null}
+            latestOpportunity={
+              contact.opportunities[0]
+                ? { id: contact.opportunities[0].id, alreadySentNeedsAssessment: contact.opportunities[0].needsAssessmentRequests.length > 0 }
+                : null
+            }
+          />
         ) : activeTab === "activite" ? (
           <ActivityTab contact={contact} canSeePayments={canSeePayments} />
         ) : (
@@ -394,9 +434,23 @@ async function EmailsTab({
 async function DocumentsAndOutreachTab({
   dossierIds,
   outreaches,
+  canWrite,
+  contactFirstName,
+  signatureHtml,
+  templates,
+  eSignatureAvailable,
+  latestDossierId,
+  latestOpportunity,
 }: {
   dossierIds: string[];
   outreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
+  canWrite: boolean;
+  contactFirstName: string;
+  signatureHtml: string;
+  templates: { id: string; title: string; category: string }[];
+  eSignatureAvailable: boolean;
+  latestDossierId: string | null;
+  latestOpportunity: { id: string; alreadySentNeedsAssessment: boolean } | null;
 }) {
   const documents = dossierIds.length
     ? await prisma.document.findMany({ where: { dossierId: { in: dossierIds } }, orderBy: { createdAt: "desc" } })
@@ -405,7 +459,22 @@ async function DocumentsAndOutreachTab({
   return (
     <>
       <div className="bg-white border border-line rounded-card p-5">
-        <div className="text-[13.5px] font-semibold text-ink mb-3.5">Documents</div>
+        <div className="flex items-center justify-between mb-3.5">
+          <div className="text-[13.5px] font-semibold text-ink">Documents</div>
+          {canWrite && latestDossierId && (
+            <SendDocumentDialog dossierId={latestDossierId} templates={templates} contactFirstName={contactFirstName} signatureHtml={signatureHtml} />
+          )}
+          {canWrite && !latestDossierId && latestOpportunity && (
+            <SendProspectDocumentDialog
+              opportunityId={latestOpportunity.id}
+              alreadySentNeedsAssessment={latestOpportunity.alreadySentNeedsAssessment}
+              templates={templates}
+              contactFirstName={contactFirstName}
+              signatureHtml={signatureHtml}
+              eSignatureAvailable={eSignatureAvailable}
+            />
+          )}
+        </div>
         {documents.map((d) => (
           <div key={d.id} className="flex items-center justify-between gap-3 py-2.5 border-t border-line first:border-t-0">
             <a
