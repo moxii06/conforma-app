@@ -11,7 +11,18 @@ type Course = { id: string; title: string };
 // there would let staff accidentally create a "Document général" (or a
 // document for a different course) from inside a specific course's own
 // document section, which is never the intent from that entry point.
-export function NewTemplateForm({ courses = [], fixedCourse }: { courses?: Course[]; fixedCourse?: Course }) {
+export function NewTemplateForm({
+  courses = [],
+  fixedCourse,
+  onCreated,
+}: {
+  courses?: Course[];
+  fixedCourse?: Course;
+  /** Called with the created template. The library panel keeps its own copy
+   *  of the list (it lives over another page and cannot rely on
+   *  router.refresh() to update itself), so it needs telling. */
+  onCreated?: (template: { id: string; title: string; category: string }) => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<string>(DOCUMENT_CATEGORIES[0]);
@@ -47,6 +58,9 @@ export function NewTemplateForm({ courses = [], fixedCourse }: { courses?: Cours
       setError(b.error ?? "Erreur lors de la création.");
       return;
     }
+
+    const created = await res.json().catch(() => null);
+    if (created) onCreated?.({ id: created.id, title: created.title, category: created.category });
 
     setTitle("");
     setBodyText("");

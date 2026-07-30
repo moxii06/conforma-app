@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { LibraryPanel } from "@/components/LibraryPanel";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
 
 type Template = { id: string; title: string; category: string };
@@ -59,6 +60,10 @@ export function SendDocumentDialog({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"template" | "upload">("template");
   const [templateId, setTemplateId] = useState("");
+  // `templates` is a server prop, so a template created from the library
+  // panel is absent from it until the page reloads. Without this the body
+  // would fill in while the picker still read "Choisir un modèle…".
+  const [panelTemplates, setPanelTemplates] = useState<Template[]>([]);
   const [title, setTitle] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyResetKey, setBodyResetKey] = useState(0);
@@ -323,19 +328,38 @@ export function SendDocumentDialog({
             </div>
 
             {mode === "template" && (
-              <select
-                value={templateId}
-                onChange={(e) => handlePickTemplate(e.target.value)}
-                required
-                className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-              >
-                <option value="">Choisir un modèle…</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-col gap-1.5">
+                <select
+                  value={templateId}
+                  onChange={(e) => handlePickTemplate(e.target.value)}
+                  required
+                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                >
+                  <option value="">Choisir un modèle…</option>
+                  {[...templates, ...panelTemplates.filter((p) => !templates.some((t) => t.id === p.id))].map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
+                    </option>
+                  ))}
+                </select>
+                {/* The dead end this fixes: the list above only offers what
+                    already exists, so needing a template that doesn't meant
+                    abandoning this dialog for /documents and coming back.
+                    Picking from the panel selects it here directly. */}
+                <div className="flex items-center gap-1.5 text-[11.5px] text-slate">
+                  <span>Le modèle n&apos;existe pas encore ?</span>
+                  <LibraryPanel
+                    label="Ouvrir la bibliothèque"
+                    useLabel="Choisir"
+                    onUse={(t) => {
+                      setPanelTemplates((prev) =>
+                        prev.some((p) => p.id === t.id) ? prev : [...prev, t],
+                      );
+                      void handlePickTemplate(t.id);
+                    }}
+                  />
+                </div>
+              </div>
             )}
 
             {mode === "template" && pending && pending.length > 0 ? (
