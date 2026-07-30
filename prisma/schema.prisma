@@ -85,6 +85,28 @@ model Organization {
   logoUrl    String?
   brandColor String?
 
+  // Cancellation indemnity applied when a learner cancels late — a
+  // commercial policy, not a property of any one course, hence its place
+  // here. Null means the organisation has chosen not to charge one at all,
+  // in which case the clause and its reciprocal both disappear from the
+  // generated contract: they can never be separated, since an indemnity
+  // running only against the consumer is a presumed-unfair clause
+  // (art. R.212-2, 3° C. consom.).
+  cancellationFeePercent Int?
+  // What a learner may open while their withdrawal period is still running:
+  // "closed" holds everything back until it expires, "partial" opens only
+  // the items flagged on ElearningModule.availableDuringWithdrawal.
+  // The risk of opening content early is the organisation's own, not the
+  // learner's — it performs while the learner can still withdraw and be
+  // fully reimbursed — so this is deliberately its call.
+  withdrawalAccessPolicy String  @default("closed") // closed | partial
+  // Filled once, then reused: these appear in every generated contract but
+  // belong to no other record, and asking for them on each document would
+  // be absurd.
+  regionPrefecture       String?
+  mediatorName           String?
+  mediatorContact        String?
+
   users                       User[]
   contacts                    Contact[]
   companies                   Company[]
@@ -514,6 +536,11 @@ model Contact {
   // Single free-text field, same convention as Company.address, not split
   // into street/postal/city.
   address                String?
+  // A training contract with a natural person identifies them by date of
+  // birth as well as by name — namesakes exist, and the certification
+  // registries key on it. Nullable: only contracts need it, and a CRM
+  // prospect is created long before anyone asks.
+  birthDate              DateTime?
   company                Company?     @relation(fields: [companyId], references: [id])
   companyId              String?
   createdAt              DateTime     @default(now())
@@ -664,6 +691,18 @@ model Course {
   accessModalities     String? // processus d'inscription
   teachingMethods      String? // méthodes mobilisées
   evaluationModalities String?
+  // Certification the course prepares for. Nothing recorded this until now,
+  // although every CPF-funded contract leans on it and Qualiopi indicator 1
+  // requires it to be published. All null when the course leads to no
+  // registered certification, which is what makes the contract's
+  // certification article appear or disappear.
+  certificationName     String?
+  certificationCode     String? // RS5839, RNCP39250…
+  certificationRegistry String? // "RNCP" | "RS"
+  certifierName         String? // autorité responsable de la certification
+  // Conditions under which a learner who failed may sit the exam again —
+  // contractual, and the question a learner asks first after a failure.
+  retakeConditions      String?
   // Opt-in publication of the public course page (/catalogue/[id]) — the
   // OF decides per course; archived courses never render publicly.
   isPublic             Boolean @default(false)
@@ -1038,6 +1077,16 @@ model Invoice {
   // from the dossier — while funderId says who PAYS.
   funder             Funder?      @relation(fields: [funderId], references: [id])
   funderId           String?
+  // Position within a contract's payment schedule, when the invoice was
+  // created by materialising one (see documentSending.ts). An échéancier
+  // instalment IS an invoice with a dueDate — that is what makes the whole
+  // existing machinery apply to it for free: overdue detection
+  // (dashboardTasks.ts), bank reconciliation, automatic PAID once covered.
+  // These two fields only add the context a lone invoice cannot carry:
+  // "échéance 2 sur 4" reads very differently from "facture F-2026-114".
+  // Null on every invoice created by hand.
+  installmentNumber  Int?
+  installmentTotal   Int?
   createdAt          DateTime     @default(now())
 
   payments           Payment[]
@@ -1045,6 +1094,10 @@ model Invoice {
   fundingCommitments FundingCommitment[]
 
   @@index([organizationId])
+  // Drives the cron that issues a scheduled instalment shortly before it
+  // falls due: without it the whole schedule would be e-mailed to the
+  // learner on the day the contract is signed.
+  @@index([status, dueDate])
 }
 
 // A single installment against an Invoice — an invoice can be settled in
@@ -1703,6 +1756,15 @@ model ElearningModule {
   fileUrl       String?
   fileName      String?
   fileSizeBytes Int?
+  // Openable while the learner's withdrawal period is still running, when
+  // the organisation set withdrawalAccessPolicy to "partial".
+  //
+  // Default false, and deliberately so: opening a teaching module IS
+  // beginning to perform the contract. The organisation then delivers while
+  // the learner can still withdraw and be reimbursed in full — a risk it
+  // bears alone. Reserve this for what genuinely precedes the training:
+  // livret d'accueil, programme, règlement intérieur, test de positionnement.
+  availableDuringWithdrawal Boolean @default(false)
   // Global position across the WHOLE course, unchanged by chapters below —
   // this is what unlockNextModuleIfNeeded (lib/lms.ts) and the sequential
   // unlock feature key off of. A chapter is purely a display grouping
