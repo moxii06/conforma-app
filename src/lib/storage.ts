@@ -93,18 +93,27 @@ export async function uploadUserDocument(params: {
 
 // Deletion has to cover both stores: a blob uploaded today lives in the
 // private one, an older one in the public one, and the caller has no reason
-// to know which. Non-fatal either way — the DB row is the source of truth,
-// and an orphaned blob costs storage, not correctness.
+// to know which.
+//
+// Both are asked unconditionally, rather than trying one and falling back on
+// failure, because failure never comes: "A delete action won't throw if the
+// blob url doesn't exist" (Vercel docs). A blob that lives in the other store
+// looks exactly like a blob that doesn't exist, so try/catch cannot tell them
+// apart — the first call would report success, having deleted nothing, and
+// the legacy store would never be reached. That matters more than an orphaned
+// blob usually would: the legacy store is public, so a file left behind there
+// stays reachable by URL after the user deleted the record, which is exactly
+// what a GDPR erasure request must not do.
+//
+// Sending a delete to the wrong store is harmless for the same reason — a
+// no-op — and pathnames carry a random suffix, so one store's pathname never
+// names a real blob in the other.
 export async function deleteModuleFile(url: string): Promise<void> {
+  const stores: Promise<unknown>[] = [];
   const token = privateStoreToken();
-  if (token) {
-    try {
-      await del(url, { token });
-      return;
-    } catch {
-      // Not in the private store — fall through to the legacy one.
-    }
-  }
-  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
-  await del(url).catch(() => {});
+  if (token) stores.push(del(url, { token }));
+  if (process.env.BLOB_READ_WRITE_TOKEN) stores.push(del(url));
+  // Non-fatal: the DB row is the source of truth, and a caller mid-delete
+  // shouldn't fail because storage hiccuped.
+  await Promise.all(stores.map((p) => p.catch(() => {})));
 }
