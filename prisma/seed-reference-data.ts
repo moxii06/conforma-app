@@ -3,11 +3,27 @@ import { seedStarterTemplates } from "./lib/starter-templates";
 
 const prisma = new PrismaClient();
 
-// Global reference data only — no demo organization, users, or dossiers.
-// Run this against a fresh production database (e.g. right after
-// `prisma migrate deploy`) so real signups via /essai land in an app
-// that already has its Qualiopi indicator list and starter document
-// library populated, without any of prisma/seed.ts's demo tenant data.
+// Global reference data only — no demo organization, users, or dossiers,
+// so real signups via /essai land in an app that already has its Qualiopi
+// indicator list and starter document library, without any of
+// prisma/seed.ts's demo tenant data.
+//
+// Runs on every deploy, wired into `build` right after `prisma migrate
+// deploy`. That is deliberate: this is Jalon's own content, and leaving it
+// to a manual run meant it simply never happened — the two conditional
+// document templates sat in this file for weeks while production showed
+// "Modèles conditionnels : 0", so the whole feature was invisible to
+// customers. Every future improvement to a starter template would have hit
+// the same wall.
+//
+// Safe to repeat: every write is an upsert keyed on something stable
+// (indicator number, template title), and every row it touches is global
+// (organizationId: null). An organization's own adapted copy is a separate
+// row and is never read or written here — see ForkTemplateButton.
+//
+// A failure fails the build rather than being swallowed. Blocking a deploy
+// is the lesser harm: a seed that quietly half-ran is indistinguishable
+// from one that worked, which is exactly how this got missed.
 async function main() {
   // Référentiel National Qualité — 7 criteria / 32 indicators, shared
   // reference data (not tenant-scoped). Labels are working summaries for

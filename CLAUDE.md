@@ -29,11 +29,16 @@ npm run prisma:seed:reference # Qualiopi indicators + starter templates only, no
 npx prisma studio
 ```
 
-`npm run build` is `prisma migrate deploy && next build` — every Vercel deploy applies
-pending migrations against production before building; there is no separate manual
-migration step in normal operation. `postinstall` runs `prisma generate`, required
-before any type-check because generated Prisma types are what most of the codebase
-type-checks against.
+`npm run build` is `prisma migrate deploy && tsx prisma/seed-reference-data.ts &&
+next build` — every Vercel deploy applies pending migrations against production and
+then re-seeds the global reference data, so neither needs a manual step. The seed is
+in the build because leaving it manual meant it never ran: two conditional document
+templates sat in the repo for weeks while production showed "Modèles conditionnels :
+0". It only ever upserts rows with `organizationId: null` (Qualiopi indicators, Jalon's
+starter templates), never an organization's own adapted copy, and it is idempotent —
+repeat runs are a no-op. A failure fails the deploy rather than passing silently.
+`postinstall` runs `prisma generate`, required before any type-check because generated
+Prisma types are what most of the codebase type-checks against.
 
 ### Migration workflow (Windows-specific)
 
