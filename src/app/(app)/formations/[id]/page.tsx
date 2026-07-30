@@ -510,7 +510,7 @@ function ContenuTab({
                     <div className="flex items-center gap-4 flex-wrap">
                       {m.fileUrl ? (
                         <a
-                          href={m.type === "video" ? `/api/lms/modules/${m.id}/stream` : m.fileUrl}
+                          href={`/api/lms/modules/${m.id}/stream`}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink"
@@ -530,7 +530,7 @@ function ContenuTab({
                         {m.versions.map((v) => (
                           <div key={v.id}>
                             {v.fileUrl ? (
-                              <a href={v.fileUrl} target="_blank" rel="noreferrer" className="underline decoration-line hover:decoration-ink">
+                              <a href={`/api/lms/modules/versions/${v.id}/file`} target="_blank" rel="noreferrer" className="underline decoration-line hover:decoration-ink">
                                 {v.fileName ?? "Fichier"}
                               </a>
                             ) : (
@@ -552,7 +552,7 @@ function ContenuTab({
                         {m.attachments.map((a) => (
                           <div key={a.id} className="flex items-center gap-2">
                             <a
-                              href={a.fileUrl}
+                              href={`/api/lms/modules/attachments/${a.id}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[12px] text-ink underline decoration-line hover:decoration-ink truncate"
@@ -694,7 +694,7 @@ function DocumentsTab({
           {signedDocuments.map((doc) => (
             <a
               key={doc.id}
-              href={doc.bodyText ? `/api/documents/generated/${doc.id}` : doc.fileUrl ?? "#"}
+              href={doc.bodyText ? `/api/documents/generated/${doc.id}` : `/api/documents/${doc.id}/file`}
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-linen"

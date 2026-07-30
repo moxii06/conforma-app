@@ -424,6 +424,30 @@ for what that means in practice for each one.
   - **Pennylane/Sellsy and IMAP/SMTP** stay inherently per-organization —
     each connects to a distinct external account (the OFP's own
     accounting tool, or a specific mailbox) that can't be shared.
+- **Uploaded files are private blobs** (`src/lib/storage.ts`,
+  `src/lib/documentSending.ts`) — signed conventions, CVs, diplomas and
+  subcontractor contracts are personal data. They used to be stored with
+  `access: "public"`: unguessable URLs, but permanent and unauthenticated,
+  so one leak (a forwarded email, a proxy log, browser history) granted
+  access forever and deleting the record did **not** revoke it — a GDPR
+  erasure request could not actually be honoured. Uploads are now
+  `access: "private"`, readable only server-side with the store token, and
+  every consumer goes through an authenticated route that applies the same
+  access rules as the record it hangs off:
+  `/api/documents/[id]/file`, `/api/lms/modules/[id]/stream` (any type, not
+  just video), `/api/lms/modules/attachments/[attachmentId]`,
+  `/api/lms/modules/versions/[versionId]/file`. No raw storage URL reaches
+  the browser any more — including as a prop on a client component, which
+  would put it in the page payload even when nothing renders it (that is
+  why `LmsModulePlayer` takes `hasFile` rather than `fileUrl`).
+  **Files uploaded before this change are still public.** Flipping the flag
+  does not rewrite existing blobs, and their URLs cannot be un-leaked. The
+  read path (`src/lib/blobStream.ts`) tries the authenticated read first and
+  falls back to a plain fetch, so those files keep working while the app
+  stops handing their URLs out. Converting them means copying each blob to a
+  private one (`copy()` then `del()`) and updating the row — worth doing
+  before real customer data lands, and unnecessary if the store only ever
+  held demo files.
 - **Rate limiting on the unauthenticated surface** (`src/lib/rateLimit.ts`)
   — login, password reset, signup and the public forms (demo, newsletter,
   diagnostic) are the only endpoints reachable without a session, so they

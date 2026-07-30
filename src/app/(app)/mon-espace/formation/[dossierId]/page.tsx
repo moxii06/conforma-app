@@ -117,7 +117,7 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
             dossierId={dossier.id}
             moduleId={m.id}
             type={m.type}
-            fileUrl={m.fileUrl}
+            hasFile={Boolean(m.fileUrl)}
             percentComplete={p?.percentComplete ?? 0}
             lastPositionSeconds={p?.lastPositionSeconds ?? null}
             allowSkip={dossier.session.course.allowVideoSkip}

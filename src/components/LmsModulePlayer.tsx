@@ -8,7 +8,10 @@ type Props = {
   dossierId: string;
   moduleId: string;
   type: string;
-  fileUrl: string | null;
+  // Presence only, never the storage URL itself: a prop on a client
+  // component ends up in the page payload, so passing the raw blob URL
+  // would leak it even when nothing renders it.
+  hasFile: boolean;
   percentComplete: number;
   lastPositionSeconds: number | null;
   allowSkip: boolean;
@@ -43,7 +46,7 @@ const SUSPICIOUS_JUMP_MIN_PERCENT = 95;
 // the prompt still gets through, same as the old input did; the point is
 // to stop the *accidental* "oops I dragged to the end" case, not defeat a
 // determined cheater.
-export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentComplete, lastPositionSeconds, allowSkip, skippedAt }: Props) {
+export function LmsModulePlayer({ dossierId, moduleId, type, hasFile, percentComplete, lastPositionSeconds, allowSkip, skippedAt }: Props) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [percent, setPercent] = useState(percentComplete);
@@ -186,7 +189,7 @@ export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentCom
     );
   }
 
-  if (!fileUrl) {
+  if (!hasFile) {
     return <div className="text-[11.5px] text-slate">Contenu pas encore déposé par l&apos;organisme.</div>;
   }
 
@@ -283,7 +286,7 @@ export function LmsModulePlayer({ dossierId, moduleId, type, fileUrl, percentCom
 
   return (
     <div className="flex items-center gap-3">
-      <a href={fileUrl} target="_blank" rel="noreferrer" className="text-[12.5px] text-ink underline decoration-line hover:decoration-ink">
+      <a href={`/api/lms/modules/${moduleId}/stream`} target="_blank" rel="noreferrer" className="text-[12.5px] text-ink underline decoration-line hover:decoration-ink">
         Consulter le document
       </a>
       {percent >= 100 ? (

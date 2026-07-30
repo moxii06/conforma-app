@@ -131,7 +131,7 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
                       {r.attachments.map((a) => (
                         <a
                           key={a.id}
-                          href={a.fileUrl}
+                          href={`/api/lms/modules/attachments/${a.id}`}
                           target="_blank"
                           rel="noreferrer"
                           download

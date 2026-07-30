@@ -103,7 +103,7 @@ export default async function MemberRecordPage(props: { params: Promise<{ id: st
             <div className="flex flex-col gap-1.5">
               {activeDocuments.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between gap-3">
-                  <a href={doc.fileUrl ?? "#"} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline decoration-line hover:decoration-ink min-w-0 truncate">
+                  <a href={`/api/documents/${doc.id}/file`} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline decoration-line hover:decoration-ink min-w-0 truncate">
                     {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
                   </a>
                   <DocumentActions documentId={doc.id} archived={false} />
@@ -122,7 +122,7 @@ export default async function MemberRecordPage(props: { params: Promise<{ id: st
               </div>
               {archivedDocuments.map((doc) => (
                 <div key={doc.id} className="flex items-center justify-between gap-3">
-                  <a href={doc.fileUrl ?? "#"} target="_blank" rel="noreferrer" className="text-[12px] text-slate underline decoration-line hover:decoration-ink min-w-0 truncate">
+                  <a href={`/api/documents/${doc.id}/file`} target="_blank" rel="noreferrer" className="text-[12px] text-slate underline decoration-line hover:decoration-ink min-w-0 truncate">
                     {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
                   </a>
                   <DocumentActions documentId={doc.id} archived={true} />

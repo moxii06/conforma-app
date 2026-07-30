@@ -38,8 +38,13 @@ export async function buildDocumentAttachment(params: {
     mimeType = params.file.type || "application/octet-stream";
   }
 
+  // `private`, like every other upload path (see src/lib/storage.ts for the
+  // reasoning): these are signed conventions and contracts. The recipient
+  // still receives the actual bytes as an email attachment, so making the
+  // stored copy private costs them nothing — it only stops the URL from
+  // being a permanent unauthenticated back door into the record.
   const pathname = `documents/${params.organizationId}/${params.ownerKey}/${fileName}`;
-  const blob = await put(pathname, buffer, { access: "public", addRandomSuffix: true, contentType: mimeType });
+  const blob = await put(pathname, buffer, { access: "private", addRandomSuffix: true, contentType: mimeType });
 
   return {
     fileUrl: blob.url,

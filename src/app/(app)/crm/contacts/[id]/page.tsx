@@ -409,7 +409,7 @@ async function DocumentsAndOutreachTab({
         {documents.map((d) => (
           <div key={d.id} className="flex items-center justify-between gap-3 py-2.5 border-t border-line first:border-t-0">
             <a
-              href={d.bodyText ? `/api/documents/generated/${d.id}` : d.fileUrl ?? "#"}
+              href={d.bodyText ? `/api/documents/generated/${d.id}` : `/api/documents/${d.id}/file`}
               target="_blank"
               rel="noreferrer"
               className="text-[12.5px] text-ink underline decoration-line hover:decoration-ink"

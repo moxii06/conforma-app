@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { streamStoredFile } from "@/lib/blobStream";
 
 // Proxies the actual video bytes instead of handing out the raw Vercel Blob
 // URL to the client — that URL is otherwise a public, permanent, shareable
@@ -30,7 +31,6 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     where: { id: params.id, course: { organizationId: session.organizationId } },
   });
   if (!module_ || !module_.fileUrl) return NextResponse.json({ error: "Introuvable." }, { status: 404 });
-  if (module_.type !== "video") return NextResponse.json({ error: "Ce module n'est pas une vidéo." }, { status: 400 });
 
   const isStaff = can(session.role, "dossiers") !== "none";
   if (!isStaff) {
@@ -40,20 +40,9 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     if (!progress) return NextResponse.json({ error: "Ce module ne vous a pas été assigné." }, { status: 403 });
   }
 
-  const range = request.headers.get("range");
-  const upstream = await fetch(module_.fileUrl, range ? { headers: { Range: range } } : undefined);
-  if (!upstream.ok || !upstream.body) {
-    return NextResponse.json({ error: "Fichier introuvable." }, { status: 502 });
-  }
-
-  const headers = new Headers();
-  headers.set("Content-Type", upstream.headers.get("content-type") ?? "video/mp4");
-  headers.set("Accept-Ranges", "bytes");
-  headers.set("Cache-Control", "private, no-store");
-  const contentRange = upstream.headers.get("content-range");
-  if (contentRange) headers.set("Content-Range", contentRange);
-  const contentLength = upstream.headers.get("content-length");
-  if (contentLength) headers.set("Content-Length", contentLength);
-
-  return new NextResponse(upstream.body, { status: upstream.status, headers });
+  return streamStoredFile(module_.fileUrl, {
+    range: request.headers.get("range"),
+    fallbackContentType: module_.type === "video" ? "video/mp4" : undefined,
+    downloadName: module_.fileName ?? undefined,
+  });
 }

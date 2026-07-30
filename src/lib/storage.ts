@@ -8,6 +8,18 @@ import { put, del } from "@vercel/blob";
 // don't have a persistent filesystem). Every other `fileUrl` in this app
 // (Document.fileUrl, dossier attachments) is still just a pasted external
 // link; this is the first real upload path.
+//
+// `access: "private"`, not "public". These are signed conventions, CVs,
+// diplomas and subcontractor contracts — personal data. A public blob URL
+// is unguessable but permanent and unauthenticated: once it leaks (a
+// forwarded email, a proxy log, browser history) it grants access forever,
+// and deleting the record in the database does not revoke it, so a GDPR
+// erasure request cannot actually be honoured. Private blobs are readable
+// only with the store token, server-side, which is why every consumer now
+// goes through an authenticated route (see src/lib/blobStream.ts).
+//
+// Files uploaded before this switch remain public — flipping the flag does
+// not retroactively change them. See the migration note in README.
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500MB — generous for video
 
 const NOT_CONFIGURED_ERROR =
@@ -28,7 +40,7 @@ export async function uploadModuleFile(params: {
   // filename without needing to check-then-write.
   const pathname = `lms/${params.organizationId}/${params.moduleId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
@@ -51,7 +63,7 @@ export async function uploadDossierDocument(params: {
 
   const pathname = `dossiers/${params.organizationId}/${params.dossierId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
@@ -74,7 +86,7 @@ export async function uploadSubcontractorDocument(params: {
 
   const pathname = `subcontractors/${params.organizationId}/${params.subcontractorId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
@@ -95,7 +107,7 @@ export async function uploadUserDocument(params: {
 
   const pathname = `team-members/${params.organizationId}/${params.userId}/${params.file.name}`;
   const blob = await put(pathname, params.file, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType: params.file.type || undefined,
   });
