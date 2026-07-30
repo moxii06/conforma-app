@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
+import { consumeRateLimit, clientIp, tooManyRequests, RATE_LIMITS } from "@/lib/rateLimit";
 import { resolveAppOrigin } from "@/lib/appUrl";
 
 const schema = z.object({ email: z.string().email() });
@@ -18,7 +19,20 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Email invalide." }, { status: 400 });
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+  // Every call sends an email, so this endpoint is usable both to bombard one
+  // person's inbox and to burn the shared Brevo quota. Two buckets: per
+  // address (protects the victim) and per IP (stops spraying across many
+  // addresses). Refusing here is safe for the no-enumeration property — the
+  // limit applies whether or not the address has an account.
+  const email = parsed.data.email.toLowerCase().trim();
+  for (const key of [`forgot:${email}`, `forgot-ip:${clientIp(request.headers)}`]) {
+    const gate = await consumeRateLimit(key, RATE_LIMITS.forgotPassword);
+    if (!gate.allowed) {
+      return tooManyRequests(gate.retryAfterSeconds, "Trop de demandes. Réessayez dans une heure.");
+    }
+  }
+
+  const user = await prisma.user.findUnique({ where: { email } });
   if (user && user.status === "active") {
     const token = randomBytes(20).toString("hex");
     await prisma.user.update({

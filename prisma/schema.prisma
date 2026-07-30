@@ -61,12 +61,12 @@ model Organization {
   // about Jalon invoicing the org, not the org invoicing its clients.
   // Editable from /profil (ADMIN_OF only) and merged into templates via
   // mergeTemplate.ts's AVAILABLE_MERGE_FIELDS.
-  legalForm               String?
-  shareCapital            String?
-  legalAddress            String?
-  rcsCity                 String?
-  rcsNumber               String?
-  legalRepresentativeName String?
+  legalForm                 String?
+  shareCapital              String?
+  legalAddress              String?
+  rcsCity                   String?
+  rcsNumber                 String?
+  legalRepresentativeName   String?
   // Numéro de déclaration d'activité (NDA), délivré par la DREETS —
   // obligatoire sur tout contrat/convention de formation (art. L.6351-1 du
   // Code du travail). Distinct du numéro RCS ci-dessus.
@@ -352,7 +352,7 @@ model Subcontractor {
 
   documents   Document[]
   evaluations IntervenantEvaluation[]
-  courses   Course[]   @relation("CourseSubcontractors")
+  courses     Course[]                @relation("CourseSubcontractors")
 
   createdAt DateTime @default(now())
 
@@ -461,13 +461,13 @@ model User {
   // app currently requests — this is the practical always-works version.
   emailSignature              String?
 
-  trainerSessions                  Session[]      @relation("SessionTrainer")
-  learnerDossiers                  Dossier[]      @relation("DossierLearnerUser")
-  referentHandicapForOrganizations Organization[] @relation("ReferentHandicap")
+  trainerSessions                  Session[]               @relation("SessionTrainer")
+  learnerDossiers                  Dossier[]               @relation("DossierLearnerUser")
+  referentHandicapForOrganizations Organization[]          @relation("ReferentHandicap")
   intervenantEvaluations           IntervenantEvaluation[]
-  responsibleForCourses            Course[]       @relation("CourseResponsibles")
+  responsibleForCourses            Course[]                @relation("CourseResponsibles")
   subcontractorRecord              Subcontractor?
-  documents                        Document[]     @relation("UserDocuments")
+  documents                        Document[]              @relation("UserDocuments")
 
   @@index([organizationId])
 }
@@ -688,7 +688,7 @@ model Course {
   // auto-created session gets a generous default capacity, so without
   // this there was no real course-level ceiling). Null means unlimited —
   // the default, and what most courses want.
-  maxLearners               Int?
+  maxLearners Int?
 
   documentTemplates       DocumentTemplate[]
   sessions                Session[]
@@ -1095,22 +1095,22 @@ model Payment {
 // ---------------------------------------------------------------------------
 
 model BankConnection {
-  id                    String       @id @default(cuid())
-  organization          Organization @relation(fields: [organizationId], references: [id])
-  organizationId        String
-  provider              String       @default("bridge")
-  institutionId         String // Bridge's numeric provider id, stored as string — known only once the item exists (see callback/route.ts)
-  institutionName       String
-  externalConnectionId  String // Bridge item id — how the accounts below were fetched
+  id                   String       @id @default(cuid())
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  organizationId       String
+  provider             String       @default("bridge")
+  institutionId        String // Bridge's numeric provider id, stored as string — known only once the item exists (see callback/route.ts)
+  institutionName      String
+  externalConnectionId String // Bridge item id — how the accounts below were fetched
   // pending = consent flow started, not yet completed (or needs a second
   // factor) at the bank; linked = accounts fetched and stored; expired =
   // the bank-side authentication needs renewing; error = the item failed
   // (declined, institution down...).
-  status                String       @default("pending")
-  connectedByUserId     String?
-  connectedByName       String?
-  lastSyncedAt          DateTime?
-  createdAt             DateTime     @default(now())
+  status               String       @default("pending")
+  connectedByUserId    String?
+  connectedByName      String?
+  lastSyncedAt         DateTime?
+  createdAt            DateTime     @default(now())
 
   accounts BankAccount[]
 
@@ -1480,7 +1480,7 @@ model QualiopiAudit {
   certifierName String
   auditorName   String?
   durationDays  Float?
-  remote        Boolean  @default(false)
+  remote        Boolean   @default(false)
   // Conclusions et recommandations de la synthèse d'audit, en texte libre —
   // c'est là que vit "l'auditeur recommande le maintien de la certification".
   conclusions   String?
@@ -2042,9 +2042,9 @@ model Funder {
   // derived from real commitments later instead of Invoice.fundingOrigin.
   type String @default("opco")
 
-  contactEmail String?
-  contactPhone String?
-  notes        String?
+  contactEmail    String?
+  contactPhone    String?
+  notes           String?
   // The funder's usual barème, as the OF experiences it: a rate per training
   // hour and/or a per-dossier cap. Only ever used to PREFILL a commitment's
   // amount as an editable estimate — real prise-en-charge decisions come from
@@ -2053,8 +2053,8 @@ model Funder {
   maxAmountCents  Int?
   // Soft delete: a funder that stops being used must not disappear from the
   // dossiers it already funded.
-  archivedAt   DateTime?
-  createdAt    DateTime  @default(now())
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
   commitments FundingCommitment[]
   invoices    Invoice[]
@@ -2162,7 +2162,7 @@ model Webhook {
   organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
 
-  url String
+  url    String
   // Event names subscribed to — see WEBHOOK_EVENTS in src/lib/apiKeys.ts.
   events String[]
 
@@ -2260,4 +2260,23 @@ model DemoRequest {
   createdAt        DateTime @default(now())
 
   @@index([email])
+}
+
+// Rate limiting for the unauthenticated surface (login, password reset,
+// signup, public forms).
+//
+// Deliberately database-backed rather than an in-process counter: on Vercel
+// consecutive requests land on different serverless instances, so an
+// in-memory Map resets constantly and offers close to no protection against
+// someone actually trying. One row per bucket+identifier, reused across
+// windows (upsert on `key`), so the table stays small; stale rows are swept
+// opportunistically in src/lib/rateLimit.ts.
+model RateLimitCounter {
+  id          String   @id @default(cuid())
+  // "<bucket>:<identifier>", e.g. "login:marie@x.fr" or "signup:1.2.3.4".
+  key         String   @unique
+  count       Int      @default(0)
+  windowStart DateTime @default(now())
+
+  @@index([windowStart])
 }

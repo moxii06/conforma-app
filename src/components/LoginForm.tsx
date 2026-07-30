@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Milestone } from "lucide-react";
-import { GOOGLE_LOGIN_PROVIDER_ID, SOCIAL_LOGIN_DENIED } from "@/lib/authProviders";
+import { GOOGLE_LOGIN_PROVIDER_ID, SOCIAL_LOGIN_DENIED, LOGIN_RATE_LIMITED } from "@/lib/authProviders";
 
 // Google's brand mark, inlined rather than fetched — the login page must
 // render identically offline and behind a strict CSP, and this is the one
@@ -74,7 +74,13 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
 
     setLoading(false);
     if (result?.error) {
-      setError("Email ou mot de passe incorrect.");
+      // authorize() throws LOGIN_RATE_LIMITED after too many failed attempts
+      // on this address; everything else stays deliberately generic.
+      setError(
+        result.error.includes(LOGIN_RATE_LIMITED)
+          ? "Trop de tentatives de connexion sur cette adresse. Réessayez dans une quinzaine de minutes, ou utilisez « Mot de passe oublié »."
+          : "Email ou mot de passe incorrect.",
+      );
       return;
     }
     router.push("/dashboard");

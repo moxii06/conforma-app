@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendWelcomeEmail } from "@/lib/onboardingEmails";
 import { resolveAppOrigin } from "@/lib/appUrl";
+import { consumeRateLimit, clientIp, tooManyRequests, RATE_LIMITS } from "@/lib/rateLimit";
 
 // Billing identity (SIRET + adresse) is intentionally OPTIONAL at signup:
 // it's only needed once a trial converts to a paid Jalon subscription (not
@@ -39,6 +40,10 @@ const TRIAL_DAYS = 14;
 // immediately-usable account with Subscription.status = "trialing" and no
 // Stripe customer/subscription id — nothing here processes a payment.
 export async function POST(request: Request) {
+  // Unauthenticated endpoint: keyed on IP, the only stable identifier here.
+  const gate = await consumeRateLimit(`signup:${clientIp(request.headers)}`, RATE_LIMITS.signup);
+  if (!gate.allowed) return tooManyRequests(gate.retryAfterSeconds, "Trop de créations de compte depuis cette adresse. Réessayez dans une heure.");
+
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

@@ -4,7 +4,8 @@ import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { GOOGLE_LOGIN_PROVIDER_ID, SOCIAL_LOGIN_DENIED } from "@/lib/authProviders";
+import { GOOGLE_LOGIN_PROVIDER_ID, SOCIAL_LOGIN_DENIED, LOGIN_RATE_LIMITED } from "@/lib/authProviders";
+import { checkRateLimit, recordFailure, resetRateLimit, RATE_LIMITS } from "@/lib/rateLimit";
 
 // Why GOOGLE_LOGIN_PROVIDER_ID isn't the default "google":
 // /api/auth/callback/google is already a real route in this app (the Gmail
@@ -61,15 +62,31 @@ export const authOptions: AuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
+        const email = credentials.email.toLowerCase().trim();
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() },
-        });
+        // Throttled per address rather than per IP: a botnet rotates IPs, the
+        // account under attack doesn't. Only FAILED attempts count (see
+        // below) — otherwise someone signing in ten times in a normal working
+        // day would lock themselves out.
+        const gate = await checkRateLimit(`login:${email}`, RATE_LIMITS.login);
+        if (!gate.allowed) throw new Error(LOGIN_RATE_LIMITED);
 
-        if (!user || !user.passwordHash || user.status !== "active") return null;
+        const user = await prisma.user.findUnique({ where: { email } });
+
+        // Count the miss even when no such account exists: otherwise the
+        // limiter itself becomes an oracle for which addresses are real.
+        if (!user || !user.passwordHash || user.status !== "active") {
+          await recordFailure(`login:${email}`, RATE_LIMITS.login);
+          return null;
+        }
 
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) {
+          await recordFailure(`login:${email}`, RATE_LIMITS.login);
+          return null;
+        }
+
+        await resetRateLimit(`login:${email}`);
 
         return {
           id: user.id,

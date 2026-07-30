@@ -424,6 +424,21 @@ for what that means in practice for each one.
   - **Pennylane/Sellsy and IMAP/SMTP** stay inherently per-organization —
     each connects to a distinct external account (the OFP's own
     accounting tool, or a specific mailbox) that can't be shared.
+- **Rate limiting on the unauthenticated surface** (`src/lib/rateLimit.ts`)
+  — login, password reset, signup and the public forms (demo, newsletter,
+  diagnostic) are the only endpoints reachable without a session, so they
+  are the only ones throttled; the authenticated app pays nothing. Backed
+  by a `RateLimitCounter` table rather than an in-process counter, because
+  on Vercel consecutive requests land on different serverless instances and
+  a module-level `Map` would reset constantly. Login counts **failed**
+  attempts only and clears the counter on success (10 per address / 15 min,
+  keyed on the address rather than the IP — a botnet rotates IPs, the
+  targeted account doesn't); the email-sending endpoints count every call,
+  since each one has a cost whatever the outcome. Fails **open** — a
+  database hiccup must not lock everyone out of signing in — but always
+  logs when it does, since a silently broken limiter is indistinguishable
+  from a working one (that is exactly how a stale Prisma client let every
+  request through while this was being built).
 - **Real transactional email (Brevo)** (`src/lib/brevo.ts`) — the
   centralization described above, actually done: one Jalon-operated
   Brevo account (`BREVO_API_KEY` + `BREVO_SENDER_EMAIL`, platform-level,

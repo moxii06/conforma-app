@@ -12,3 +12,11 @@ export const GOOGLE_LOGIN_PROVIDER_ID = "google-login";
 // Surfaced to /login as ?error= — one code for every refusal reason on
 // purpose, so the page can't be used to probe which addresses have accounts.
 export const SOCIAL_LOGIN_DENIED = "social_denied";
+
+// Thrown by authorize() when too many failed attempts have piled up on one
+// address (see src/lib/rateLimit.ts). Unlike the refusals above this one is
+// worth naming: the visitor is very likely the legitimate account holder who
+// mistyped, and "email ou mot de passe incorrect" would send them in circles.
+// It leaks nothing — the counter increments on failures for any address,
+// existing or not.
+export const LOGIN_RATE_LIMITED = "login_rate_limited";
