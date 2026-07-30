@@ -452,7 +452,12 @@ for what that means in practice for each one.
   `src/lib/blobStream.ts` tries the authenticated `get()` against the private
   store first and falls back to a plain fetch, which is what keeps the older
   public-store files working without needing to know which store any given
-  URL belongs to.
+  URL belongs to. Deletion cannot use the same try-then-fall-back shape:
+  `del()` does not throw for a URL it can't find, so a blob living in the
+  other store is indistinguishable from one that never existed, and a first
+  "successful" call would silently skip the second store — leaving a legacy
+  blob alive at a public URL after the user deleted the record.
+  `deleteModuleFile` therefore asks both stores unconditionally.
 - **Rate limiting on the unauthenticated surface** (`src/lib/rateLimit.ts`)
   — login, password reset, signup and the public forms (demo, newsletter,
   diagnostic) are the only endpoints reachable without a session, so they
