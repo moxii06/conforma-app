@@ -106,6 +106,15 @@ model Organization {
   regionPrefecture       String?
   mediatorName           String?
   mediatorContact        String?
+  // Written when the organisation knowingly accepts a payment schedule
+  // exceeding the 30 % ceiling of art. L.6353-6. Blocking was deliberately
+  // ruled out — this is a commercial decision the organisation is entitled
+  // to make — but it is recorded, and the record serves the organisation
+  // first: the day one of them disputes having been informed, this is the
+  // answer. Memorised so the warning stops reappearing on every contract,
+  // which is how a warning becomes wallpaper nobody reads.
+  paymentCapAckAt     DateTime?
+  paymentCapAckByName String?
 
   users                       User[]
   contacts                    Contact[]
@@ -1284,6 +1293,16 @@ model Document {
   // retrievable later. Deletion stays available separately for genuine
   // mistakes/duplicates.
   archivedAt                DateTime?
+  // The payment schedule stated in this contract: [{ dueDate, amountCents,
+  // label }], validated by lib/paymentSchedule.ts.
+  //
+  // It lives here, and not as Invoice rows, because the schedule exists from
+  // the moment the contract is drafted while the invoices must not: a
+  // contract that is never signed would otherwise leave phantom instalments
+  // in Facturation. syncParcoursFromSignedDocument materialises them on
+  // signature — that helper already runs on both signature paths, so there
+  // is exactly one place where a schedule becomes money owed.
+  paymentSchedule           Json?
 
   invitationLinks SessionInvitationDocument[]
 

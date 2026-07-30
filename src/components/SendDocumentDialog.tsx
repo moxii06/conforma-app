@@ -9,9 +9,24 @@ import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { LibraryPanel } from "@/components/LibraryPanel";
+import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
+import type { Instalment } from "@/lib/paymentSchedule";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
 
 type Template = { id: string; title: string; category: string };
+
+/** Everything the schedule builder needs, precomputed server-side by the
+ *  dossier page. Optional: callers that can't provide it (no price on the
+ *  dossier) simply get no schedule section. */
+export type ScheduleContext = {
+  priceCents: number;
+  startsAt: string; // ISO
+  endsAt: string; // ISO
+  capAcknowledged: boolean;
+};
+
+// The schedule only means something on the documents that stipulate one.
+const SCHEDULED_CATEGORIES = new Set(["contrat_formation", "convention"]);
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
 type AppliedAnswer = { key: string; value: string };
 
@@ -50,11 +65,13 @@ export function SendDocumentDialog({
   templates,
   contactFirstName,
   signatureHtml,
+  scheduleContext,
 }: {
   dossierId: string;
   templates: Template[];
   contactFirstName: string;
   signatureHtml: string;
+  scheduleContext?: ScheduleContext;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -84,6 +101,9 @@ export function SendDocumentDialog({
   const [pendingAnswers, setPendingAnswers] = useState<Partial<Record<QuestionKey, string>>>({});
   // Variants the conditional template resolved to (empty for flat templates).
   const [applied, setApplied] = useState<AppliedAnswer[]>([]);
+  const [schedule, setSchedule] = useState<Instalment[]>([]);
+  const [capAcknowledged, setCapAcknowledged] = useState(scheduleContext?.capAcknowledged ?? false);
+  const showSchedule = scheduleContext != null && SCHEDULED_CATEGORIES.has(category);
 
   async function loadPreview(id: string, answers?: Partial<Record<QuestionKey, string>>) {
     setLoadingPreview(true);
@@ -163,6 +183,9 @@ export function SendDocumentDialog({
       formData.set("bodyText", bodyHtml);
     } else {
       if (file) formData.set("file", file);
+    }
+    if (showSchedule && schedule.length > 0) {
+      formData.set("paymentSchedule", JSON.stringify(schedule));
     }
 
     const res = await fetch(`/api/dossiers/${dossierId}/documents/send`, { method: "POST", body: formData });
@@ -417,6 +440,23 @@ export function SendDocumentDialog({
                       placeholder={loadingPreview ? "Chargement…" : "Sélectionnez un modèle pour préremplir le texte, puis adaptez-le si besoin."}
                     />
                   </div>
+                  {showSchedule && (
+                    <div className="border-t border-line pt-3">
+                      <PaymentScheduleBuilder
+                        priceCents={scheduleContext.priceCents}
+                        category={category}
+                        startsAt={new Date(scheduleContext.startsAt)}
+                        endsAt={new Date(scheduleContext.endsAt)}
+                        value={schedule}
+                        onChange={setSchedule}
+                        capAcknowledged={capAcknowledged}
+                        onAcknowledge={async () => {
+                          const res = await fetch("/api/organization/payment-cap-ack", { method: "POST" });
+                          if (res.ok) setCapAcknowledged(true);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-3 md:border-l md:border-line md:pl-5">
                   <div className="text-[11px] text-slate uppercase tracking-wide">Diffusion</div>

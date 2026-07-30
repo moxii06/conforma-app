@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
 import { buildDocumentAttachment } from "@/lib/documentSending";
@@ -7,6 +8,21 @@ import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
 import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
+
+// A payment schedule rides along when the document is a contract or a
+// convention (see PaymentScheduleBuilder). Stored on the Document row, NOT
+// materialised as invoices here: the instalments become money owed only when
+// the contract is signed (syncParcoursFromSignedDocument), so an unsigned
+// contract never leaves phantom invoices in Facturation.
+const scheduleSchema = z
+  .array(
+    z.object({
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      amountCents: z.number().int().positive(),
+      label: z.string().max(80).optional(),
+    }),
+  )
+  .max(24);
 
 // Client feedback: sending a document should produce a real email — the
 // chosen file (a generated PDF from a library template, or something
@@ -59,6 +75,24 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     resolvedCategory = template?.category ?? category;
   }
 
+  // Parsed but never judged: the ceiling warning lives client-side and the
+  // organisation may knowingly exceed it. What the server refuses is only a
+  // malformed schedule — negative amounts, absurd sizes — because that is
+  // corruption, not a business choice.
+  let paymentSchedule: Prisma.InputJsonValue | undefined;
+  const rawSchedule = formData.get("paymentSchedule")?.toString();
+  if (rawSchedule) {
+    let json: unknown;
+    try {
+      json = JSON.parse(rawSchedule);
+    } catch {
+      return NextResponse.json({ error: "Échéancier invalide." }, { status: 400 });
+    }
+    const parsed = scheduleSchema.safeParse(json);
+    if (!parsed.success) return NextResponse.json({ error: "Échéancier invalide." }, { status: 400 });
+    if (parsed.data.length > 0) paymentSchedule = parsed.data;
+  }
+
   let attachment;
   try {
     attachment = await buildDocumentAttachment({
@@ -87,6 +121,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       // Overwritten below if the Yousign send succeeds — until then a
       // requested signature is the free internal stub.
       signatureProvider: requiresSignature ? "stub" : null,
+      ...(paymentSchedule !== undefined ? { paymentSchedule } : {}),
     },
   });
 

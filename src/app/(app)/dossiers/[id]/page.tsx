@@ -8,7 +8,7 @@ import { Role } from "@prisma/client";
 import { Tabs } from "@/components/Tabs";
 import { DossierCategorySelect } from "@/components/DossierCategorySelect";
 import { AddDossierDocumentForm } from "@/components/AddDossierDocumentForm";
-import { SendDocumentDialog } from "@/components/SendDocumentDialog";
+import { SendDocumentDialog, type ScheduleContext } from "@/components/SendDocumentDialog";
 import { CreateRightsRequestButton } from "@/components/CreateRightsRequestButton";
 import { PlanRetentionForm } from "@/components/PlanRetentionForm";
 import { ParcoursStepToggle } from "@/components/ParcoursStepToggle";
@@ -99,6 +99,21 @@ export default async function DossierPage(
   // of roles that can open a dossier. A trainer seeing who funds a learner
   // is a confidentiality question, not just a permissions one.
   const canSeeFunding = can(role, "invoicing") !== "none";
+  // Context for the payment-schedule section of SendDocumentDialog. Gated by
+  // canSeeFunding for the same reason as the Financement tab: the schedule is
+  // money data, and a role that cannot see invoicing must not learn the price
+  // through the send dialog instead. Null price (no agreed price, no course
+  // price) also disables it — a schedule against an unknown total is noise.
+  const dossierPriceCents = resolveDossierPriceCents(dossier, dossier.session.course);
+  const scheduleContext =
+    canSeeFunding && dossierPriceCents != null && dossierPriceCents > 0
+      ? {
+          priceCents: dossierPriceCents,
+          startsAt: dossier.session.startsAt.toISOString(),
+          endsAt: dossier.session.endsAt.toISOString(),
+          capAcknowledged: organization.paymentCapAckAt != null,
+        }
+      : undefined;
   const TABS = [
     ...BASE_TABS,
     ...(canSeeFunding ? [{ key: "financement", label: "Financement" }] : []),
@@ -238,6 +253,7 @@ export default async function DossierPage(
             canManageOutreach={can(role, "dossiers") !== "none"}
             signatureHtml={signatureHtml}
             funding={identityFunding}
+            scheduleContext={scheduleContext}
           />
         ) : activeTab === "emails" ? (
           <EmailsTab contactId={dossier.contactId} dossierId={dossier.id} canManageEmail={canManageEmail} members={members} />
@@ -248,6 +264,7 @@ export default async function DossierPage(
             canWrite={can(role, "dossiers") !== "none"}
             contactFirstName={dossier.contact.firstName}
             signatureHtml={signatureHtml}
+            scheduleContext={scheduleContext}
           />
         ) : activeTab === "donnees-personnelles" ? (
           <PersonalDataTab dossier={dossier} canWrite={canWriteRgpd(role)} />
@@ -348,6 +365,7 @@ async function FormationsTab({
   canManageOutreach,
   signatureHtml,
   funding,
+  scheduleContext,
 }: {
   contactId: string;
   organizationId: string;
@@ -357,6 +375,7 @@ async function FormationsTab({
   canManageOutreach: boolean;
   signatureHtml: string;
   funding: { totalCents: number; remainderCents: number; funderTypes: string[] } | null;
+  scheduleContext?: ScheduleContext;
 }) {
   const dossiers = await prisma.dossier.findMany({
     where: { contactId, organizationId },
@@ -572,6 +591,12 @@ async function FormationsTab({
                       templates={templates}
                       contactFirstName={contact.firstName}
                       signatureHtml={signatureHtml}
+                      // Only exact for the dossier this page is open on: the
+                      // Communications panel lists sibling dossiers too, and
+                      // their price/dates may differ. Passing the current
+                      // dossier's context to a sibling would print another
+                      // contract's arithmetic, so siblings get none.
+                      scheduleContext={d.id === currentDossierId ? scheduleContext : undefined}
                     />
                   )}
                   {canManageOutreach && <SendSatisfactionSurveyButton dossierId={d.id} kind="positioning" />}
@@ -661,12 +686,14 @@ async function DocumentsTab({
   canWrite,
   contactFirstName,
   signatureHtml,
+  scheduleContext,
 }: {
   dossierId: string;
   organizationId: string;
   canWrite: boolean;
   contactFirstName: string;
   signatureHtml: string;
+  scheduleContext?: ScheduleContext;
 }) {
   const [documents, templates] = await Promise.all([
     prisma.document.findMany({ where: { dossierId }, orderBy: { createdAt: "desc" } }),
@@ -689,6 +716,7 @@ async function DocumentsTab({
             templates={templates}
             contactFirstName={contactFirstName}
             signatureHtml={signatureHtml}
+            scheduleContext={scheduleContext}
           />
         )}
       </div>
