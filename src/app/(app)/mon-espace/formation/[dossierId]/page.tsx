@@ -9,6 +9,8 @@ import { QuizTaker } from "@/components/QuizTaker";
 import { CourseModulesList, type ModuleRow } from "@/components/CourseModulesList";
 import { CourseCertificateButton } from "@/components/CourseCertificateButton";
 import { buildCourseProgress, unlockNextModuleIfNeeded } from "@/lib/lms";
+import { loadWithdrawalGate, moduleAccessibleUnderGate, WAIVER_TEXT } from "@/lib/withdrawalGate";
+import { WithdrawalGatePanel } from "@/components/WithdrawalGatePanel";
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
 
@@ -62,7 +64,14 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
   });
   if (!dossier) notFound();
 
-  const modules = dossier.session.course.elearningModules;
+  // While the learner's withdrawal period runs (signed contrat_formation,
+  // no express waiver yet), the module list below is filtered to what the
+  // organisation chose to open early — possibly nothing. The real
+  // enforcement is server-side in the stream route; this only decides what
+  // the page renders.
+  const gate = await loadWithdrawalGate(dossier.id);
+  const allModules = dossier.session.course.elearningModules;
+  const modules = gate.active ? allModules.filter((m) => moduleAccessibleUnderGate(gate, m)) : allModules;
 
   // Self-heal on load: if staff reordered modules (or dragged a new one
   // above the learner's position) after this learner started, the moved
@@ -150,6 +159,15 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
           <ArrowLeft size={14} /> Retour à mes formations
         </Link>
 
+        {gate.active && gate.endsAt && (
+          <WithdrawalGatePanel
+            dossierId={dossier.id}
+            endsAtLabel={gate.endsAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+            waiverText={WAIVER_TEXT}
+            partial={gate.policy === "partial" && modules.length > 0}
+          />
+        )}
+
         <div className="bg-white border border-line rounded-card p-5">
           <div className="flex items-center gap-3 text-[12.5px] text-slate mb-1">
             <span>Formateur : {dossier.session.trainer?.name ?? "à confirmer"}</span>
@@ -164,7 +182,11 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
           </div>
 
           {modules.length === 0 ? (
-            <div className="text-[12.5px] text-slate mt-3">Aucun contenu en ligne n&apos;est encore associé à cette formation.</div>
+            <div className="text-[12.5px] text-slate mt-3">
+              {gate.active && allModules.length > 0
+                ? "Les modules de formation ouvriront à la fin de votre délai de rétractation — ou dès maintenant si vous en faites la demande ci-dessus."
+                : "Aucun contenu en ligne n'est encore associé à cette formation."}
+            </div>
           ) : (
             <>
               <div className="flex items-center justify-between mt-4 mb-1.5">

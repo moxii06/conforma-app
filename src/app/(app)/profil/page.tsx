@@ -4,6 +4,7 @@ import { requireSessionContext, ROLE_LABELS } from "@/lib/tenant";
 import { SignatureEditor } from "@/components/SignatureEditor";
 import { OrganizationLegalForm } from "@/components/OrganizationLegalForm";
 import { OrganizationBrandingForm } from "@/components/OrganizationBrandingForm";
+import { OrganizationContractPolicyForm } from "@/components/OrganizationContractPolicyForm";
 import { Role } from "@prisma/client";
 
 // Every role gets one — no permission gate beyond being logged in, unlike
@@ -73,6 +74,25 @@ export default async function ProfilePage() {
                 rcsNumber: organization.rcsNumber ?? "",
                 legalRepresentativeName: organization.legalRepresentativeName ?? "",
                 activityDeclarationNumber: organization.activityDeclarationNumber ?? "",
+              }}
+            />
+          </div>
+        )}
+
+        {organization && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink mb-1">Clauses et politiques contractuelles</div>
+            <div className="text-[11.5px] text-slate mb-3">
+              Réglages repris automatiquement dans les contrats générés depuis la bibliothèque de modèles et dans
+              l&apos;accès à la formation en ligne pendant le délai de rétractation d&apos;un apprenant.
+            </div>
+            <OrganizationContractPolicyForm
+              initial={{
+                withdrawalAccessPolicy: organization.withdrawalAccessPolicy,
+                cancellationFeePercent: organization.cancellationFeePercent,
+                regionPrefecture: organization.regionPrefecture ?? "",
+                mediatorName: organization.mediatorName ?? "",
+                mediatorContact: organization.mediatorContact ?? "",
               }}
             />
           </div>

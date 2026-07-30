@@ -654,9 +654,36 @@ model Dossier {
   invoices                    Invoice[]
   clientOutreaches            ClientOutreach[]
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
+  withdrawalWaiver            WithdrawalWaiver?
 
   @@index([organizationId])
   @@index([contactId])
+}
+
+// The learner's express request to access the training content before their
+// fourteen-day withdrawal period has run (art. L.221-28, 13° C. consom.).
+//
+// This row is evidence, not state — its whole value is what it can prove in
+// a dispute. Hence every field the proof needs: when, from which address,
+// against which exact wording (frozen here, not referenced — the on-screen
+// text will change someday and the record must keep saying what THIS
+// learner accepted), and that the checkbox started unchecked (a pre-ticked
+// box is not express consent). One per dossier, ever: a waiver cannot be
+// "re-given", and deleting/recreating one would destroy the evidence.
+//
+// The ten-day period of art. L.6353-5 C. trav. is d'ordre public and is NOT
+// affected by this waiver — that is stated in the accepted text itself.
+model WithdrawalWaiver {
+  id             String   @id @default(cuid())
+  organizationId String
+  dossier        Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId      String   @unique
+  acceptedAt     DateTime @default(now())
+  ipAddress      String
+  textAccepted   String
+  checkboxDefaultUnchecked Boolean @default(true)
+
+  @@index([organizationId])
 }
 
 // ---------------------------------------------------------------------------

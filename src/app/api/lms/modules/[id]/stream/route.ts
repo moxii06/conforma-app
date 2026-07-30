@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { streamStoredFile } from "@/lib/blobStream";
+import { loadWithdrawalGate, moduleAccessibleUnderGate } from "@/lib/withdrawalGate";
 
 // Proxies the actual video bytes instead of handing out the raw Vercel Blob
 // URL to the client. Uploads land in the private store now, so that URL no
@@ -39,6 +40,19 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       where: { moduleId: module_.id, dossier: { organizationId: session.organizationId, learnerUserId: session.userId } },
     });
     if (!progress) return NextResponse.json({ error: "Ce module ne vous a pas été assigné." }, { status: 403 });
+
+    // The page already hides gated modules from the list, but that is
+    // presentation only — this is the check that actually matters. Without
+    // it, a learner who copies a stream URL while it was briefly reachable
+    // (or simply knows the module id) could pull the bytes directly and the
+    // withdrawal-access decision would be purely decorative.
+    const gate = await loadWithdrawalGate(progress.dossierId);
+    if (!moduleAccessibleUnderGate(gate, module_)) {
+      return NextResponse.json(
+        { error: "Ce contenu ouvrira à la fin de votre délai de rétractation, sauf demande d'accès anticipé." },
+        { status: 403 },
+      );
+    }
   }
 
   return streamStoredFile(module_.fileUrl, {

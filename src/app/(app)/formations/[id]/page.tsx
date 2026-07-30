@@ -13,6 +13,7 @@ import { NewModuleForm } from "@/components/NewModuleForm";
 import { NewChapterForm } from "@/components/NewChapterForm";
 import { ChapterHeader } from "@/components/ChapterHeader";
 import { ModuleChapterSelect } from "@/components/ModuleChapterSelect";
+import { ModuleWithdrawalAccessToggle } from "@/components/ModuleWithdrawalAccessToggle";
 import { CoursePublicToggle } from "@/components/CoursePublicToggle";
 import { CourseVideoSkipToggle } from "@/components/CourseVideoSkipToggle";
 import { AssignLearnersPanel } from "@/components/AssignLearnersPanel";
@@ -496,8 +497,13 @@ function ContenuTab({
                 }
                 badge={badgeParts.length > 0 ? <Pill tone={avgPercent === 100 ? "good" : "neutral"}>{badgeParts.join(" · ")}</Pill> : undefined}
                 extra={
-                  canManage && course.chapters.length > 0 ? (
-                    <ModuleChapterSelect moduleId={m.id} chapterId={m.chapterId} chapters={course.chapters} />
+                  canManage ? (
+                    <div className="flex items-center gap-1.5">
+                      <ModuleWithdrawalAccessToggle moduleId={m.id} availableDuringWithdrawal={m.availableDuringWithdrawal} />
+                      {course.chapters.length > 0 && (
+                        <ModuleChapterSelect moduleId={m.id} chapterId={m.chapterId} chapters={course.chapters} />
+                      )}
+                    </div>
                   ) : undefined
                 }
               >

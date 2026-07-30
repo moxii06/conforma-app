@@ -11,6 +11,10 @@ const schema = z.object({
   order: z.number().int().optional(),
   // null = detach from any chapter ("Sans chapitre").
   chapterId: z.string().nullable().optional(),
+  // See ElearningModule.availableDuringWithdrawal in schema.prisma — only
+  // read while a withdrawal gate is active and the org's policy is
+  // "partial" (lib/withdrawalGate.ts); harmless otherwise.
+  availableDuringWithdrawal: z.boolean().optional(),
 });
 
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
