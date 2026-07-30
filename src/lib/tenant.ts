@@ -2,6 +2,7 @@ import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Multi-tenant isolation strategy (Phase 1): shared schema, every query
@@ -25,11 +26,30 @@ export type SessionContext = {
   email: string;
 };
 
+// A 30-day JWT session is only as revocable as this check makes it: with
+// no server-side session store, a stolen token otherwise stays valid until
+// it naturally expires — including through a "mot de passe oublié" the
+// account owner triggers specifically because they suspect it's stolen.
+// Comparing against a fresh DB read on every call is a real per-request
+// cost, but it's the only way a JWT-strategy session can be revoked at
+// all; see User.passwordChangedAt's schema comment for the full mechanism.
+async function isSessionStale(userId: string, issuedAt: number | null | undefined): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { passwordChangedAt: true } });
+  if (!user?.passwordChangedAt) return false; // never reset — nothing to invalidate against
+  const changedAt = user.passwordChangedAt.getTime();
+  // `issuedAt` is undefined for tokens minted before this field existed —
+  // those predate every real password change by definition, so only a
+  // DB timestamp that's actually later than what the token carries (or a
+  // token that carries nothing at all) counts as stale.
+  return issuedAt == null || changedAt > issuedAt;
+}
+
 export async function getSessionContext(): Promise<SessionContext | null> {
   const session = await getServerSession(authOptions);
   if (!session?.user) return null;
-  const { id, organizationId, role, name, email } = session.user;
+  const { id, organizationId, role, name, email, passwordChangedAt } = session.user;
   if (!id || !organizationId || !role) return null;
+  if (await isSessionStale(id, passwordChangedAt)) return null;
   return { userId: id, organizationId, role, name: name ?? "", email: email ?? "" };
 }
 

@@ -21,7 +21,16 @@ export async function POST(request: Request, props: { params: Promise<{ token: s
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash, passwordResetToken: null, passwordResetTokenExpiresAt: null },
+    data: {
+      passwordHash,
+      passwordResetToken: null,
+      passwordResetTokenExpiresAt: null,
+      // Invalidates every other session for this account — see
+      // getSessionContext()'s freshness check in lib/tenant.ts. A reset
+      // that leaves an attacker's existing session alive would defeat the
+      // point of resetting in the first place.
+      passwordChangedAt: new Date(),
+    },
   });
 
   return NextResponse.json({ ok: true });

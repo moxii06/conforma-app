@@ -483,6 +483,14 @@ model User {
   // valid forever is a real risk, not just a tidiness concern.
   passwordResetToken          String?      @unique
   passwordResetTokenExpiresAt DateTime?
+  // Stamped whenever /api/public/reset-password succeeds — never on account
+  // creation/activation, since there's no prior session to invalidate then.
+  // getSessionContext() (lib/tenant.ts) compares this against the value
+  // frozen into a JWT at sign-in: a token older than the latest reset is
+  // treated as unauthenticated, so a "mot de passe oublié" someone triggers
+  // because a device was compromised actually logs that device out, instead
+  // of leaving its 30-day session valid until it happens to expire.
+  passwordChangedAt           DateTime?
   createdAt                   DateTime     @default(now())
   // Sanitized HTML, set by the user themselves on /profil — auto-appended
   // to composed messages (client feedback: "la même signature qu'un mail

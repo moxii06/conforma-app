@@ -94,6 +94,7 @@ export const authOptions: AuthOptions = {
           name: user.name,
           organizationId: user.organizationId,
           role: user.role,
+          passwordChangedAt: user.passwordChangedAt,
         };
       },
     }),
@@ -151,6 +152,7 @@ export const authOptions: AuthOptions = {
         token.role = staff.role;
         token.name = staff.name;
         token.email = staff.email;
+        token.passwordChangedAt = staff.passwordChangedAt ? staff.passwordChangedAt.getTime() : null;
         return token;
       }
 
@@ -158,6 +160,7 @@ export const authOptions: AuthOptions = {
         token.id = user.id;
         token.organizationId = user.organizationId;
         token.role = user.role;
+        token.passwordChangedAt = user.passwordChangedAt ? user.passwordChangedAt.getTime() : null;
       }
       return token;
     },
@@ -166,6 +169,7 @@ export const authOptions: AuthOptions = {
         session.user.id = token.id;
         session.user.organizationId = token.organizationId;
         session.user.role = token.role;
+        session.user.passwordChangedAt = token.passwordChangedAt;
       }
       return session;
     },

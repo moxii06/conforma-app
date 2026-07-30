@@ -10,6 +10,11 @@ declare module "next-auth" {
       id: string;
       organizationId: string;
       role: Role;
+      // Epoch ms of User.passwordChangedAt as of sign-in — see
+      // getSessionContext()'s freshness check in src/lib/tenant.ts. Absent
+      // on tokens issued before this field existed; null when the account
+      // has never gone through a password reset.
+      passwordChangedAt?: number | null;
     } & DefaultSession["user"];
   }
 
@@ -17,6 +22,7 @@ declare module "next-auth" {
     id: string;
     organizationId: string;
     role: Role;
+    passwordChangedAt?: Date | null;
   }
 }
 
@@ -25,5 +31,6 @@ declare module "next-auth/jwt" {
     id: string;
     organizationId: string;
     role: Role;
+    passwordChangedAt?: number | null;
   }
 }
