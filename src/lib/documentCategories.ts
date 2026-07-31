@@ -17,6 +17,8 @@ export const DOCUMENT_CATEGORIES = [
   "final_report",
   "results_summary",
   "subcontractor_contract",
+  "trainer_contract",
+  "video_shoot_contract",
   "handicap_partners",
   "other",
 ] as const;
@@ -38,6 +40,8 @@ export const CATEGORY_LABELS: Record<string, string> = {
   final_report: "Bilan final",
   results_summary: "Relevé de résultats",
   subcontractor_contract: "Contrat sous-traitant / intervenant",
+  trainer_contract: "Contrat formateur indépendant",
+  video_shoot_contract: "Contrat de tournage — intervenant filmé",
   handicap_partners: "Répertoire partenaires handicap",
   other: "Autre",
   cv: "CV",
@@ -77,7 +81,16 @@ export function categoryLabelIsRedundant(title: string, category: string): boole
 // (Qualiopi indicator 27 — sous-traitance conforme au référentiel) is
 // tracked the same way: a signed attestation the OF collects from the
 // subcontractor, not something Jalon can generate on their behalf.
-export const SUBCONTRACTOR_DOCUMENT_CATEGORIES = ["subcontractor_contract", "cv", "diploma", "nda", "rnq_engagement", "other"] as const;
+export const SUBCONTRACTOR_DOCUMENT_CATEGORIES = [
+  "subcontractor_contract",
+  "trainer_contract",
+  "video_shoot_contract",
+  "cv",
+  "diploma",
+  "nda",
+  "rnq_engagement",
+  "other",
+] as const;
 
 // A team member (internal staff) doesn't have a contrat sous-traitant or
 // NDA to track — just the same CV/diplôme kind of paperwork, narrower still.

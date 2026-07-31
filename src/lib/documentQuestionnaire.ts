@@ -17,7 +17,11 @@ export type QuestionKey =
   | "paiement"
   | "accesImmediat"
   | "droitImage"
-  | "indemniteAnnulation";
+  | "indemniteAnnulation"
+  | "missionFormateur"
+  | "enregistrementSessions"
+  | "stagiairesApparaissent"
+  | "contenuRevente";
 
 export type QuestionOption = { value: string; label: string };
 
@@ -106,6 +110,40 @@ export const QUESTIONS: QuestionDefinition[] = [
       { value: "non", label: "Non" },
     ],
   },
+  {
+    key: "missionFormateur",
+    label: "La mission du formateur est-elle un accompagnement individualisé ou l'animation de sessions collectives ?",
+    options: [
+      { value: "individualise", label: "Accompagnement individualisé (tutorat, suivi personnalisé)" },
+      { value: "collectif", label: "Animation de sessions collectives" },
+    ],
+  },
+  {
+    key: "enregistrementSessions",
+    label: "Les sessions animées par le formateur sont-elles enregistrées ?",
+    hint: "Ajoute l'autorisation d'image et de voix du formateur, et le rappel du consentement à recueillir auprès des apprenants filmés.",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
+  {
+    key: "stagiairesApparaissent",
+    label: "Un ou plusieurs apprenants apparaissent-ils ou s'expriment-ils dans la vidéo aux côtés du prestataire ?",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
+  {
+    key: "contenuRevente",
+    label: "La vidéo constitue-t-elle à elle seule une action de formation destinée à être commercialisée ?",
+    hint: "Déclenche le rappel sur le régime de TVA applicable selon le statut du prestataire.",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
 ];
 
 export const QUESTION_BY_KEY: Record<QuestionKey, QuestionDefinition> = Object.fromEntries(
@@ -126,6 +164,10 @@ export const SHORT_OPTION_LABELS: Record<string, Record<string, string>> = {
   accesImmediat: { oui: "Accès anticipé possible", non: "Accès fermé pendant le délai" },
   droitImage: { oui: "Autorisation image jointe", non: "Sans autorisation image" },
   indemniteAnnulation: { oui: "Indemnité d'annulation", non: "Sans indemnité d'annulation" },
+  missionFormateur: { individualise: "Accompagnement individualisé", collectif: "Sessions collectives" },
+  enregistrementSessions: { oui: "Sessions enregistrées", non: "Sessions non enregistrées" },
+  stagiairesApparaissent: { oui: "Apprenants filmés", non: "Apprenants non filmés" },
+  contenuRevente: { oui: "Formation commercialisée", non: "Contenu complémentaire" },
 };
 
 export type ResolveContext = {
@@ -178,6 +220,14 @@ const RESOLVERS: Record<QuestionKey, (ctx: ResolveContext) => string | null> = {
   // Driven by the organisation's own cancellation-fee setting (Bibliothèque
   // › Clauses et politiques contractuelles) — never per-dossier.
   indemniteAnnulation: (ctx) => (ctx.organization.cancellationFeePercent != null ? "oui" : "non"),
+  // The 4 questions below back the formateur/tournage templates. None of
+  // them concern a dossier — a Subcontractor carries no field any of these
+  // could be resolved from — so every one is always asked, same as
+  // paiement/droitImage above.
+  missionFormateur: () => null,
+  enregistrementSessions: () => null,
+  stagiairesApparaissent: () => null,
+  contenuRevente: () => null,
 };
 
 /**

@@ -38,11 +38,38 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     bodyText:
       DISCLAIMER +
       "RÈGLEMENT INTÉRIEUR\n\n" +
-      "1. Objet et champ d'application — Le présent règlement s'applique à tous les stagiaires inscrits à une action de formation dispensée par [NOM DE L'ORGANISME].\n\n" +
-      "2. Discipline — Horaires, assiduité, tenue et comportement attendus des stagiaires : [À COMPLÉTER].\n\n" +
-      "3. Hygiène et sécurité — Consignes applicables sur le lieu de formation : [À COMPLÉTER].\n\n" +
-      "4. Sanctions — Procédure disciplinaire applicable en cas de manquement.\n\n" +
-      "5. Représentation des stagiaires — Modalités applicables pour les actions de plus de 500 heures, le cas échéant.",
+      "Établi conformément aux articles L.6352-3 à L.6352-5 et R.6352-1 à R.6352-15 du Code du travail\n\n" +
+      "Titre préliminaire — Objet et champ d'application\n\n" +
+      "Article 1er. Le présent règlement intérieur s'applique à tout stagiaire inscrit à une action de formation dispensée par {{organization.name}}, quelles qu'en soient les modalités — présentielles, à distance, ou les deux —, pour toute la durée de cette action.\n\n" +
+      "Toute personne suivant une action de formation dispensée par {{organization.name}} est réputée avoir pris connaissance et accepté les termes du présent règlement du seul fait de son inscription.\n\n" +
+      "Titre I — Dispositions applicables à la formation à distance\n\n" +
+      "Article 2 — Conduite lors des sessions à distance. Lors des classes virtuelles et des échanges à distance (visioconférence, messagerie, espaces de discussion entre participants), le stagiaire s'engage à respecter les mêmes règles de courtoisie et de comportement qu'en présentiel : ponctualité de connexion, respect des consignes du formateur relatives à l'usage de la caméra et du micro, respect de la parole d'autrui. Sont interdits tout propos discriminatoire, injurieux, diffamatoire ou contraire à l'ordre public, ainsi que tout débat étranger à l'objet de la formation portant sur des sujets politiques ou religieux.\n\n" +
+      "Article 3 — Accès personnel et confidentialité. Les identifiants de connexion à la plateforme de formation sont personnels, confidentiels et incessibles. Le stagiaire s'interdit de les communiquer à un tiers et répond de tout usage effectué au moyen de ses identifiants.\n\n" +
+      "Titre II — Dispositions applicables à la formation en présentiel\n\n" +
+      "Article 4 — Hygiène et sécurité. Le stagiaire respecte les consignes d'hygiène et de sécurité applicables dans les locaux où se déroule la formation, y compris, lorsque la formation a lieu dans des locaux qui ne sont pas ceux de {{organization.name}}, le règlement intérieur du site d'accueil. Les consignes de sécurité incendie et la procédure à suivre en cas d'accident sont affichées dans les locaux et rappelées en début de formation.\n\n" +
+      "Article 5 — Matériel. Le stagiaire conserve en bon état le matériel mis à sa disposition pour la formation et le restitue en fin d'action. Toute dégradation résultant d'un usage non conforme à sa destination pourra faire l'objet d'une réclamation. Il est interdit d'introduire dans les systèmes informatiques de {{organization.name}} tout programme ou fichier non autorisé.\n\n" +
+      "Titre III — Discipline et assiduité\n\n" +
+      "Article 6 — Comportement. Chaque stagiaire adopte un comportement garantissant le respect des règles élémentaires de savoir-vivre et de savoir-être en collectivité, ainsi que le bon déroulement de la formation. Sont notamment prohibés tout comportement discriminatoire, violent ou injurieux envers les autres stagiaires, les formateurs ou le personnel de {{organization.name}}, ainsi que la consommation d'alcool ou de substances illicites dans les locaux de formation.\n\n" +
+      "Article 7 — Assiduité.\n\n" +
+      "7.1 Le stagiaire suit avec assiduité l'intégralité des séances et activités prévues au programme, aux horaires communiqués.\n\n" +
+      "7.2 Toute absence ou retard est justifié auprès de {{organization.name}} dans les meilleurs délais. Lorsque la formation fait l'objet d'une prise en charge par un financeur, celui-ci est informé de toute absence non justifiée, qui peut entraîner l'interruption de la prise en charge.\n\n" +
+      "7.3 L'assiduité est établie, pour les sessions en présentiel, par la signature d'une feuille d'émargement, et pour les sessions à distance, par les relevés de connexion et de progression sur la plateforme de formation. Ces éléments constituent la preuve exclusive de la présence ; toute falsification expose son auteur aux sanctions prévues à l'article 9.\n\n" +
+      "Article 8 — Évaluations et certifications. Toute fraude ou tentative de fraude commise à l'occasion d'une évaluation ou d'une épreuve de certification — utilisation de documents ou de matériel non autorisés, communication avec un tiers, usurpation d'identité — entraîne la nullité de l'épreuve concernée, sans préjudice des sanctions disciplinaires prévues à l'article 9.\n\n" +
+      "Titre IV — Sanctions\n\n" +
+      "Article 9 — Sanctions disciplinaires.\n\n" +
+      "9.1 Constitue une sanction, au sens du présent règlement et conformément à l'article R.6352-3 du Code du travail, toute mesure, autre que les observations verbales, prise par {{organization.name}} à la suite d'un agissement du stagiaire considéré par elle comme fautif, que cette mesure soit de nature à affecter immédiatement ou non la présence de l'intéressé en formation ou à mettre en cause la continuité de la formation qu'il reçoit.\n\n" +
+      "9.2 Selon la gravité du manquement, les sanctions susceptibles d'être prononcées sont, par ordre croissant : le rappel à l'ordre, l'avertissement écrit, l'exclusion temporaire, l'exclusion définitive de la formation. Aucune sanction pécuniaire n'est autorisée.\n\n" +
+      "9.3 Lorsque le stagiaire est salarié, son employeur et, le cas échéant, le financeur de l'action sont informés de toute sanction prononcée.\n\n" +
+      "Article 10 — Garanties disciplinaires.\n\n" +
+      "10.1 Aucune sanction ne peut être infligée sans que le stagiaire ait été informé au préalable des griefs retenus contre lui.\n\n" +
+      "10.2 Lorsque {{organization.name}} envisage une sanction ayant une incidence, immédiate ou non, sur la présence du stagiaire en formation, elle le convoque, par lettre recommandée avec avis de réception ou remise contre décharge, à un entretien préalable, en lui indiquant l'objet de la convocation, la date, l'heure et le lieu de cet entretien, ainsi que la possibilité de se faire assister par une personne de son choix, conformément à l'article R.6352-5 du Code du travail.\n\n" +
+      "10.3 Au cours de l'entretien, le stagiaire est mis à même de fournir des explications.\n\n" +
+      "10.4 La sanction ne peut intervenir moins d'un jour franc ni plus de quinze jours après l'entretien, ou après la date à laquelle le stagiaire a été informé des griefs retenus contre lui s'il n'y a pas eu d'entretien. Elle fait l'objet d'une décision écrite et motivée, notifiée à l'intéressé conformément à l'article R.6352-6 du Code du travail.\n\n" +
+      "Titre V — Représentation des stagiaires\n\n" +
+      "Article 11 — Élection des délégués (actions de plus de 500 heures). Dans les actions de formation d'une durée supérieure à cinq cents heures, il est procédé, dans les deux premiers mois, à l'élection d'un délégué titulaire et d'un délégué suppléant, conformément aux articles R.6352-9 à R.6352-12 du Code du travail. Le scrutin, à deux tours, est organisé par {{organization.name}}. Si le nombre de candidats est insuffisant pour pourvoir les postes, un procès-verbal de carence est établi. Les délégués font connaître à {{organization.name}} toute suggestion ou réclamation relative au déroulement de la formation.\n\n" +
+      "Titre VI — Accessibilité et dispositions finales\n\n" +
+      "Article 12 — Accessibilité et situation de handicap. Le stagiaire en situation de handicap est invité à se manifester auprès du référent handicap, {{organization.referentHandicapName}}, joignable à {{organization.publicContactEmail}}, afin qu'un aménagement de la formation soit étudié.\n\n" +
+      "Article 13 — Publicité et entrée en vigueur. Le présent règlement est remis à chaque stagiaire préalablement à son inscription définitive et, lorsque la formation a lieu en présentiel, affiché dans les locaux de formation. Toute modification est portée à la connaissance des stagiaires déjà inscrits avant son entrée en application à leur égard, et ne s'applique de plein droit qu'aux stagiaires inscrits à une action postérieure à cette modification.",
   },
   {
     category: "convention",
@@ -469,6 +496,220 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
       "Article 5 — Rémunération et modalités de règlement : [À COMPLÉTER].\n\n" +
       "Article 6 — Confidentialité : le prestataire s'engage à ne pas divulguer les informations dont il aurait connaissance dans le cadre de sa mission, notamment les données personnelles des bénéficiaires.\n\n" +
       "Article 7 — Résiliation : conditions de résiliation anticipée du présent contrat par l'une ou l'autre des parties : [À COMPLÉTER].",
+  },
+  {
+    category: "trainer_contract",
+    title: "Contrat de prestation de services de formation — formateur indépendant",
+    bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+    blocks: [
+      {
+        bodyText:
+          "CONTRAT DE PRESTATION DE SERVICES DE FORMATION\n\n(intervenant / formateur indépendant)\n\nENTRE LES SOUSSIGNÉS :\n\n{{organization.name}}, {{organization.legalForm}} au capital social de {{organization.shareCapital}}, dont le siège social est sis {{organization.legalAddress}}, immatriculée au Registre du Commerce et des Sociétés de {{organization.rcsCity}} sous le numéro {{organization.rcsNumber}}, identifiée sous le numéro SIRET {{organization.siret}}, représentée par {{organization.legalRepresentativeName}}, dûment habilité(e) à l'effet des présentes,\n\nCi-après dénommée « l'Organisme »,\n\nD'une part,\n\nET :\n\n{{subcontractor.name}}, immatriculé(e) sous le numéro SIRET {{subcontractor.siret}}, dont l'adresse est {{subcontractor.address}}, agissant en qualité de prestataire indépendant,\n\nCi-après dénommé(e) « le Prestataire »,\n\nD'autre part,\n\nCi-après dénommées ensemble « les Parties » et individuellement « la Partie ».",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "IL A PRÉALABLEMENT ÉTÉ EXPOSÉ CE QUI SUIT :\n\n(A) L'Organisme exerce une activité de formation professionnelle continue au sens des articles L.6311-1 et suivants du Code du travail.\n\n(B) Le Prestataire exerce, à titre indépendant et sous sa propre responsabilité, une activité de formateur, d'intervenant ou de conseil en lien avec le domaine d'expertise décrit à l'article 2, pour le compte d'une clientèle qui lui est propre et dont l'Organisme ne constitue qu'un client parmi d'autres.\n\n(C) Les Parties se sont rapprochées afin que le Prestataire intervienne, en toute indépendance, pour le compte de l'Organisme dans les conditions définies aux présentes.\n\n(D) Les Parties déclarent agir en qualité de professionnels indépendants l'un de l'autre, sans lien de subordination, conformément à la présomption de non-salariat attachée aux personnes immatriculées prévue par l'article L.8221-6 du Code du travail.\n\nCECI EXPOSÉ, IL A ÉTÉ CONVENU CE QUI SUIT :",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 1 — Définitions\n\nLes termes ci-après, employés avec une majuscule, ont la signification suivante : « Mission » désigne l'ensemble des prestations décrites à l'article 2 ; « Apprenants » désigne les stagiaires, élèves ou bénéficiaires auprès desquels le Prestataire intervient pour le compte de l'Organisme ; « Supports » désigne l'ensemble des contenus pédagogiques créés par le Prestataire dans le cadre de la Mission.\n\nArticle 2 — Objet du contrat\n\nLe présent contrat a pour objet de définir les conditions dans lesquelles le Prestataire réalise, pour le compte de l'Organisme et en toute indépendance, la Mission décrite ci-après, ainsi que les droits et obligations réciproques des Parties. Il ne constitue en aucun cas un contrat de travail.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 3 — Nature de la Mission : accompagnement individualisé\n\n3.1 Objet. Le Prestataire assure, au bénéfice des Apprenants désignés par l'Organisme, un accompagnement individualisé (tutorat, suivi personnalisé, correction de travaux) dans le domaine suivant : [DOMAINE D'INTERVENTION].\n\n3.2 Modalités. Les modalités pratiques (fréquence, durée et format des interventions) sont convenues d'un commun accord entre les Parties, dans le respect de l'autonomie d'organisation du Prestataire rappelée à l'article 5.\n\n3.3 Moyens. Le Prestataire mobilise son propre matériel, ses propres outils et abonnements pour la réalisation de la Mission ; leur coût demeure à sa charge exclusive, sauf stipulation contraire convenue par écrit.",
+        conditions: [{ questionKey: "missionFormateur", in: ["individualise"] }],
+      },
+      {
+        bodyText:
+          "Article 3 — Nature de la Mission : animation de sessions collectives\n\n3.1 Objet. Le Prestataire assure l'animation, au bénéfice des Apprenants inscrits par l'Organisme, de sessions de formation collectives dans le domaine suivant : [DOMAINE D'INTERVENTION].\n\n3.2 Contenu et validation. Le contenu pédagogique et les supports utilisés sont, préalablement à chaque session, communiqués à l'Organisme, qui s'assure de leur conformité au programme et aux exigences du Référentiel National Qualité. Cette vérification porte sur le contenu et n'emporte aucune immixtion dans les méthodes pédagogiques du Prestataire.\n\n3.3 Comportement en session. Le Prestataire s'engage à adopter, envers les Apprenants et les autres intervenants, un comportement respectueux, et à s'abstenir de tout propos ou comportement discriminatoire, injurieux ou contraire à l'ordre public.\n\n3.4 Moyens. Le Prestataire mobilise son propre matériel, ses propres outils et abonnements pour la réalisation de la Mission ; leur coût demeure à sa charge exclusive, sauf stipulation contraire convenue par écrit.",
+        conditions: [{ questionKey: "missionFormateur", in: ["collectif"] }],
+      },
+      {
+        bodyText:
+          "Article 3 bis — Enregistrement des sessions et droit à l'image du Prestataire\n\n3 bis.1 Enregistrement. Les sessions animées par le Prestataire sont enregistrées par l'Organisme en vue de leur mise à disposition différée auprès des Apprenants, dans les conditions convenues entre les Parties (fréquence, format, délai de livraison le cas échéant).\n\n3 bis.2 Autorisation d'image et de voix. Le Prestataire autorise l'Organisme à capter, enregistrer, reproduire et diffuser son image, sa voix et son nom dans le cadre de ces enregistrements, sur les supports et selon les modalités convenues entre les Parties, conformément à l'article 9 du Code civil.\n\n3 bis.3 Portée. Cette autorisation est strictement limitée aux besoins de la Mission et ne s'étend à aucun usage publicitaire ou promotionnel distinct sans l'accord exprès du Prestataire.\n\n3 bis.4 Consentement des Apprenants. Lorsque des Apprenants sont susceptibles d'apparaître ou de s'exprimer au cours d'une session enregistrée, l'Organisme recueille leur consentement préalable et exprès selon ses propres modalités, distinctement du présent contrat ; le Prestataire n'a pas à en connaître ni à en assurer la collecte.",
+        conditions: [{ questionKey: "enregistrementSessions", in: ["oui"] }],
+      },
+      {
+        bodyText:
+          "Article 4 — Obligations de l'Organisme\n\nL'Organisme s'engage à : communiquer au Prestataire les informations nécessaires à la bonne réalisation de la Mission (programme, effectifs, contraintes calendaires) ; régler la rémunération convenue selon les modalités de l'article 9 ; respecter l'indépendance du Prestataire dans l'exercice de la Mission.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 5 — Obligations du Prestataire\n\n5.1 Indépendance. Le Prestataire exerce la Mission en toute indépendance, sans lien de subordination juridique à l'égard de l'Organisme. Il détermine librement son organisation et ses méthodes de travail, sous la seule réserve du respect du programme et des exigences qualité rappelées à l'article 6.\n\n5.2 Non-exclusivité. Le présent contrat n'est pas exclusif : le Prestataire demeure libre d'exercer son activité pour le compte d'autres clients, y compris d'autres organismes de formation, sans que l'Organisme puisse s'y opposer.\n\n5.3 Diligence. Le Prestataire s'engage à mettre en œuvre tout le soin, le professionnalisme et les compétences nécessaires à la bonne exécution de la Mission. Il est tenu d'une obligation de moyens ; le présent contrat ne comporte aucune garantie de résultat pédagogique.\n\n5.4 Salariés et préposés. Si le Prestataire fait appel à ses propres salariés ou préposés pour l'exécution de la Mission, il demeure seul responsable de leurs actes à l'égard de l'Organisme et des Apprenants.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 6 — Conformité au Référentiel National Qualité\n\nLe Prestataire s'engage à exercer la Mission dans le respect des exigences du Référentiel National Qualité applicables à la prestation qui lui est confiée (information du public, adaptation aux publics, évaluation des acquis, accessibilité aux personnes en situation de handicap notamment), conformément à l'indicateur 27 du référentiel Qualiopi, et à fournir à l'Organisme, sur demande, tout justificatif permettant d'en attester dans le cadre d'un audit de certification.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 7 — Vigilance et lutte contre le travail dissimulé\n\n7.1 Le Prestataire remet à l'Organisme, à la signature puis tous les six mois pendant la durée du contrat, conformément au devoir de vigilance de l'article L.8222-1 du Code du travail : un extrait Kbis ou, pour une personne physique, l'attestation d'immatriculation correspondante ; une attestation de fourniture des déclarations sociales de moins de six mois (article L.243-15 du Code de la sécurité sociale) ; le cas échéant, la liste nominative des salariés étrangers soumis à autorisation de travail (article D.8254-2 du Code du travail).\n\n7.2 À défaut de production de ces documents, l'Organisme peut suspendre le règlement des sommes dues jusqu'à régularisation, sans que cette suspension ouvre droit à indemnité au profit du Prestataire.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 8 — Durée\n\nLe présent contrat est conclu pour une durée déterminée courant du {{subcontractor.contractStartDate}} au {{subcontractor.contractEndDate}}. Il est renouvelable par accord exprès et écrit des Parties, à l'exclusion de toute reconduction tacite.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 9 — Rémunération et facturation\n\n9.1 Montant. La Mission est rémunérée selon les modalités convenues entre les Parties (forfait, taux horaire ou par session), précisées en annexe.\n\n9.2 Facturation. Le Prestataire adresse à l'Organisme une facture mensuelle détaillant les prestations réalisées. Le règlement intervient dans un délai de trente jours à compter de la réception de la facture.\n\n9.3 Retard de paiement. Tout retard de paiement porte intérêt de plein droit, sans mise en demeure préalable, à un taux égal à trois fois le taux d'intérêt légal, conformément à l'article L.441-10 du Code de commerce, et donne lieu à une indemnité forfaitaire de recouvrement de 40 €, sans préjudice d'une indemnisation complémentaire sur justification.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 10 — Propriété intellectuelle\n\n10.1 Supports préexistants de l'Organisme. Les Supports et méthodes préexistants de l'Organisme, mis à disposition du Prestataire pour les besoins de la Mission, demeurent sa propriété exclusive et ne sont concédés en usage que pour la durée de la Mission.\n\n10.2 Créations du Prestataire. Les Supports créés par le Prestataire spécifiquement pour la Mission sont cédés à l'Organisme au fur et à mesure de leur règlement, pour le monde entier et pour la durée légale de protection des droits d'auteur, conformément à l'article L.131-3 du Code de la propriété intellectuelle. Cette cession porte sur le droit de reproduction, de représentation et d'adaptation, aux fins de dispense de la Formation par l'Organisme et de communication de son offre.\n\n10.3 Droit moral. Le droit moral du Prestataire sur les Supports qu'il a créés n'est pas cédé et demeure attaché à sa personne, conformément à l'article L.121-1 du Code de la propriété intellectuelle.\n\n10.4 Base de données. La base de données constituée par l'Organisme (fichier des Apprenants, historique des sessions) demeure sa propriété exclusive ; le Prestataire s'interdit toute extraction ou réutilisation à des fins étrangères à la Mission.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 11 — Confidentialité\n\nChaque Partie s'oblige à tenir confidentielle toute information non publique portée à sa connaissance à l'occasion de l'exécution du contrat, notamment les informations commerciales, pédagogiques ou techniques de l'autre Partie et les données des Apprenants, et à ne les utiliser que pour les besoins des présentes. Cet engagement demeure en vigueur pendant trois ans à compter du terme du contrat.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 12 — Protection des données à caractère personnel\n\n12.1 Qualité des Parties. Pour les données des Apprenants auxquelles il accède dans le cadre de la Mission, le Prestataire agit en qualité de sous-traitant au sens de l'article 28 du Règlement (UE) 2016/679, sur instruction et pour le compte de l'Organisme, responsable de traitement.\n\n12.2 Obligations du Prestataire. Le Prestataire s'engage à ne traiter ces données que pour les besoins strictement nécessaires à l'exécution de la Mission, à garantir leur confidentialité et leur sécurité, à ne pas les conserver au-delà de la durée de la Mission sauf obligation légale contraire, et à les détruire ou les restituer au terme du contrat, sur instruction de l'Organisme.\n\n12.3 Sous-traitance ultérieure. Le Prestataire ne peut recourir à un sous-traitant ultérieur pour le traitement de ces données sans autorisation écrite préalable de l'Organisme.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 13 — Non-sollicitation de la clientèle\n\nPendant la durée du contrat et pendant les deux années suivant son terme, le Prestataire s'interdit de démarcher directement, pour son propre compte ou celui d'un tiers, les Apprenants et les clients de l'Organisme dont il aurait eu connaissance dans le cadre de la Mission.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 14 — Assurance\n\nLe Prestataire déclare être titulaire d'une assurance responsabilité civile professionnelle couvrant les conséquences pécuniaires de sa responsabilité civile susceptible d'être engagée à raison de l'exécution du présent contrat, et s'engage à la maintenir en vigueur pendant toute sa durée. Une attestation est transmise à l'Organisme à la signature puis sur demande.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 15 — Résiliation\n\n15.1 Résiliation pour manquement. En cas de manquement par une Partie à l'une de ses obligations essentielles, l'autre Partie peut résilier le contrat quinze jours après une mise en demeure demeurée infructueuse, adressée par lettre recommandée avec avis de réception et énonçant précisément le manquement reproché.\n\n15.2 Résiliation pour faute grave. En cas de manquement d'une gravité telle qu'il rend impossible la poursuite du contrat — notamment violation de la confidentialité, atteinte aux droits de propriété intellectuelle de l'Organisme, ou comportement gravement inapproprié envers les Apprenants —, la résiliation peut intervenir sans préavis, par lettre recommandée avec avis de réception motivée.\n\n15.3 Restitution. En fin de contrat, quelle qu'en soit la cause, le Prestataire restitue à l'Organisme, dans un délai de sept jours, tout document, matériel et accès mis à sa disposition.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 16 — Clause pénale\n\nTout manquement du Prestataire aux obligations de confidentialité, de propriété intellectuelle ou de non-sollicitation prévues aux articles 10, 11 et 13 donne lieu, de plein droit et sans mise en demeure préalable, au versement d'une indemnité forfaitaire dont le montant est précisé en annexe, sans préjudice de la réparation du préjudice réellement subi si celui-ci excède ce montant. Conformément à l'article 1231-5 du Code civil, cette indemnité peut être modérée ou augmentée par le juge si elle est manifestement excessive ou dérisoire.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 17 — Force majeure\n\nAucune des Parties ne pourra être tenue responsable envers l'autre de l'inexécution ou du retard dans l'exécution d'une obligation du présent contrat lorsque cette inexécution ou ce retard résulte d'un cas de force majeure au sens de l'article 1218 du Code civil. La Partie empêchée en informe l'autre sans délai et met en œuvre les moyens raisonnables pour en limiter les effets.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 18 — Dispositions générales\n\n18.1 Intégralité. Le contrat exprime l'intégralité de l'accord des Parties et annule tout engagement antérieur de même objet.\n\n18.2 Modification. Toute modification fait l'objet d'un avenant écrit et signé.\n\n18.3 Nullité partielle. La nullité d'une stipulation n'affecte pas la validité des autres, les Parties s'engageant à lui substituer une stipulation d'effet économique équivalent et licite.\n\n18.4 Non-renonciation. Le fait de ne pas se prévaloir d'un manquement ne vaut pas renonciation à s'en prévaloir ultérieurement.\n\n18.5 Cession. Le contrat est conclu intuitu personae à l'égard du Prestataire et ne peut être cédé par lui sans accord écrit préalable ; l'Organisme peut le céder à toute structure qui lui succéderait dans son activité de formation.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 19 — Signature électronique\n\nLes Parties conviennent de signer le présent contrat par voie électronique au moyen d'un procédé garantissant l'identification du signataire et l'intégrité de l'acte. Elles lui reconnaissent la valeur probatoire attachée par les articles 1366 et 1367 du Code civil et renoncent à en contester la validité de ce seul chef.\n\nArticle 20 — Droit applicable et juridiction\n\nLe présent contrat est soumis au droit français. Tout litige relatif à sa formation, son exécution ou son interprétation qui n'aurait pu être résolu amiablement sera porté devant les juridictions compétentes en application des règles de droit commun du Code de procédure civile.\n\nFait le {{today}}, en deux exemplaires originaux, dont un remis à chaque Partie.\n\nLe Prestataire : {{subcontractor.name}}\nPour l'Organisme : {{organization.legalRepresentativeName}}",
+        conditions: null,
+      },
+    ],
+  },
+  {
+    category: "video_shoot_contract",
+    title: "Contrat de tournage — intervenant filmé",
+    bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+    blocks: [
+      {
+        bodyText:
+          "CONTRAT DE TOURNAGE\n\n(intervenant filmé)\n\nENTRE LES SOUSSIGNÉS :\n\n{{organization.name}}, {{organization.legalForm}} au capital social de {{organization.shareCapital}}, dont le siège social est sis {{organization.legalAddress}}, immatriculée au Registre du Commerce et des Sociétés de {{organization.rcsCity}} sous le numéro {{organization.rcsNumber}}, identifiée sous le numéro SIRET {{organization.siret}}, représentée par {{organization.legalRepresentativeName}}, dûment habilité(e) à l'effet des présentes,\n\nCi-après dénommée « l'Organisme »,\n\nD'une part,\n\nET :\n\n{{subcontractor.name}}, immatriculé(e) sous le numéro SIRET {{subcontractor.siret}}, dont l'adresse est {{subcontractor.address}}, agissant en qualité de prestataire indépendant,\n\nCi-après dénommé(e) « le Prestataire »,\n\nD'autre part,\n\nCi-après dénommées ensemble « les Parties » et individuellement « la Partie ».",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "IL A PRÉALABLEMENT ÉTÉ EXPOSÉ CE QUI SUIT :\n\n(A) L'Organisme exerce une activité de formation professionnelle continue et souhaite, à ce titre, produire du contenu vidéo pédagogique destiné à ses Apprenants.\n\n(B) Le Prestataire est un professionnel reconnu dans son domaine d'expertise, apte à intervenir à l'écran pour la réalisation de ce contenu.\n\n(C) Les Parties se sont rapprochées afin que le Prestataire prête son concours, en qualité d'intervenant filmé, à la réalisation d'une ou plusieurs vidéos dont l'Organisme conserve la maîtrise de la production.\n\nCECI EXPOSÉ, IL A ÉTÉ CONVENU CE QUI SUIT :",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 1 — Définitions\n\n« Vidéo » désigne chaque œuvre audiovisuelle issue du tournage, dans sa version finalisée après montage. « Contenu » désigne les propos, apports intellectuels et éléments de script fournis ou tenus par le Prestataire à l'occasion du tournage, indépendamment de leur fixation dans la Vidéo. « Apprenants » désigne les stagiaires et bénéficiaires des formations de l'Organisme.\n\nArticle 2 — Objet du contrat\n\nLe présent contrat a pour objet de définir les conditions dans lesquelles le Prestataire prête son concours au tournage, par l'Organisme, d'une ou plusieurs Vidéos, ainsi que le régime des droits portant sur celles-ci. Il ne constitue en aucun cas un contrat de travail et n'emporte aucun lien de subordination, conformément à la présomption de non-salariat attachée aux personnes immatriculées prévue par l'article L.8221-6 du Code du travail.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 3 — Organisation du tournage\n\n3.1 Maîtrise de la production. L'Organisme assure la maîtrise de la production : choix du lieu, du matériel, du calendrier et des conditions techniques de tournage, ainsi que du montage final de la Vidéo.\n\n3.2 Calendrier. Les dates de tournage sont fixées d'un commun accord entre les Parties. Tout report est notifié dans un délai raisonnable ; des reports répétés et injustifiés du fait du Prestataire peuvent constituer un manquement au sens de l'article 13.\n\n3.3 Script et préparation. Lorsqu'un script ou un plan de tournage est fourni par l'Organisme, le Prestataire s'engage à en prendre connaissance préalablement et à le respecter, sous réserve de son apport d'expertise sur le fond.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 4 — Autorisation d'utilisation de l'image, de la voix et du nom\n\n4.1 Conformément à l'article 9 du Code civil, le Prestataire autorise expressément l'Organisme à capter, fixer, reproduire et diffuser son image, sa voix, son nom et son prénom dans le cadre de la Vidéo.\n\n4.2 Étendue. Cette autorisation couvre l'exploitation de la Vidéo sur les supports et selon les modalités convenues entre les Parties (site internet, plateforme de formation, réseaux sociaux de l'Organisme), pour la durée précisée à l'article 9.\n\n4.3 Limites. Cette autorisation ne s'étend à aucun usage publicitaire pour le compte d'un tiers, ni à aucune association avec un contenu portant atteinte à la réputation, à la dignité ou à la vie privée du Prestataire.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 4 bis — Consentement des Apprenants filmés\n\n4 bis.1 Lorsqu'un ou plusieurs Apprenants apparaissent ou s'expriment dans la Vidéo aux côtés du Prestataire, l'Organisme recueille leur consentement préalable, exprès et écrit avant le tournage, selon ses propres modalités.\n\n4 bis.2 L'Organisme demeure seul responsable, en qualité de responsable de traitement au sens du Règlement (UE) 2016/679, de la collecte et de la conservation de ce consentement. Le Prestataire n'a pas à en connaître ni à en assurer la collecte, et ne peut lui-même exploiter l'image ou la voix des Apprenants ainsi captées en dehors du cadre du présent contrat.",
+        conditions: [{ questionKey: "stagiairesApparaissent", in: ["oui"] }],
+      },
+      {
+        bodyText:
+          "Article 5 — Obligations du Prestataire\n\nLe Prestataire s'engage à : se rendre disponible aux dates de tournage convenues ; adopter une tenue et un comportement conformes à l'image professionnelle de l'Organisme ; apporter son expertise et signaler à l'Organisme toute erreur ou approximation qu'il constaterait dans le script ou les supports fournis ; respecter les consignes techniques raisonnables données pendant le tournage.\n\nLe Prestataire est tenu d'une obligation de moyens ; il ne garantit aucun résultat en termes d'audience, d'usage ou d'exploitation commerciale de la Vidéo.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 6 — Obligations de l'Organisme\n\nL'Organisme s'engage à : communiquer au Prestataire, en temps utile, le script ou le plan de tournage lorsqu'il en existe un ; assurer des conditions de tournage raisonnables ; régler la rémunération convenue selon les modalités de l'article 7 ; ne pas dénaturer, par le montage, les propos tenus par le Prestataire d'une manière qui en altérerait le sens.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 7 — Rémunération\n\n7.1 La participation du Prestataire au tournage est rémunérée selon les modalités convenues entre les Parties (forfait par vidéo, par demi-journée de tournage, ou autre base), précisées en annexe. Cette rémunération inclut, sauf stipulation contraire, la cession et la licence de droits prévues aux articles 8 et 9.\n\n7.2 Le Prestataire facture l'Organisme selon les modalités convenues ; le règlement intervient dans un délai de trente jours à compter de la réception de la facture. Tout retard porte intérêt de plein droit, conformément à l'article L.441-10 du Code de commerce, et donne lieu à une indemnité forfaitaire de recouvrement de 40 €.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 8 — Titularité des droits sur la Vidéo\n\n8.1 Conformément à l'article L.132-24 du Code de la propriété intellectuelle, l'Organisme, en sa qualité de producteur de la Vidéo, est présumé titulaire, à titre originaire, des droits d'exploitation de celle-ci, sans qu'il soit besoin d'une cession distincte à ce titre — la participation du Prestataire à sa réalisation étant, à cet égard, indifférente à la détermination de cette titularité.\n\n8.2 Cette présomption ne porte que sur la Vidéo en tant qu'œuvre audiovisuelle assemblée ; elle est sans effet sur les droits du Prestataire relatifs au Contenu, régis par l'article 9.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 9 — Licence sur le Contenu du Prestataire\n\n9.1 Concession. Le Prestataire concède à l'Organisme, à titre non exclusif, le droit de reproduire, représenter et adapter le Contenu qu'il a fourni ou tenu, dans le cadre de la Vidéo et de son exploitation par l'Organisme.\n\n9.2 Durée et étendue. Cette licence est consentie pour une durée de cinq ans à compter de la livraison de la Vidéo, pour une exploitation sur les supports et selon les modalités précisées à l'article 4.2, conformément aux exigences de l'article L.131-3 du Code de la propriété intellectuelle.\n\n9.3 Droit moral. Le droit moral du Prestataire sur le Contenu qu'il a personnellement conçu — droit à la paternité et au respect de son intégrité — n'est pas cédé et demeure attaché à sa personne, conformément à l'article L.121-1 du Code de la propriété intellectuelle. L'Organisme crédite le Prestataire dans les conditions usuelles pour ce type de contenu, sauf demande contraire de sa part.\n\n9.4 Absence de coauteur. Les Parties conviennent que le Prestataire, dont le rôle se limite à un apport de contenu oral dans le cadre défini par l'Organisme, n'acquiert pas la qualité de coauteur de la Vidéo au sens de l'article L.113-7 du Code de la propriété intellectuelle.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 10 — Vidéo constitutive d'une action de formation entière\n\n10.1 Lorsque la ou les Vidéos objet des présentes ne constituent pas un simple contenu complémentaire ou promotionnel, mais forment, à elles seules ou pour l'essentiel, une action de formation au sens de l'article L.6313-1 du Code du travail destinée à être commercialisée par l'Organisme, les Parties en tiennent compte pour la détermination du régime fiscal applicable.\n\n10.2 Le Prestataire est informé que l'exonération de TVA prévue par l'article 261-4-4° a du Code général des impôts, applicable aux prestations de formation professionnelle continue, suppose que le prestataire qui la facture soit lui-même déclaré organisme de formation. Il appartient aux Parties de vérifier, avant facturation, le régime de TVA applicable à la rémunération prévue à l'article 7 au regard du statut du Prestataire.",
+        conditions: [{ questionKey: "contenuRevente", in: ["oui"] }],
+      },
+      {
+        bodyText:
+          "Article 11 — Confidentialité\n\nChaque Partie s'oblige à tenir confidentielle toute information non publique portée à sa connaissance à l'occasion de l'exécution du contrat — contenus non diffusés, informations commerciales ou pédagogiques de l'autre Partie — et à ne les utiliser que pour les besoins des présentes. Cet engagement demeure en vigueur pendant trois ans à compter du terme du contrat.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 12 — Données à caractère personnel\n\nL'Organisme, responsable du traitement au sens du Règlement (UE) 2016/679, traite les données d'image et de voix captées lors du tournage pour les seules finalités de production et de diffusion de la Vidéo dans les conditions prévues aux présentes. Le Prestataire s'interdit toute exploitation, extraction ou conservation de ces données en dehors du cadre du présent contrat.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 13 — Indépendance et non-exclusivité\n\nLe Prestataire exerce sa mission en toute indépendance, sans lien de subordination à l'égard de l'Organisme, et demeure libre d'exercer son activité pour le compte d'autres clients, y compris d'autres organismes de formation. Le présent contrat n'emporte aucune exclusivité, sauf stipulation contraire expressément convenue par écrit.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 14 — Résiliation\n\n14.1 En cas de manquement par une Partie à l'une de ses obligations essentielles, l'autre Partie peut résilier le contrat quinze jours après une mise en demeure demeurée infructueuse, adressée par lettre recommandée avec avis de réception et énonçant précisément le manquement reproché.\n\n14.2 En cas de manquement grave — notamment violation de la confidentialité ou atteinte aux droits de propriété intellectuelle de l'Organisme —, la résiliation peut intervenir sans préavis, par lettre recommandée avec avis de réception motivée.\n\n14.3 La résiliation avant tournage ne remet pas en cause les droits déjà acquis par l'Organisme sur les Vidéos déjà tournées et livrées.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 15 — Force majeure\n\nAucune des Parties ne pourra être tenue responsable de l'inexécution ou du retard dans l'exécution d'une obligation résultant d'un cas de force majeure au sens de l'article 1218 du Code civil. La Partie empêchée en informe l'autre sans délai.",
+        conditions: null,
+      },
+      {
+        bodyText:
+          "Article 16 — Dispositions générales\n\n16.1 Le contrat exprime l'intégralité de l'accord des Parties et annule tout engagement antérieur de même objet. 16.2 Toute modification fait l'objet d'un avenant écrit et signé. 16.3 La nullité d'une stipulation n'affecte pas la validité des autres. 16.4 Le contrat est conclu intuitu personae à l'égard du Prestataire et ne peut être cédé par lui sans accord écrit préalable.\n\nArticle 17 — Signature électronique\n\nLes Parties conviennent de signer le présent contrat par voie électronique au moyen d'un procédé garantissant l'identification du signataire et l'intégrité de l'acte, et lui reconnaissent la valeur probatoire attachée par les articles 1366 et 1367 du Code civil.\n\nArticle 18 — Droit applicable et juridiction\n\nLe présent contrat est soumis au droit français. Tout litige qui n'aurait pu être résolu amiablement sera porté devant les juridictions compétentes en application des règles de droit commun du Code de procédure civile.\n\nFait le {{today}}, en deux exemplaires originaux, dont un remis à chaque Partie.\n\nLe Prestataire : {{subcontractor.name}}\nPour l'Organisme : {{organization.legalRepresentativeName}}",
+        conditions: null,
+      },
+    ],
   },
   {
     category: "handicap_partners",

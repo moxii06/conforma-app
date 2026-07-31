@@ -130,6 +130,50 @@ describe("resolveAnswers — indemniteAnnulation", () => {
   });
 });
 
+describe("resolveAnswers — missionFormateur", () => {
+  it("always stays unresolved — no dossier field backs it", () => {
+    const { unresolved } = resolveAnswers(baseCtx);
+    expect(unresolved).toContain("missionFormateur");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { missionFormateur: "collectif" }).answers.missionFormateur).toBe("collectif");
+  });
+});
+
+describe("resolveAnswers — enregistrementSessions", () => {
+  it("always stays unresolved", () => {
+    const { unresolved } = resolveAnswers(baseCtx);
+    expect(unresolved).toContain("enregistrementSessions");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { enregistrementSessions: "oui" }).answers.enregistrementSessions).toBe("oui");
+  });
+});
+
+describe("resolveAnswers — stagiairesApparaissent", () => {
+  it("always stays unresolved", () => {
+    const { unresolved } = resolveAnswers(baseCtx);
+    expect(unresolved).toContain("stagiairesApparaissent");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { stagiairesApparaissent: "oui" }).answers.stagiairesApparaissent).toBe("oui");
+  });
+});
+
+describe("resolveAnswers — contenuRevente", () => {
+  it("always stays unresolved", () => {
+    const { unresolved } = resolveAnswers(baseCtx);
+    expect(unresolved).toContain("contenuRevente");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { contenuRevente: "non" }).answers.contenuRevente).toBe("non");
+  });
+});
+
 describe("resolveAnswers — manual overrides", () => {
   it("prefers a manual answer over the auto-resolver", () => {
     const ctx = { ...baseCtx, dossier: { ...baseCtx.dossier, learnerCategory: "individual" } };
@@ -147,6 +191,10 @@ describe("resolveAnswers — manual overrides", () => {
       statutApprenant: "individual",
       paiement: "comptant",
       droitImage: "non",
+      missionFormateur: "individualise",
+      enregistrementSessions: "non",
+      stagiairesApparaissent: "non",
+      contenuRevente: "non",
     });
     expect(answers).toEqual({
       statutApprenant: "individual",
@@ -158,6 +206,10 @@ describe("resolveAnswers — manual overrides", () => {
       accesImmediat: "non",
       droitImage: "non",
       indemniteAnnulation: "non",
+      missionFormateur: "individualise",
+      enregistrementSessions: "non",
+      stagiairesApparaissent: "non",
+      contenuRevente: "non",
     });
     expect(unresolved).toEqual([]);
   });

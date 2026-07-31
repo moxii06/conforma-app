@@ -21,8 +21,13 @@ function mergeFieldsIn(text: string): string[] {
 }
 
 describe("catalogue de modèles de démarrage", () => {
-  it("expose les deux modèles conditionnels attendus", () => {
-    expect(conditionalTemplates.map((t) => t.category).sort()).toEqual(["contrat_formation", "convention"]);
+  it("expose les quatre modèles conditionnels attendus", () => {
+    expect(conditionalTemplates.map((t) => t.category).sort()).toEqual([
+      "contrat_formation",
+      "convention",
+      "trainer_contract",
+      "video_shoot_contract",
+    ]);
   });
 
   it("n'a pas deux modèles au même titre — le seed déduplique par titre", () => {
