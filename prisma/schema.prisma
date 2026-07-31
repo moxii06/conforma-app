@@ -85,6 +85,20 @@ model Organization {
   // Code du travail). Distinct du numéro RCS ci-dessus.
   activityDeclarationNumber String?
 
+  // Régime de TVA, pour les mentions de la facture.
+  //
+  // "exempt" : la formation professionnelle continue est exonérée par
+  // l'article 261-4-4°a du CGI, sous réserve de l'attestation délivrée par
+  // la DREETS. C'est le cas le plus fréquent, donc le défaut — mais pas une
+  // vérité universelle : un organisme non déclaré ou hors champ facture avec
+  // TVA. Le choix est donc déclaré par l'organisme, jamais deviné : émettre
+  // une facture au mauvais régime est une erreur que son client et son
+  // comptable subissent tous les deux.
+  vatRegime      String  @default("exempt") // exempt | standard
+  vatRatePercent Float?
+  // N° de TVA intracommunautaire, obligatoire dès qu'on facture avec TVA.
+  vatNumber String?
+
   // Marque blanche — what an OFP's own learners see never needs to say
   // "Jalon": the public token pages (recueil des besoins, satisfaction,
   // activation) already show organization.name instead of the platform
@@ -1174,9 +1188,14 @@ model Quote {
   dossier        Dossier?     @relation(fields: [dossierId], references: [id])
   dossierId      String?
   reference      String
-  amountCents    Int
-  status         DocStatus    @default(DRAFT)
-  createdAt      DateTime     @default(now())
+  // La désignation de la prestation, mention obligatoire sur une facture
+  // comme sur un devis. Elle n'était nulle part : l'objet n'était devinable
+  // qu'à travers dossier → session → formation, et dossierId est nullable —
+  // une facture directe n'avait donc aucun objet.
+  description String?
+  amountCents Int
+  status      DocStatus @default(DRAFT)
+  createdAt   DateTime  @default(now())
 
   @@index([organizationId])
 }
@@ -1190,6 +1209,9 @@ model Invoice {
   dossier            Dossier?     @relation(fields: [dossierId], references: [id])
   dossierId          String?
   reference          String
+  // Voir Quote.description : la désignation de la prestation est une mention
+  // obligatoire de l'article 242 nonies A de l'annexe II au CGI.
+  description        String?
   amountCents        Int
   status             DocStatus    @default(DRAFT)
   // Payment deadline — set at creation (NewInvoiceForm defaults to +30

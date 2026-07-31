@@ -10,6 +10,8 @@ const schema = z.object({
   contactId: z.string().min(1),
   dossierId: z.string().optional(),
   reference: z.string().min(1),
+  // Désignation de la prestation — mention obligatoire (art. 242 nonies A).
+  description: z.string().min(1).optional(),
   amountCents: z.number().int().positive(),
   fundingOrigin: z.enum(["company", "opco", "public", "individual"]).optional(),
   // ISO date string from NewInvoiceForm's date input, pre-filled to +30 days

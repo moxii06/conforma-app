@@ -18,6 +18,7 @@ import { isBridgeConfigured } from "@/lib/bridge";
 import { rankInvoiceMatches, CONFIDENT_MATCH_THRESHOLD } from "@/lib/bankReconciliation";
 import { FundersPanel } from "@/components/FundersPanel";
 import { FundingPipelinePanel } from "@/components/FundingPipelinePanel";
+import { SendFacturationButton } from "@/components/SendFacturationButton";
 import { AWAITING_FUNDER, FUNDER_SILENCE_DAYS, AGREEMENT_EXPIRY_WARNING_DAYS } from "@/lib/funding";
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
@@ -410,16 +411,30 @@ async function QuotesTab({
       {canWrite && <NewQuoteForm contacts={contacts} dossiers={dossierOptions} />}
       <div className="flex flex-col gap-2">
         {quotes.map((q) => (
-          <div key={q.id} className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-[13.5px] font-semibold text-ink truncate">{q.contact.firstName} {q.contact.lastName}</div>
-              <div className="text-[12px] text-slate mt-1.5 truncate">
-                {q.reference} · {formatAmount(q.amountCents)} · {format(q.createdAt, "d MMM yyyy", { locale: fr })}
+          <div key={q.id} className="bg-white border border-line rounded-card px-5 py-3.5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-[13.5px] font-semibold text-ink truncate">{q.contact.firstName} {q.contact.lastName}</div>
+                <div className="text-[12px] text-slate mt-1.5 truncate">
+                  {q.reference} · {formatAmount(q.amountCents)} · {format(q.createdAt, "d MMM yyyy", { locale: fr })}
+                  {q.description && ` · ${q.description}`}
+                </div>
+              </div>
+              <div className="shrink-0">
+                {canWrite ? <DocStatusSelect kind="quotes" id={q.id} status={q.status} /> : <Pill tone={STATUS_TONE[q.status]}>{statusLabels("quotes")[q.status]}</Pill>}
               </div>
             </div>
-            <div className="shrink-0">
-              {canWrite ? <DocStatusSelect kind="quotes" id={q.id} status={q.status} /> : <Pill tone={STATUS_TONE[q.status]}>{statusLabels("quotes")[q.status]}</Pill>}
-            </div>
+            {canWrite && (
+              <div className="flex items-center gap-4 flex-wrap mt-2.5 pt-2.5 border-t border-line">
+                <SendFacturationButton
+                  kind="quote"
+                  id={q.id}
+                  reference={q.reference}
+                  contactName={`${q.contact.firstName} ${q.contact.lastName}`}
+                  hasEmail={Boolean(q.contact.email)}
+                />
+              </div>
+            )}
           </div>
         ))}
         {quotes.length === 0 && <div className="text-[12.5px] text-slate">Aucun devis enregistré.</div>}
@@ -492,6 +507,7 @@ async function InvoicesTab({
                   <div className="text-[12px] text-slate mt-1.5 truncate">
                     {inv.reference} · {formatAmount(inv.amountCents)}
                     {inv.dueDate && ` · éch. ${format(inv.dueDate, "d MMM yyyy", { locale: fr })}`}
+                    {inv.description && ` · ${inv.description}`}
                     {inv.einvoicingProvider && ` · ${inv.einvoicingProvider.toUpperCase()}`}
                   </div>
                 </div>
@@ -500,10 +516,23 @@ async function InvoicesTab({
                   {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{statusLabels("invoices")[inv.status]}</Pill>}
                 </div>
               </div>
-              {canWrite && inv.status !== "DRAFT" && (
+              {canWrite && (
                 <div className="flex items-center gap-4 flex-wrap mt-2.5 pt-2.5 border-t border-line">
-                  <RecordPaymentForm invoiceId={inv.id} amountCents={inv.amountCents} totalPaidCents={totalPaidCents} />
-                  {stripeConfigured && inv.status !== "PAID" && <CreatePaymentLinkButton invoiceId={inv.id} />}
+                  <SendFacturationButton
+                    kind="invoice"
+                    id={inv.id}
+                    reference={inv.reference}
+                    contactName={`${inv.contact.firstName} ${inv.contact.lastName}`}
+                    hasEmail={Boolean(inv.contact.email)}
+                  />
+                  {/* Encaissement : seulement une fois la facture partie —
+                      enregistrer un règlement sur un brouillon n'a pas de sens. */}
+                  {inv.status !== "DRAFT" && (
+                    <>
+                      <RecordPaymentForm invoiceId={inv.id} amountCents={inv.amountCents} totalPaidCents={totalPaidCents} />
+                      {stripeConfigured && inv.status !== "PAID" && <CreatePaymentLinkButton invoiceId={inv.id} />}
+                    </>
+                  )}
                 </div>
               )}
             </div>

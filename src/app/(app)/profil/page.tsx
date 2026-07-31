@@ -95,6 +95,9 @@ export default async function ProfilePage() {
                   rcsNumber: organization.rcsNumber ?? "",
                   legalRepresentativeName: organization.legalRepresentativeName ?? "",
                   activityDeclarationNumber: organization.activityDeclarationNumber ?? "",
+                  vatRegime: organization.vatRegime,
+                  vatRatePercent: organization.vatRatePercent?.toString() ?? "20",
+                  vatNumber: organization.vatNumber ?? "",
                 }}
               />
             </div>

@@ -10,6 +10,9 @@ type LegalInfo = {
   rcsNumber: string;
   legalRepresentativeName: string;
   activityDeclarationNumber: string;
+  vatRegime: string;
+  vatRatePercent: string;
+  vatNumber: string;
 };
 
 export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
@@ -30,7 +33,11 @@ export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
     const res = await fetch("/api/organization/legal", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      body: JSON.stringify({
+        ...values,
+        vatRegime: values.vatRegime,
+        vatRatePercent: values.vatRegime === "standard" ? Number(values.vatRatePercent || "20") : null,
+      }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -112,6 +119,59 @@ export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
           />
         </label>
       </div>
+
+      {/* Le régime de TVA décide de la mention portée sur chaque facture.
+          Exonéré est le cas le plus fréquent chez les organismes déclarés,
+          d'où le défaut — mais c'est l'organisme qui le confirme, pas nous. */}
+      <div className="border-t border-line pt-3 mt-1 flex flex-col gap-2.5">
+        <div className="text-[11px] text-slate uppercase tracking-wide">TVA sur vos factures</div>
+        <label className="flex items-start gap-2 text-[12.5px] text-ink cursor-pointer">
+          <input
+            type="radio"
+            name="vatRegime"
+            checked={values.vatRegime !== "standard"}
+            onChange={() => set("vatRegime", "exempt")}
+            className="mt-0.5 accent-sage"
+          />
+          <span>
+            Exonéré de TVA
+            <span className="text-slate"> — article 261-4-4°a du CGI, sur attestation de la DREETS.</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 text-[12.5px] text-ink cursor-pointer">
+          <input
+            type="radio"
+            name="vatRegime"
+            checked={values.vatRegime === "standard"}
+            onChange={() => set("vatRegime", "standard")}
+            className="mt-0.5 accent-sage"
+          />
+          <span>Assujetti à la TVA</span>
+        </label>
+        {values.vatRegime === "standard" && (
+          <div className="grid grid-cols-2 gap-2.5 pl-6">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-slate uppercase tracking-wide">Taux (%)</span>
+              <input
+                value={values.vatRatePercent}
+                onChange={(e) => set("vatRatePercent", e.target.value)}
+                placeholder="20"
+                className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-slate uppercase tracking-wide">N° de TVA intracommunautaire</span>
+              <input
+                value={values.vatNumber}
+                onChange={(e) => set("vatNumber", e.target.value)}
+                placeholder="FR12345678901"
+                className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center gap-2.5 mt-1">
         <button
           type="button"

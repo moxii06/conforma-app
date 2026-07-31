@@ -7,6 +7,8 @@ const schema = z.object({
   contactId: z.string().min(1),
   dossierId: z.string().optional(),
   reference: z.string().min(1),
+  // Désignation de la prestation — mention obligatoire sur le document émis.
+  description: z.string().min(1).optional(),
   amountCents: z.number().int().positive(),
 });
 

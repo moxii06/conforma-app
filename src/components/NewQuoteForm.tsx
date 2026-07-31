@@ -13,6 +13,7 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
   const [dossierId, setDossierId] = useState("");
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,6 +29,7 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
         contactId,
         dossierId: dossierId || undefined,
         reference,
+        description: description || undefined,
         amountCents: Math.round(parseFloat(amount || "0") * 100),
       }),
     });
@@ -73,6 +75,9 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
       </div>
       <div className="grid grid-cols-[2fr_1fr] gap-2">
         <input required placeholder="Référence (DEV-2026-001)" value={reference} onChange={(e) => setReference(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+        {/* Désignation de la prestation : obligatoire sur le document émis,
+            et à défaut le PDF reprend le titre de la formation du dossier. */}
+        <input placeholder="Objet (à défaut : la formation du dossier)" value={description} onChange={(e) => setDescription(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
         <input required placeholder="Montant (€)" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
       </div>
       <div className="flex items-center gap-2.5">
