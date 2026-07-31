@@ -175,10 +175,26 @@ export async function createDossier(
   contactId: string,
   session: { id: string; mode: string },
   accessDurationDays?: number,
-  learnerCategory?: string | null
+  learnerCategory?: string | null,
+  // Ce que l'appelant SAIT déjà de la conformité de cette inscription — pas
+  // ce qu'il souhaite afficher. La porte CRM sait qu'une opportunité au
+  // stade « convention signée » l'est réellement ; la porte catalogue ne le
+  // sait pas et ne doit rien inventer.
+  known?: { contractSigned?: boolean },
 ) {
   const existing = await prisma.dossier.findFirst({ where: { contactId, sessionId: session.id } });
   if (existing) throw new EnrollmentError("Ce contact est déjà inscrit à cette session.", 409);
+
+  // Le recueil des besoins est déduit du fait, pas de la porte empruntée.
+  // C'était LA divergence entre les deux chemins d'inscription : la fiche
+  // session le pré-cochait à partir de l'opportunité, le catalogue le
+  // laissait à faux — même personne, même session, deux états de
+  // conformité selon le bouton cliqué, et un indicateur Qualiopi qui
+  // dépendait du parcours de l'utilisateur dans l'interface.
+  const completedNeedsAssessment = await prisma.needsAssessmentRequest.count({
+    where: { organizationId, contactId, status: "completed" },
+  });
+
   return prisma.dossier.create({
     data: {
       organizationId,
@@ -186,6 +202,8 @@ export async function createDossier(
       sessionId: session.id,
       accessDurationDays: session.mode === "ROLLING" ? accessDurationDays ?? null : null,
       learnerCategory: learnerCategory || null,
+      needsAssessmentDone: completedNeedsAssessment > 0,
+      contractSigned: known?.contractSigned ?? false,
     },
     include: { contact: true },
   });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { applyCompanyInfo, assertCourseHasRoom, enrollmentCategorySchema, EnrollmentError } from "@/lib/enrollment";
+import { applyCompanyInfo, assertCourseHasRoom, createDossier, enrollmentCategorySchema, EnrollmentError } from "@/lib/enrollment";
 
 const schema = z.object({ opportunityId: z.string().min(1) }).merge(enrollmentCategorySchema);
 
@@ -38,33 +38,44 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   const opportunity = await prisma.opportunity.findFirst({
     where: { id: parsed.data.opportunityId, organizationId: auth.organizationId },
-    include: { needsAssessmentRequests: { where: { status: "completed" }, take: 1 }, contact: true },
+    // needsAssessmentRequests n'est plus chargé ici : createDossier le
+    // détecte lui-même, pour les deux portes d'inscription à la fois.
+    include: { contact: true },
   });
   if (!opportunity) return NextResponse.json({ error: "Opportunité introuvable." }, { status: 404 });
   if (opportunity.stage !== "CONTRACT_SIGNED") {
     return NextResponse.json({ error: "Seules les opportunités avec convention signée peuvent être inscrites." }, { status: 400 });
   }
 
-  const existing = await prisma.dossier.findFirst({ where: { contactId: opportunity.contactId, sessionId: session.id } });
-  if (existing) return NextResponse.json({ error: "Ce contact est déjà inscrit à cette session." }, { status: 409 });
-
   if (parsed.data.company) {
     await applyCompanyInfo(auth.organizationId, opportunity.contactId, parsed.data.company);
   }
 
-  const [dossier] = await prisma.$transaction([
-    prisma.dossier.create({
-      data: {
-        organizationId: auth.organizationId,
-        contactId: opportunity.contactId,
-        sessionId: session.id,
-        contractSigned: true,
-        needsAssessmentDone: opportunity.needsAssessmentRequests.length > 0,
-        learnerCategory: parsed.data.learnerCategory || opportunity.contact.defaultLearnerCategory || null,
-      },
-    }),
-    prisma.opportunity.update({ where: { id: opportunity.id }, data: { stage: "SESSION_SCHEDULED" } }),
-  ]);
+  // Passe par createDossier comme la porte catalogue, au lieu du
+  // prisma.dossier.create maison qu'il y avait ici. Les deux portes
+  // produisaient sinon des dossiers différents pour la même personne et la
+  // même session : contrôle de doublon, durée d'accès en formation continue
+  // et détection du recueil des besoins n'existaient que d'un côté.
+  //
+  // Le seul fait que cette porte connaît en propre et que l'autre ignore :
+  // l'opportunité est au stade « convention signée », donc la convention
+  // l'est aussi. Il est transmis explicitement plutôt que codé en dur ici.
+  let dossier;
+  try {
+    dossier = await createDossier(
+      auth.organizationId,
+      opportunity.contactId,
+      session,
+      undefined,
+      parsed.data.learnerCategory || opportunity.contact.defaultLearnerCategory || null,
+      { contractSigned: true },
+    );
+  } catch (err) {
+    if (err instanceof EnrollmentError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+
+  await prisma.opportunity.update({ where: { id: opportunity.id }, data: { stage: "SESSION_SCHEDULED" } });
 
   return NextResponse.json(dossier, { status: 201 });
 }
