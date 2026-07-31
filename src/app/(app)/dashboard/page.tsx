@@ -102,6 +102,11 @@ export default async function DashboardPage() {
   const canManageComplaints = can(role, "dossiers") !== "none";
   const canViewSecureReports = canAccessSecureReports(role);
   const canSeeMoney = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
+  // Lus dans la matrice plutôt que par comparaison de rôle : un rôle ajouté
+  // plus tard hérite alors de la bonne visibilité sans qu'on ait à revenir
+  // ici (CLAUDE.md — la matrice reste le seul endroit où l'accès se décide).
+  const canSeeCrm = can(role, "crm") !== "none";
+  const canSeeQualiopi = can(role, "qualiopi") !== "none";
 
   const [
     sessionsInProgress,
@@ -232,22 +237,32 @@ export default async function DashboardPage() {
           <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Activité</div>
           <div className="flex gap-3.5">
             <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} href="/planning" />
-            <MetricCard
-              label="Non-conformités ouvertes"
-              value={String(openNonConformities)}
-              tone={openNonConformities > 0 ? "danger" : "ink"}
-              href="/qualiopi"
-            />
+            {/* Le compteur de non-conformités pointait vers /qualiopi et
+                s'affichait pour tout le monde — dont les formateurs externes,
+                à qui l'état de conformité de l'organisme ne regarde pas. */}
+            {canSeeQualiopi && (
+              <MetricCard
+                label="Non-conformités ouvertes"
+                value={String(openNonConformities)}
+                tone={openNonConformities > 0 ? "danger" : "ink"}
+                href="/qualiopi"
+              />
+            )}
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
           <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Pilotage</div>
           <div className="flex gap-3.5">
-            <div className="bg-white border border-line rounded-card p-4 flex-1">
-              <div className="text-[12.5px] text-slate mb-3">Pipeline commercial par étape</div>
-              <BarChart data={pipelineData} color="#8C6B2E" />
-            </div>
+            {/* Le pipeline commercial complet était affiché sans aucune
+                condition : un formateur externe connecté voyait le carnet de
+                commandes de l'organisme, étape par étape. */}
+            {canSeeCrm && (
+              <div className="bg-white border border-line rounded-card p-4 flex-1">
+                <div className="text-[12.5px] text-slate mb-3">Pipeline commercial par étape</div>
+                <BarChart data={pipelineData} color="#8C6B2E" />
+              </div>
+            )}
             <div className="bg-white border border-line rounded-card p-4 flex-1">
               <div className="text-[12.5px] text-slate mb-3">Sessions programmées (6 prochaines semaines)</div>
               <BarChart data={weekBuckets.map((w) => ({ label: w.label, value: w.value }))} color="#4B6358" />

@@ -14,8 +14,19 @@ import { Prisma } from "@prisma/client";
 // which meant every wording fix had to be made twice and the merge-field
 // correction actually was. One copy, two callers.
 
-const DISCLAIMER =
-  "[Modèle de démarrage — à faire relire et valider par un juriste avant tout usage réel.]\n\n";
+// L'avertissement juridique ne vit PLUS dans le corps des modèles.
+//
+// Il y était préfixé à chaque bodyText, donc il partait dans le document
+// généré : un prospect recevant son recueil des besoins lisait « [Modèle de
+// démarrage — à faire relire et valider par un juriste avant tout usage
+// réel.] » en première ligne. L'avertissement s'adresse à l'organisme, pas à
+// son client.
+//
+// Il est désormais affiché par l'interface, sur les modèles Jalon
+// (organizationId === null) — au moment où l'OF les consulte et les adapte,
+// c'est-à-dire là où il peut agir dessus. Voir STARTER_TEMPLATE_NOTICE.
+export const STARTER_TEMPLATE_NOTICE =
+  "Modèle de démarrage fourni par Jalon — à faire relire et valider par un juriste avant tout usage réel.";
 
 export type StarterBlock = { bodyText: string; conditions: { questionKey: string; in: string[] }[] | null };
 export const STARTER_TEMPLATES: { category: string; title: string; bodyText: string; blocks?: StarterBlock[] }[] = [
@@ -23,7 +34,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "cgv",
     title: "Conditions générales de vente",
     bodyText:
-      DISCLAIMER +
       "CONDITIONS GÉNÉRALES DE VENTE\n\n" +
       "1. Objet — Les présentes conditions régissent les prestations de formation proposées par [NOM DE L'ORGANISME], organisme de formation enregistré sous le numéro [NUMÉRO DE DÉCLARATION D'ACTIVITÉ].\n\n" +
       "2. Inscription — Toute inscription est confirmée par la signature d'une convention ou d'un contrat de formation.\n\n" +
@@ -36,7 +46,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "internal_rules",
     title: "Règlement intérieur",
     bodyText:
-      DISCLAIMER +
       "RÈGLEMENT INTÉRIEUR\n\n" +
       "Établi conformément aux articles L.6352-3 à L.6352-5 et R.6352-1 à R.6352-15 du Code du travail\n\n" +
       "Titre préliminaire — Objet et champ d'application\n\n" +
@@ -75,7 +84,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "convention",
     title: "Convention de formation professionnelle",
     bodyText:
-      DISCLAIMER +
       "CONVENTION DE FORMATION PROFESSIONNELLE\n" +
       "(article L.6353-1 et suivants du Code du travail)\n\n" +
       "Entre [NOM DE L'ORGANISME], d'une part, et [NOM DU CLIENT / ENTREPRISE], d'autre part.\n\n" +
@@ -88,7 +96,7 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
   {
     category: "contrat_formation",
     title: "Contrat de formation professionnelle (particulier) — paragraphes conditionnels",
-    bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+    bodyText: "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
     blocks: [
       {
         bodyText:
@@ -225,7 +233,7 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
   {
     category: "convention",
     title: "Convention de formation professionnelle — paragraphes conditionnels",
-    bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+    bodyText: "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
     blocks: [
       {
         bodyText:
@@ -363,7 +371,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "needs_assessment",
     title: "Recueil des besoins",
     bodyText:
-      DISCLAIMER +
       "RECUEIL DES BESOINS\n\n" +
       "Merci de compléter les informations suivantes afin que nous puissions adapter au mieux la formation à votre situation.\n\n" +
       "1. Votre situation actuelle et votre expérience en lien avec la thématique de la formation.\n\n" +
@@ -375,7 +382,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "convocation",
     title: "Convocation",
     bodyText:
-      DISCLAIMER +
       "CONVOCATION\n\n" +
       "Vous êtes convoqué(e) à la session de formation suivante :\n\n" +
       "Intitulé : [TITRE DE LA FORMATION]\nDate(s) : [DATES]\nHoraires : [HORAIRES]\nLieu / lien de connexion : [LIEU OU LIEN VISIO]\nFormateur : [NOM DU FORMATEUR]\n\n" +
@@ -386,7 +392,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "eval_hot",
     title: "Évaluation à chaud",
     bodyText:
-      DISCLAIMER +
       "ÉVALUATION À CHAUD\n\n" +
       "À compléter à l'issue de la formation.\n\n" +
       "1. Les objectifs annoncés de la formation ont-ils été atteints ? (Pas du tout / Partiellement / Totalement)\n\n" +
@@ -400,7 +405,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "eval_cold",
     title: "Évaluation à froid",
     bodyText:
-      DISCLAIMER +
       "ÉVALUATION À FROID\n\n" +
       "À adresser quelques semaines/mois après la fin de la formation.\n\n" +
       "1. Avez-vous pu mettre en pratique les acquis de la formation dans votre activité ?\n\n" +
@@ -412,7 +416,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "welcome_booklet",
     title: "Livret d'accueil",
     bodyText:
-      DISCLAIMER +
       "LIVRET D'ACCUEIL\n\n" +
       "Bienvenue chez [NOM DE L'ORGANISME].\n\n" +
       "1. Présentation de l'organisme — activité, valeurs, équipe : [À COMPLÉTER].\n\n" +
@@ -427,7 +430,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "attendance_sheet",
     title: "Feuille d'émargement",
     bodyText:
-      DISCLAIMER +
       "FEUILLE D'ÉMARGEMENT\n\n" +
       "Formation : [TITRE DE LA FORMATION]\n" +
       "Date : [DATE]\n" +
@@ -443,7 +445,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "interim_report",
     title: "Bilan intermédiaire",
     bodyText:
-      DISCLAIMER +
       "BILAN INTERMÉDIAIRE\n\n" +
       "Formation : [TITRE DE LA FORMATION]\n" +
       "Période couverte : [DATES]\n\n" +
@@ -457,7 +458,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "final_report",
     title: "Bilan final",
     bodyText:
-      DISCLAIMER +
       "BILAN FINAL\n\n" +
       "Formation : [TITRE DE LA FORMATION]\n" +
       "Période : [DATES DE DÉBUT ET DE FIN]\n\n" +
@@ -471,7 +471,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "results_summary",
     title: "Relevé de résultats",
     bodyText:
-      DISCLAIMER +
       "RELEVÉ DE RÉSULTATS\n\n" +
       "Bénéficiaire : [NOM ET PRÉNOM]\n" +
       "Formation : [TITRE DE LA FORMATION]\n" +
@@ -486,7 +485,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "subcontractor_contract",
     title: "Contrat sous-traitant / intervenant",
     bodyText:
-      DISCLAIMER +
       "CONTRAT DE SOUS-TRAITANCE / PRESTATION PÉDAGOGIQUE\n\n" +
       "Entre [NOM DE L'ORGANISME], d'une part, et [NOM DU PRESTATAIRE / INTERVENANT], d'autre part.\n\n" +
       "Article 1 — Objet : le présent contrat a pour objet la réalisation, pour le compte de l'organisme, de tout ou partie de la prestation de formation suivante : [INTITULÉ DE LA FORMATION / MISSION].\n\n" +
@@ -500,7 +498,7 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
   {
     category: "trainer_contract",
     title: "Contrat de prestation de services de formation — formateur indépendant",
-    bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+    bodyText: "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
     blocks: [
       {
         bodyText:
@@ -617,7 +615,7 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
   {
     category: "video_shoot_contract",
     title: "Contrat de tournage — intervenant filmé",
-    bodyText: DISCLAIMER + "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
+    bodyText: "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",
     blocks: [
       {
         bodyText:
@@ -715,7 +713,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
     category: "handicap_partners",
     title: "Répertoire des partenaires handicap",
     bodyText:
-      DISCLAIMER +
       "RÉPERTOIRE DES PARTENAIRES HANDICAP\n\n" +
       "Réseau national d'acteurs mobilisables pour l'accueil, l'accompagnement et le maintien en formation des " +
       "personnes en situation de handicap — à compléter avec vos contacts locaux et à tenir à disposition de " +

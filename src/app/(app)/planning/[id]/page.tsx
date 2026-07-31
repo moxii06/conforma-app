@@ -97,7 +97,13 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
 
   // Client feedback: staff need a heads-up when a learner already has other
   // active formations, to avoid double-booking or duplicated outreach.
-  const contactIds = session.dossiers.map((d) => d.contactId);
+  //
+  // Réservé aux rôles qui pilotent réellement le remplissage : un formateur
+  // n'a pas à savoir ce que ses stagiaires suivent PAR AILLEURS chez le même
+  // organisme — et un sous-traitant se connecte avec ce rôle. La requête
+  // elle-même est sautée, pas seulement son affichage.
+  const canSeeOtherFormations = can(auth.role, "dossiers") === "full";
+  const contactIds = canSeeOtherFormations ? session.dossiers.map((d) => d.contactId) : [];
   const otherDossiersByContact = contactIds.length
     ? await prisma.dossier.findMany({
         where: { contactId: { in: contactIds }, sessionId: { not: session.id }, organizationId: auth.organizationId },

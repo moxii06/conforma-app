@@ -75,12 +75,18 @@ describe("catalogue de modèles de démarrage", () => {
     }
   });
 
-  it("porte l'avertissement juridique sur chaque modèle", () => {
-    // Template content is client-authored by a lawyer (spec §5.8); these are
-    // skeletons. The disclaimer is the only thing keeping that distinction
-    // visible to whoever adapts one.
+  it("ne fait fuiter aucun avertissement interne dans le corps des modèles", () => {
+    // L'inverse de l'assertion précédente, et pour une bonne raison : le corps
+    // du modèle devient le document envoyé au prospect. L'avertissement
+    // « à faire relire par un juriste » s'adresse à l'organisme, pas à son
+    // client, et il se lisait en première ligne du recueil des besoins reçu.
+    // Il vit maintenant dans l'interface (STARTER_TEMPLATE_NOTICE).
     for (const template of STARTER_TEMPLATES) {
-      expect(template.bodyText, `${template.title}`).toContain("à faire relire et valider par un juriste");
+      expect(template.bodyText, `${template.title}`).not.toContain("à faire relire");
+      expect(template.bodyText, `${template.title}`).not.toContain("Modèle de démarrage —");
+      for (const block of template.blocks ?? []) {
+        expect(block.bodyText, `${template.title} — bloc`).not.toContain("à faire relire");
+      }
     }
   });
 });

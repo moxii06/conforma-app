@@ -104,7 +104,13 @@ export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
   // the one place access is decided.
   courses: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "limited", DPO_EXTERNAL: "none" },
   dossiers: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
-  qualiopi: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "none", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
+  // TRAINER passé de "limited" à "none" : la conformité Qualiopi est la
+  // responsabilité de l'organisme, pas de l'intervenant. Et un sous-traitant
+  // invité se connecte AVEC CE RÔLE (voir /api/subcontractors/[id]/invite) —
+  // lui ouvrir l'espace Qualiopi, c'est lui montrer les non-conformités, le
+  // registre des risques et les résultats d'audit d'une structure qui n'est
+  // pas la sienne, et sur laquelle il est parfois lui-même évalué.
+  qualiopi: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   rgpd: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "limited" },
   toolkit: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
   integrations: { ADMIN_OF: "full", ADMIN_MANAGER: "none", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },

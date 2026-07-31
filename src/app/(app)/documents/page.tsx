@@ -4,6 +4,7 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
 import { ChevronRight } from "lucide-react";
+import { STARTER_TEMPLATE_NOTICE } from "@/../prisma/lib/starter-templates";
 import { CATEGORY_LABELS, categoryLabelIsRedundant } from "@/lib/documentCategories";
 import { AdaptTemplateDialog } from "@/components/AdaptTemplateDialog";
 import { OrganizationContractPolicyForm } from "@/components/OrganizationContractPolicyForm";
@@ -177,6 +178,14 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
       {visibleGlobal.length > 0 && (
         <section className="flex flex-col gap-1">
           <div className="text-[13.5px] font-semibold text-ink mb-1">Modèles fournis par Jalon</div>
+          {/* L'avertissement était autrefois préfixé au corps de chaque
+              modèle, donc il partait dans le document envoyé — un prospect
+              lisait « à faire relire par un juriste » en tête de son recueil
+              des besoins. Il s'adresse à l'organisme : sa place est ici, au
+              moment où il consulte et adapte, pas dans ce qu'il envoie. */}
+          <div className="text-[11.5px] text-slate leading-relaxed mb-1.5">
+            {STARTER_TEMPLATE_NOTICE} Cet avertissement ne figure jamais dans les documents générés.
+          </div>
           <div className="bg-white border border-line rounded-card">
             {visibleGlobal.map((t) => {
               const fork = orgTemplates.find((o) => o.forkedFromId === t.id);
