@@ -40,6 +40,25 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   session_uninvoiced: "À facturer",
 };
 
+// Which pile a task belongs to. A flat list of 24 items sorted by date reads
+// as one undifferentiated wall — the dirigeant can't tell "this costs me
+// money today" from "this is paperwork for an audit in three months", which
+// is exactly the distinction they'd use to decide what to do in the twenty
+// minutes they have.
+//
+// Order matters: money first, because it's the pile with a deadline someone
+// else enforces.
+const TASK_THEMES = [
+  { key: "argent", label: "Argent", kinds: ["invoice_overdue", "session_uninvoiced", "bank_transaction_pending", "funding_no_reply", "funding_agreement_expiring"] },
+  { key: "conformite", label: "Conformité", kinds: ["qualiopi_certificate_expiring", "qualiopi_audit_upcoming", "qualiopi_finding_open", "rgpd_suggestion", "rgpd_deadline", "subcontractor_expiry", "intervenant_evaluation_due"] },
+  { key: "pedagogie", label: "Sessions et apprenants", kinds: ["session_draft", "convocation", "learner_inactive", "rolling_deadline_warning", "rolling_deadline_overdue", "satisfaction_not_collected"] },
+  { key: "admin", label: "Dossiers à compléter", kinds: ["needs_assessment", "contract", "platform_access", "platform_access_after_payment", "dossier_prep_needs_assessment", "dossier_prep_contract"] },
+] as const satisfies readonly { key: string; label: string; kinds: readonly DashboardTask["kind"][] }[];
+
+function themeOf(kind: DashboardTask["kind"]): string {
+  return TASK_THEMES.find((t) => (t.kinds as readonly string[]).includes(kind))?.key ?? "admin";
+}
+
 const STAGE_LABELS: Record<PipelineStage, string> = {
   PROSPECT: "Prospect",
   QUOTE_SENT: "Devis",
@@ -235,53 +254,84 @@ export default async function DashboardPage() {
   );
 }
 
+// One row, defined once. It used to be copy-pasted verbatim between the
+// first-8 list and the "voir plus" list, so any change to a task row had to
+// be made twice or the two halves would drift.
+function TaskRow({ task }: { task: DashboardTask }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded">
+      <Link href={task.href} className="min-w-0 flex-1">
+        <span className="text-[12.5px] text-ink font-medium">{task.contactName}</span>
+        <span className="text-[12.5px] text-slate"> — {task.label}</span>
+      </Link>
+      <div className="flex items-center gap-2 shrink-0">
+        {task.overdue && <Pill tone="danger">En retard</Pill>}
+        <span className="text-[11px] text-slate">{TASK_KIND_LABELS[task.kind]}</span>
+        <DismissTaskButton kind={task.kind} id={task.id} />
+      </div>
+    </div>
+  );
+}
+
 function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
   const overdueCount = tasks.filter((t) => t.overdue).length;
+
+  // Grouped by theme, but only once there are enough tasks for the grouping
+  // to earn its headers — with four items, section titles are more chrome
+  // than signal. Within a theme the incoming order is preserved, so overdue
+  // still comes first and oldest-first inside that.
+  const grouped = TASK_THEMES.map((theme) => ({
+    ...theme,
+    items: tasks.filter((t) => themeOf(t.kind) === theme.key),
+  })).filter((g) => g.items.length > 0);
+  const useGroups = tasks.length > 6 && grouped.length > 1;
+
   return (
     <CollapsibleSection
       title={`À faire (${tasks.length})`}
       badge={overdueCount > 0 ? <Pill tone="danger">{overdueCount} en retard</Pill> : undefined}
       extra={<RefreshButton />}
     >
-      <div className="flex flex-col">
-        {tasks.slice(0, 8).map((t) => (
-          <div
-            key={`${t.kind}-${t.id}`}
-            className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
-          >
-            <Link href={t.href} className="min-w-0 flex-1">
-              <span className="text-[12.5px] text-ink font-medium">{t.contactName}</span>
-              <span className="text-[12.5px] text-slate"> — {t.label}</span>
-            </Link>
-            <div className="flex items-center gap-2 shrink-0">
-              {t.overdue && <Pill tone="danger">En retard</Pill>}
-              <span className="text-[11px] text-slate">{TASK_KIND_LABELS[t.kind]}</span>
-              <DismissTaskButton kind={t.kind} id={t.id} />
-            </div>
-          </div>
-        ))}
-      </div>
-      {tasks.length > 8 && (
-        <ShowMoreToggle count={tasks.length - 8}>
-          <div className="flex flex-col">
-            {tasks.slice(8).map((t) => (
-              <div
-                key={`${t.kind}-${t.id}`}
-                className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
-              >
-                <Link href={t.href} className="min-w-0 flex-1">
-                  <span className="text-[12.5px] text-ink font-medium">{t.contactName}</span>
-                  <span className="text-[12.5px] text-slate"> — {t.label}</span>
-                </Link>
-                <div className="flex items-center gap-2 shrink-0">
-                  {t.overdue && <Pill tone="danger">En retard</Pill>}
-                  <span className="text-[11px] text-slate">{TASK_KIND_LABELS[t.kind]}</span>
-                  <DismissTaskButton kind={t.kind} id={t.id} />
+      {useGroups ? (
+        <div className="flex flex-col gap-3.5">
+          {grouped.map((group) => {
+            const groupOverdue = group.items.filter((t) => t.overdue).length;
+            // Each theme shows its 4 most pressing and hides the rest, so a
+            // single noisy pile can't push the other three off the screen —
+            // the failure mode of the previous flat "first 8 overall".
+            const visible = group.items.slice(0, 4);
+            const hidden = group.items.slice(4);
+            return (
+              <div key={group.key}>
+                <div className="flex items-center gap-2 pb-1">
+                  <span className="text-[11px] font-semibold text-slate uppercase tracking-wide">{group.label}</span>
+                  <span className="text-[11px] text-slate">({group.items.length})</span>
+                  {groupOverdue > 0 && <Pill tone="danger">{groupOverdue} en retard</Pill>}
                 </div>
+                <div className="flex flex-col">
+                  {visible.map((t) => (
+                    <TaskRow key={`${t.kind}-${t.id}`} task={t} />
+                  ))}
+                </div>
+                {hidden.length > 0 && (
+                  <ShowMoreToggle count={hidden.length}>
+                    <div className="flex flex-col">
+                      {hidden.map((t) => (
+                        <TaskRow key={`${t.kind}-${t.id}`} task={t} />
+                      ))}
+                    </div>
+                  </ShowMoreToggle>
+                )}
               </div>
-            ))}
-          </div>
-        </ShowMoreToggle>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-col">
+          {tasks.map((t) => (
+            <TaskRow key={`${t.kind}-${t.id}`} task={t} />
+          ))}
+        </div>
       )}
     </CollapsibleSection>
   );
