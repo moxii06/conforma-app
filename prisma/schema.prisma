@@ -1552,15 +1552,43 @@ model NeedsAssessmentRequest {
 // GDPR module
 // ---------------------------------------------------------------------------
 
+// Le registre des traitements de l'article 30. Il ne portait que le nom, la
+// base légale et la durée — trois des sept mentions exigées. Un registre
+// amputé de la finalité, des catégories de personnes et de données et des
+// destinataires n'est pas un registre allégé : il est inopposable, et c'est
+// la première pièce qu'un contrôleur CNIL demande.
+//
+// Les champs ajoutés sont nullables et non pas requis, pour que les lignes
+// déjà saisies survivent à la migration ; l'écran les signale « à compléter »
+// plutôt que de faire semblant qu'elles sont complètes.
 model ProcessingActivity {
-  id              String       @id @default(cuid())
-  organization    Organization @relation(fields: [organizationId], references: [id])
-  organizationId  String
-  name            String
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  name           String
+  // L'une des six clés de src/lib/rgpdLegalBases.ts. Reste un String et non
+  // un enum : les valeurs libres saisies avant cette liste sont conservées
+  // telles quelles, et l'affichage sait rendre les deux.
   legalBasis      String
   retentionPeriod String
-  riskFlag        String       @default("ok") // ok | to_review
-  createdAt       DateTime     @default(now())
+  // Article 30(1)(b) — la finalité poursuivie.
+  purpose String?
+  // Article 30(1)(c) — catégories de personnes concernées, puis de données.
+  dataSubjects   String?
+  dataCategories String?
+  // Article 30(1)(d) — qui reçoit les données en dehors de l'organisme.
+  recipients String?
+  // Article 30(1)(e) — un transfert hors UE change les obligations, d'où un
+  // booléen explicite plutôt qu'une mention noyée dans les destinataires.
+  transferOutsideEu Boolean @default(false)
+  transferDetails   String?
+  // Article 30(1)(g) — les mesures de sécurité, décrites globalement.
+  securityMeasures String?
+  riskFlag         String   @default("ok") // ok | to_review
+  // Pourquoi la ligne demande une décision : accompagne riskFlag = to_review
+  // au lieu de laisser deviner ce qu'il y a à revoir.
+  reviewNote String?
+  createdAt  DateTime @default(now())
 
   dpiaRecords DPIARecord[]
 
