@@ -1,5 +1,7 @@
-import { requireSessionContext } from "@/lib/tenant";
+import { requireSessionContext, can, ROLE_LABELS } from "@/lib/tenant";
 import { Sidebar } from "@/components/Sidebar";
+import { MobileNav } from "@/components/MobileNav";
+import { NAV_GROUPS } from "@/components/navGroups";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 
@@ -22,10 +24,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         })
       : null;
 
+  // Permission filtering stays here (and in the Sidebar), so the mobile
+  // drawer only ever receives feature keys that already passed the matrix —
+  // it decides layout, never access.
+  const allowedFeatures = NAV_GROUPS.flatMap((g) => g.items)
+    .filter((item) => can(session.role, item.feature) !== "none")
+    .map((item) => item.feature);
+
   return (
     <div className="flex h-screen">
       <Sidebar user={session} organization={organization ?? undefined} />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      <div className="flex-1 flex flex-col min-w-0">
+        <MobileNav
+          allowedFeatures={allowedFeatures}
+          brandName={session.role === Role.LEARNER && organization ? organization.name : "Jalon"}
+          userLabel={session.name || session.email}
+          roleLabel={ROLE_LABELS[session.role]}
+        />
+        <main className="flex-1 overflow-y-auto">{children}</main>
+      </div>
     </div>
   );
 }
