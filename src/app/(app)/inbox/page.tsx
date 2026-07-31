@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, Avatar, initialsOf } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
@@ -75,6 +76,60 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
     { key: "rattachements", label: `Rattachements (${suggested.length})` },
   ];
 
+  // Sans boîte connectée ET sans le moindre email, l'écran de triage est une
+  // pièce vide : trois onglets à zéro, un filtre par boîte qui n'a rien à
+  // filtrer, et un bandeau qui annonçait des « emails de démonstration
+  // ci-dessous » qu'un organisme réel n'a jamais eus. On explique plutôt ce
+  // que la connexion apporte, une fois. Le jeu de démo, lui, a des emails
+  // sans connexion : il continue de montrer le triage, ce qui est le but.
+  if (connections.length === 0 && unsorted.length + suggested.length + rgpdSuggested.length === 0) {
+    const peutConnecter = can(role, "integrations") === "full";
+    return (
+      <>
+        <PageHeader title="Boîte mail" subtitle="Triage des emails entrants" />
+        <div className="p-8 max-w-xl">
+          <div className="bg-white border border-line rounded-card p-6 flex flex-col gap-4">
+            <div>
+              <div className="text-[14px] font-semibold text-ink mb-1">Aucune boîte mail connectée</div>
+              <div className="text-[12.5px] text-slate leading-relaxed">
+                Jalon ne lit rien tant que vous n&apos;avez pas connecté une adresse. Une fois connectée, chaque email
+                entrant est rapproché du bon dossier, et vous répondez sans quitter la fiche du client.
+              </div>
+            </div>
+            <ul className="flex flex-col gap-1.5 text-[12.5px] text-ink">
+              <li className="flex gap-2">
+                <span className="text-sage shrink-0">·</span>
+                Les échanges se rangent tout seuls dans le dossier de l&apos;apprenant — c&apos;est la trace qu&apos;un
+                auditeur demande.
+              </li>
+              <li className="flex gap-2">
+                <span className="text-sage shrink-0">·</span>
+                Une demande RGPD noyée dans le flot est repérée à l&apos;arrivée : le délai légal est d&apos;un mois, et
+                il court à partir de la réception, pas de la découverte.
+              </li>
+              <li className="flex gap-2">
+                <span className="text-sage shrink-0">·</span>
+                Gmail, ou n&apos;importe quelle adresse en IMAP/SMTP — y compris celle de votre nom de domaine.
+              </li>
+            </ul>
+            {peutConnecter ? (
+              <Link
+                href="/integrations"
+                className="bg-ink text-white text-[13px] font-medium rounded-md px-5 py-2.5 self-start hover:bg-ink-soft"
+              >
+                Connecter une boîte mail
+              </Link>
+            ) : (
+              <div className="text-[12px] text-slate border-t border-line pt-3">
+                Seul le titulaire du compte peut connecter une boîte mail, depuis Intégrations.
+              </div>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader title="Boîte mail" subtitle="Triage des emails entrants" />
@@ -84,10 +139,12 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
           {connections.length === 0 ? (
             <div className="flex items-center gap-2 text-[12px] flex-wrap">
               <span className="w-1.5 h-1.5 rounded-full bg-ash shrink-0" />
-              <span className="text-slate">Aucune boîte connectée — emails de démonstration ci-dessous.</span>
-              <a href="/integrations" className="text-ink font-medium underline decoration-line hover:decoration-ink">
-                Aller aux Intégrations →
-              </a>
+              <span className="text-slate">
+                Aucune boîte connectée — les emails ci-dessous ne se mettront plus à jour.
+              </span>
+              <Link href="/integrations" className="text-ink font-medium underline decoration-line hover:decoration-ink">
+                Connecter une boîte →
+              </Link>
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
