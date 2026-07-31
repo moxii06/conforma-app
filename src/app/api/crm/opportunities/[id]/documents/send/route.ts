@@ -80,6 +80,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       category: resolvedCategory,
       sentByUserId: session.userId,
       sentByName: session.name || session.email,
+      // Sans ces deux liens, le document n'appartenait à personne : aucune
+      // notification à la signature, aucun échéancier matérialisé, invisible
+      // dans la bibliothèque comme sur la fiche contact.
+      contactId: opportunity.contactId,
+      opportunityId: opportunity.id,
     },
   });
 

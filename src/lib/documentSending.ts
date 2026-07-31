@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { privateStoreToken } from "@/lib/storage";
 import { nextInvoiceReference } from "@/lib/invoiceReference";
+import { PipelineStage } from "@prisma/client";
 
 const NOT_CONFIGURED_ERROR =
   "Stockage de fichiers momentanément indisponible — BLOB_PRIVATE_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
@@ -68,18 +69,35 @@ export async function buildDocumentAttachment(params: {
 // (src/app/api/webhooks/yousign/[organizationId]/route.ts) — so the
 // notification a staff member gets doesn't drift between the two.
 export async function notifyDocumentSigned(
-  document: { id: string; title: string; sentByUserId: string | null; dossierId: string | null; subcontractorId?: string | null },
+  document: {
+    id: string;
+    title: string;
+    sentByUserId: string | null;
+    dossierId: string | null;
+    subcontractorId?: string | null;
+    // Quatrième propriétaire : un prospect sans dossier. Sans lui, un
+    // commercial qui envoyait une convention depuis le CRM n'apprenait
+    // jamais qu'elle avait été signée.
+    contactId?: string | null;
+  },
   organizationId: string,
 ): Promise<void> {
-  if (!document.sentByUserId || (!document.dossierId && !document.subcontractorId)) return;
-  const [sender, organization, dossier, subcontractor] = await Promise.all([
+  if (!document.sentByUserId || (!document.dossierId && !document.subcontractorId && !document.contactId)) return;
+  const [sender, organization, dossier, subcontractor, contact] = await Promise.all([
     prisma.user.findUnique({ where: { id: document.sentByUserId } }),
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
     document.dossierId ? prisma.dossier.findUnique({ where: { id: document.dossierId }, include: { contact: true } }) : null,
     document.subcontractorId ? prisma.subcontractor.findUnique({ where: { id: document.subcontractorId } }) : null,
+    document.contactId ? prisma.contact.findUnique({ where: { id: document.contactId } }) : null,
   ]);
-  if (!sender || (!dossier && !subcontractor)) return;
-  const signerName = dossier ? `${dossier.contact.firstName} ${dossier.contact.lastName}` : subcontractor!.name;
+  if (!sender || (!dossier && !subcontractor && !contact)) return;
+  // Le dossier d'abord : quand les deux existent, c'est l'inscription qui
+  // nomme le signataire, pas la fiche prospect dont elle est issue.
+  const signerName = dossier
+    ? `${dossier.contact.firstName} ${dossier.contact.lastName}`
+    : subcontractor
+      ? subcontractor.name
+      : `${contact!.firstName} ${contact!.lastName}`;
   try {
     await sendTransactionalEmail({
       to: sender.email,
@@ -105,9 +123,35 @@ export async function notifyDocumentSigned(
 // dossier's contract step done too. Silently a no-op for every other
 // document category, so it's safe to call unconditionally from both
 // signature-completion routes.
-export async function syncParcoursFromSignedDocument(document: { category: string; dossierId: string | null }): Promise<void> {
-  if (document.category !== "convention" || !document.dossierId) return;
-  await prisma.dossier.update({ where: { id: document.dossierId }, data: { contractSigned: true } });
+export async function syncParcoursFromSignedDocument(document: {
+  category: string;
+  dossierId: string | null;
+  opportunityId?: string | null;
+}): Promise<void> {
+  if (document.category !== "convention") return;
+
+  if (document.dossierId) {
+    await prisma.dossier.update({ where: { id: document.dossierId }, data: { contractSigned: true } });
+    return;
+  }
+
+  // Côté prospect, l'équivalent de « convention signée » est l'étape
+  // CONTRACT_SIGNED du pipeline. Même principe que le dossier : l'événement
+  // fait avancer l'étape lui-même, plutôt que d'attendre qu'un commercial
+  // s'en aperçoive et déroule le sélecteur.
+  //
+  // Ciblé par opportunityId — plus précis que par contact, qui peut porter
+  // plusieurs affaires en parallèle. Ne fait rien si l'affaire est déjà plus
+  // loin : une signature n'a jamais à faire reculer un pipeline.
+  if (document.opportunityId) {
+    await prisma.opportunity.updateMany({
+      where: {
+        id: document.opportunityId,
+        stage: { in: [PipelineStage.PROSPECT, PipelineStage.QUOTE_SENT] },
+      },
+      data: { stage: PipelineStage.CONTRACT_SIGNED },
+    });
+  }
 }
 
 // The moment a contract carrying a payment schedule is signed, its
@@ -131,10 +175,15 @@ export async function materialiseScheduleFromSignedDocument(document: {
   id: string;
   organizationId: string;
   dossierId: string | null;
+  // Un contrat signé par un prospect porte le même échéancier et la même
+  // promesse d'argent qu'un contrat de dossier. Il ne créait pourtant
+  // aucune facture, faute de dossierId — la fonction sortait à la
+  // première ligne.
+  contactId?: string | null;
   category: string;
   paymentSchedule: unknown;
 }): Promise<number> {
-  if (!document.dossierId) return 0;
+  if (!document.dossierId && !document.contactId) return 0;
   const schedule = parseStoredSchedule(document.paymentSchedule);
   if (schedule.length === 0) return 0;
 
@@ -143,16 +192,21 @@ export async function materialiseScheduleFromSignedDocument(document: {
   // contract re-signed later must not double-bill the learner — if the
   // schedule genuinely changed, staff adjusts the existing invoices in
   // Facturation, where the money now lives.
+  //
+  // Côté prospect, la même garantie porte sur le document lui-même plutôt
+  // que sur le dossier : un contact peut signer plusieurs contrats, chacun
+  // avec son échéancier, et ils ne doivent pas s'annuler l'un l'autre.
   const existing = await prisma.invoice.count({
-    where: { dossierId: document.dossierId, installmentNumber: { not: null } },
+    where: document.dossierId
+      ? { dossierId: document.dossierId, installmentNumber: { not: null } }
+      : { sourceDocumentId: document.id, installmentNumber: { not: null } },
   });
   if (existing > 0) return 0;
 
-  const dossier = await prisma.dossier.findUnique({
-    where: { id: document.dossierId },
-    select: { contactId: true },
-  });
-  if (!dossier) return 0;
+  const contactId = document.dossierId
+    ? (await prisma.dossier.findUnique({ where: { id: document.dossierId }, select: { contactId: true } }))?.contactId
+    : document.contactId;
+  if (!contactId) return 0;
 
   // Sequential on purpose: nextInvoiceReference counts existing rows, so
   // creating in parallel would hand several instalments the same reference.
@@ -161,7 +215,10 @@ export async function materialiseScheduleFromSignedDocument(document: {
     await prisma.invoice.create({
       data: {
         organizationId: document.organizationId,
-        contactId: dossier.contactId,
+        contactId,
+        // Null côté prospect, et c'est correct : la facture existe, elle
+        // n'est simplement rattachée à aucune inscription — Invoice.dossierId
+        // est nullable exactement pour ce cas.
         dossierId: document.dossierId,
         reference: await nextInvoiceReference(document.organizationId),
         amountCents: instalment.amountCents,
@@ -169,6 +226,7 @@ export async function materialiseScheduleFromSignedDocument(document: {
         dueDate: new Date(`${instalment.dueDate}T00:00:00.000Z`),
         installmentNumber: i + 1,
         installmentTotal: schedule.length,
+        sourceDocumentId: document.id,
         // BPF vocabulary: a contrat_formation is by definition the learner's
         // own money; a convention's schedule is the company's.
         fundingOrigin: document.category === "contrat_formation" ? "individual" : "company",

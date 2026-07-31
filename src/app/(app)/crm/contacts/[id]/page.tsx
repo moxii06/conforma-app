@@ -179,6 +179,7 @@ export default async function ContactRecordPage(
         ) : activeTab === "documents" ? (
           <DocumentsAndOutreachTab
             dossierIds={contact.dossiers.map((d) => d.id)}
+            contactId={contact.id}
             outreaches={contact.clientOutreaches}
             canWrite={canWrite}
             contactFirstName={contact.firstName}
@@ -441,8 +442,10 @@ async function DocumentsAndOutreachTab({
   eSignatureAvailable,
   latestDossierId,
   latestOpportunity,
+  contactId,
 }: {
   dossierIds: string[];
+  contactId: string;
   outreaches: { id: string; type: string; status: string; sentAt: Date; sentByName: string }[];
   canWrite: boolean;
   contactFirstName: string;
@@ -452,9 +455,17 @@ async function DocumentsAndOutreachTab({
   latestDossierId: string | null;
   latestOpportunity: { id: string; alreadySentNeedsAssessment: boolean } | null;
 }) {
-  const documents = dossierIds.length
-    ? await prisma.document.findMany({ where: { dossierId: { in: dossierIds } }, orderBy: { createdAt: "desc" } })
-    : [];
+  // Les deux propriétaires possibles réunis : les documents des inscriptions
+  // du contact, ET ceux qui lui ont été envoyés en tant que prospect. Ces
+  // derniers n'avaient aucun rattachement avant, donc cette liste les
+  // ignorait — une convention envoyée depuis le CRM restait introuvable
+  // depuis la fiche de la personne à qui on venait de l'envoyer.
+  const documents = await prisma.document.findMany({
+    where: {
+      OR: [...(dossierIds.length ? [{ dossierId: { in: dossierIds } }] : []), { contactId }],
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <>
