@@ -54,7 +54,8 @@ export type DashboardTask = {
     | "qualiopi_certificate_expiring"
     | "qualiopi_audit_upcoming"
     | "qualiopi_finding_open"
-    | "intervenant_evaluation_due";
+    | "intervenant_evaluation_due"
+    | "session_uninvoiced";
   label: string;
   contactName: string;
   since: Date;
@@ -457,6 +458,48 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         contactName: `${inv.contact.firstName} ${inv.contact.lastName}`,
         since: inv.dueDate ?? inv.createdAt,
         href: "/facturation?tab=factures",
+        overdue: true,
+      });
+    }
+
+    // Sessions delivered but never billed. This is the quietest way an OFP
+    // loses money: nothing is late, because nothing was ever issued — so no
+    // overdue-invoice alert can fire, and the CRM's "À facturer" column stays
+    // empty because reaching TO_INVOICE only ever happened by hand.
+    //
+    // Marked overdue from day one on purpose: unlike a reminder that can wait
+    // a week, unbilled delivered work is already a problem when it's noticed.
+    const uninvoicedSessions = await prisma.session.findMany({
+      where: {
+        organizationId,
+        endsAt: { lt: now },
+        status: { not: "CANCELLED" },
+        archivedAt: null,
+        dossiers: {
+          // At least one enrolled learner with no real invoice. DRAFT doesn't
+          // count — an unsent draft is exactly the state this is meant to
+          // catch, not evidence that billing happened.
+          some: { invoices: { none: { status: { not: "DRAFT" } } } },
+        },
+      },
+      include: {
+        course: { select: { title: true } },
+        dossiers: {
+          where: { invoices: { none: { status: { not: "DRAFT" } } } },
+          include: { contact: { select: { firstName: true, lastName: true } } },
+        },
+      },
+      orderBy: { endsAt: "asc" },
+    });
+    for (const s of uninvoicedSessions) {
+      const count = s.dossiers.length;
+      results.push({
+        id: s.id,
+        kind: "session_uninvoiced",
+        label: `Session terminée non facturée — ${count} apprenant${count > 1 ? "s" : ""} sans facture`,
+        contactName: s.course.title,
+        since: s.endsAt,
+        href: `/planning/${s.id}`,
         overdue: true,
       });
     }
