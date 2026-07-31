@@ -37,6 +37,19 @@ model Organization {
   qualiopiCertificateUntil  DateTime? // date de fin de validité (cycle de 3 ans)
   qualiopiCategories        String? // catégories L.6313-1 couvertes, texte libre
 
+  // L'organisme réalise-t-il des actions de formation par apprentissage ?
+  // Cinq indicateurs du RNQ (13 à 16 et 20, plus le 33 du projet 2026) ne
+  // concernent qu'elles : un OF qui n'en fait pas ne peut structurellement
+  // pas les couvrir, et son score de conformité plafonnait donc à 27/32
+  // sans qu'il puisse rien y faire.
+  //
+  // Nullable À DESSEIN, et pas `false` par défaut : répondre "non" pour
+  // tout le monde masquerait ces indicateurs à un CFA qui en a réellement
+  // besoin, ce qui est la direction dangereuse de l'erreur. Tant que
+  // personne n'a répondu, tout reste affiché et compté comme avant — l'UI
+  // pose simplement la question là où le chiffre est faux.
+  deliversApprenticeship Boolean?
+
   // Public-facing contact shown on the public course pages (indicator 1's
   // "contacts" item) — deliberately separate from billing identity and
   // from any staff member's personal email.

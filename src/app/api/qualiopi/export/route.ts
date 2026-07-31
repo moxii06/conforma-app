@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { generatePdfFromRichText } from "@/lib/htmlToPdf";
 import { getAutomaticEvidence } from "@/lib/qualiopiEvidence";
+import { applicableIndicators } from "@/lib/qualiopiScope";
 
 const CRITERION_LABELS: Record<number, string> = {
   1: "Conditions d'information du public",
@@ -47,7 +48,7 @@ export async function GET() {
     include: { activeReferentielVersion: true },
   });
 
-  const [indicators, checklistItems, evidence, risks, resultIndicators, watchItems, autoEvidence, audits] = await Promise.all([
+  const [allIndicators, checklistItems, evidence, risks, resultIndicators, watchItems, autoEvidence, audits] = await Promise.all([
     org.activeReferentielVersionId
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: org.activeReferentielVersionId }, orderBy: { number: "asc" } })
       : Promise.resolve([]),
@@ -63,6 +64,11 @@ export async function GET() {
       orderBy: { auditDate: "desc" },
     }),
   ]);
+
+  // Le dossier remis à l'auditeur doit afficher le même score que l'écran :
+  // un OF sans apprentissage n'y présente pas les indicateurs qui ne le
+  // concernent pas, et son dénominateur suit.
+  const indicators = applicableIndicators(allIndicators, org.deliversApprenticeship);
 
   const gatheredMap = new Map(checklistItems.map((c) => [c.indicatorNumber, c.gathered]));
   const summaryMap = new Map(checklistItems.map((c) => [c.indicatorNumber, c.personalizedSummary]));

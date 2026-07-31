@@ -14,11 +14,14 @@ export async function seedBase(prisma: PrismaClient) {
 
   const org = await prisma.organization.upsert({
     where: { id: "org_demo" },
-    update: { nextAuditDate: new Date(Date.now() + 90 * 24 * 3600 * 1000) },
+    update: { nextAuditDate: new Date(Date.now() + 90 * 24 * 3600 * 1000), deliversApprenticeship: false },
     create: {
       id: "org_demo",
       name: "Formations Nova",
       nextAuditDate: new Date(Date.now() + 90 * 24 * 3600 * 1000),
+      // Formations Nova n'est pas un CFA : réponse explicite, sinon la démo
+      // s'ouvre sur la question au lieu du score.
+      deliversApprenticeship: false,
     },
   });
 

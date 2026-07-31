@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, MetricCard } from "@/components/ui";
 import { getAutomaticEvidence } from "@/lib/qualiopiEvidence";
+import { applicableIndicators, countApprenticeshipIndicators } from "@/lib/qualiopiScope";
+import { ApprenticeshipScopeControl } from "@/components/ApprenticeshipScopeControl";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -95,7 +97,7 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
 
 async function IndicatorsTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
   const activeVersion = await getActiveVersion(organizationId);
-  const [org, indicators, evidence, versions, autoEvidence] = await Promise.all([
+  const [org, allIndicators, evidence, versions, autoEvidence] = await Promise.all([
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
     activeVersion
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: activeVersion.id }, orderBy: { number: "asc" } })
@@ -105,6 +107,12 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
     getAutomaticEvidence(organizationId),
   ]);
 
+  // Un organisme sans apprentissage ne peut pas couvrir les indicateurs qui
+  // lui sont réservés : les laisser au dénominateur plafonnait son score à
+  // 27/32 sans qu'il puisse rien y faire.
+  const indicators = applicableIndicators(allIndicators, org.deliversApprenticeship);
+  const apprenticeshipCount = countApprenticeshipIndicators(allIndicators);
+
   const coveredNumbers = new Set(evidence.map((e) => e.indicatorNumber));
   const criteria = Array.from({ length: 7 }, (_, i) => i + 1).map((num) => {
     const items = indicators.filter((ind) => ind.criterionNumber === num);
@@ -113,7 +121,7 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
   });
 
   const totalCovered = criteria.reduce((sum, c) => sum + c.covered, 0);
-  const totalIndicators = indicators.length || 32;
+  const totalIndicators = indicators.length;
   const overallScore = totalIndicators ? Math.round((totalCovered / totalIndicators) * 100) : 0;
   // Audit UX S4 : le score manuel ("cases cochées par vous") affiché seul
   // et en premier laissait croire à une conformité quasi nulle, alors que
@@ -159,6 +167,10 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
           <ReferentielVersionSwitcher versions={versions} activeVersionId={activeVersion.id} />
         )}
       </div>
+
+      {canEdit && apprenticeshipCount > 0 && (
+        <ApprenticeshipScopeControl current={org.deliversApprenticeship} affectedCount={apprenticeshipCount} />
+      )}
 
       <div className="bg-white border border-line rounded-card p-5">
         <div className="text-[13.5px] font-semibold text-ink mb-3.5">Progression par critère</div>
@@ -376,13 +388,19 @@ async function ContinuousImprovementTab({ organizationId, canEdit }: { organizat
 
 async function AuditPrepTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
   const activeVersion = await getActiveVersion(organizationId);
-  const [indicators, checklistItems, autoEvidence] = await Promise.all([
+  const [org, allIndicators, checklistItems, autoEvidence] = await Promise.all([
+    prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
     activeVersion
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: activeVersion.id }, orderBy: { number: "asc" } })
       : Promise.resolve([]),
     prisma.auditChecklistItem.findMany({ where: { organizationId } }),
     getAutomaticEvidence(organizationId),
   ]);
+  // Même filtre que l'onglet Indicateurs : cocher « préparé » sur un
+  // indicateur qui ne concerne pas l'organisme n'a pas de sens, et le
+  // compteur doit raconter la même histoire des deux côtés.
+  const indicators = applicableIndicators(allIndicators, org.deliversApprenticeship);
+  const hiddenCount = allIndicators.length - indicators.length;
 
   const gatheredMap = new Map(checklistItems.map((c) => [c.indicatorNumber, c.gathered]));
   const summaryMap = new Map(checklistItems.map((c) => [c.indicatorNumber, c.personalizedSummary]));
@@ -397,6 +415,12 @@ async function AuditPrepTab({ organizationId, canEdit }: { organizationId: strin
         <div className="text-[13px] text-slate">
           {gatheredCount}/{indicators.length} preuves validées par vous · {autoCount}/{indicators.length} avec activité
           tracée automatiquement
+          {hiddenCount > 0 && (
+            <span className="text-[11.5px]">
+              {" "}
+              · {hiddenCount} indicateurs apprentissage masqués
+            </span>
+          )}
         </div>
         <a
           href="/api/qualiopi/export"
