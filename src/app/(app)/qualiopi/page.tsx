@@ -44,6 +44,7 @@ const TABS = [
   { key: "amelioration-continue", label: "Amélioration continue" },
   { key: "audits", label: "Audits" },
   { key: "preparation-audit", label: "Préparation audit" },
+  { key: "reforme", label: "Réforme 2026" },
 ];
 
 const CRITERION_LABELS: Record<number, string> = {
@@ -78,6 +79,8 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
           <AuditsTab organizationId={session.organizationId} canEdit={canEdit} />
         ) : activeTab === "preparation-audit" ? (
           <AuditPrepTab organizationId={session.organizationId} canEdit={canEdit} />
+        ) : activeTab === "reforme" ? (
+          <ReformeTab organizationId={session.organizationId} />
         ) : activeTab === "resultats" ? (
           <ResultsTab organizationId={session.organizationId} canEdit={canEdit} />
         ) : activeTab === "veille" ? (
@@ -195,6 +198,17 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
               Réception de factures électroniques obligatoire à partir du <strong>1er septembre 2026</strong> ;
               émission obligatoire pour les micro/petites entreprises à partir du{" "}
               <strong>1er septembre 2027</strong>.
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <Pill tone="warn">RNQ</Pill>
+            <div>
+              Projet de décret portant le référentiel de 32 à 33 indicateurs, entrée en vigueur annoncée au{" "}
+              <strong>1er novembre 2026</strong> — non publié au Journal officiel à ce jour.{" "}
+              <Link href="/qualiopi?tab=reforme" className="font-medium underline decoration-line hover:decoration-ink">
+                Voir ce qui change pour vous
+              </Link>
+              .
             </div>
           </div>
         </div>
@@ -420,6 +434,12 @@ async function AuditPrepTab({ organizationId, canEdit }: { organizationId: strin
                 <div className="text-[12.5px] text-ink flex-1">
                   <span className="text-slate mr-1.5">#{ind.number}</span>
                   {ind.label}
+                  {/* Sans ce repère, un OF qui ne fait pas d'apprentissage
+                      croit avoir cinq trous de conformité qu'il ne peut pas
+                      combler — ces indicateurs ne le concernent pas. */}
+                  {ind.scope === "apprentissage" && (
+                    <span className="text-[10.5px] text-slate ml-2">— apprentissage uniquement</span>
+                  )}
                 </div>
               </div>
               {(autoEvidence.get(ind.number)?.length ?? 0) > 0 && (
@@ -432,6 +452,105 @@ async function AuditPrepTab({ organizationId, canEdit }: { organizationId: strin
                 </div>
               )}
               <IndicatorSummaryButton indicatorNumber={ind.number} initialSummary={summaryMap.get(ind.number) ?? null} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * « Ce qui change au 1er novembre 2026 », lisible sans basculer son
+ * référentiel actif sur un projet de texte — ce qui fausserait la
+ * préparation d'audit en cours. La liste ne montre que les indicateurs
+ * réellement touchés : sur 33, en lire 12 est faisable un vendredi soir,
+ * en relire 33 ne l'est pas.
+ *
+ * Chaque ligne est confrontée à l'activité déjà tracée dans Jalon
+ * (qualiopiEvidence.ts), calculée sur les données réelles de
+ * l'organisation. C'est ce qui transforme une note de veille en plan de
+ * travail : « l'indicateur 12 évolue » ne dit rien, « l'indicateur 12
+ * évolue et vous n'avez aucune trace dessus » dit quoi faire.
+ */
+async function ReformeTab({ organizationId }: { organizationId: string }) {
+  const [version, autoEvidence] = await Promise.all([
+    prisma.qualiopiReferentielVersion.findUnique({
+      where: { id: "rnq2026-reforme-projet" },
+      include: { indicators: { orderBy: { number: "asc" } } },
+    }),
+    getAutomaticEvidence(organizationId),
+  ]);
+
+  if (!version) {
+    return (
+      <div className="text-[12.5px] text-slate">
+        Le projet de référentiel n&apos;est pas chargé sur cette instance.
+      </div>
+    );
+  }
+
+  const changed = version.indicators.filter((ind) => ind.changeNote);
+  const daysLeft = version.applicableFrom
+    ? Math.ceil((version.applicableFrom.getTime() - Date.now()) / 86_400_000)
+    : null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="bg-[#F0E7D4] rounded-card px-4 py-3 text-[12.5px] text-seal-dark leading-relaxed">
+        <strong>Texte non publié au Journal officiel.</strong> Le référentiel applicable reste celui du décret
+        n° 2019-565 du 6 juin 2019, avec ses 32 indicateurs. Ce qui suit reconstitue le projet de décret
+        NOR TRSD2609875D à partir d&apos;analyses publiques concordantes, pour vous laisser prendre de
+        l&apos;avance — pas pour servir de référence en audit. Les libellés officiels devront être repris à la
+        publication.
+      </div>
+
+      <div className="flex gap-3.5">
+        <MetricCard
+          label="Entrée en vigueur annoncée"
+          value="1er nov. 2026"
+          hint={daysLeft != null && daysLeft > 0 ? `dans ${daysLeft} jours` : undefined}
+          tone={daysLeft != null && daysLeft <= 90 ? "danger" : "ink"}
+        />
+        <MetricCard label="Indicateurs" value="32 → 33" hint="un nouvel indicateur, apprentissage" />
+        <MetricCard label="Indicateurs touchés" value={String(changed.length)} hint="à préparer" />
+      </div>
+
+      <div className="bg-white border border-line rounded-card p-5">
+        <div className="text-[13.5px] font-semibold text-ink mb-1">Ce qui change, indicateur par indicateur</div>
+        <div className="text-[11.5px] text-slate mb-3.5">
+          Les {version.indicators.length - changed.length} autres indicateurs sont repris sans modification de
+          portée. En vert : ce que votre activité dans Jalon produit déjà comme matière de preuve sur cet
+          indicateur.
+        </div>
+        {changed.map((ind) => {
+          const evidence = autoEvidence.get(ind.number) ?? [];
+          const isNew = ind.number === 33;
+          return (
+            <div key={ind.id} className="py-3.5 border-t border-line first:border-t-0">
+              <div className="flex items-start gap-2.5 flex-wrap">
+                <span className="text-[12px] text-slate tabular-nums mt-0.5">#{ind.number}</span>
+                <span className="text-[13px] font-semibold text-ink flex-1 min-w-[12rem]">{ind.label}</span>
+                {isNew && <Pill tone="warn">Nouveau</Pill>}
+                {ind.scope === "apprentissage" && <Pill tone="neutral">Apprentissage</Pill>}
+              </div>
+              <div className="text-[11.5px] text-slate mt-0.5">
+                Critère {ind.criterionNumber} — {CRITERION_LABELS[ind.criterionNumber]}
+              </div>
+              <div className="text-[12.5px] text-ink leading-relaxed mt-2">{ind.changeNote}</div>
+              {evidence.length > 0 ? (
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                  {evidence.map((e, i) => (
+                    <Link key={i} href={e.href} className="text-[11px] text-sage hover:underline">
+                      ✓ {e.count} {e.label}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate mt-2">
+                  Aucune activité tracée sur cet indicateur pour l&apos;instant.
+                </div>
+              )}
             </div>
           );
         })}

@@ -39,6 +39,11 @@ async function main() {
   // the general indicator 26, etc.). Cross-checked against two independent
   // sources plus the real AB Certification audit documents used to build
   // the S1/S2/S3 audit reports in this project's history.
+  // Les indicateurs spécifiques aux actions de formation par apprentissage.
+  // Un OF qui n'en fait pas ne peut structurellement pas les couvrir : sans
+  // cette liste, ils comptent comme des trous de conformité inexistants.
+  const APPRENTISSAGE_ONLY = [13, 14, 15, 16, 20];
+
   const QUALIOPI_INDICATORS: { number: number; criterionNumber: number; label: string }[] = [
     { number: 1, criterionNumber: 1, label: "Information accessible au public sur les prestations, délais d'accès et résultats obtenus" },
     { number: 2, criterionNumber: 1, label: "Diffusion d'indicateurs de résultats adaptés à la nature des prestations et des publics" },
@@ -92,45 +97,106 @@ async function main() {
   });
 
   for (const indicator of QUALIOPI_INDICATORS) {
+    const row = { ...indicator, scope: APPRENTISSAGE_ONLY.includes(indicator.number) ? "apprentissage" : "all" };
     await prisma.qualiopiIndicator.upsert({
       where: { versionId_number: { versionId: "rnq2022v1", number: indicator.number } },
-      update: indicator,
-      create: { ...indicator, versionId: "rnq2022v1" },
+      update: row,
+      create: { ...row, versionId: "rnq2022v1" },
     });
   }
 
-  // A still-draft next version, so an org can look at what a reform would
-  // ask of them before it's applicable — see the /actualites article on
-  // anticipating a referential reform. This is illustrative content built
-  // around commonly-discussed reform themes (traced accommodation requests,
-  // documented regulatory watch, structured results indicators — the same
-  // areas tasks #85/#86/#89/#91 build real tracking for), NOT an official
-  // France Compétences text. status stays "projet" so it can never become
-  // an org's active version by accident (see /qualiopi/referentiel UI).
+  // ---------------------------------------------------------------------
+  // Le projet de décret NOR TRSD2609875D, qui actualiserait l'annexe du
+  // code du travail fixant les indicateurs du RNQ, pour une entrée en
+  // vigueur annoncée au 1er novembre 2026.
+  //
+  // NON PUBLIÉ AU JOURNAL OFFICIEL à la date de rédaction (31 juillet 2026).
+  // Le texte applicable reste le décret n° 2019-565 du 6 juin 2019. Le
+  // statut "projet" est ce qui empêche cette version de devenir la version
+  // active d'une organisation, et l'UI le répète à l'écran : un OF qui
+  // préparerait son audit sur ce texte se tromperait de référentiel.
+  //
+  // Une version précédente de ce bloc inventait son contenu à partir des
+  // « thèmes souvent évoqués ». C'était faux sur le point le plus visible :
+  // le 33e indicateur y portait sur les indicateurs de résultats, alors
+  // qu'il est en réalité spécifique à l'apprentissage. Le contenu ci-dessous
+  // est repris de quatre analyses concordantes du projet (Certiforma,
+  // Reltim, AB Certification, Open-S, juillet 2026) — pas du texte officiel,
+  // qu'il faudra retranscrire à la publication.
+  //
+  // Les libellés restent ceux de la version en vigueur : un OF reconnaît
+  // ses indicateurs par le libellé qu'il connaît, et ce qu'il veut d'une
+  // réforme c'est le delta. Ce delta vit dans changeNote.
+  // ---------------------------------------------------------------------
   await prisma.qualiopiReferentielVersion.upsert({
     where: { id: "rnq2026-reforme-projet" },
-    update: {},
+    update: {
+      label: "RNQ — projet de décret (1er novembre 2026)",
+      applicableFrom: new Date("2026-11-01"),
+      notes:
+        "Projet de décret NOR TRSD2609875D, non publié au Journal officiel à ce jour — le texte applicable reste le décret n° 2019-565 du 6 juin 2019. Entrée en vigueur annoncée au 1er novembre 2026, sous réserve de publication. Contenu reconstitué à partir d'analyses publiques concordantes du projet, à titre de préparation : ne pas l'utiliser comme texte de référence pour un audit.",
+    },
     create: {
       id: "rnq2026-reforme-projet",
-      label: "RNQ — Réforme 2026 (projet)",
+      label: "RNQ — projet de décret (1er novembre 2026)",
       status: "projet",
+      applicableFrom: new Date("2026-11-01"),
       notes:
-        "Version de travail, à titre indicatif — reprend les thèmes les plus souvent évoqués pour la prochaine révision du RNQ (traçabilité du handicap, veille réglementaire documentée, indicateurs de résultats structurés). Ne pas utiliser comme texte officiel : se référer à l'arrêté publié le moment venu.",
+        "Projet de décret NOR TRSD2609875D, non publié au Journal officiel à ce jour — le texte applicable reste le décret n° 2019-565 du 6 juin 2019. Entrée en vigueur annoncée au 1er novembre 2026, sous réserve de publication. Contenu reconstitué à partir d'analyses publiques concordantes du projet, à titre de préparation : ne pas l'utiliser comme texte de référence pour un audit.",
     },
   });
 
+  // Ce qui change, indicateur par indicateur. Deux phrases chacun : ce que le
+  // projet ajoute, puis ce que l'OF devra pouvoir montrer à l'auditeur —
+  // parce qu'« l'indicateur 19 évolue » ne dit à personne quoi faire lundi.
+  const REFORME_2026_CHANGES: Record<number, string> = {
+    1: "S'ajoutent le type de reconnaissance obtenue à l'issue de la formation, les modalités pédagogiques et les modalités de financement ; l'information ne doit pas induire en erreur sur les poursuites d'études possibles. À montrer : une fiche formation publique complète, datée et vérifiable.",
+    2: "Il ne suffira plus de publier les taux : leurs modalités de calcul devront l'être aussi, pour que les résultats soient comparables d'un organisme à l'autre. À montrer : pour chaque indicateur, sa formule, sa source, la population comptée et les exclusions.",
+    3: "Information renforcée sur les certifications visées : taux d'obtention, blocs de compétences, équivalences et passerelles, débouchés et poursuites d'études.",
+    7: "L'adéquation à la certification ne se déclare plus : il faudra prouver la capacité effective à y préparer et à la faire passer. À montrer : habilitation du certificateur ou convention de partenariat en cours de validité.",
+    12: "L'engagement des bénéficiaires intègre la prévention et le traitement des violences, du harcèlement et des discriminations. À montrer : une procédure écrite, portée à la connaissance des bénéficiaires, et la trace de son application.",
+    14: "Les ruptures de parcours devront être traitées sans délai, et l'accompagnement couvrir explicitement les situations de violence et de discrimination.",
+    15: "Protection renforcée des apprentis mineurs, communication des coordonnées du médiateur de l'apprentissage, et procédure de signalement des dysfonctionnements.",
+    19: "Mettre les ressources à disposition ne suffira plus : il faudra démontrer l'effectivité du suivi, en particulier à distance (connexions, progression, assiduité réelle), et désigner un référent pédagogique. À montrer : des traces de suivi par apprenant, pas une attestation globale.",
+    20: "Participation des apprentis, des formateurs et des entreprises à la gouvernance, et supervision renforcée du personnel dédié.",
+    27: "La conformité du sous-traitant devra être tracée contractuellement, et le portage salarial est explicitement couvert. À montrer : un contrat par intervenant externe, mentionnant le respect du référentiel.",
+    32: "L'amélioration continue ne part plus seulement des réclamations : une analyse des risques qualité des formations est attendue. À montrer : un registre des risques avec probabilité, gravité, responsable et mesure préventive.",
+    33: "Nouvel indicateur. Un dispositif d'évaluation des contenus et des enseignements par les apprentis, distinct de l'enquête de satisfaction générale, dont les résultats sont partagés avec les équipes pédagogiques et donnent lieu à une amélioration mesurée.",
+  };
+
   const REFORME_2026_INDICATORS: { number: number; criterionNumber: number; label: string }[] = [
-    ...QUALIOPI_INDICATORS.filter((i) => ![23, 26].includes(i.number)),
-    { number: 23, criterionNumber: 6, label: "Veille légale et réglementaire documentée (source, date, décision, preuve d'exploitation)" },
-    { number: 26, criterionNumber: 6, label: "Accueil et accompagnement des personnes en situation de handicap, avec traçabilité des aménagements accordés par bénéficiaire et référent handicap formé et actif" },
-    { number: 33, criterionNumber: 7, label: "Indicateurs de résultats définis par une méthode de calcul explicite (formule, source, population, exclusions)" },
+    ...QUALIOPI_INDICATORS,
+    {
+      number: 33,
+      criterionNumber: 7,
+      label:
+        "Évaluation des contenus et des enseignements par les apprentis, distincte de l'enquête de satisfaction (apprentissage)",
+    },
   ];
 
+  // Une clé pointant vers un numéro qui n'existe pas perdrait sa note de
+  // changement sans rien signaler — l'écran afficherait un indicateur de
+  // moins comme « touché », ce que personne ne remarquerait. Le seed tourne
+  // dans `npm run build` : mieux vaut casser le déploiement.
+  const unknownChangeKeys = Object.keys(REFORME_2026_CHANGES)
+    .map(Number)
+    .filter((n) => !REFORME_2026_INDICATORS.some((i) => i.number === n));
+  if (unknownChangeKeys.length > 0) {
+    throw new Error(
+      `REFORME_2026_CHANGES référence des indicateurs inexistants : ${unknownChangeKeys.join(", ")}`,
+    );
+  }
+
   for (const indicator of REFORME_2026_INDICATORS) {
+    const row = {
+      ...indicator,
+      changeNote: REFORME_2026_CHANGES[indicator.number] ?? null,
+      scope: [...APPRENTISSAGE_ONLY, 33].includes(indicator.number) ? "apprentissage" : "all",
+    };
     await prisma.qualiopiIndicator.upsert({
       where: { versionId_number: { versionId: "rnq2026-reforme-projet", number: indicator.number } },
-      update: indicator,
-      create: { ...indicator, versionId: "rnq2026-reforme-projet" },
+      update: row,
+      create: { ...row, versionId: "rnq2026-reforme-projet" },
     });
   }
 

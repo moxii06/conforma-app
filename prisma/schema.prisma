@@ -1732,9 +1732,23 @@ model QualiopiIndicator {
   id              String                     @id @default(cuid())
   version         QualiopiReferentielVersion @relation(fields: [versionId], references: [id])
   versionId       String
-  number          Int // 1–32 within its version
+  number          Int // 1–33 within its version
   criterionNumber Int // 1–7
   label           String
+
+  // Ce qui change par rapport à la version en vigueur, quand cette version-ci
+  // en modifie la portée. Séparé du label plutôt que fondu dedans : un OF
+  // reconnaît son indicateur par le libellé qu'il connaît, et ce qu'il veut
+  // savoir d'une réforme c'est le delta, pas un texte reformulé qu'il devra
+  // comparer lui-même. Null = inchangé par cette version.
+  changeNote String?
+
+  // "all" | "apprentissage". Le RNQ contient des indicateurs qui ne
+  // s'appliquent qu'aux actions de formation par apprentissage (13 à 16, 20
+  // aujourd'hui, plus le 33 du projet 2026). Sans cette information, un OF
+  // qui ne fait pas d'apprentissage voit ces indicateurs comme non couverts
+  // et croit avoir un trou de conformité qui n'existe pas.
+  scope String @default("all")
 
   @@unique([versionId, number])
   @@index([versionId])
