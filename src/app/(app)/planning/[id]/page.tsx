@@ -14,6 +14,7 @@ import { EnrollProspectForm } from "@/components/EnrollProspectForm";
 import { GenerateCertificateButton } from "@/components/GenerateCertificateButton";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
+import { buildSessionClosing, closingTitle } from "@/lib/sessionClosing";
 import { SendBulkDocumentDialog } from "@/components/SendBulkDocumentDialog";
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -50,8 +51,13 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
           documents: true,
           invitations: { orderBy: { sentAt: "desc" }, take: 1 },
           virtualClassAttendances: { where: { session: { id: params.id } } },
+          // Émargement : les signatures de CETTE session uniquement. Un
+          // apprenant peut suivre plusieurs sessions, ses feuilles ne se
+          // mélangent pas.
+          attendanceEntries: { where: { sessionDay: { sessionId: params.id } }, select: { id: true } },
         },
       },
+      days: { select: { morningHours: true, afternoonHours: true } },
     },
   });
   if (!session) notFound();
@@ -68,32 +74,41 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   const isPast = session.endsAt < new Date();
   const isCancelled = session.status === "CANCELLED";
   const isManuallyArchived = Boolean(session.archivedAt);
-  const isArchived = isPast || isManuallyArchived;
   // Past or cancelled: the roster is frozen, no more editing/enrolling/inviting.
   const isReadOnly = isPast || isCancelled;
   const isValidated = session.status === "VALIDATED";
   const isFull = session.dossiers.length >= session.capacity;
 
-  // QW6 — closing checklist: aggregates the same per-dossier Parcours
-  // fields the dossier detail page already tracks (needsAssessmentDone,
-  // contractSigned, convocationSent, evaluationHotDone, evaluationColdDone)
-  // plus certificate issuance, so staff can see at a glance whether a
-  // naturally-ended session is actually ready to archive instead of
-  // discovering gaps dossier by dossier.
-  const closingSteps = session.dossiers.map((d) => ({
-    dossierId: d.id,
-    contactName: `${d.contact.firstName} ${d.contact.lastName}`,
-    needsAssessmentDone: d.needsAssessmentDone,
-    contractSigned: d.contractSigned,
-    convocationSent: d.convocationSent,
-    evaluationHotDone: d.evaluationHotDone,
-    evaluationColdDone: d.evaluationColdDone,
-    certificateIssued: d.documents.some((doc) => doc.templateOrigin === "lms_certificate"),
-  }));
-  const closingReadyCount = closingSteps.filter(
-    (s) => s.needsAssessmentDone && s.contractSigned && s.convocationSent && s.evaluationHotDone
-  ).length;
-  const closingCertifiedCount = closingSteps.filter((s) => s.certificateIssued).length;
+  // QW6 — les preuves du parcours, apprenant par apprenant. Le calcul vit
+  // dans src/lib/sessionClosing.ts (testé) : c'est lui qui sait qu'une
+  // preuve absente n'a pas le même sens avant et après son échéance.
+  const halfDaysExpected = session.days.reduce(
+    (sum, d) => sum + (d.morningHours ? 1 : 0) + (d.afternoonHours ? 1 : 0),
+    0,
+  );
+  const closing = buildSessionClosing(
+    session.dossiers.map((d) => ({
+      dossierId: d.id,
+      contactName: `${d.contact.firstName} ${d.contact.lastName}`,
+      needsAssessmentDone: d.needsAssessmentDone,
+      contractSigned: d.contractSigned,
+      convocationSent: d.convocationSent,
+      evaluationHotDone: d.evaluationHotDone,
+      evaluationColdDone: d.evaluationColdDone,
+      // Les deux origines comptent : une formation sans e-learning délivre
+      // une attestation de fin de formation, pas un certificat LMS. Ne
+      // reconnaître que la seconde affichait « Attestation » en rouge à vie
+      // sur toutes les sessions en présentiel.
+      certificateIssued: d.documents.some(
+        (doc) => doc.templateOrigin === "lms_certificate" || doc.templateOrigin === "attendance_certificate",
+      ),
+      halfDaysSigned: d.attendanceEntries.length,
+      halfDaysExpected,
+    })),
+    session.startsAt,
+    session.endsAt,
+    new Date(),
+  );
 
   // Client feedback: staff need a heads-up when a learner already has other
   // active formations, to avoid double-booking or duplicated outreach.
@@ -266,47 +281,75 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
           </div>
         )}
 
-        {isPast && !isCancelled && closingSteps.length > 0 && (
+        {!isCancelled && closing.rows.length > 0 && (
           <div className="bg-white border border-line rounded-card p-5">
             <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
-              <div className="text-[13.5px] font-semibold text-ink">Clôture de la session</div>
-              {canEdit && <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />}
+              <div className="text-[13.5px] font-semibold text-ink">{closingTitle(closing.stage)}</div>
+              {canEdit && closing.stage === "past" && (
+                <ArchiveSessionButton
+                  sessionId={session.id}
+                  archived={isManuallyArchived}
+                  missingProofs={closing.missingDue}
+                />
+              )}
             </div>
             <div className="text-[12px] text-slate mb-3">
-              {closingReadyCount}/{closingSteps.length} dossier{closingSteps.length > 1 ? "s" : ""} avec le parcours complet (recueil, contrat, convocation, évaluation à chaud)
-              {" · "}
-              {closingCertifiedCount}/{closingSteps.length} attestation{closingSteps.length > 1 ? "s" : ""} émise{closingSteps.length > 1 ? "s" : ""}
-              {!isManuallyArchived && " — vérifiez ci-dessous avant d'archiver."}
+              {closing.missingDue === 0 ? (
+                closing.stage === "upcoming" ? (
+                  <>Rien n&apos;est encore exigible — la grille ci-dessous suit l&apos;avancement en temps réel.</>
+                ) : (
+                  <>
+                    {closing.total} dossier{closing.total > 1 ? "s" : ""} à jour : aucune preuve exigible ne manque.
+                  </>
+                )
+              ) : (
+                <>
+                  <span className="text-rust font-medium">
+                    {closing.missingDue} preuve{closing.missingDue > 1 ? "s" : ""} manquante
+                    {closing.missingDue > 1 ? "s" : ""}
+                  </span>{" "}
+                  sur {closing.total - closing.readyCount} dossier
+                  {closing.total - closing.readyCount > 1 ? "s" : ""}
+                  {closing.stage === "past"
+                    ? " — à compléter avant d'archiver."
+                    : " — encore rattrapables tant que la session n'est pas terminée."}
+                </>
+              )}
             </div>
             <div className="flex flex-col">
-              {closingSteps.map((s) => {
-                const steps: { label: string; done: boolean }[] = [
-                  { label: "Recueil", done: s.needsAssessmentDone },
-                  { label: "Contrat", done: s.contractSigned },
-                  { label: "Convocation", done: s.convocationSent },
-                  { label: "Éval. à chaud", done: s.evaluationHotDone },
-                  { label: "Éval. à froid", done: s.evaluationColdDone },
-                  { label: "Attestation", done: s.certificateIssued },
-                ];
-                return (
-                  <div key={s.dossierId} className="flex items-center justify-between gap-3 py-1.5 border-t border-line first:border-t-0">
-                    <Link href={`/dossiers/${s.dossierId}`} className="text-[12px] text-ink min-w-0 truncate hover:underline decoration-line">
-                      {s.contactName}
-                    </Link>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {steps.map((step) => (
-                        <span
-                          key={step.label}
-                          title={step.label}
-                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${step.done ? "bg-[#DEE5E0] text-sage" : "bg-pebble text-slate"}`}
-                        >
-                          {step.label}
-                        </span>
-                      ))}
-                    </div>
+              {closing.rows.map((row) => (
+                <div
+                  key={row.dossierId}
+                  className="flex items-center justify-between gap-3 py-1.5 border-t border-line first:border-t-0"
+                >
+                  <Link
+                    href={`/dossiers/${row.dossierId}`}
+                    className="text-[12px] text-ink min-w-0 truncate hover:underline decoration-line"
+                  >
+                    {row.contactName}
+                  </Link>
+                  <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                    {row.steps.map((step) => (
+                      <span
+                        key={step.key}
+                        title={
+                          step.detail ??
+                          (step.done ? step.label : step.due ? `${step.label} — manquant` : `${step.label} — pas encore attendu`)
+                        }
+                        className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                          step.done
+                            ? "bg-[#DEE5E0] text-sage"
+                            : step.due
+                              ? "bg-[#F4E3DE] text-rust"
+                              : "bg-pebble text-slate"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
         )}
