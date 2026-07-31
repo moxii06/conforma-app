@@ -91,8 +91,23 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         sentByName: auth.name || auth.email,
       },
     });
-    if (resolvedCategory === "convention") {
-      await prisma.dossier.update({ where: { id: dossier.id }, data: { contractSigned: true } });
+    // L'envoi groupé cochait l'étape « convention » du parcours mais pas
+    // « convocation » — alors que convoquer huit personnes d'un coup est
+    // précisément ce pour quoi cet écran existe. Sans ça, il fallait
+    // rouvrir les huit dossiers un par un pour cocher à la main, ou passer
+    // par le composeur de convocation huit fois.
+    //
+    // Effet de bord voulu : convocationSent est aussi la précondition des
+    // rappels automatiques de session (cron automation-rules) — un envoi
+    // groupé arme donc désormais les relances, comme un envoi unitaire.
+    const parcoursStep =
+      resolvedCategory === "convention"
+        ? { contractSigned: true }
+        : resolvedCategory === "convocation"
+          ? { convocationSent: true }
+          : null;
+    if (parcoursStep) {
+      await prisma.dossier.update({ where: { id: dossier.id }, data: parcoursStep });
     }
 
     const mergeCtx = {
