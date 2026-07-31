@@ -10,6 +10,8 @@ import { fr } from "date-fns/locale";
 import Link from "next/link";
 import { RefreshButton } from "@/components/RefreshButton";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
+import { getOnboardingSteps, nextStep, type OnboardingStep } from "@/lib/onboarding";
+import { CheckCircle2, Circle } from "lucide-react";
 import { DismissTaskButton } from "@/components/DismissTaskButton";
 import { ShowMoreToggle } from "@/components/ShowMoreToggle";
 
@@ -76,6 +78,13 @@ export default async function DashboardPage() {
   // hardcoded post-login landing page meant LEARNER/DPO_EXTERNAL accounts
   // saw it directly. Redirect to each role's real home instead.
   if (can(role, "dashboard") === "none") redirect(role === "LEARNER" ? "/mon-espace" : "/rgpd");
+
+  // Le parcours de démarrage ne concerne que le rôle qui peut réellement le
+  // franchir : chaque étape mène à un écran réservé à l'administrateur de
+  // l'organisme. L'afficher à un commercial serait une liste d'actions
+  // impossibles.
+  const onboarding = role === Role.ADMIN_OF ? await getOnboardingSteps(organizationId) : [];
+  const onboardingRemaining = onboarding.filter((s) => !s.done).length;
 
   const subscription =
     role === Role.ADMIN_OF
@@ -185,6 +194,13 @@ export default async function DashboardPage() {
           <TrialBanner plan={subscription.plan} trialEndsAt={subscription.trialEndsAt} />
         )}
 
+        {/* Avant les tâches : tant que la plateforme est vide, la liste des
+            relances l'est aussi, et c'est le démarrage qui est la seule
+            chose à faire. Disparaît définitivement une fois les six étapes
+            franchies — pas de bouton « masquer », l'écran se nettoie tout
+            seul quand il n'a plus rien à dire. */}
+        {onboardingRemaining > 0 && <OnboardingWidget steps={onboarding} remaining={onboardingRemaining} />}
+
         {tasks.length > 0 && <TasksWidget tasks={tasks} />}
 
         {canManageComplaints && openComplaints.length > 0 && <ComplaintsWidget complaints={openComplaints} />}
@@ -268,6 +284,75 @@ function TaskRow({ task }: { task: DashboardTask }) {
         {task.overdue && <Pill tone="danger">En retard</Pill>}
         <span className="text-[11px] text-slate">{TASK_KIND_LABELS[task.kind]}</span>
         <DismissTaskButton kind={task.kind} id={task.id} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Le parcours de démarrage, confronté à l'état réel de l'organisation.
+ *
+ * Une seule étape est développée — la prochaine à faire. Les six d'un coup,
+ * c'est la liste de courses qui décourage ; une seule, c'est une action.
+ * Les étapes franchies restent visibles, barrées : voir ce qu'on a déjà fait
+ * est la moitié de ce qui donne envie de continuer.
+ */
+function OnboardingWidget({ steps, remaining }: { steps: OnboardingStep[]; remaining: number }) {
+  const next = nextStep(steps);
+  const doneCount = steps.length - remaining;
+
+  return (
+    <div className="bg-white border border-line rounded-card p-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+        <div className="text-[13.5px] font-semibold text-ink">Prise en main</div>
+        <div className="text-[12px] text-slate tabular-nums">
+          {doneCount}/{steps.length} étapes
+        </div>
+      </div>
+      <div className="h-1.5 bg-pebble rounded-full overflow-hidden mb-3.5">
+        <div className="h-full bg-sage" style={{ width: `${Math.round((doneCount / steps.length) * 100)}%` }} />
+      </div>
+      <div className="flex flex-col">
+        {steps.map((step) => {
+          const isNext = step === next;
+          return (
+            <div key={step.title} className="flex items-start gap-2.5 py-2 border-t border-line first:border-t-0">
+              {step.done ? (
+                <CheckCircle2 size={15} className="text-sage mt-0.5 shrink-0" />
+              ) : (
+                <Circle size={15} className={`mt-0.5 shrink-0 ${isNext ? "text-ink" : "text-ash"}`} />
+              )}
+              <div className="min-w-0 flex-1">
+                <div
+                  className={`text-[12.5px] ${
+                    step.done ? "text-slate line-through decoration-line" : isNext ? "text-ink font-semibold" : "text-ink"
+                  }`}
+                >
+                  {step.title}
+                </div>
+                {isNext && (
+                  <>
+                    <div className="text-[11.5px] text-slate leading-relaxed mt-1">{step.detail}</div>
+                    <Link
+                      href={step.href}
+                      className="inline-block text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink mt-1.5"
+                    >
+                      Y aller
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="text-[11px] text-slate mt-3 pt-3 border-t border-line">
+        Coché automatiquement d&apos;après ce que contient votre compte — rien à valider à la main. Le détail de
+        chaque étape reste dans{" "}
+        <Link href="/faq" className="underline decoration-line hover:decoration-ink">
+          FAQ &amp; guides
+        </Link>
+        .
       </div>
     </div>
   );
