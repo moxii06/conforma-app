@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill } from "@/components/ui";
-import { requireSessionContext } from "@/lib/tenant";
+import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
-import { Role } from "@prisma/client";
 import { differenceInCalendarDays, format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getSignatureQuota, OVERAGE_PRICE_CENTS } from "@/lib/signatureQuota";
@@ -18,9 +17,12 @@ const STATUS_LABELS: Record<string, { label: string; tone: "good" | "warn" | "da
 };
 
 // Billing is the ADMIN_OF's concern per spec §2 — same gate as /integrations.
+// Expressed through the PERMISSIONS matrix rather than a bare role test, so
+// the sidebar entry and this redirect can't drift apart (see the "billing"
+// key's comment in tenant.ts).
 export default async function AbonnementPage() {
   const { organizationId, role } = await requireSessionContext();
-  if (role !== Role.ADMIN_OF) redirect("/dashboard");
+  if (can(role, "billing") !== "full") redirect("/dashboard");
 
   const subscription = await prisma.subscription.findUnique({ where: { organizationId } });
   const status = subscription ? STATUS_LABELS[subscription.status] ?? { label: subscription.status, tone: "neutral" as const } : null;

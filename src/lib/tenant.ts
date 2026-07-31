@@ -81,6 +81,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   toolkit: "Toolkit documents",
   integrations: "Intégrations",
   team: "Équipe & rôles",
+  billing: "Abonnement",
   automations: "Automatisations",
   inbox: "Boîte mail",
   bpf: "Bilan pédagogique et financier",
@@ -108,6 +109,12 @@ export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
   toolkit: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
   integrations: { ADMIN_OF: "full", ADMIN_MANAGER: "none", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   team: { ADMIN_OF: "full", ADMIN_MANAGER: "none", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
+  // /abonnement already gated itself with a bare `role !== ADMIN_OF` check,
+  // outside this matrix — which is why it had no sidebar entry and became
+  // unreachable the moment the trial banner (its only link) stopped
+  // rendering. Same owner-only audience, expressed here so the nav and the
+  // page agree instead of each deciding on its own.
+  billing: { ADMIN_OF: "full", ADMIN_MANAGER: "none", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   // Same audience as "planning: full" (the only roles that can already
   // configure a course's automation rules from /formations/[id]) — a
   // distinct key rather than reusing "planning" so the sidebar doesn't

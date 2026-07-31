@@ -18,6 +18,7 @@ import {
   GraduationCap,
   HelpCircle,
   MessageCircleWarning,
+  CreditCard,
 } from "lucide-react";
 import { can, ROLE_LABELS, type SessionContext } from "@/lib/tenant";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -70,6 +71,11 @@ const NAV_GROUPS: { label: string | null; items: { href: string; label: string; 
       { href: "/team", label: "Équipe & rôles", icon: UserCog, feature: "team" },
       { href: "/automatisations", label: "Automatisations", icon: Zap, feature: "automations" },
       { href: "/integrations", label: "Intégrations", icon: Plug, feature: "integrations" },
+      // Reachable from the dashboard's trial banner too, but that banner only
+      // renders while subscription.status is "trialing" — so the day the trial
+      // expires, the one page a customer needs in order to start paying used
+      // to disappear from the app entirely.
+      { href: "/abonnement", label: "Abonnement", icon: CreditCard, feature: "billing" },
     ],
   },
   {
