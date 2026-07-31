@@ -59,7 +59,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     `Dernière activité : ${attendance.lastPingAt.toLocaleString("fr-FR")}\n` +
     `${attendance.leftAt ? `Déconnexion : ${attendance.leftAt.toLocaleString("fr-FR")}\n` : ""}` +
     `Durée de présence enregistrée : ${formatDuration(attendance.durationSeconds)}\n\n` +
-    `Durée mesurée par connexion effective au module de classe virtuelle Jalon (présence de session navigateur), et non par déclaration.\n\n` +
+    // Nommer l'outil ici, c'était le nommer sur une preuve d'émargement
+    // remise au financeur. Ce qui compte pour lui est la MÉTHODE de mesure —
+    // connexion effective plutôt que déclaration — pas la marque du logiciel
+    // qui l'a mesurée.
+    `Durée mesurée par connexion effective à la classe virtuelle (présence de session navigateur horodatée), et non par déclaration sur l'honneur.\n\n` +
     `Fait le ${new Date().toLocaleDateString("fr-FR")}.`;
 
   const document = await prisma.document.create({

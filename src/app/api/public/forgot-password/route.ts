@@ -46,7 +46,11 @@ export async function POST(request: Request) {
       await sendTransactionalEmail({
         to: user.email,
         toName: user.name,
-        subject: "Réinitialisation de votre mot de passe Jalon",
+        // L'expéditeur portait déjà le nom de l'organisme, mais l'objet
+        // disait « Jalon » : un apprenant recevait donc un mail « de » son
+        // organisme de formation dont l'objet nommait un outil qu'il ne
+        // connaît pas. La marque blanche s'arrêtait à la ligne d'objet.
+        subject: `Réinitialisation de votre mot de passe${organization?.name ? ` — ${organization.name}` : ""}`,
         text: `Bonjour ${user.name},\n\nUne réinitialisation de mot de passe a été demandée pour votre compte. Ce lien est valable 1 heure :\n${resetUrl}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet email.`,
         senderName: organization?.name ?? "Jalon",
       });
