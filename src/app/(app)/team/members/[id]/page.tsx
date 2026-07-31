@@ -11,6 +11,7 @@ import { DeleteMemberButton } from "@/components/DeleteMemberButton";
 import { AddMemberDocumentForm } from "@/components/AddMemberDocumentForm";
 import { DocumentActions } from "@/components/DocumentActions";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
+import { LibraryPanel } from "@/components/LibraryPanel";
 
 export default async function MemberRecordPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -98,7 +99,10 @@ export default async function MemberRecordPage(props: { params: Promise<{ id: st
         )}
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13.5px] font-semibold text-ink">Documents liés ({activeDocuments.length})</div>
+          <div className="flex items-center justify-between">
+            <div className="text-[13.5px] font-semibold text-ink">Documents liés ({activeDocuments.length})</div>
+            <LibraryPanel label="Bibliothèque" />
+          </div>
           {activeDocuments.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               {activeDocuments.map((doc) => (

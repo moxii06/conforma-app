@@ -10,6 +10,7 @@ import { AddRightsRequestForm } from "@/components/AddRightsRequestForm";
 import { RightsRequestControls } from "@/components/RightsRequestControls";
 import { AddDataBreachDialog } from "@/components/AddDataBreachDialog";
 import { DataBreachControls } from "@/components/DataBreachControls";
+import { LibraryPanel } from "@/components/LibraryPanel";
 import { format, differenceInHours } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -60,7 +61,11 @@ export default async function RgpdPage(props: { searchParams: Promise<{ tab?: st
 
   return (
     <>
-      <PageHeader title="Registre RGPD" subtitle="Documentation et preuves de conformité" />
+      <PageHeader
+        title="Registre RGPD"
+        subtitle="Documentation et preuves de conformité"
+        action={<LibraryPanel variant="button" label="Bibliothèque de documents" />}
+      />
       <Tabs basePath="/rgpd" tabs={TABS} active={activeTab} />
       <div className="p-8 flex flex-col gap-4">
         <div className="flex gap-3.5">

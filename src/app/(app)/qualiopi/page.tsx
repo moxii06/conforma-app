@@ -20,6 +20,7 @@ import { QualiopiAuditForm } from "@/components/QualiopiAuditForm";
 import { QualiopiFindingForm } from "@/components/QualiopiFindingForm";
 import { QualiopiFindingActions } from "@/components/QualiopiFindingActions";
 import { QualiopiAuditDeleteButton } from "@/components/QualiopiAuditDeleteButton";
+import { LibraryPanel } from "@/components/LibraryPanel";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -64,7 +65,11 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
 
   return (
     <>
-      <PageHeader title="Conformité Qualiopi" subtitle="Référentiel National Qualité — 7 critères, 32 indicateurs" />
+      <PageHeader
+        title="Conformité Qualiopi"
+        subtitle="Référentiel National Qualité — 7 critères, 32 indicateurs"
+        action={<LibraryPanel variant="button" label="Bibliothèque de documents" />}
+      />
       <Tabs basePath="/qualiopi" tabs={TABS} active={activeTab} />
       <div className="p-8">
         {activeTab === "amelioration-continue" ? (

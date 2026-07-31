@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { MERGE_TAGS } from "@/lib/mergeTags";
+import { LibraryPanel } from "@/components/LibraryPanel";
 
 type Template = { id: string; title: string; category: string };
 type Recipient = { id: string; name: string };
@@ -25,6 +26,7 @@ export function SendBulkDocumentDialog({ sessionId, templates, recipients }: { s
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"template" | "upload">("template");
   const [templateId, setTemplateId] = useState("");
+  const [panelTemplates, setPanelTemplates] = useState<Template[]>([]);
   const [title, setTitle] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyResetKey, setBodyResetKey] = useState(0);
@@ -205,19 +207,34 @@ export function SendBulkDocumentDialog({ sessionId, templates, recipients }: { s
             </div>
 
             {mode === "template" && (
-              <select
-                value={templateId}
-                onChange={(e) => handlePickTemplate(e.target.value)}
-                required
-                className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
-              >
-                <option value="">Choisir un modèle…</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-col gap-1.5">
+                <select
+                  value={templateId}
+                  onChange={(e) => handlePickTemplate(e.target.value)}
+                  required
+                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
+                >
+                  <option value="">Choisir un modèle…</option>
+                  {[...templates, ...panelTemplates.filter((p) => !templates.some((t) => t.id === p.id))].map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
+                    </option>
+                  ))}
+                </select>
+                {/* Same dead end as the single-recipient dialog: the list
+                    above only offers what already exists. */}
+                <div className="flex items-center gap-1.5 text-[11.5px] text-slate">
+                  <span>Le modèle n&apos;existe pas encore ?</span>
+                  <LibraryPanel
+                    label="Ouvrir la bibliothèque"
+                    useLabel="Choisir"
+                    onUse={(t) => {
+                      setPanelTemplates((prev) => (prev.some((p) => p.id === t.id) ? prev : [...prev, t]));
+                      void handlePickTemplate(t.id);
+                    }}
+                  />
+                </div>
+              </div>
             )}
 
             <input
