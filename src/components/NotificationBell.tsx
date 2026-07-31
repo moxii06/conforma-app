@@ -14,9 +14,14 @@ function taskKey(t: DashboardTask) {
 // migrate). It does NOT resolve the underlying issue, so the dashboard's own
 // À faire widget (the authoritative list staff act on) is unaffected —
 // dismissing here just quiets the bell until a *new* task shows up.
-export function NotificationBell({ tasks, userId }: { tasks: DashboardTask[]; userId: string }) {
+export function NotificationBell({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
   const [clearedKeys, setClearedKeys] = useState<Set<string>>(new Set());
+  // La liste n'arrive plus en props du serveur : elle était calculée dans la
+  // Sidebar, donc dans le layout partagé, donc sur chaque page — une
+  // quinzaine de requêtes par navigation pour un compteur. Récupérée après
+  // le rendu, la page ne l'attend plus.
+  const [tasks, setTasks] = useState<DashboardTask[]>([]);
   const storageKey = `conforma:notifications:cleared:${userId}`;
 
   useEffect(() => {
@@ -27,6 +32,21 @@ export function NotificationBell({ tasks, userId }: { tasks: DashboardTask[]; us
       // Ignore malformed/unavailable storage — worst case, nothing starts cleared.
     }
   }, [storageKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/notifications")
+      .then((r) => (r.ok ? r.json() : { tasks: [] }))
+      .then((data) => {
+        if (!cancelled) setTasks(data.tasks ?? []);
+      })
+      // Silencieux : une cloche vide est un défaut acceptable, un écran
+      // d'erreur sur toutes les pages ne l'est pas.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visibleTasks = tasks.filter((t) => !clearedKeys.has(taskKey(t)));
   const overdueCount = visibleTasks.filter((t) => t.overdue).length;

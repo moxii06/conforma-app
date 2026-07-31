@@ -4,7 +4,6 @@ import { can, ROLE_LABELS, type SessionContext } from "@/lib/tenant";
 import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalSearch } from "@/components/GlobalSearch";
-import { getDashboardTasks } from "@/lib/dashboardTasks";
 import { NAV_GROUPS } from "@/components/navGroups";
 
 
@@ -19,10 +18,11 @@ export async function Sidebar({
     ...group,
     items: group.items.filter((item) => can(user.role, item.feature) !== "none"),
   })).filter((group) => group.items.length > 0);
-  const tasks =
-    can(user.role, "dashboard") !== "none"
-      ? await getDashboardTasks(user.organizationId, user.role, user.userId)
-      : [];
+  // Le calcul de la liste « à faire » vivait ici — donc dans le layout
+  // partagé, donc sur CHAQUE page, et une seconde fois sur le tableau de
+  // bord qui la recalcule pour lui-même. Une quinzaine de requêtes par
+  // navigation pour alimenter un compteur. La cloche la récupère elle-même
+  // après le rendu (voir /api/notifications).
 
   // Marque blanche: a LEARNER is the OFP's own customer, not Jalon's — the
   // public token pages (formulaire/satisfaction/activation) already carry
@@ -54,7 +54,7 @@ export async function Sidebar({
             )}
             <div className="font-display text-lg tracking-wide truncate">{brandName}</div>
           </div>
-          {can(user.role, "dashboard") !== "none" && <NotificationBell tasks={tasks} userId={user.userId} />}
+          {can(user.role, "dashboard") !== "none" && <NotificationBell userId={user.userId} />}
         </div>
         <div className="text-xs text-white/60 mt-1 pl-9">{brandSubtitle}</div>
       </div>
