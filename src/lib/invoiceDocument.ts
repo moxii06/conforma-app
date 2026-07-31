@@ -18,6 +18,7 @@ export async function buildFacturationPdf(
     include: {
       contact: { include: { company: true } },
       dossier: { include: { session: { include: { course: true } } } },
+      lines: { orderBy: { order: "asc" } },
     },
   } as const;
 
@@ -47,6 +48,12 @@ export async function buildFacturationPdf(
     // c'est l'objet réel de la prestation, et le laisser vide priverait la
     // facture d'une mention obligatoire.
     description: doc.description ?? doc.dossier?.session.course.title ?? null,
+    lines: doc.lines.map((l) => ({
+      designation: l.designation,
+      quantity: l.quantity,
+      unitPriceCents: l.unitPriceCents,
+      unit: l.unit,
+    })),
     amountCents: doc.amountCents,
     issuedAt: doc.createdAt,
     dueDate: kind === "invoice" ? ((doc as { dueDate?: Date | null }).dueDate ?? null) : null,

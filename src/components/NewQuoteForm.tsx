@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 
 type Contact = { id: string; firstName: string; lastName: string };
 type Dossier = { id: string; label: string };
@@ -14,6 +15,7 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [lignes, setLignes] = useState<EditableLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,6 +32,7 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
         dossierId: dossierId || undefined,
         reference,
         description: description || undefined,
+        lines: lignes.length > 0 ? toDraftLines(lignes) : undefined,
         amountCents: Math.round(parseFloat(amount || "0") * 100),
       }),
     });
@@ -80,6 +83,11 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
         <input placeholder="Objet (à défaut : la formation du dossier)" value={description} onChange={(e) => setDescription(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
         <input required placeholder="Montant (€)" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
       </div>
+      <InvoiceLinesEditor
+        lignes={lignes}
+        onChange={setLignes}
+        amountCents={Math.round(parseFloat(amount || "0") * 100)}
+      />
       <div className="flex items-center gap-2.5">
         <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
           {loading ? "…" : "Créer"}

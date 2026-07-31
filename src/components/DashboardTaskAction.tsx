@@ -33,6 +33,11 @@ const ACTIONS: Record<string, ActionDef> = {
     body: { type: "platform_access" },
     confirmer: (nom) => `Envoyer ses accès à la plateforme à ${nom} maintenant ?`,
   },
+  dossier_prep_needs_assessment: {
+    label: "Envoyer le recueil",
+    endpoint: (id) => `/api/dossiers/${id}/send-needs-assessment`,
+    confirmer: (nom) => `Envoyer le recueil des besoins à ${nom} maintenant ?`,
+  },
   satisfaction_not_collected: {
     label: "Envoyer l'évaluation",
     endpoint: (id) => `/api/dossiers/${id}/satisfaction-surveys/cold/send`,

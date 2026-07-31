@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { toWinAnsi } from "./winAnsi";
 
 // Le PDF d'une facture ou d'un devis.
 //
@@ -28,10 +29,19 @@ export type InvoicePdfIssuer = {
 
 export type InvoicePdfCustomer = { name: string; address: string | null; siret: string | null };
 
+export type InvoicePdfLine = {
+  designation: string;
+  quantity: number;
+  unitPriceCents: number;
+  unit: string | null;
+};
+
 export type InvoicePdfData = {
   kind: "invoice" | "quote";
   reference: string;
   description: string | null;
+  /** Le détail, quand l'organisme l'a saisi. Vide = une seule ligne globale. */
+  lines: InvoicePdfLine[];
   amountCents: number;
   issuedAt: Date;
   dueDate: Date | null;
@@ -87,7 +97,9 @@ function issuerLines(i: InvoicePdfIssuer): string[] {
 
 /** Découpe un texte pour qu'il tienne dans une largeur donnée. */
 function wrap(texte: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const mots = texte.split(/\s+/).filter(Boolean);
+  // Assaini avant mesure : widthOfTextAtSize lève la même exception que
+  // drawText sur un caractère hors table.
+  const mots = toWinAnsi(texte).split(/\s+/).filter(Boolean);
   const lignes: string[] = [];
   let courante = "";
   for (const mot of mots) {
@@ -115,13 +127,17 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
   const droite = PAGE_WIDTH - MARGIN;
   const largeur = droite - MARGIN;
 
+  // Un seul point de passage vers drawText : c'est là que le texte est
+  // rendu encodable, pour qu'aucun appelant ne puisse l'oublier.
   function texte(t: string, x: number, y: number, opts: { font?: PDFFont; size?: number; color?: typeof ink } = {}) {
-    page.drawText(t, { x, y, font: opts.font ?? normal, size: opts.size ?? 9.5, color: opts.color ?? ink });
+    page.drawText(toWinAnsi(t), { x, y, font: opts.font ?? normal, size: opts.size ?? 9.5, color: opts.color ?? ink });
   }
   function texteDroite(t: string, y: number, opts: { font?: PDFFont; size?: number; color?: typeof ink } = {}) {
     const f = opts.font ?? normal;
     const s = opts.size ?? 9.5;
-    texte(t, droite - f.widthOfTextAtSize(t, s), y, opts);
+    // Mesuré sur le texte assaini, sinon l'alignement à droite se décale
+    // dès qu'un caractère est remplacé.
+    texte(t, droite - f.widthOfTextAtSize(toWinAnsi(t), s), y, opts);
   }
 
   let y = PAGE_HEIGHT - MARGIN;
@@ -156,21 +172,50 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> 
   if (data.dueDate) texteDroite(`Échéance : ${jour(data.dueDate)}`, y, { size: 9.5 });
   y -= 26;
 
-  // Tableau à deux colonnes : désignation et montant.
+  // Le tableau. Deux colonnes quand il n'y a pas de détail, quatre quand
+  // l'organisme en a saisi un — c'est ce détail qu'un OPCO réclame sur un
+  // dossier de prise en charge.
+  const avecDetail = data.lines.length > 0;
+  const xQuantite = droite - 210;
+  const xPrix = droite - 130;
+
   page.drawLine({ start: { x: MARGIN, y }, end: { x: droite, y }, thickness: 0.8, color: line });
   y -= 14;
   texte("Désignation", MARGIN, y, { font: gras, size: 9 });
+  if (avecDetail) {
+    texte("Qté", xQuantite, y, { font: gras, size: 9 });
+    texte("P.U.", xPrix, y, { font: gras, size: 9 });
+  }
   texteDroite("Montant", y, { font: gras, size: 9 });
   y -= 8;
   page.drawLine({ start: { x: MARGIN, y }, end: { x: droite, y }, thickness: 0.8, color: line });
   y -= 18;
 
-  const designation = data.description?.trim() || "Prestation de formation professionnelle";
-  const lignesDesignation = wrap(designation, normal, 9.5, largeur - 110);
-  for (const [i, l] of lignesDesignation.entries()) {
-    texte(l, MARGIN, y, { size: 9.5 });
-    if (i === 0) texteDroite(euros(data.amountCents), y, { size: 9.5 });
-    y -= 13;
+  if (avecDetail) {
+    for (const l of data.lines) {
+      const total = Math.round(l.quantity * l.unitPriceCents);
+      // La désignation s'enroule dans sa colonne ; les chiffres restent sur
+      // la première ligne, en face du libellé auquel ils se rapportent.
+      const enroulee = wrap(l.designation, normal, 9.5, xQuantite - MARGIN - 12);
+      for (const [i, texteLigne] of enroulee.entries()) {
+        texte(texteLigne, MARGIN, y, { size: 9.5 });
+        if (i === 0) {
+          const q = l.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+          texte(l.unit ? `${q} ${l.unit}` : q, xQuantite, y, { size: 9.5, color: slate });
+          texte(euros(l.unitPriceCents), xPrix, y, { size: 9.5, color: slate });
+          texteDroite(euros(total), y, { size: 9.5 });
+        }
+        y -= 13;
+      }
+      y -= 3;
+    }
+  } else {
+    const designation = data.description?.trim() || "Prestation de formation professionnelle";
+    for (const [i, l] of wrap(designation, normal, 9.5, largeur - 110).entries()) {
+      texte(l, MARGIN, y, { size: 9.5 });
+      if (i === 0) texteDroite(euros(data.amountCents), y, { size: 9.5 });
+      y -= 13;
+    }
   }
 
   y -= 6;

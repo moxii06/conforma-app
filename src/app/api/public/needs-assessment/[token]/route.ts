@@ -28,13 +28,18 @@ export async function POST(request: Request, props: { params: Promise<{ token: s
     data: { responseText: parsed.data.responseText, status: "completed", completedAt: new Date() },
   });
 
-  // The request is tied to the Contact, not a specific Dossier (it's
-  // typically sent before enrollment) — so completion flips the "Recueil
-  // des besoins" Parcours step on every one of that contact's dossiers
-  // that hasn't already been marked done, rather than requiring staff to
-  // notice and toggle it by hand.
+  // Coche l'étape « Recueil des besoins » du Parcours.
+  //
+  // Quand la demande vise un dossier précis (envoi depuis la fiche dossier
+  // ou depuis le tableau de bord), on ne coche que celui-là. Sinon — le
+  // recueil parti avant toute inscription — on garde l'ancien comportement,
+  // qui coche tous les dossiers du contact : le prospect n'a répondu qu'une
+  // fois, et lui redemander la même chose à chaque inscription serait pire
+  // qu'une case cochée un peu large.
   await prisma.dossier.updateMany({
-    where: { contactId: req.contactId, needsAssessmentDone: false },
+    where: req.dossierId
+      ? { id: req.dossierId, needsAssessmentDone: false }
+      : { contactId: req.contactId, needsAssessmentDone: false },
     data: { needsAssessmentDone: true },
   });
 
@@ -42,15 +47,22 @@ export async function POST(request: Request, props: { params: Promise<{ token: s
   // adaptation need at entry becomes a CONFIDENTIAL AccommodationRequest —
   // details never land in responseText, which any dossier-level staff can
   // read; AccommodationRequest is restricted to canAccessAccommodations()
-  // (admins + référent handicap). Attached to the contact's most recent
-  // dossier — the recueil is sent per-dossier in practice. In the marginal
-  // no-dossier-yet case the details would have nowhere confidential to
-  // live, so only a neutral flag line is appended for staff to follow up.
+  // (admins + référent handicap).
+  //
+  // Rattaché au dossier visé par la demande quand il y en a un. À défaut
+  // seulement, au plus récent du contact — c'est une approximation, et pour
+  // un apprenant inscrit à deux formations elle pouvait déposer une donnée
+  // de santé sur le mauvais dossier, donc devant la mauvaise équipe.
+  // Dans le cas marginal où le contact n'a encore aucun dossier, les
+  // détails n'ont nulle part de confidentiel où vivre : seule une ligne
+  // neutre est ajoutée pour que quelqu'un rappelle la personne.
   if (parsed.data.adaptationNeeded) {
-    const latestDossier = await prisma.dossier.findFirst({
-      where: { contactId: req.contactId, organizationId: req.organizationId },
-      orderBy: { createdAt: "desc" },
-    });
+    const latestDossier = req.dossierId
+      ? await prisma.dossier.findUnique({ where: { id: req.dossierId } })
+      : await prisma.dossier.findFirst({
+          where: { contactId: req.contactId, organizationId: req.organizationId },
+          orderBy: { createdAt: "desc" },
+        });
     if (latestDossier) {
       await prisma.accommodationRequest.create({
         data: {

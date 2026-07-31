@@ -701,6 +701,7 @@ model Dossier {
   invoices                    Invoice[]
   clientOutreaches            ClientOutreach[]
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
+  needsAssessmentRequests     NeedsAssessmentRequest[]
   withdrawalWaiver            WithdrawalWaiver?
 
   @@index([organizationId])
@@ -1197,6 +1198,8 @@ model Quote {
   status      DocStatus @default(DRAFT)
   createdAt   DateTime  @default(now())
 
+  lines QuoteLine[]
+
   @@index([organizationId])
 }
 
@@ -1259,6 +1262,7 @@ model Invoice {
   payments           Payment[]
   bankTransactions   BankTransaction[]
   fundingCommitments FundingCommitment[]
+  lines              InvoiceLine[]
 
   @@index([organizationId])
   // Drives the cron that issues a scheduled instalment shortly before it
@@ -1276,6 +1280,51 @@ model Invoice {
 // unchanged. `method` is free text (virement, carte, chèque, espèces,
 // Stripe...) rather than an enum since real payment methods vary more than
 // this scaffold needs to model rigidly.
+// Le détail d'un devis ou d'une facture.
+//
+// Il n'y en avait aucun : un montant global et rien d'autre. Or un OPCO qui
+// instruit une prise en charge demande le détail — « 2 stagiaires × 3 jours
+// × 350 € », pas « 2 100 € ». Sans lui, l'organisme refaisait le décompte
+// dans un tableur joint à part, que personne ne rapprochait ensuite.
+//
+// Le détail reste FACULTATIF : une facture à ligne unique est parfaitement
+// valable, et les documents créés avant ce modèle n'en ont pas. Quand il y
+// en a, la somme des lignes doit égaler amountCents — vérifié à la création.
+// C'est amountCents qui reste la référence pour les paiements, le
+// rapprochement bancaire et les totaux du tableau de bord : deux sources de
+// vérité sur un montant, c'est un écart qui finit par se voir en compta.
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  designation String
+  // Le prix unitaire est en centiers comme partout ailleurs ; seule la
+  // quantité est un Float, parce qu'une demi-journée est une quantité
+  // légitime alors qu'un demi-centime n'est pas un montant.
+  quantity       Float
+  unitPriceCents Int
+  // L'unité telle qu'elle sera lue sur le document : « heures », « jours »,
+  // « stagiaires », « forfait ». Texte libre, aucune liste fermée ne
+  // couvrirait la variété réelle des prestations de formation.
+  unit  String?
+  order Int    @default(0)
+
+  @@index([invoiceId])
+}
+
+model QuoteLine {
+  id             String  @id @default(cuid())
+  quote          Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  quoteId        String
+  designation    String
+  quantity       Float
+  unitPriceCents Int
+  unit           String?
+  order          Int     @default(0)
+
+  @@index([quoteId])
+}
+
 model Payment {
   id               String       @id @default(cuid())
   organization     Organization @relation(fields: [organizationId], references: [id])
@@ -1557,6 +1606,16 @@ model NeedsAssessmentRequest {
   contactId      String
   opportunity    Opportunity? @relation(fields: [opportunityId], references: [id])
   opportunityId  String?
+  // Le dossier visé, quand le recueil part d'un dossier déjà créé plutôt
+  // que d'une opportunité en cours de vente. Nullable parce que les deux
+  // cas coexistent : le recueil part souvent AVANT l'inscription.
+  //
+  // Sans lui, la complétion devait deviner : elle cochait « recueil fait »
+  // sur TOUS les dossiers du contact, et rattachait une déclaration de
+  // handicap — donnée sensible — au dossier le plus récent. Pour un
+  // apprenant inscrit à deux formations, c'était un pari.
+  dossier        Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId      String?
   token          String       @unique
   templateBody   String
   responseText   String?
@@ -1568,6 +1627,7 @@ model NeedsAssessmentRequest {
 
   @@index([organizationId])
   @@index([contactId])
+  @@index([dossierId])
 }
 
 // ---------------------------------------------------------------------------

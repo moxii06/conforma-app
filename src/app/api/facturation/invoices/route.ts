@@ -3,6 +3,7 @@ import { z } from "zod";
 import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { checkLines } from "@/lib/invoiceLines";
 
 const DEFAULT_PAYMENT_TERM_DAYS = 30;
 
@@ -19,6 +20,19 @@ const schema = z.object({
   // future caller of this route still gets a real dueDate, needed for
   // dashboardTasks.ts's automatic overdue detection.
   dueDate: z.string().optional(),
+  // Le détail, facultatif. Quand il est fourni, sa somme doit tomber
+  // exactement sur amountCents — voir checkLines.
+  lines: z
+    .array(
+      z.object({
+        designation: z.string().min(1).max(300),
+        quantity: z.number().positive(),
+        unitPriceCents: z.number().int().min(0),
+        unit: z.string().max(40).optional(),
+      }),
+    )
+    .max(50)
+    .optional(),
 });
 
 // spec §5.3 / §7.2: the product doesn't become an accredited e-invoicing
@@ -38,6 +52,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
+
+  const lignes = parsed.data.lines ?? [];
+  const verif = checkLines(lignes, parsed.data.amountCents);
+  if (!verif.ok) return NextResponse.json({ error: verif.error }, { status: 400 });
 
   const contact = await prisma.contact.findFirst({
     where: { id: parsed.data.contactId, organizationId: session.organizationId },
@@ -61,6 +79,7 @@ export async function POST(request: Request) {
       fundingOrigin: parsed.data.fundingOrigin,
       einvoicingProvider: DEFAULT_EINVOICING_PROVIDER,
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : addDays(new Date(), DEFAULT_PAYMENT_TERM_DAYS),
+      lines: { create: lignes.map((l, i) => ({ ...l, order: i })) },
     },
     include: { contact: true },
   });

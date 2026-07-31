@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { toWinAnsi } from "./winAnsi";
 
 // Turns the RichTextEditor's sanitized HTML output into a real PDF —
 // client feedback wants actual attachable files, not the plain-text-in-a-
@@ -164,7 +165,7 @@ export async function generatePdfFromRichText(title: string, bodyHtml: string): 
   // Title, always plain bold sans — the document's own formatting starts below it.
   const titleFont = embedded.sans.bold;
   const titleSize = 15;
-  page.drawText(title, { x: MARGIN, y: cursorY, size: titleSize, font: titleFont, color: rgb(0.1, 0.14, 0.19) });
+  page.drawText(toWinAnsi(title), { x: MARGIN, y: cursorY, size: titleSize, font: titleFont, color: rgb(0.1, 0.14, 0.19) });
   cursorY -= titleSize + 14;
 
   const maxWidth = PAGE_WIDTH - MARGIN * 2;
@@ -180,7 +181,11 @@ export async function generatePdfFromRichText(title: string, bodyHtml: string): 
     type Token = { word: string; run: Run; break?: boolean };
     const tokens: Token[] = [];
     for (const run of runs) {
-      const segments = run.text.split("\n");
+      // Assaini ici, une fois, avant toute mesure ou tout tracé : les polices
+      // standard de pdf-lib lèvent une exception sur un caractère hors
+      // WinAnsi, et un contrat contient toujours, tôt ou tard, un caractère
+      // collé depuis un traitement de texte. Voir winAnsi.ts.
+      const segments = toWinAnsi(run.text).split("\n");
       segments.forEach((segment, i) => {
         if (i > 0) tokens.push({ word: "", run, break: true });
         const words = segment.split(/(\s+)/).filter((w) => w.length > 0);

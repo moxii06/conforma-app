@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { checkLines } from "@/lib/invoiceLines";
 
 const schema = z.object({
   contactId: z.string().min(1),
@@ -10,6 +11,19 @@ const schema = z.object({
   // Désignation de la prestation — mention obligatoire sur le document émis.
   description: z.string().min(1).optional(),
   amountCents: z.number().int().positive(),
+  // Le détail, facultatif. Quand il est fourni, sa somme doit tomber
+  // exactement sur amountCents — voir checkLines.
+  lines: z
+    .array(
+      z.object({
+        designation: z.string().min(1).max(300),
+        quantity: z.number().positive(),
+        unitPriceCents: z.number().int().min(0),
+        unit: z.string().max(40).optional(),
+      }),
+    )
+    .max(50)
+    .optional(),
 });
 
 export async function POST(request: Request) {
@@ -22,6 +36,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
+
+  const lignes = parsed.data.lines ?? [];
+  const verif = checkLines(lignes, parsed.data.amountCents);
+  if (!verif.ok) return NextResponse.json({ error: verif.error }, { status: 400 });
 
   const contact = await prisma.contact.findFirst({
     where: { id: parsed.data.contactId, organizationId: session.organizationId },
@@ -42,6 +60,7 @@ export async function POST(request: Request) {
       dossierId: parsed.data.dossierId,
       reference: parsed.data.reference,
       amountCents: parsed.data.amountCents,
+      lines: { create: lignes.map((l, i) => ({ ...l, order: i })) },
     },
     include: { contact: true },
   });

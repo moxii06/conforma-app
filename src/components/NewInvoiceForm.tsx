@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { FUNDING_ORIGIN_LABELS } from "@/lib/bpfCategories";
 
 type Contact = { id: string; firstName: string; lastName: string };
@@ -29,6 +30,7 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [lignes, setLignes] = useState<EditableLine[]>([]);
   const [fundingOrigin, setFundingOrigin] = useState("company");
   const [dueDate, setDueDate] = useState(defaultDueDate);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +49,7 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
         dossierId: dossierId || undefined,
         reference,
         description: description || undefined,
+        lines: lignes.length > 0 ? toDraftLines(lignes) : undefined,
         amountCents: Math.round(parseFloat(amount || "0") * 100),
         fundingOrigin,
         dueDate: dueDate || undefined,
@@ -119,6 +122,11 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
       <div className="text-[11px] text-slate">
         Transmission via le portail public (PPF) par défaut — connecteur Pennylane/Sellsy non branché (voir /integrations).
       </div>
+      <InvoiceLinesEditor
+        lignes={lignes}
+        onChange={setLignes}
+        amountCents={Math.round(parseFloat(amount || "0") * 100)}
+      />
       <div className="flex items-center gap-2.5">
         <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
           {loading ? "…" : "Créer"}
