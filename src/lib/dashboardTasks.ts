@@ -58,10 +58,40 @@ export type DashboardTask = {
     | "session_uninvoiced";
   label: string;
   contactName: string;
+  /** La date de référence de la tâche, quel qu'en soit le sens. */
   since: Date;
+  /**
+   * Date avant laquelle il faut agir, quand la tâche en a une.
+   *
+   * `since` portait deux sens incompatibles selon le kind : « en attente
+   * depuis le 3 avril » pour une relance, mais « à faire avant le 3 avril »
+   * pour une échéance. Les trier ensemble du plus ancien au plus récent
+   * envoyait toute échéance à venir en fin de liste — l'audit Qualiopi dans
+   * trois semaines passait derrière un recueil des besoins relancé il y a
+   * trois mois, alors que seul le premier a une date après laquelle il est
+   * trop tard. `dueAt` isole ce second sens ; `since` garde sa valeur.
+   */
+  dueAt?: Date;
   href: string;
   overdue: boolean;
 };
+
+/**
+ * Trois familles, dans cet ordre : ce qui est déjà en retard, ce qui a une
+ * échéance à venir, ce qui traîne sans échéance. À l'intérieur : le plus
+ * en retard d'abord, puis l'échéance la plus proche, puis le plus ancien.
+ *
+ * Sans cette séparation, une convocation à envoyer pour après-demain ne
+ * pouvait jamais remonter : sa date étant dans le futur, elle était par
+ * construction « plus récente » que n'importe quelle relance en cours.
+ */
+export function compareDashboardTasks(a: DashboardTask, b: DashboardTask): number {
+  if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+  if (a.overdue) return a.since.getTime() - b.since.getTime();
+  if (Boolean(a.dueAt) !== Boolean(b.dueAt)) return a.dueAt ? -1 : 1;
+  if (a.dueAt && b.dueAt) return a.dueAt.getTime() - b.dueAt.getTime();
+  return a.since.getTime() - b.since.getTime();
+}
 
 // The dashboard's unified "what needs doing" list — originally just sales
 // follow-ups (hence the old name, followUps.ts), grown to cover every
@@ -213,6 +243,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
           : `Convocation à envoyer — session le ${d.session.startsAt.toLocaleDateString("fr-FR")}`,
         contactName: `${d.contact.firstName} ${d.contact.lastName}`,
         since: d.session.startsAt,
+        dueAt: d.session.startsAt,
         href: `/dossiers/${d.id}`,
         overdue: false,
       });
@@ -341,6 +372,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
           : `Échéance de formation proche, à relancer (${d.accessDurationDays} j)`,
         contactName: `${d.contact.firstName} ${d.contact.lastName}`,
         since: deadline,
+        dueAt: deadline,
         href: `/dossiers/${d.id}`,
         overdue,
       });
@@ -547,6 +579,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
               : `Accord ${c.funder.name} valable jusqu'au ${dateLabel} — faites régler la facture avant cette date`,
           contactName,
           since: c.validUntil!,
+          dueAt: c.validUntil!,
           href: `/dossiers/${c.dossierId}?tab=financement`,
           overdue: expired,
         });
@@ -587,6 +620,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         label: `Session à valider — ${s.dossiers.length} apprenant${s.dossiers.length > 1 ? "s" : ""} inscrit${s.dossiers.length > 1 ? "s" : ""}`,
         contactName: s.course.title,
         since: s.startsAt,
+        dueAt: s.startsAt,
         href: `/planning/${s.id}`,
         overdue: false,
       });
@@ -623,6 +657,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         label: `Demande RGPD — échéance ${r.deadline.toLocaleDateString("fr-FR")}`,
         contactName: r.personLabel,
         since: r.deadline,
+        dueAt: r.deadline,
         href: "/rgpd?tab=droits",
         overdue: r.deadline < now,
       });
@@ -649,6 +684,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         label: soonest === s.contractEndDate ? "Contrat sous-traitant arrivant à échéance" : "Qualification de sous-traitant arrivant à expiration",
         contactName: s.name,
         since: soonest,
+        dueAt: soonest,
         href: "/team",
         overdue: soonest < now,
       });
@@ -684,6 +720,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
             : "Certificat Qualiopi expire bientôt — planifier l'audit de renouvellement",
         contactName: "Certification Qualiopi",
         since: orgQualiopi.qualiopiCertificateUntil,
+        dueAt: orgQualiopi.qualiopiCertificateUntil,
         href: "/qualiopi?tab=audits",
         overdue: orgQualiopi.qualiopiCertificateUntil < now,
       });
@@ -696,6 +733,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         label: "Audit Qualiopi dans moins de 3 mois — préparer le dossier de preuves",
         contactName: "Certification Qualiopi",
         since: orgQualiopi.nextAuditDate,
+        dueAt: orgQualiopi.nextAuditDate,
         href: "/qualiopi?tab=preparation-audit",
         overdue: orgQualiopi.nextAuditDate < now,
       });
@@ -756,10 +794,5 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     }
   }
 
-  return results
-    .filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`))
-    .sort((a, b) => {
-      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-      return a.since.getTime() - b.since.getTime();
-    });
+  return results.filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`)).sort(compareDashboardTasks);
 }

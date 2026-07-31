@@ -13,6 +13,7 @@ import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { getOnboardingSteps, nextStep, type OnboardingStep } from "@/lib/onboarding";
 import { CheckCircle2, Circle } from "lucide-react";
 import { DismissTaskButton } from "@/components/DismissTaskButton";
+import { DashboardTaskAction } from "@/components/DashboardTaskAction";
 import { ShowMoreToggle } from "@/components/ShowMoreToggle";
 
 const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
@@ -296,12 +297,29 @@ function TaskRow({ task }: { task: DashboardTask }) {
         <span className="text-[12.5px] text-slate"> — {task.label}</span>
       </Link>
       <div className="flex items-center gap-2 shrink-0">
+        {/* L'échéance, quand il y en a une. Aucune date n'était affichée :
+            « Convocation à envoyer » se lisait pareil que la session soit
+            demain ou dans six jours, alors que c'est toute la différence. */}
+        {!task.overdue && task.dueAt && <span className="text-[11px] text-rust">{echeanceLabel(task.dueAt)}</span>}
         {task.overdue && <Pill tone="danger">En retard</Pill>}
+        {/* Ne rend rien pour les kinds sans action en un clic — la liste des
+            kinds concernés vit dans le composant client, pas ici : la tester
+            depuis le serveur reviendrait à appeler une fonction client. */}
+        <DashboardTaskAction kind={task.kind} id={task.id} contactName={task.contactName} />
         <span className="text-[11px] text-slate">{TASK_KIND_LABELS[task.kind]}</span>
         <DismissTaskButton kind={task.kind} id={task.id} />
       </div>
     </div>
   );
+}
+
+/** « aujourd'hui », « demain », « dans 5 j », puis la date au-delà d'une semaine. */
+function echeanceLabel(dueAt: Date): string {
+  const jours = Math.ceil((dueAt.getTime() - Date.now()) / 86_400_000);
+  if (jours <= 0) return "aujourd'hui";
+  if (jours === 1) return "demain";
+  if (jours <= 7) return `dans ${jours} j`;
+  return format(dueAt, "d MMM", { locale: fr });
 }
 
 /**
