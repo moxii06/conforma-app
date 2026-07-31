@@ -5,23 +5,26 @@ import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
 type Result = { id: string; label: string; sub?: string; href: string };
-type SearchResponse = { contacts: Result[]; courses: Result[] };
+type Group = { key: string; label: string; results: Result[] };
 
-// Cmd/Ctrl+K global search (Phase 4 §A1) — deliberately scoped to contacts
-// and course titles, see /api/search's own comment for why. Groups are
-// flattened into one list for keyboard navigation (arrows/Enter) but kept
-// visually separated so a result's type is obvious at a glance.
+// Recherche globale Ctrl/Cmd+K. Les groupes viennent maintenant du serveur
+// (voir /api/search) au lieu d'être deux clés en dur : contacts, dossiers,
+// sessions, formations, factures, devis, documents, prestataires. Ils sont
+// aplatis en une seule liste pour la navigation au clavier, mais restent
+// séparés visuellement pour qu'on voie d'un coup d'œil de quoi il s'agit —
+// « Karim Benali » sous Contacts et sous Dossiers ne mènent pas au même
+// endroit, et c'est l'en-tête de groupe qui le dit.
 export function GlobalSearch() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [data, setData] = useState<SearchResponse>({ contacts: [], courses: [] });
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const flatResults = useMemo(() => [...data.contacts, ...data.courses], [data]);
+  const flatResults = useMemo(() => groups.flatMap((g) => g.results), [groups]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -40,7 +43,7 @@ export function GlobalSearch() {
     if (open) setTimeout(() => inputRef.current?.focus(), 0);
     else {
       setQuery("");
-      setData({ contacts: [], courses: [] });
+      setGroups([]);
       setActiveIndex(0);
     }
   }, [open]);
@@ -49,14 +52,17 @@ export function GlobalSearch() {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     const q = query.trim();
     if (q.length < 2) {
-      setData({ contacts: [], courses: [] });
+      setGroups([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     timeoutRef.current = setTimeout(async () => {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      if (res.ok) setData(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(data.groups ?? []);
+      }
       setLoading(false);
     }, 300);
     return () => {
@@ -85,6 +91,19 @@ export function GlobalSearch() {
     }
   }
 
+  // Rang du premier résultat de chaque groupe dans la liste aplatie, pour que
+  // les flèches traversent les groupes sans discontinuité. Précalculé plutôt
+  // que retrouvé par indexOf à chaque ligne : deux tables différentes peuvent
+  // très bien produire deux résultats portant le même identifiant.
+  const debutDeGroupe = useMemo(() => {
+    let n = 0;
+    return groups.map((g) => {
+      const debut = n;
+      n += g.results.length;
+      return debut;
+    });
+  }, [groups]);
+
   return (
     <>
       <button
@@ -99,7 +118,10 @@ export function GlobalSearch() {
 
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 pt-24" onClick={() => setOpen(false)}>
-          <div className="w-full max-w-lg bg-white border border-line rounded-card shadow-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="w-full max-w-lg bg-white border border-line rounded-card shadow-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-2.5 px-4 py-3 border-b border-line">
               <Search size={16} className="text-slate shrink-0" />
               <input
@@ -108,27 +130,38 @@ export function GlobalSearch() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleInputKeyDown}
-                placeholder="Chercher un contact, une formation…"
+                placeholder="Un nom, un titre, un n° de facture, une date…"
                 className="flex-1 outline-none text-sm text-ink placeholder:text-slate"
               />
             </div>
 
             <div className="max-h-96 overflow-y-auto py-1.5">
               {query.trim().length < 2 && (
-                <div className="px-4 py-6 text-[12.5px] text-slate text-center">Tapez au moins 2 caractères.</div>
+                <div className="px-4 py-6 text-[12.5px] text-slate text-center">
+                  Tapez au moins 2 caractères.
+                  <div className="mt-1.5 text-[11.5px]">
+                    Une date (« 12/03 », « mars ») retrouve les sessions de cette période.
+                  </div>
+                </div>
               )}
               {query.trim().length >= 2 && !loading && flatResults.length === 0 && (
                 <div className="px-4 py-6 text-[12.5px] text-slate text-center">Aucun résultat pour « {query.trim()} ».</div>
               )}
 
-              {data.contacts.length > 0 && (
-                <div className="mb-1">
-                  <div className="px-4 pb-1 pt-1.5 text-[10.5px] font-semibold text-slate uppercase tracking-wide">Contacts</div>
-                  {data.contacts.map((r) => {
-                    const index = flatResults.indexOf(r);
+              {groups.map((group, groupIndex) => (
+                <div key={group.key} className={groupIndex > 0 ? "mt-1" : ""}>
+                  <div
+                    className={`px-4 pb-1 pt-1.5 text-[10.5px] font-semibold text-slate uppercase tracking-wide ${
+                      groupIndex > 0 ? "border-t border-line" : ""
+                    }`}
+                  >
+                    {group.label}
+                  </div>
+                  {group.results.map((r, i) => {
+                    const index = debutDeGroupe[groupIndex] + i;
                     return (
                       <button
-                        key={r.id}
+                        key={`${group.key}-${r.id}`}
                         onClick={() => goTo(r.href)}
                         onMouseEnter={() => setActiveIndex(index)}
                         className={`flex flex-col w-full text-left px-4 py-2 ${index === activeIndex ? "bg-mist" : ""}`}
@@ -139,28 +172,7 @@ export function GlobalSearch() {
                     );
                   })}
                 </div>
-              )}
-
-              {data.courses.length > 0 && (
-                <div>
-                  <div className="px-4 pb-1 pt-1.5 text-[10.5px] font-semibold text-slate uppercase tracking-wide border-t border-line">
-                    Formations
-                  </div>
-                  {data.courses.map((r) => {
-                    const index = flatResults.indexOf(r);
-                    return (
-                      <button
-                        key={r.id}
-                        onClick={() => goTo(r.href)}
-                        onMouseEnter={() => setActiveIndex(index)}
-                        className={`flex w-full text-left px-4 py-2 ${index === activeIndex ? "bg-mist" : ""}`}
-                      >
-                        <span className="text-[13px] text-ink font-medium">{r.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              ))}
             </div>
           </div>
         </div>

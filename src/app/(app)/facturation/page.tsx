@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, MetricCard } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
@@ -59,7 +60,7 @@ function parseDateParam(value: string | undefined, endOfDay: boolean): Date | un
 
 export default async function FacturationPage(
   props: {
-    searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string }>;
+    searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string; ref?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -67,6 +68,11 @@ export default async function FacturationPage(
   if (can(role, "invoicing") === "none") redirect("/dashboard");
   const canWrite = can(role, "invoicing") !== "none";
   const activeTab = searchParams.tab ?? "devis";
+  // Il n'existe pas de page par facture. Ce paramètre est ce qui donne une
+  // destination aux résultats « facture » et « devis » de la recherche
+  // globale : isoler la référence cherchée dans la liste, plutôt que d'y
+  // déposer l'utilisateur devant deux cents lignes.
+  const refFilter = searchParams.ref?.trim() || undefined;
   const statusFilter = searchParams.status && searchParams.status in DocStatus ? (searchParams.status as DocStatus) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
   const dateFrom = parseDateParam(searchParams.from, false);
@@ -203,10 +209,22 @@ export default async function FacturationPage(
         ) : (
           <>
             <DocFilterBar />
+            {refFilter && (
+              // Sans ce bandeau, on arrive de la recherche sur une liste à une
+              // ligne sans savoir pourquoi les autres ont disparu.
+              <div className="flex items-center justify-between gap-3 bg-linen border border-line rounded-card px-4 py-2.5 text-[12.5px] text-ink">
+                <span>
+                  Filtré sur la référence <span className="font-medium">{refFilter}</span>
+                </span>
+                <Link href={`/facturation?tab=${activeTab}`} className="text-slate hover:text-ink underline decoration-line">
+                  Voir tout
+                </Link>
+              </div>
+            )}
             {activeTab === "factures" ? (
-              <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} />
+              <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
             ) : (
-              <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} />
+              <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
             )}
           </>
         )}
@@ -364,6 +382,7 @@ async function QuotesTab({
   orderBy,
   dateFrom,
   dateTo,
+  refFilter,
 }: {
   organizationId: string;
   canWrite: boolean;
@@ -373,12 +392,14 @@ async function QuotesTab({
   orderBy: Prisma.QuoteOrderByWithRelationInput;
   dateFrom?: Date;
   dateTo?: Date;
+  refFilter?: string;
 }) {
   const quotes = await prisma.quote.findMany({
     where: {
       organizationId,
       ...(statusFilter ? { status: statusFilter } : {}),
       ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
+      ...(refFilter ? { reference: { contains: refFilter, mode: "insensitive" } } : {}),
     },
     include: { contact: true },
     orderBy,
@@ -416,6 +437,7 @@ async function InvoicesTab({
   orderBy,
   dateFrom,
   dateTo,
+  refFilter,
 }: {
   organizationId: string;
   canWrite: boolean;
@@ -425,12 +447,14 @@ async function InvoicesTab({
   orderBy: Prisma.InvoiceOrderByWithRelationInput;
   dateFrom?: Date;
   dateTo?: Date;
+  refFilter?: string;
 }) {
   const [invoices, stripeConfigured] = await Promise.all([
     prisma.invoice.findMany({
       where: {
         organizationId,
         ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
+        ...(refFilter ? { reference: { contains: refFilter, mode: "insensitive" } } : {}),
         // "En retard" (from DocFilterBar or the dashboard's "Factures en
         // retard" card) means the same auto-detected set as
         // dashboardTasks.ts and the dashboard total, not a strict status
