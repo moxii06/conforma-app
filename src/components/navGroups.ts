@@ -74,6 +74,12 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
   {
     label: "Organisation",
     items: [
+      // Première entrée du groupe, et pour cause : forme juridique, RCS et
+      // n° de déclaration d'activité vivent ici et alimentent toutes les
+      // conventions générées. On n'y accédait qu'en cliquant son propre nom
+      // en bas de la barre latérale — l'étape 1 du démarrage était la plus
+      // cachée de l'application.
+      { href: "/profil", label: "Mon profil", icon: User, feature: "profile" },
       { href: "/team", label: "Équipe & rôles", icon: UserCog, feature: "team" },
       { href: "/automatisations", label: "Automatisations", icon: Zap, feature: "automations" },
       { href: "/integrations", label: "Intégrations", icon: Plug, feature: "integrations" },
@@ -88,7 +94,11 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
     label: "Aide",
     items: [
       { href: "/faq", label: "FAQ & guides", icon: HelpCircle, feature: "faq" },
-      { href: "/support", label: "Aide & demandes", icon: MessageCircleWarning, feature: "support" },
+      // Renommé : « Aide & demandes » ne délivrait aucune aide — c'est le
+      // registre des réclamations et des signalements, un attendu Qualiopi
+      // (indicateur 31). FEATURE_LABELS le nommait déjà correctement en
+      // interne ; seule la navigation mentait.
+      { href: "/support", label: "Réclamations & signalements", icon: MessageCircleWarning, feature: "support" },
     ],
   },
 ];

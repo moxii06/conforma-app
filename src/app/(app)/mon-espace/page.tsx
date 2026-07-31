@@ -261,7 +261,12 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
 
 async function TrainerPortal({ userId, organizationId }: { userId: string; organizationId: string }) {
   const sessions = await prisma.session.findMany({
-    where: { organizationId, trainerId: userId, startsAt: { gte: new Date() } },
+    // Filtré sur la FIN de la session, pas sur son début. Avec
+    // `startsAt >= maintenant`, la session de 9h disparaissait de l'écran du
+    // formateur à 9h01 — exactement au moment où il en a besoin, pour
+    // émarger et retrouver sa liste d'apprenants. Une session en cours est
+    // la plus utile de toutes.
+    where: { organizationId, trainerId: userId, endsAt: { gte: new Date() } },
     include: {
       course: true,
       dossiers: { include: { contact: true, invitations: { orderBy: { sentAt: "desc" }, take: 1 } } },
@@ -270,7 +275,9 @@ async function TrainerPortal({ userId, organizationId }: { userId: string; organ
   });
 
   if (sessions.length === 0) {
-    return <div className="text-[12.5px] text-slate">Aucune session à venir ne vous est assignée.</div>;
+    return (
+      <div className="text-[12.5px] text-slate">Aucune session en cours ou à venir ne vous est assignée.</div>
+    );
   }
 
   return (

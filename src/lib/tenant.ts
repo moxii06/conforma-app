@@ -88,6 +88,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   portal: "Mon espace",
   faq: "FAQ & guides",
   support: "Réclamations & signalement",
+  profile: "Mon profil",
 };
 
 export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
@@ -143,6 +144,12 @@ export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
   // feature reused for complaint visibility) — this flag only gates whether
   // the page exists for you at all.
   support: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "full", TRAINER: "full", LEARNER: "full", DPO_EXTERNAL: "full" },
+  // /profil n'avait aucune entrée de navigation : on y accédait uniquement en
+  // cliquant son propre nom dans la barre latérale. Or c'est là que vivent la
+  // forme juridique, le RCS et le n° de déclaration d'activité — qui
+  // alimentent TOUTES les conventions générées. La première étape du
+  // démarrage était la plus cachée de l'application.
+  profile: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "full", TRAINER: "full", LEARNER: "full", DPO_EXTERNAL: "full" },
 };
 
 export function can(role: Role, feature: keyof typeof PERMISSIONS): AccessLevel {
