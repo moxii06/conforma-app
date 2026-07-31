@@ -533,6 +533,87 @@ export async function seedDemoData(prisma: PrismaClient) {
   }
 
   // ============================================================
+  // 8 bis. Prises en charge — le pipeline OPCO, avec une ligne par
+  // situation que l'écran /facturation?tab=prises-en-charge doit savoir
+  // distinguer. Sans ces données, la vue transverse s'affiche vide en
+  // démonstration alors que c'est l'écran qui répond à la question
+  // quotidienne d'un OF : « où en sont mes demandes ? ».
+  // ============================================================
+  async function upsertFunder(
+    name: string,
+    type: string,
+    contactEmail: string,
+    hourlyRateCents: number | null,
+    maxAmountCents: number | null,
+  ) {
+    return prisma.funder.upsert({
+      where: { organizationId_name: { organizationId: org.id, name } },
+      update: {},
+      create: { organizationId: org.id, name, type, contactEmail, hourlyRateCents, maxAmountCents },
+    });
+  }
+  const opcoAtlas = await upsertFunder("OPCO Atlas", "opco", "prise-en-charge@opco-atlas.demo", 2500, 300000);
+  const opcoEp = await upsertFunder("OPCO EP", "opco", "dossiers@opco-ep.demo", 1800, 200000);
+  const franceTravail = await upsertFunder("France Travail", "france_travail", "aide-formation@francetravail.demo", null, 150000);
+
+  async function upsertCommitment(
+    dossierId: string,
+    funderId: string,
+    amountCents: number,
+    status: string,
+    extra: { depositedAt?: Date; validUntil?: Date; agreementNumber?: string; subrogation?: boolean } = {},
+  ) {
+    const existing = await prisma.fundingCommitment.findFirst({ where: { dossierId, funderId, amountCents } });
+    if (existing) return existing;
+    return prisma.fundingCommitment.create({
+      data: {
+        organizationId: org.id,
+        dossierId,
+        funderId,
+        amountCents,
+        status,
+        subrogation: extra.subrogation ?? true,
+        depositedAt: extra.depositedAt,
+        validUntil: extra.validUntil,
+        agreementNumber: extra.agreementNumber,
+      },
+    });
+  }
+  // Préparée, jamais envoyée : le cas que personne ne voit passer.
+  await upsertCommitment(dSophie.id, opcoEp.id, 45000, "draft");
+  // Déposée il y a 52 jours, sans réponse — déclenche l'alerte de silence
+  // et la tâche dashboard "funding_no_reply".
+  await upsertCommitment(dMarc.id, opcoAtlas.id, 120000, "deposited", { depositedAt: daysAgo(52) });
+  // Déposée récemment : en instruction, tout va bien, aucune alerte.
+  await upsertCommitment(dKarim.id, opcoAtlas.id, 80000, "instructing", { depositedAt: daysAgo(9) });
+  // Accord obtenu qui expire dans 12 jours et dont la facture n'est pas
+  // émise : la trésorerie qui se perd le plus souvent.
+  await upsertCommitment(dLea.id, opcoEp.id, 60000, "granted", {
+    depositedAt: daysAgo(40),
+    validUntil: daysFromNow(12),
+    agreementNumber: "EP-2026-4471",
+  });
+  // Accord déjà périmé, facture émise mais non réglée : le pire cas.
+  await upsertCommitment(dJeanCyber.id, franceTravail.id, 90000, "invoiced", {
+    depositedAt: daysAgo(120),
+    validUntil: daysAgo(6),
+    agreementNumber: "FT-2026-1180",
+  });
+  // Sans subrogation : le client avance l'argent et se fait rembourser.
+  await upsertCommitment(dSophie.id, franceTravail.id, 30000, "granted", {
+    depositedAt: daysAgo(20),
+    validUntil: daysFromNow(90),
+    agreementNumber: "FT-2026-1204",
+    subrogation: false,
+  });
+  await upsertCommitment(dKarim.id, opcoEp.id, 40000, "paid", {
+    depositedAt: daysAgo(150),
+    validUntil: daysAgo(30),
+    agreementNumber: "EP-2025-9902",
+  });
+  await upsertCommitment(dMarc.id, opcoEp.id, 25000, "refused", { depositedAt: daysAgo(75) });
+
+  // ============================================================
   // 9. Support — a complaint and an anonymous secure report.
   // ============================================================
   const existingComplaint = await prisma.complaint.findFirst({ where: { organizationId: org.id, subject: "Difficulté à accéder à la vidéo du module 1" } });
