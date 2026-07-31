@@ -16,6 +16,8 @@ import { isStripeConfigured } from "@/lib/stripe";
 import { isBridgeConfigured } from "@/lib/bridge";
 import { rankInvoiceMatches, CONFIDENT_MATCH_THRESHOLD } from "@/lib/bankReconciliation";
 import { FundersPanel } from "@/components/FundersPanel";
+import { FundingPipelinePanel } from "@/components/FundingPipelinePanel";
+import { AWAITING_FUNDER, FUNDER_SILENCE_DAYS, AGREEMENT_EXPIRY_WARNING_DAYS } from "@/lib/funding";
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -70,7 +72,16 @@ export default async function FacturationPage(
   const dateFrom = parseDateParam(searchParams.from, false);
   const dateTo = parseDateParam(searchParams.to, true);
 
-  const [contacts, dossiers, pendingBankCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
+  // Le compteur de l'onglet « Prises en charge » : les mêmes deux conditions
+  // que commitmentAlert dans lib/funding.ts, mais en base plutôt qu'en
+  // mémoire — un simple count, pas le chargement de toutes les lignes. Les
+  // seuils viennent des constantes partagées pour que le badge et l'écran ne
+  // puissent pas diverger.
+  const now = new Date();
+  const silenceThreshold = new Date(now.getTime() - FUNDER_SILENCE_DAYS * 86_400_000);
+  const expiryThreshold = new Date(now.getTime() + AGREEMENT_EXPIRY_WARNING_DAYS * 86_400_000);
+
+  const [contacts, dossiers, pendingBankCount, fundingAlertCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
     prisma.contact.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true }, orderBy: { lastName: "asc" } }),
     prisma.dossier.findMany({
       where: { organizationId },
@@ -78,6 +89,15 @@ export default async function FacturationPage(
       orderBy: { createdAt: "desc" },
     }),
     prisma.bankTransaction.count({ where: { organizationId, status: "pending" } }),
+    prisma.fundingCommitment.count({
+      where: {
+        organizationId,
+        OR: [
+          { status: { in: AWAITING_FUNDER }, depositedAt: { lte: silenceThreshold } },
+          { status: { in: ["granted", "invoiced"] }, validUntil: { lte: expiryThreshold } },
+        ],
+      },
+    }),
     // Strip totals — "en attente" excludes anything the overdue card counts,
     // so the two never double-comptent une même facture.
     prisma.invoice.aggregate({
@@ -102,6 +122,10 @@ export default async function FacturationPage(
     { key: "devis", label: "Devis" },
     { key: "factures", label: "Factures" },
     { key: "a-valider", label: pendingBankCount > 0 ? `À valider (${pendingBankCount})` : "À valider" },
+    {
+      key: "prises-en-charge",
+      label: fundingAlertCount > 0 ? `Prises en charge (${fundingAlertCount})` : "Prises en charge",
+    },
     { key: "financeurs", label: "Financeurs" },
   ];
 
@@ -170,6 +194,8 @@ export default async function FacturationPage(
                 .reduce((sum, c) => sum + c.amountCents, 0),
             }))}
           />
+        ) : activeTab === "prises-en-charge" ? (
+          <FundingPipelineTab organizationId={organizationId} canWrite={canWrite} />
         ) : activeTab === "a-valider" ? (
           canWrite ? (
             <BankValidationTab organizationId={organizationId} />
@@ -186,6 +212,61 @@ export default async function FacturationPage(
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * La vue transverse des prises en charge. Les actions (changer un statut,
+ * générer la facture au financeur) réutilisent telles quelles les routes par
+ * dossier — chaque ligne connaît son dossierId, donc aucune API nouvelle
+ * n'était nécessaire, et la logique d'écriture reste à un seul endroit.
+ */
+async function FundingPipelineTab({ organizationId, canWrite }: { organizationId: string; canWrite: boolean }) {
+  const [commitments, funders] = await Promise.all([
+    prisma.fundingCommitment.findMany({
+      where: { organizationId },
+      include: {
+        funder: { select: { id: true, name: true, type: true, contactEmail: true } },
+        invoice: { select: { reference: true } },
+        dossier: {
+          select: {
+            id: true,
+            contact: { select: { firstName: true, lastName: true } },
+            session: { select: { course: { select: { title: true } } } },
+          },
+        },
+      },
+    }),
+    prisma.funder.findMany({
+      where: { organizationId, archivedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  return (
+    <FundingPipelinePanel
+      canWrite={canWrite}
+      funders={funders}
+      rows={commitments.map((c) => ({
+        id: c.id,
+        dossierId: c.dossierId,
+        learnerName: `${c.dossier.contact.firstName} ${c.dossier.contact.lastName}`,
+        courseTitle: c.dossier.session.course.title,
+        funderId: c.funder.id,
+        funderName: c.funder.name,
+        funderType: c.funder.type,
+        funderEmail: c.funder.contactEmail,
+        amountCents: c.amountCents,
+        subrogation: c.subrogation,
+        status: c.status,
+        agreementNumber: c.agreementNumber,
+        validUntil: c.validUntil?.toISOString() ?? null,
+        depositedAt: c.depositedAt?.toISOString() ?? null,
+        createdAt: c.createdAt.toISOString(),
+        invoiceReference: c.invoice?.reference ?? null,
+      }))}
+    />
   );
 }
 

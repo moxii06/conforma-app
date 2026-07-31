@@ -183,6 +183,166 @@ export function estimateFundingAmountCents(
 }
 
 // ---------------------------------------------------------------------------
+// Pipeline transverse : « où en sont mes demandes de prise en charge ? »
+//
+// Le panneau par dossier répond à « qui paie CE dossier ». Il ne répond pas à
+// la question quotidienne d'un OF : quelles demandes dorment chez quel OPCO,
+// et laquelle rappeler ce matin. Y répondre imposait d'ouvrir les dossiers un
+// par un — donc, en pratique, de ne pas y répondre.
+//
+// Le tri est le cœur de l'écran : une liste de prises en charge classée par
+// date de création ne sert à rien. Elle est classée par urgence réelle
+// (accord périmé > accord qui expire > silence du financeur), puis par
+// ancienneté à l'intérieur de chaque niveau.
+// ---------------------------------------------------------------------------
+
+export type FundingBucketKey = "draft" | "awaiting" | "granted" | "invoiced" | "paid" | "refused";
+
+export const FUNDING_BUCKETS: {
+  key: FundingBucketKey;
+  label: string;
+  /** Ce que l'OF doit en faire — l'étiquette seule ne le dit pas. */
+  hint: string;
+  statuses: CommitmentStatus[];
+}[] = [
+  {
+    key: "draft",
+    label: "À déposer",
+    hint: "Préparées mais jamais envoyées au financeur — rien n'avancera tant qu'elles restent ici.",
+    statuses: ["draft"],
+  },
+  {
+    key: "awaiting",
+    label: "Chez le financeur",
+    hint: "Déposées, en attente de réponse. Au-delà de 30 jours, un appel débloque plus qu'un mail.",
+    statuses: ["deposited", "instructing"],
+  },
+  {
+    key: "granted",
+    label: "Accord obtenu",
+    hint: "L'argent est acquis mais pas encore demandé : c'est ici que se perd le plus de trésorerie.",
+    statuses: ["granted"],
+  },
+  {
+    key: "invoiced",
+    label: "Facturé au financeur",
+    hint: "Facture émise, règlement à suivre.",
+    statuses: ["invoiced"],
+  },
+  { key: "paid", label: "Réglé", hint: "Encaissé — plus rien à faire.", statuses: ["paid"] },
+  {
+    key: "refused",
+    label: "Refusé",
+    hint: "Conservées comme trace de ce qui a été tenté. Le reste à charge revient au client.",
+    statuses: ["refused"],
+  },
+];
+
+export function bucketOf(status: string): FundingBucketKey {
+  const bucket = FUNDING_BUCKETS.find((b) => b.statuses.includes(status as CommitmentStatus));
+  // Un statut inconnu (donnée ancienne, saisie manuelle en base) reste visible
+  // dans « À déposer » plutôt que de disparaître silencieusement de l'écran.
+  return bucket?.key ?? "draft";
+}
+
+/** Ce qui cloche sur une prise en charge, du plus grave au moins grave. */
+export type FundingAlert = "expired" | "expiring" | "silent" | null;
+
+export function commitmentAlert(
+  c: { status: string; depositedAt?: Date | null; validUntil?: Date | null },
+  now: Date,
+): FundingAlert {
+  // Un accord périmé alors que la facture n'est pas réglée : le financeur ne
+  // doit plus rien. C'est irréversible, donc prioritaire sur tout le reste.
+  if (
+    SECURED.includes(c.status as CommitmentStatus) &&
+    c.status !== "paid" &&
+    c.validUntil &&
+    c.validUntil < now
+  ) {
+    return "expired";
+  }
+  if (isAgreementExpiringSoon(c, now)) return "expiring";
+  if (isAwaitingFunderTooLong(c, now)) return "silent";
+  return null;
+}
+
+const ALERT_RANK: Record<Exclude<FundingAlert, null>, number> = { expired: 3, expiring: 2, silent: 1 };
+
+/**
+ * Tri d'urgence : alerte la plus grave d'abord, puis la plus ancienne à
+ * l'intérieur d'un même niveau. La date de référence est celle qui porte
+ * l'urgence — l'échéance d'accord quand il y en a une, sinon la date de dépôt.
+ * Renvoie une valeur négative/positive utilisable directement dans `sort`.
+ */
+export function compareFundingUrgency(
+  a: { status: string; depositedAt?: Date | null; validUntil?: Date | null; createdAt: Date },
+  b: { status: string; depositedAt?: Date | null; validUntil?: Date | null; createdAt: Date },
+  now: Date,
+): number {
+  const rankA = ALERT_RANK[commitmentAlert(a, now) as Exclude<FundingAlert, null>] ?? 0;
+  const rankB = ALERT_RANK[commitmentAlert(b, now) as Exclude<FundingAlert, null>] ?? 0;
+  if (rankA !== rankB) return rankB - rankA;
+  const dateA = a.validUntil ?? a.depositedAt ?? a.createdAt;
+  const dateB = b.validUntil ?? b.depositedAt ?? b.createdAt;
+  return dateA.getTime() - dateB.getTime();
+}
+
+export type FundingPipelineTotals = {
+  /** Demandé, sans réponse : draft + deposited + instructing. */
+  requestedCents: number;
+  /** Accordé mais pas encore facturé — la trésorerie qui dort. */
+  toInvoiceCents: number;
+  /** Facturé aux financeurs, pas encore réglé. */
+  awaitingPaymentCents: number;
+  /** Encaissé. */
+  settledCents: number;
+  /** Nombre de prises en charge portant une alerte, par gravité. */
+  expired: number;
+  expiring: number;
+  silent: number;
+};
+
+export function computeFundingPipelineTotals(
+  commitments: { amountCents: number; status: string; depositedAt?: Date | null; validUntil?: Date | null }[],
+  now = new Date(),
+): FundingPipelineTotals {
+  const totals: FundingPipelineTotals = {
+    requestedCents: 0,
+    toInvoiceCents: 0,
+    awaitingPaymentCents: 0,
+    settledCents: 0,
+    expired: 0,
+    expiring: 0,
+    silent: 0,
+  };
+  for (const c of commitments) {
+    switch (bucketOf(c.status)) {
+      case "draft":
+      case "awaiting":
+        totals.requestedCents += c.amountCents;
+        break;
+      case "granted":
+        totals.toInvoiceCents += c.amountCents;
+        break;
+      case "invoiced":
+        totals.awaitingPaymentCents += c.amountCents;
+        break;
+      case "paid":
+        totals.settledCents += c.amountCents;
+        break;
+      // "refused" ne compte nulle part — même raison que dans
+      // computeFundingSummary : c'est une trace, pas un montant.
+    }
+    const alert = commitmentAlert(c, now);
+    if (alert === "expired") totals.expired++;
+    else if (alert === "expiring") totals.expiring++;
+    else if (alert === "silent") totals.silent++;
+  }
+  return totals;
+}
+
+// ---------------------------------------------------------------------------
 // Dossier de financement : les pièces qu'un financeur exige, vérifiées
 // contre ce qui existe réellement — jamais déclarées à la main.
 //

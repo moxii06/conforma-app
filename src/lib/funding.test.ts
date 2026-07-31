@@ -6,6 +6,11 @@ import {
   isAwaitingFunderTooLong,
   isAgreementExpiringSoon,
   estimateFundingAmountCents,
+  bucketOf,
+  commitmentAlert,
+  compareFundingUrgency,
+  computeFundingPipelineTotals,
+  FUNDING_BUCKETS,
 } from "./funding";
 
 // Money split across several funders is exactly the kind of arithmetic that
@@ -262,5 +267,121 @@ describe("computeFundingSummary — nouveaux statuts", () => {
     expect(s.securedCents).toBe(0);
     expect(s.pendingCents).toBe(90000);
     expect(s.remainderCents).toBe(100000);
+  });
+});
+
+// Le pipeline transverse : ce qui compte ici n'est pas la somme mais l'ORDRE.
+// Un écran qui affiche les bonnes lignes dans le mauvais ordre fait rappeler
+// le mauvais financeur.
+
+describe("bucketOf", () => {
+  it("classe chaque statut dans une colonne, et une seule", () => {
+    expect(bucketOf("draft")).toBe("draft");
+    expect(bucketOf("deposited")).toBe("awaiting");
+    expect(bucketOf("instructing")).toBe("awaiting");
+    expect(bucketOf("granted")).toBe("granted");
+    expect(bucketOf("invoiced")).toBe("invoiced");
+    expect(bucketOf("paid")).toBe("paid");
+    expect(bucketOf("refused")).toBe("refused");
+  });
+
+  it("couvre tous les statuts du cycle de vie, sans doublon", () => {
+    const covered = FUNDING_BUCKETS.flatMap((b) => b.statuses);
+    expect(new Set(covered).size).toBe(covered.length);
+    expect(covered.sort()).toEqual(
+      ["deposited", "draft", "granted", "instructing", "invoiced", "paid", "refused"],
+    );
+  });
+
+  it("garde visible un statut inconnu au lieu de le faire disparaître", () => {
+    expect(bucketOf("n_importe_quoi")).toBe("draft");
+  });
+});
+
+describe("commitmentAlert", () => {
+  it("signale un accord périmé dont la facture n'est pas réglée", () => {
+    expect(commitmentAlert({ status: "granted", validUntil: new Date("2026-07-01") }, NOW)).toBe("expired");
+    expect(commitmentAlert({ status: "invoiced", validUntil: new Date("2026-07-01") }, NOW)).toBe("expired");
+  });
+
+  it("ne signale rien une fois réglé — la date d'accord ne sert plus à rien", () => {
+    expect(commitmentAlert({ status: "paid", validUntil: new Date("2026-01-01") }, NOW)).toBeNull();
+  });
+
+  it("distingue l'accord qui expire du financeur qui ne répond pas", () => {
+    expect(commitmentAlert({ status: "granted", validUntil: new Date("2026-08-10") }, NOW)).toBe("expiring");
+    expect(commitmentAlert({ status: "deposited", depositedAt: new Date("2026-05-01") }, NOW)).toBe("silent");
+  });
+
+  it("reste muet sur une prise en charge saine", () => {
+    expect(commitmentAlert({ status: "deposited", depositedAt: new Date("2026-07-20") }, NOW)).toBeNull();
+    expect(commitmentAlert({ status: "draft" }, NOW)).toBeNull();
+  });
+});
+
+describe("compareFundingUrgency", () => {
+  const expired = { status: "granted", validUntil: new Date("2026-07-01"), createdAt: new Date("2026-06-01") };
+  const expiring = { status: "granted", validUntil: new Date("2026-08-10"), createdAt: new Date("2026-06-01") };
+  const silent = { status: "deposited", depositedAt: new Date("2026-05-01"), createdAt: new Date("2026-05-01") };
+  const healthy = { status: "deposited", depositedAt: new Date("2026-07-20"), createdAt: new Date("2026-07-20") };
+
+  it("remonte le plus grave en premier", () => {
+    const sorted = [healthy, silent, expiring, expired].sort((a, b) => compareFundingUrgency(a, b, NOW));
+    expect(sorted).toEqual([expired, expiring, silent, healthy]);
+  });
+
+  it("départage deux alertes de même gravité par ancienneté", () => {
+    const older = { status: "deposited", depositedAt: new Date("2026-03-01"), createdAt: new Date("2026-03-01") };
+    const sorted = [silent, older].sort((a, b) => compareFundingUrgency(a, b, NOW));
+    expect(sorted[0]).toBe(older);
+  });
+
+  it("classe les lignes sans date de dépôt ni d'accord par date de création", () => {
+    const recent = { status: "draft", createdAt: new Date("2026-07-25") };
+    const old = { status: "draft", createdAt: new Date("2026-02-01") };
+    const sorted = [recent, old].sort((a, b) => compareFundingUrgency(a, b, NOW));
+    expect(sorted[0]).toBe(old);
+  });
+});
+
+describe("computeFundingPipelineTotals", () => {
+  it("sépare le demandé, l'accordé à facturer, le facturé et l'encaissé", () => {
+    const t = computeFundingPipelineTotals(
+      [
+        { amountCents: 10000, status: "draft" },
+        { amountCents: 20000, status: "deposited", depositedAt: new Date("2026-07-20") },
+        { amountCents: 30000, status: "instructing", depositedAt: new Date("2026-07-20") },
+        { amountCents: 40000, status: "granted" },
+        { amountCents: 50000, status: "invoiced" },
+        { amountCents: 60000, status: "paid" },
+      ],
+      NOW,
+    );
+    expect(t.requestedCents).toBe(60000);
+    expect(t.toInvoiceCents).toBe(40000);
+    expect(t.awaitingPaymentCents).toBe(50000);
+    expect(t.settledCents).toBe(60000);
+  });
+
+  it("ne compte un refus dans aucun total — c'est une trace, pas un montant", () => {
+    const t = computeFundingPipelineTotals([{ amountCents: 99900, status: "refused" }], NOW);
+    expect(t.requestedCents + t.toInvoiceCents + t.awaitingPaymentCents + t.settledCents).toBe(0);
+  });
+
+  it("compte les alertes par gravité, une seule par prise en charge", () => {
+    const t = computeFundingPipelineTotals(
+      [
+        // Périmé ET silencieux au sens large : ne doit compter qu'une fois,
+        // dans le niveau le plus grave.
+        { amountCents: 1000, status: "granted", validUntil: new Date("2026-07-01"), depositedAt: new Date("2026-01-01") },
+        { amountCents: 1000, status: "granted", validUntil: new Date("2026-08-10") },
+        { amountCents: 1000, status: "deposited", depositedAt: new Date("2026-05-01") },
+        { amountCents: 1000, status: "deposited", depositedAt: new Date("2026-07-25") },
+      ],
+      NOW,
+    );
+    expect(t.expired).toBe(1);
+    expect(t.expiring).toBe(1);
+    expect(t.silent).toBe(1);
   });
 });
