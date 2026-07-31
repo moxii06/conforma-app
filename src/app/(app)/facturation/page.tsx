@@ -278,7 +278,9 @@ async function BankValidationTab({ organizationId }: { organizationId: string })
     }),
     prisma.invoice.findMany({
       where: { organizationId, status: { in: ["SENT", "OVERDUE", "SIGNED"] } },
-      include: { contact: { include: { company: true } }, payments: true },
+      // funder inclus : c'est lui qui vire sur une facture subrogée, donc
+      // c'est son nom qu'il faut chercher dans le libellé bancaire.
+      include: { contact: { include: { company: true } }, payments: true, funder: { select: { name: true } } },
     }),
     isBridgeConfigured() ? prisma.bankConnection.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
   ]);
@@ -290,6 +292,7 @@ async function BankValidationTab({ organizationId }: { organizationId: string })
     paidCents: inv.payments.reduce((sum, p) => sum + p.amountCents, 0),
     createdAt: inv.createdAt,
     contact: { firstName: inv.contact.firstName, lastName: inv.contact.lastName, company: inv.contact.company },
+    funder: inv.funder,
   }));
   const invoiceById = new Map(openInvoices.map((inv) => [inv.id, inv]));
 

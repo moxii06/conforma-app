@@ -67,6 +67,34 @@ describe("scoreInvoiceMatch", () => {
     expect(match.reasons).toContain("Société dans le libellé");
   });
 
+  // Le cas le plus fréquent chez un OF, et celui qu'aucune suggestion ne
+  // trouvait : sur une facture subrogée, c'est l'OPCO qui vire, donc ni le
+  // nom de l'apprenant ni celui de son employeur n'apparaissent au relevé.
+  it("reconnaît le financeur quand c'est lui qui a viré, et pas l'apprenant", () => {
+    const tx = { amountCents: 90000, bookedAt: new Date("2026-06-15"), label: "VIR SEPA OPCO EP DOSSIER 4471" };
+    const match = scoreInvoiceMatch(tx, invoice({ funder: { name: "OPCO EP" } }));
+    expect(match.reasons).toContain("Financeur dans le libellé");
+    expect(match.score).toBeGreaterThanOrEqual(CONFIDENT_MATCH_THRESHOLD);
+  });
+
+  it("retrouve un financeur libellé sous son seul nom distinctif", () => {
+    const tx = { amountCents: 90000, bookedAt: new Date("2026-06-15"), label: "VIR ATLAS FORMATION" };
+    const match = scoreInvoiceMatch(tx, invoice({ funder: { name: "OPCO Atlas" } }));
+    expect(match.reasons).toContain("Financeur dans le libellé");
+  });
+
+  it("ne confond pas deux OPCO sur leur préfixe commun", () => {
+    const tx = { amountCents: 90000, bookedAt: new Date("2026-06-15"), label: "VIR OPCO ATLAS" };
+    const match = scoreInvoiceMatch(tx, invoice({ funder: { name: "OPCO EP" } }));
+    expect(match.reasons).not.toContain("Financeur dans le libellé");
+  });
+
+  it("ignore le financeur quand la facture n'en porte aucun", () => {
+    const tx = { amountCents: 90000, bookedAt: new Date("2026-06-15"), label: "VIR OPCO EP" };
+    const match = scoreInvoiceMatch(tx, invoice({ funder: null }));
+    expect(match.reasons).not.toContain("Financeur dans le libellé");
+  });
+
   it("does not reward a transaction booked before the invoice existed", () => {
     const tx = { amountCents: 90000, bookedAt: new Date("2026-05-01"), label: "VIR DUPONT" };
     const match = scoreInvoiceMatch(tx, invoice({ createdAt: new Date("2026-06-01") }));

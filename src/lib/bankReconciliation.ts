@@ -14,6 +14,12 @@ export type InvoiceMatchCandidate = {
   paidCents: number; // sum of existing Payment rows — a partially-paid invoice matches on its *remaining* balance
   createdAt: Date;
   contact: { firstName: string; lastName: string; company: { name: string } | null };
+  // Le financeur facturé en subrogation, quand il y en a un. C'est LUI qui
+  // vire l'argent : sur une facture OPCO, le nom de l'apprenant n'apparaîtra
+  // jamais dans le libellé bancaire. Sans ce champ, les virements les plus
+  // fréquents d'un OF étaient exactement ceux qu'aucune suggestion ne
+  // trouvait — et qu'il pointait donc à la main.
+  funder?: { name: string } | null;
 };
 
 export type TransactionForMatching = {
@@ -58,6 +64,28 @@ function nameFoundIn(name: string, haystack: string): boolean {
   return words.every((w) => haystack.includes(w));
 }
 
+// Mots trop génériques pour identifier un financeur à eux seuls : tous les
+// OPCO les partagent. Sans cette exclusion, « OPCO Atlas » matcherait un
+// virement « OPCO EP ».
+const GENERIC_FUNDER_WORDS = ["opco", "opca"];
+
+/**
+ * Un financeur apparaît dans un libellé bancaire soit sous son nom complet
+ * (« VIR OPCO EP 12345 »), soit sous son seul nom distinctif (« VIR ATLAS
+ * FORMATION » pour « OPCO Atlas ») — les banques tronquent, et les OPCO ne
+ * libellent pas tous pareil. On accepte donc les deux, mais le repli sur le
+ * nom distinctif exige des mots d'au moins 4 lettres hors mots génériques :
+ * « EP » seul identifierait n'importe quoi.
+ */
+function funderFoundIn(name: string, haystack: string): boolean {
+  if (nameFoundIn(name, haystack)) return true;
+  const distinctive = normalize(name)
+    .split(" ")
+    .filter((w) => w.length >= 4 && !GENERIC_FUNDER_WORDS.includes(w));
+  if (distinctive.length === 0) return false;
+  return distinctive.every((w) => haystack.includes(w));
+}
+
 export function scoreInvoiceMatch(tx: TransactionForMatching, invoice: InvoiceMatchCandidate): InvoiceMatch {
   const reasons: string[] = [];
   let score = 0;
@@ -82,6 +110,14 @@ export function scoreInvoiceMatch(tx: TransactionForMatching, invoice: InvoiceMa
   if (invoice.contact.company && nameFoundIn(invoice.contact.company.name, haystack)) {
     score += 20;
     reasons.push("Société dans le libellé");
+    hasNameSignal = true;
+  }
+  // Même poids que le nom complet du contact, et pour la même raison : sur
+  // une facture subrogée, le financeur EST le payeur. C'est le seul nom qui
+  // a une chance d'apparaître dans le libellé.
+  if (invoice.funder && funderFoundIn(invoice.funder.name, haystack)) {
+    score += 30;
+    reasons.push("Financeur dans le libellé");
     hasNameSignal = true;
   }
 
