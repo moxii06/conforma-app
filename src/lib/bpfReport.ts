@@ -7,7 +7,43 @@ export type BpfReport = {
   totalLearners: number;
   totalHours: number;
   totalRevenueCents: number;
+  /** Dossiers whose session hours could not be established (see
+   *  resolveSessionHours). Their learners still count, their hours are 0,
+   *  and the page warns rather than shipping a made-up number. */
+  dossiersWithoutHours: number;
 };
+
+export type HoursSource = "days" | "course" | "unknown";
+
+/**
+ * How many training hours a session represents, for the BPF return.
+ *
+ * This used to be `(endsAt - startsAt)` — wall-clock elapsed time. A session
+ * running Monday 9am to Wednesday 5pm declared 56 hours instead of 21, on a
+ * legally binding annual declaration to the administration. There is no
+ * amount of "close enough" that makes that acceptable, so there is
+ * deliberately NO calendar fallback here: when neither real source is
+ * available the answer is "unknown", and the caller surfaces it.
+ *
+ * Order matters. SessionDay hours are what the OF actually planned per
+ * half-day (lunch already excluded), so they beat the course's nominal
+ * duration whenever they exist — a session that ran short is declared short.
+ */
+export function resolveSessionHours(
+  session: { days: { morningHours: number | null; afternoonHours: number | null }[] },
+  course: { durationHours: number | null },
+): { hours: number; source: HoursSource } {
+  if (session.days.length > 0) {
+    const hours = session.days.reduce((sum, d) => sum + (d.morningHours ?? 0) + (d.afternoonHours ?? 0), 0);
+    // Days exist but every half-day is blank — treat as not filled in rather
+    // than as a genuine zero-hour session.
+    if (hours > 0) return { hours, source: "days" };
+  }
+  if (course.durationHours != null && course.durationHours > 0) {
+    return { hours: course.durationHours, source: "course" };
+  }
+  return { hours: 0, source: "unknown" };
+}
 
 // Computed from data already in the system (sessions, dossiers, invoices),
 // per spec §5.13 — "not a new data-entry workflow." Filters on the
@@ -21,7 +57,7 @@ export async function computeBpfReport(organizationId: string, year: number): Pr
   const [dossiers, invoices] = await Promise.all([
     prisma.dossier.findMany({
       where: { organizationId, session: { startsAt: { gte: yearStart, lt: yearEnd } } },
-      include: { session: true },
+      include: { session: { include: { days: true, course: { select: { durationHours: true } } } } },
     }),
     prisma.invoice.findMany({
       where: { organizationId, status: "PAID", createdAt: { gte: yearStart, lt: yearEnd } },
@@ -29,9 +65,11 @@ export async function computeBpfReport(organizationId: string, year: number): Pr
   ]);
 
   const categoryMap = new Map<string, { learnerCount: number; hours: number }>();
+  let dossiersWithoutHours = 0;
   for (const d of dossiers) {
     const key = d.learnerCategory ?? "unset";
-    const hours = (d.session.endsAt.getTime() - d.session.startsAt.getTime()) / 3_600_000;
+    const { hours, source } = resolveSessionHours(d.session, d.session.course);
+    if (source === "unknown") dossiersWithoutHours++;
     const entry = categoryMap.get(key) ?? { learnerCount: 0, hours: 0 };
     entry.learnerCount += 1;
     entry.hours += hours;
@@ -54,5 +92,6 @@ export async function computeBpfReport(organizationId: string, year: number): Pr
     totalLearners: dossiers.length,
     totalHours: byCategory.reduce((s, c) => s + c.hours, 0),
     totalRevenueCents: byFunding.reduce((s, f) => s + f.amountCents, 0),
+    dossiersWithoutHours,
   };
 }

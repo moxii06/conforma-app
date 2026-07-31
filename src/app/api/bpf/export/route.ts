@@ -21,6 +21,17 @@ export async function GET(request: Request) {
   lines.push(`Apprenants : ${report.totalLearners}`);
   lines.push(`Heures stagiaires : ${report.totalHours.toFixed(1)}`);
   lines.push(`Chiffre d'affaires encaissé : ${(report.totalRevenueCents / 100).toFixed(2)} €`);
+  // The exported file leaves the app and gets transcribed into the real
+  // return, often without going back to the screen — so the caveat has to
+  // travel with it, not just live in the UI.
+  if (report.dossiersWithoutHours > 0) {
+    lines.push("");
+    lines.push(
+      `ATTENTION : ${report.dossiersWithoutHours} inscription(s) sans durée connue ne sont pas comptées ` +
+        `dans le total d'heures ci-dessus. Renseignez la durée de la formation ou les journées de session ` +
+        `avant de déclarer.`,
+    );
+  }
   lines.push("");
   lines.push("--- Par catégorie légale ---");
   for (const c of report.byCategory) {

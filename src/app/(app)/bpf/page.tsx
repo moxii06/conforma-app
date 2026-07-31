@@ -39,6 +39,26 @@ export default async function BpfPage(props: { searchParams: Promise<{ year?: st
           <MetricCard label="Chiffre d'affaires encaissé" value={formatAmount(report.totalRevenueCents)} />
         </div>
 
+        {/* The BPF is filed with the administration and a missing session's
+            hours silently under-declare the total. Better to name the gap
+            than to let someone submit a number they believe is complete. */}
+        {report.dossiersWithoutHours > 0 && (
+          <div className="bg-[#F7EDD6] border border-[#D9C79E] rounded-card px-4 py-3 text-[12.5px] text-ink">
+            <span className="font-semibold">
+              {report.dossiersWithoutHours === 1
+                ? "1 inscription n'est pas comptée dans les heures"
+                : `${report.dossiersWithoutHours} inscriptions ne sont pas comptées dans les heures`}
+              .
+            </span>{" "}
+            Leur session n&apos;a ni journées saisies, ni durée sur la formation — le total ci-dessus est donc
+            incomplet. Renseignez la durée de la formation dans le{" "}
+            <Link href="/formations" className="underline decoration-line hover:decoration-ink">
+              catalogue
+            </Link>
+            , ou les journées depuis la fiche de session.
+          </div>
+        )}
+
         <div className="bg-white border border-line rounded-card p-5">
           <div className="text-[13.5px] font-semibold text-ink mb-3.5">Heures et effectifs par catégorie légale</div>
           <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">

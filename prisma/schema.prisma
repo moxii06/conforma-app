@@ -665,6 +665,7 @@ model Dossier {
   elearningProgress           ElearningProgress[]
   quizAttempts                QuizAttempt[]
   virtualClassAttendances     VirtualClassAttendance[]
+  attendanceEntries           AttendanceEntry[]
   accommodationRequests       AccommodationRequest[]
   complaints                  Complaint[]
   invitations                 SessionInvitation[]
@@ -967,8 +968,72 @@ model Session {
   dossiers    Dossier[]
   invitations SessionInvitation[]
   attendances VirtualClassAttendance[]
+  days        SessionDay[]
 
   @@index([organizationId])
+}
+
+// A session's actual teaching days. Additive on purpose: startsAt/endsAt
+// above still bound the session as a whole (and every existing row keeps
+// working with zero days), but a 2- or 3-day training — the norm for
+// in-person inter-company sessions — could not be represented at all
+// before this. Two things depended on that and were silently wrong:
+//
+//   1. The BPF declared (endsAt - startsAt) as hours, i.e. WALL-CLOCK time.
+//      A Monday 9am → Wednesday 5pm session declared 56 h instead of 21 h,
+//      on a legally binding annual return.
+//   2. Attendance had nothing to hang off. Qualiopi audits check the
+//      émargement per half-day (the contract Jalon itself ships says so),
+//      which needs a per-day, per-half-day row to sign against.
+model SessionDay {
+  id        String   @id @default(cuid())
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+  date      DateTime
+  // Teaching hours actually planned for each half-day, or null when that
+  // half-day isn't held (a morning-only day). Null is therefore meaningful:
+  // it's both "no hours" and "nothing to sign here", which is what the
+  // attendance screen renders from. Storing the number rather than deriving
+  // it from start/end times is deliberate — a day running 9h-17h with an
+  // hour for lunch is 7 teaching hours, not 8, and only the OF knows that.
+  morningHours   Float?
+  afternoonHours Float?
+  order          Int    @default(0)
+
+  attendance AttendanceEntry[]
+
+  @@index([sessionId])
+}
+
+enum HalfDay {
+  MORNING
+  AFTERNOON
+}
+
+// One learner's presence for one half-day. The unique constraint is what
+// makes signing idempotent: re-signing overwrites rather than stacking.
+model AttendanceEntry {
+  id           String     @id @default(cuid())
+  sessionDay   SessionDay @relation(fields: [sessionDayId], references: [id], onDelete: Cascade)
+  sessionDayId String
+  dossier      Dossier    @relation(fields: [dossierId], references: [id])
+  dossierId    String
+  halfDay      HalfDay
+  signedAt     DateTime   @default(now())
+  // Data-URL PNG of the on-screen signature. Kept inline rather than in Blob
+  // storage: it's a few KB, and it has to survive exactly as long as the
+  // attendance row it proves — this is audit evidence, not a file upload
+  // someone might later archive or purge on its own.
+  signatureDataUrl String?
+  // Set when a staff member records the presence instead of the learner
+  // signing themselves (paper sheet on the day, tablet out of battery). An
+  // auditor doesn't weigh the two the same way, so the distinction is stored
+  // rather than flattened into a single "present" boolean.
+  recordedByUserId String?
+
+  @@unique([sessionDayId, dossierId, halfDay])
+  @@index([sessionDayId])
+  @@index([dossierId])
 }
 
 // Electronic attendance for a REMOTE/HYBRID session, driven by the
