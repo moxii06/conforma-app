@@ -3,6 +3,7 @@ import { PageHeader, Pill, Avatar, InfoRow, ContextBanner, initialsOf } from "@/
 import { requireSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { PenLine } from "lucide-react";
 import { Role } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -231,6 +232,15 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                   <CancelSessionButton sessionId={session.id} />
                 </>
               )}
+              {/* Deliberately a plain, always-available link: this is opened
+                  on a tablet at the start of a session, and hunting for it
+                  in front of the group is exactly the wrong moment. */}
+              <Link
+                href={`/planning/${session.id}/emargement`}
+                className="inline-flex items-center gap-1.5 bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft"
+              >
+                <PenLine size={13} /> Émargement
+              </Link>
               <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />
             </div>
           )}
