@@ -24,6 +24,13 @@ export default withAuth({
 // own Stripe-Signature header instead, see verifyStripeWebhook()); the
 // public marketing news page (/actualites) and its newsletter-signup API
 // (/api/newsletter — no session exists, visitors aren't Jalon accounts);
+// the satisfaction questionnaires (/satisfaction/[token] — same token-as-
+// access-control pattern as /formulaire: a learner answering an évaluation
+// à chaud/à froid has no reason to hold a Jalon account, and these feed
+// Qualiopi indicators 11 and 30); the password-recovery pages
+// (/mot-de-passe-oublie and /reinitialiser-mot-de-passe/[token] — by
+// definition reached by someone who CANNOT sign in, so gating them behind
+// a session made the flow circular and locked the user out for good);
 // and the marketing/pricing page at the site root. Static assets (_next,
 // favicon) are excluded so the app shell can still load its CSS/JS while an
 // unauthenticated user is bounced to /login.
@@ -42,6 +49,6 @@ export const config = {
     // gated by CRON_SECRET instead (see src/lib/cronAuth.ts), which now
     // REFUSES in production when the variable is missing — without that,
     // removing them from the middleware would leave them wide open.
-    "/((?!login|formulaire|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/v1|api/cron|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
+    "/((?!login|formulaire|satisfaction|mot-de-passe-oublie|reinitialiser-mot-de-passe|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/v1|api/cron|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
   ],
 };
