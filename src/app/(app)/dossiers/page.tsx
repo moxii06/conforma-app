@@ -65,7 +65,13 @@ export default async function DossiersPage(
 
   return (
     <>
-      <PageHeader title="Dossiers apprenants" subtitle="Un dossier = un contact inscrit à une session" />
+      {/* Le sous-titre expliquait une table de jointure à un dirigeant :
+          « Un dossier = un contact inscrit à une session ». Il dit
+          maintenant à quoi l'écran sert, pas comment il est modélisé. */}
+      <PageHeader
+        title="Dossiers apprenants"
+        subtitle="Une ligne par apprenant inscrit — suivez où en est chacun d'eux"
+      />
       <div className="p-8 flex flex-col gap-3">
         <div className="flex items-center gap-2.5 flex-wrap">
           <SearchInput placeholder="Rechercher un apprenant (nom, email)…" />

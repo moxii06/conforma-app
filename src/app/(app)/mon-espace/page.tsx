@@ -12,8 +12,11 @@ import { Tabs } from "@/components/Tabs";
 import { SignDocumentButton } from "@/components/SignDocumentButton";
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
+// « Parcours » est le mot du référentiel Qualiopi, pas celui d'un stagiaire
+// qui cherche juste à savoir où il en est. La clé d'URL ne change pas : un
+// lien déjà envoyé par email continue de fonctionner.
 const LEARNER_TABS = [
-  { key: "parcours", label: "Parcours" },
+  { key: "parcours", label: "Où j'en suis" },
   { key: "documents", label: "Mes documents" },
 ];
 
@@ -141,7 +144,14 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
   });
 
   if (dossiers.length === 0) {
-    return <div className="text-[12.5px] text-slate">Aucun dossier ne vous est encore associé.</div>;
+    // « Aucun dossier ne vous est encore associé » : trois mots du modèle
+    // de données pour dire à quelqu'un qu'il n'a pas encore de formation.
+    return (
+      <div className="text-[12.5px] text-slate">
+        Vous n&apos;êtes inscrit à aucune formation pour le moment. Votre organisme vous préviendra dès qu&apos;une
+        formation vous sera ouverte.
+      </div>
+    );
   }
 
   // Client feedback: a learner in several formations at once had to scroll
@@ -181,12 +191,18 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
         // learner does themselves, so only they get the "en attente de
         // vous" treatment; the rest get an explicit "administratif" hint
         // instead of silence.
+        // Libellés côté apprenant, pas côté métier de l'organisme. Un
+        // stagiaire ne sait pas ce qu'est un « recueil des besoins » ni une
+        // « évaluation à froid » — ce sont les termes du référentiel
+        // Qualiopi, utiles à l'OF et opaques à son client. L'écran staff
+        // garde le vocabulaire officiel, celui-ci dit ce que la personne a
+        // réellement fait ou reçu.
         const steps = [
-          { label: "Recueil des besoins", done: d.needsAssessmentDone, actionable: false },
+          { label: "Questionnaire avant la formation", done: d.needsAssessmentDone, actionable: false },
           { label: "Convention signée", done: d.contractSigned, actionable: false },
           { label: "Convocation reçue", done: d.convocationSent, actionable: false },
-          { label: "Évaluation à chaud", done: d.evaluationHotDone, actionable: true, pendingToken: pendingSurveyByKind.hot },
-          { label: "Évaluation à froid", done: d.evaluationColdDone, actionable: true, pendingToken: pendingSurveyByKind.cold },
+          { label: "Votre avis sur la formation", done: d.evaluationHotDone, actionable: true, pendingToken: pendingSurveyByKind.hot },
+          { label: "Votre avis, quelques mois après", done: d.evaluationColdDone, actionable: true, pendingToken: pendingSurveyByKind.cold },
         ];
         return (
           <div key={d.id}>
@@ -224,7 +240,10 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
                     </Link>
                   )}
                   {!s.done && !s.actionable && (
-                    <span className="text-[11px] text-slate">Administratif</span>
+                    // « Administratif » ne disait pas à l'apprenant s'il
+                    // devait agir. C'est justement le cas où il n'a rien à
+                    // faire : autant le dire.
+                    <span className="text-[11px] text-slate">Géré par votre organisme</span>
                   )}
                 </div>
               ))}
