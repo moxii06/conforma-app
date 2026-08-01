@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronRight, FileText } from "lucide-react";
 import { MarkSignedButton } from "@/components/MarkSignedButton";
+import { SendFinalDocumentDialog } from "@/components/SendFinalDocumentDialog";
 
 // La liste de l'espace Documents.
 //
@@ -29,6 +30,8 @@ export type Group = {
   categoryLabel: string | null;
   progressLabel: string | null;
   isBatch: boolean;
+  /** Renseigné seulement dans l'onglet « finalisés » : le document est prêt à partir. */
+  sendable: { scopeLabel: string; signatureAvailable: boolean } | null;
   members: GroupMember[];
 };
 
@@ -64,6 +67,14 @@ function GroupRow({ group }: { group: Group }) {
           {group.subtitle && <div className="text-[11.5px] text-slate truncate">{group.subtitle}</div>}
         </a>
         {m.signedLabel && <span className="text-[11px] text-sage shrink-0">{m.signedLabel}</span>}
+        {group.sendable && (
+          <SendFinalDocumentDialog
+            documentId={m.id}
+            documentTitle={group.title}
+            scopeLabel={group.sendable.scopeLabel}
+            signatureAvailable={group.sendable.signatureAvailable}
+          />
+        )}
         {m.canMarkSigned && <MarkSignedButton documentId={m.id} />}
         <div className="text-[11px] text-slate shrink-0 w-[74px] text-right">{group.dateLabel}</div>
       </div>

@@ -8,6 +8,7 @@ import { Tabs } from "@/components/Tabs";
 import { SearchInput } from "@/components/SearchInput";
 import { DocumentCategoryFilter } from "@/components/DocumentCategoryFilter";
 import { DocumentGroupList, type Group } from "@/components/DocumentGroupList";
+import { scopeOfCategory, scopeLabel } from "@/lib/documentScope";
 import {
   DOCUMENT_BUCKETS,
   documentBucket,
@@ -93,6 +94,9 @@ export default async function DocumentsPage(props: {
   });
 
   const canMarkSigned = can(role, "dossiers") !== "none";
+  // La signature électronique n'est proposée que si elle est réellement
+  // branchée — cocher une case qui ne fait rien serait pire que son absence.
+  const signatureAvailable = Boolean(process.env.YOUSIGN_API_KEY);
 
   // Inféré du select ci-dessus plutôt qu'écrit à la main : un champ ajouté
   // au select suit tout seul, et rien ne peut diverger silencieusement.
@@ -129,6 +133,13 @@ export default async function DocumentsPage(props: {
           : (CATEGORY_LABELS[premier.category] ?? premier.category),
         progressLabel: batchProgressLabel(g),
         isBatch: g.isBatch,
+        // Le bouton n'apparaît que dans « finalisés » : envoyer un
+        // brouillon n'a pas de sens, et renvoyer depuis « envoyés »
+        // dupliquerait le document sans que personne ne l'ait demandé.
+        sendable:
+          activeTab === "final"
+            ? { scopeLabel: scopeLabel(scopeOfCategory(premier.category)), signatureAvailable: signatureAvailable }
+            : null,
         members: g.members.map((m) => {
           const r = (m as BatchMember & { row: Ligne }).row;
           const signé = isSigned(m);
@@ -161,12 +172,8 @@ export default async function DocumentsPage(props: {
             >
               Accéder à ma bibliothèque
             </a>
-            {/* Lot 2 ouvrira la vraie page de création (choix du type,
-                prévisualisation, options). En attendant, ce bouton mène à
-                la bibliothèque, d'où un modèle se génère déjà — plutôt
-                qu'un bouton qui ne fait rien. */}
             <a
-              href="/documents/bibliotheque"
+              href="/documents/nouveau"
               className="inline-flex items-center bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-2 hover:bg-ink-soft"
             >
               + Créer un document
