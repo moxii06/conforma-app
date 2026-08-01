@@ -119,8 +119,19 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
           />
         </div>
       </div>
-      <div className="text-[11px] text-slate">
-        Transmission via le portail public (PPF) par défaut — connecteur Pennylane/Sellsy non branché (voir /integrations).
+      {/* Ce que Jalon fait vraiment, et ce qu'il ne fait pas. La version
+          précédente annonçait « transmission via le portail public (PPF) par
+          défaut » alors qu'aucun connecteur n'émet : un organisme pouvait
+          croire sa facture transmise. */}
+      <div className="text-[11px] text-slate leading-relaxed">
+        Jalon établit et archive la facture.{" "}
+        <span className="text-ink">
+          Sa transmission au format électronique réglementaire reste à faire depuis votre plateforme agréée
+        </span>
+        {/* Espace explicite : sans lui, JSX avale l'espace entre la balise
+            fermante et le tiret, et la phrase se lit « agréée— Jalon ». */}
+        {" — "}
+        Jalon n&apos;est pas une plateforme de dématérialisation.
       </div>
       <InvoiceLinesEditor
         lignes={lignes}

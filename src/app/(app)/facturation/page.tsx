@@ -152,7 +152,7 @@ export default async function FacturationPage(
 
   return (
     <>
-      <PageHeader title="Facturation" subtitle="Devis et factures, transmission via le portail public par défaut" />
+      <PageHeader title="Facturation" subtitle="Devis et factures de votre organisme" />
       <Tabs basePath="/facturation" tabs={tabs} active={activeTab} />
       <div className="p-8 flex flex-col gap-4">
         {(activeTab === "devis" || activeTab === "factures") && (
@@ -508,7 +508,14 @@ async function InvoicesTab({
                     {inv.reference} · {formatAmount(inv.amountCents)}
                     {inv.dueDate && ` · éch. ${format(inv.dueDate, "d MMM yyyy", { locale: fr })}`}
                     {inv.description && ` · ${inv.description}`}
-                    {inv.einvoicingProvider && ` · ${inv.einvoicingProvider.toUpperCase()}`}
+                    {/* Le canal de transmission N'EST PAS affiché ici.
+                        einvoicingProvider n'enregistre qu'une intention :
+                        aucun connecteur n'émet réellement vers le portail
+                        public. Afficher « · PPF » à côté d'une facture se
+                        lisait comme « celle-ci est partie par le PPF », ce
+                        qui était faux — et sur de la facturation, une
+                        fausse confirmation coûte plus cher qu'une absence
+                        d'information. */}
                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-2">

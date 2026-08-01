@@ -35,11 +35,18 @@ const schema = z.object({
     .optional(),
 });
 
-// spec §5.3 / §7.2: the product doesn't become an accredited e-invoicing
-// platform itself — every invoice created here defaults to the PPF
-// (Portail Public de Facturation) fallback until the org configures a real
-// provider (Pennylane/Sellsy) via /integrations. That wiring isn't built
-// yet (see README) — this just records the intended transmission channel.
+// Jalon n'est PAS une plateforme de dématérialisation agréée, et ne
+// transmet aucune facture. Ce champ n'enregistre qu'une INTENTION de canal,
+// pour le jour où un connecteur existera.
+//
+// L'écran de facturation annonçait « transmission via le portail public
+// (PPF) par défaut » et affichait « · PPF » à côté de chaque facture. Un
+// organisme pouvait raisonnablement en conclure que sa facture était
+// partie. Elle n'allait nulle part. Les deux mentions ont été retirées :
+// tant que rien ne transmet, rien ne doit le laisser croire.
+//
+// L'obligation de RECEVOIR des factures électroniques pèse sur l'organisme
+// en tant qu'entreprise, via sa propre plateforme agréée — pas sur Jalon.
 const DEFAULT_EINVOICING_PROVIDER = "ppf";
 
 export async function POST(request: Request) {
