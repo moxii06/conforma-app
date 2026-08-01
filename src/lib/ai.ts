@@ -365,3 +365,72 @@ export async function suggestImportMappingWithAI(params: {
     return null;
   }
 }
+
+export type DocumentRevision = { bodyText: string; explanation: string };
+
+/**
+ * Retravaille un document contractuel à la demande de l'organisme.
+ *
+ * Renvoie TOUJOURS le document entier réécrit, jamais un fragment à
+ * recoller : recoller côté client demanderait de deviner où insérer, et
+ * une clause posée au mauvais endroit dans un contrat change son sens.
+ *
+ * Comme partout ailleurs dans ce fichier, la sortie est une SUGGESTION.
+ * Elle s'affiche dans la prévisualisation avec « Accepter » / « Refuser »,
+ * et rien n'est enregistré tant que l'organisme n'a pas accepté puis
+ * explicitement sauvegardé. Sur un contrat, laisser une IA écrire
+ * directement en base serait exactement le mauvais compromis.
+ */
+export async function reviseDocument(params: {
+  bodyText: string;
+  instruction: string;
+  /** Les échanges précédents, pour enchaîner « plus court », « et ajoute… ». */
+  history?: { role: "user" | "assistant"; content: string }[];
+  documentKind: string;
+}): Promise<DocumentRevision> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) throw new Error(NOT_CONFIGURED_ERROR);
+
+  const historique = (params.history ?? [])
+    .slice(-6)
+    .map((m) => `${m.role === "user" ? "Demande" : "Réponse"} : ${m.content}`)
+    .join("\n");
+
+  const raw = await chatCompletion(apiKey, {
+    system:
+      "Tu es juriste-rédacteur pour un organisme de formation français. Tu retravailles des documents " +
+      "contractuels (contrats de formation, conventions, règlements intérieurs) en respectant le code du " +
+      "travail et le référentiel Qualiopi.\n\n" +
+      "Règles absolues :\n" +
+      "- Ne supprime JAMAIS une mention légale obligatoire (délai de rétractation, articles du code du " +
+      "travail, numéro de déclaration d'activité, modalités de règlement) sauf demande explicite.\n" +
+      "- Conserve les balises de fusion {{comme.ceci}} EXACTEMENT telles quelles : elles se remplissent " +
+      "automatiquement et les réécrire casserait le document.\n" +
+      "- Conserve la structure en articles numérotés et le niveau de langue juridique.\n" +
+      "- Si la demande te paraît risquée juridiquement, applique-la mais dis-le dans ton explication.\n\n" +
+      'Réponds en JSON : {"bodyText": "<le document entier, réécrit>", "explanation": "<une à deux ' +
+      'phrases en français disant ce que tu as changé et où>"}',
+    user:
+      `Type de document : ${params.documentKind}\n\n` +
+      (historique ? `Échanges précédents :\n${historique}\n\n` : "") +
+      `Document actuel :\n"""\n${params.bodyText}\n"""\n\n` +
+      `Demande : ${params.instruction}`,
+    json: true,
+    temperature: 0.3,
+  });
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<DocumentRevision>;
+    if (typeof parsed.bodyText !== "string" || parsed.bodyText.trim().length === 0) {
+      throw new Error("vide");
+    }
+    return {
+      bodyText: parsed.bodyText,
+      explanation: typeof parsed.explanation === "string" ? parsed.explanation : "Document retravaillé.",
+    };
+  } catch {
+    // Un document tronqué ou du JSON cassé ne doit surtout pas remplacer un
+    // contrat : mieux vaut ne rien proposer et le dire.
+    throw new Error("La réponse de l'IA était inexploitable. Reformulez votre demande.");
+  }
+}

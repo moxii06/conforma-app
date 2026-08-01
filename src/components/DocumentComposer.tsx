@@ -49,6 +49,16 @@ export function DocumentComposer({
   const [enÉdition, setEnÉdition] = useState(false);
   const zoneRef = useRef<HTMLTextAreaElement>(null);
 
+  // La conversation avec l'assistant. La proposition en cours n'est PAS
+  // appliquée : elle s'affiche à gauche, en vert, et attend Accepter ou
+  // Refuser. Sur un contrat, une IA qui écrirait directement serait
+  // exactement le mauvais compromis.
+  const [échanges, setÉchanges] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [instruction, setInstruction] = useState("");
+  const [proposition, setProposition] = useState<{ bodyText: string; explanation: string } | null>(null);
+  const [iaEnCours, setIaEnCours] = useState(false);
+  const [iaErreur, setIaErreur] = useState<string | null>(null);
+
   const [documentId, setDocumentId] = useState<string | null>(draft?.id ?? null);
   const [enregistrement, setEnregistrement] = useState<"idle" | "saving" | "saved">("idle");
   const [finalisé, setFinalisé] = useState(false);
@@ -98,6 +108,36 @@ export function DocumentComposer({
       zone.focus();
       zone.setSelectionRange(début + token.length, début + token.length);
     });
+  }
+
+  async function demanderIa(texteDemande?: string) {
+    const demande = (texteDemande ?? instruction).trim();
+    if (!demande) return;
+    setIaEnCours(true);
+    setIaErreur(null);
+    setInstruction("");
+    const suite = [...échanges, { role: "user" as const, content: demande }];
+    setÉchanges(suite);
+
+    const res = await fetch("/api/documents/ai-revise", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bodyText: texte, instruction: demande, category: template.category, history: échanges }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setIaEnCours(false);
+    if (!res.ok) {
+      setIaErreur(body.error ?? "Échec de la rédaction assistée.");
+      return;
+    }
+    setProposition(body);
+    setÉchanges([...suite, { role: "assistant" as const, content: body.explanation }]);
+  }
+
+  function accepterProposition() {
+    if (!proposition) return;
+    setTexteÉdité(proposition.bodyText);
+    setProposition(null);
   }
 
   async function enregistrer(finalize: boolean) {
@@ -213,7 +253,16 @@ export function DocumentComposer({
                 className="bg-white border border-line rounded-card p-6 text-[12.5px] text-ink leading-relaxed whitespace-pre-wrap overflow-y-auto"
                 style={{ minHeight: 520, maxHeight: 620 }}
               >
-                {chargement ? <span className="text-slate">Chargement de l&apos;aperçu…</span> : texte || <span className="text-slate">Aperçu vide.</span>}
+                {chargement ? (
+                  <span className="text-slate">Chargement de l&apos;aperçu…</span>
+                ) : proposition ? (
+                  // La version proposée, sur fond vert, pour qu'on la
+                  // reconnaisse d'un coup d'œil comme n'étant pas encore
+                  // le document.
+                  <span className="bg-[#E4EAE6] block -m-2 p-2 rounded">{proposition.bodyText}</span>
+                ) : (
+                  texte || <span className="text-slate">Aperçu vide.</span>
+                )}
               </div>
             )}
           </div>
@@ -318,11 +367,84 @@ export function DocumentComposer({
             )}
 
             <div className="p-4">
-              <div className="text-[11px] font-semibold text-ink mb-1.5">Assistant de rédaction</div>
-              <div className="text-[11.5px] text-slate leading-snug">
-                La conversation avec l&apos;IA arrive au lot 3, avec l&apos;envoi. Elle proposera ses modifications
-                directement dans le document, à accepter ou refuser une par une.
+              <div className="text-[11px] font-semibold text-seal-dark uppercase tracking-wide mb-2">
+                ✦ Assistant de rédaction
               </div>
+
+              {échanges.length === 0 && (
+                <div className="text-[11.5px] text-slate leading-snug mb-2.5">
+                  Reformuler un article, en ajouter un, adapter le ton. Le document reste visible à gauche : chaque
+                  proposition s&apos;y affiche avant que vous ne l&apos;acceptiez.
+                </div>
+              )}
+
+              {échanges.length > 0 && (
+                <div className="flex flex-col gap-2 max-h-52 overflow-y-auto mb-2.5">
+                  {échanges.map((m, i) => (
+                    <div
+                      key={i}
+                      className={
+                        m.role === "user"
+                          ? "bg-ink text-white text-[12px] rounded-lg rounded-br-sm px-2.5 py-1.5 self-end max-w-[92%] leading-snug"
+                          : "bg-linen text-ink text-[12px] rounded-lg rounded-bl-sm px-2.5 py-1.5 self-start max-w-[92%] leading-snug"
+                      }
+                    >
+                      {m.content}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {proposition && (
+                <div className="bg-[#E4EAE6] border border-sage/30 rounded-md p-2.5 mb-2.5">
+                  <div className="text-[11.5px] text-ink leading-snug mb-2">
+                    La version proposée s&apos;affiche à gauche. Comparez avant d&apos;accepter.
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={accepterProposition}
+                      className="text-[12px] font-medium bg-seal text-white rounded px-2.5 min-h-[32px]"
+                    >
+                      Accepter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProposition(null)}
+                      className="text-[12px] font-medium text-slate hover:text-ink rounded px-2.5 min-h-[32px]"
+                    >
+                      Refuser
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <textarea
+                value={instruction}
+                onChange={(e) => setInstruction(e.target.value)}
+                placeholder="Par exemple : ajoute une clause d'annulation à moins de 15 jours"
+                className={champ}
+                style={{ minHeight: 58 }}
+              />
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => demanderIa()}
+                  disabled={iaEnCours || !instruction.trim()}
+                  className="text-[12px] font-medium bg-seal text-white rounded-md px-3 min-h-[34px] disabled:opacity-50 hover:bg-seal-dark"
+                >
+                  {iaEnCours ? "Rédaction…" : "Demander"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => demanderIa("Simplifie le vocabulaire sans changer la portée juridique.")}
+                  disabled={iaEnCours}
+                  className="text-[12px] text-slate hover:text-ink rounded px-2 min-h-[34px] disabled:opacity-50"
+                >
+                  Simplifier
+                </button>
+              </div>
+              {iaErreur && <div className="text-[11.5px] text-rust mt-2 leading-snug">{iaErreur}</div>}
             </div>
           </div>
         </div>
