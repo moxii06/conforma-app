@@ -60,7 +60,7 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
       { href: "/planning", label: "Planning des sessions", icon: Calendar, feature: "planning" },
       { href: "/formations", label: "Catalogue de formations", icon: GraduationCap, feature: "courses" },
       { href: "/dossiers", label: "Dossiers apprenants", icon: FileText, feature: "dossiers" },
-      { href: "/documents", label: "Bibliothèque de documents", icon: Library, feature: "toolkit" },
+      { href: "/documents", label: "Documents", icon: Library, feature: "toolkit" },
     ],
   },
   {

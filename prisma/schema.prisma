@@ -1469,6 +1469,27 @@ model Document {
   // storage to put a real file into yet. One of the two is always set.
   fileUrl                   String?
   bodyText                  String?
+  // Où en est le document dans son cycle de vie : "draft" | "final".
+  //
+  // Il n'existait aucune notion de brouillon — un document créé était un
+  // document fini, ce qui obligeait à tout rédiger d'une traite. Le défaut
+  // est "final" parce que c'est ce qu'étaient tous les documents existants
+  // au moment de la migration ; seul le nouvel écran de création pose
+  // explicitement "draft".
+  //
+  // Les deux autres états de l'espace Documents — envoyé, signé — ne sont
+  // PAS stockés ici : ils se déduisent de sentByUserId et signatureStatus,
+  // qui existent déjà. Les dupliquer créerait deux vérités sur un même
+  // fait. Voir documentLifecycle.ts.
+  status                    String         @default("final")
+  // Regroupe les documents nés d'une seule action de l'organisme.
+  //
+  // Un contrat engage une personne nommée : générer pour une session de 8
+  // apprenants produit 8 documents distincts, chacun signable séparément.
+  // Sans cette clé, l'écran affiche 8 lignes presque identiques et la
+  // question quotidienne — « qui n'a pas encore signé ? » — demande
+  // d'ouvrir les 8. Null pour un document isolé.
+  batchId                   String?
   templateOrigin            String? // which toolkit template this was generated from, if any
   // Denormalized from DocumentTemplate.category at generation/upload time —
   // a Document needs its own copy since the source template can be edited
@@ -1531,6 +1552,7 @@ model Document {
   @@index([organizationId])
   @@index([contactId])
   @@index([opportunityId])
+  @@index([batchId])
 }
 
 // The reusable document library (spec §5.8's "legal document toolkit" —

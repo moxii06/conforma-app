@@ -516,7 +516,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: "Comment partir des modèles fournis ?",
         steps: [
-          "Sur Bibliothèque de documents, onglet Modèles, dépliez un modèle Jalon et cliquez « Adapter ce modèle » : il devient le vôtre, éditable.",
+          "Sur Documents, cliquez « Accéder à ma bibliothèque », dépliez un modèle Jalon et cliquez « Adapter ce modèle » : il devient le vôtre, éditable.",
           "Les modèles fournis sont des points de départ génériques — faites-les relire par un juriste avant tout usage réel.",
           "« Générer pour un dossier » produit le document rempli pour un apprenant donné.",
         ],
