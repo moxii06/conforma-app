@@ -9,6 +9,7 @@ import { DossierStatusFilter } from "@/components/DossierStatusFilter";
 import { Pagination } from "@/components/Pagination";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { ChevronDown } from "lucide-react";
 
 const PAGE_SIZE = 30;
 
@@ -51,17 +52,51 @@ export default async function DossiersPage(
       : {}),
   };
 
-  const [dossiers, total] = await Promise.all([
+  // One card per LEARNER, not per dossier — a repeat learner (several
+  // formations over time) used to appear as several disconnected rows,
+  // same name, no visible link between them (client feedback). Paginating
+  // over distinct contacts (rather than dossiers) needs two passes: which
+  // contacts match, on this page, in the right order (distinct + orderBy
+  // picks each contact's most-recent-dossier row as the representative for
+  // ordering) — then every dossier those specific contacts actually have,
+  // unfiltered by the status filter, so a learner matched by ONE overdue
+  // formation still shows their complete picture, not just that one row.
+  const [pageContactRows, allMatchingGroups] = await Promise.all([
     prisma.dossier.findMany({
       where,
-      include: { contact: true, session: { include: { course: true } } },
+      select: { contactId: true },
+      distinct: ["contactId"],
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
-    prisma.dossier.count({ where }),
+    prisma.dossier.groupBy({ by: ["contactId"], where }),
   ]);
+  const total = allMatchingGroups.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const contactIds = pageContactRows.map((r) => r.contactId);
+
+  const dossiers = contactIds.length
+    ? await prisma.dossier.findMany({
+        where: { organizationId, contactId: { in: contactIds } },
+        include: { contact: true, session: { include: { course: true } } },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+  const dossiersByContact = new Map<string, typeof dossiers>();
+  for (const d of dossiers) {
+    const arr = dossiersByContact.get(d.contactId);
+    if (arr) arr.push(d);
+    else dossiersByContact.set(d.contactId, [d]);
+  }
+  // contactIds carries the page's order (each contact's most recent
+  // dossier, most-recent-first) — re-derive the learner list from it
+  // rather than from dossiersByContact's insertion order, which follows
+  // the second query's own ordering instead.
+  const learnerGroups = contactIds
+    .map((id) => dossiersByContact.get(id))
+    .filter((group): group is NonNullable<typeof group> => Boolean(group?.length))
+    .map((group) => ({ contact: group[0].contact, dossiers: group }));
 
   return (
     <>
@@ -76,49 +111,68 @@ export default async function DossiersPage(
         <div className="flex items-center gap-2.5 flex-wrap">
           <SearchInput placeholder="Rechercher un apprenant (nom, email)…" />
           <DossierStatusFilter />
-          <div className="text-[12px] text-slate">{total} dossier{total > 1 ? "s" : ""}</div>
+          <div className="text-[12px] text-slate">{total} apprenant{total > 1 ? "s" : ""}</div>
         </div>
         <div className="flex flex-col gap-2">
-          {dossiers.map((d) => {
-            const doneCount = [d.needsAssessmentDone, d.contractSigned, d.convocationSent, d.evaluationHotDone, d.evaluationColdDone].filter(Boolean).length;
-            // Same real signal as the dossier page's checklist: a fixed-date
-            // session already started without its convocation sent. ROLLING
-            // sessions carry placeholder dates — never "late" on this basis.
-            const convocationOverdue = d.session.mode === "FIXED_DATE" && !d.convocationSent && d.session.startsAt <= new Date();
-            return (
-              <Link
-                key={d.id}
-                href={`/dossiers/${d.id}`}
-                className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center justify-between gap-4 hover:border-ink-soft"
-              >
+          {learnerGroups.map(({ contact, dossiers: learnerDossiers }) => (
+            <details key={contact.id} open className="group bg-white border border-line rounded-card overflow-hidden">
+              <summary className="px-5 py-3.5 flex items-center justify-between gap-4 cursor-pointer list-none hover:bg-mist">
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <Avatar initials={`${d.contact.firstName[0] ?? ""}${d.contact.lastName[0] ?? ""}`.toUpperCase()} />
+                  <Avatar initials={`${contact.firstName[0] ?? ""}${contact.lastName[0] ?? ""}`.toUpperCase()} />
                   <div className="min-w-0">
                     <div className="text-[13.5px] font-semibold text-ink truncate">
-                      {d.contact.firstName} {d.contact.lastName}
+                      {contact.firstName} {contact.lastName}
                     </div>
-                    <div className="text-[12px] text-slate mt-0.5 truncate">
-                      {d.session.course.title} ·{" "}
-                      {d.session.mode === "ROLLING" ? "en continu" : format(d.session.startsAt, "d MMM yyyy", { locale: fr })}
-                    </div>
+                    <div className="text-[12px] text-slate mt-0.5 truncate">{contact.email}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2.5 shrink-0">
-                  {convocationOverdue && <Pill tone="danger">Convocation en retard</Pill>}
-                  {!d.contractSigned && !convocationOverdue && <Pill tone="warn">Convention à signer</Pill>}
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-1.5 bg-pebble rounded-full overflow-hidden">
-                      <div className="h-full bg-sage rounded-full" style={{ width: `${(doneCount / 5) * 100}%` }} />
-                    </div>
-                    <span className="text-[11.5px] text-slate tabular-nums font-mono">{doneCount}/5</span>
-                  </div>
+                <div className="flex items-center gap-2.5 shrink-0 text-slate">
+                  <span className="text-[11.5px]">
+                    {learnerDossiers.length} formation{learnerDossiers.length > 1 ? "s" : ""}
+                  </span>
+                  <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
                 </div>
-              </Link>
-            );
-          })}
-          {dossiers.length === 0 && (
+              </summary>
+              <div className="border-t border-line divide-y divide-line">
+                {learnerDossiers.map((d) => {
+                  const doneCount = [d.needsAssessmentDone, d.contractSigned, d.convocationSent, d.evaluationHotDone, d.evaluationColdDone].filter(
+                    Boolean
+                  ).length;
+                  // Same real signal as the dossier page's checklist: a fixed-date
+                  // session already started without its convocation sent. ROLLING
+                  // sessions carry placeholder dates — never "late" on this basis.
+                  const convocationOverdue = d.session.mode === "FIXED_DATE" && !d.convocationSent && d.session.startsAt <= new Date();
+                  return (
+                    <Link
+                      key={d.id}
+                      href={`/dossiers/${d.id}`}
+                      className="pl-14 pr-5 py-3 flex items-center justify-between gap-4 hover:bg-mist"
+                    >
+                      <div className="min-w-0 text-[12.5px] text-ink truncate">
+                        {d.session.course.title} ·{" "}
+                        <span className="text-slate">
+                          {d.session.mode === "ROLLING" ? "en continu" : format(d.session.startsAt, "d MMM yyyy", { locale: fr })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        {convocationOverdue && <Pill tone="danger">Convocation en retard</Pill>}
+                        {!d.contractSigned && !convocationOverdue && <Pill tone="warn">Convention à signer</Pill>}
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-pebble rounded-full overflow-hidden">
+                            <div className="h-full bg-sage rounded-full" style={{ width: `${(doneCount / 5) * 100}%` }} />
+                          </div>
+                          <span className="text-[11.5px] text-slate tabular-nums font-mono">{doneCount}/5</span>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
+          ))}
+          {learnerGroups.length === 0 && (
             <div className="text-[12.5px] text-slate">
-              {q ? "Aucun dossier ne correspond à cette recherche." : "Aucun dossier."}
+              {q ? "Aucun apprenant ne correspond à cette recherche." : "Aucun dossier."}
             </div>
           )}
         </div>
