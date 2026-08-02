@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { InviteComposer } from "@/components/InviteComposer";
 import { EditSessionForm } from "@/components/EditSessionForm";
+import { SessionDaysForm } from "@/components/SessionDaysForm";
 import { ValidateSessionButton } from "@/components/ValidateSessionButton";
 import { EnrollProspectForm } from "@/components/EnrollProspectForm";
 import { GenerateCertificateButton } from "@/components/GenerateCertificateButton";
@@ -57,7 +58,10 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
           attendanceEntries: { where: { sessionDay: { sessionId: params.id } }, select: { id: true } },
         },
       },
-      days: { select: { morningHours: true, afternoonHours: true } },
+      days: {
+        orderBy: { order: "asc" },
+        select: { id: true, date: true, morningHours: true, afternoonHours: true, attendance: { select: { id: true } } },
+      },
     },
   });
   if (!session) notFound();
@@ -68,6 +72,10 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
 
   const canManage = canManageSessionInvitations(auth.role, auth.userId, session);
   const canEdit = can(auth.role, "planning") === "full";
+  // Même règle que l'émargement (où ce formulaire vivait jusqu'ici) : qui
+  // mène la session en salle peut aussi en corriger les heures, pas
+  // seulement qui peut éditer la fiche (canEdit, réservé au "full").
+  const canEditDays = can(auth.role, "planning") !== "none";
   const isRemote = session.format === "REMOTE" || session.format === "HYBRID";
   const isInPerson = session.format === "IN_PERSON" || session.format === "HYBRID";
   const mapLink = isInPerson ? mapLinkFor(session.location) : null;
@@ -268,6 +276,25 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         </div>
 
         <div className="flex flex-col gap-5">
+        {/* Vivait uniquement sur l'écran d'émargement — donc il fallait
+            ouvrir l'écran de signature tactile, pensé pour la salle, pour
+            simplement déclarer une deuxième journée. Toujours présent là-bas
+            pour la correction en direct ; ici pour la préparer en amont. */}
+        <div className="bg-white border border-line rounded-card p-5">
+          <div className="text-[13.5px] font-semibold text-ink mb-3.5">Journées de la session</div>
+          <SessionDaysForm
+            sessionId={session.id}
+            initialDays={session.days.map((d) => ({
+              date: d.date.toISOString().slice(0, 10),
+              morningHours: d.morningHours,
+              afternoonHours: d.afternoonHours,
+              locked: d.attendance.length > 0,
+            }))}
+            defaultDate={session.startsAt.toISOString().slice(0, 10)}
+            canEdit={canEditDays}
+          />
+        </div>
+
         {canEdit && !isReadOnly && (
           <div className="bg-white border border-line rounded-card p-5">
             <div className="text-[13.5px] font-semibold text-ink mb-3.5">Ajouter un apprenant</div>
