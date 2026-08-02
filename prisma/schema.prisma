@@ -66,6 +66,12 @@ model Organization {
   billingAddress    String?
   billingPostalCode String?
   billingCity       String?
+  // Unlike siret/billingAddress above, required from every new signup (see
+  // the schema in /api/signup) — Jalon needs a phone contact for every
+  // customer, not just those who volunteer full billing details up front.
+  // Nullable at the DB level regardless, since existing organizations
+  // predate this requirement and can't be backfilled.
+  billingPhone      String?
 
   // Legal identity mentions the OFP needs printed on documents it issues
   // to ITS OWN clients (contracts, conventions, CGV — the French "mentions

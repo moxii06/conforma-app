@@ -15,6 +15,7 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
   const router = useRouter();
   const [plan, setPlan] = useState(initialPlan);
   const [organizationName, setOrganizationName] = useState("");
+  const [phone, setPhone] = useState("");
   const [siret, setSiret] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
   const [billingPostalCode, setBillingPostalCode] = useState("");
@@ -37,6 +38,7 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         organizationName,
+        phone,
         siret,
         billingAddress,
         billingPostalCode,
@@ -126,6 +128,18 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
+        />
+      </div>
+
+      <div>
+        <label className="text-[12.5px] text-slate mb-1.5 block">Téléphone</label>
+        <input
+          required
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="06 12 34 56 78"
           className="w-full border border-line rounded-md px-3 py-2 text-sm text-ink outline-none focus:border-seal"
         />
       </div>

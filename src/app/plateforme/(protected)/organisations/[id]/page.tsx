@@ -139,6 +139,7 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
             <div className="flex flex-col gap-1.5">
               <div className="text-[10.5px] uppercase tracking-wide text-slate font-semibold mb-0.5">Facturation Jalon</div>
+              <InfoRow label="Téléphone">{organization.billingPhone ?? "—"}</InfoRow>
               <InfoRow label="SIRET">{organization.siret ?? "—"}</InfoRow>
               <InfoRow label="Adresse">{organization.billingAddress ?? "—"}</InfoRow>
               <InfoRow label="Code postal">{organization.billingPostalCode ?? "—"}</InfoRow>

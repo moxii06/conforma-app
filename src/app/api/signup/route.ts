@@ -23,6 +23,10 @@ const optionalSiret = z
 
 const schema = z.object({
   organizationName: z.string().min(1),
+  // Unlike siret/billingAddress below, mandatory: Jalon needs a phone
+  // contact for every customer from day one, not just those who volunteer
+  // full billing details.
+  phone: z.string().trim().min(1, "Le numéro de téléphone est requis."),
   siret: optionalSiret,
   billingAddress: z.string().optional(),
   billingPostalCode: z.string().optional(),
@@ -70,6 +74,7 @@ export async function POST(request: Request) {
     const org = await tx.organization.create({
       data: {
         name: data.organizationName,
+        billingPhone: data.phone,
         siret: data.siret || null,
         billingAddress: data.billingAddress || null,
         billingPostalCode: data.billingPostalCode || null,
@@ -120,6 +125,7 @@ export async function POST(request: Request) {
         `Organisme : ${data.organizationName}`,
         `Formule choisie : ${data.plan}`,
         `Contact : ${data.firstName} ${data.lastName} (${email})`,
+        `Téléphone : ${data.phone}`,
         data.siret ? `SIRET : ${data.siret}` : null,
         "",
         `Fiche : ${baseUrl}/plateforme`,
