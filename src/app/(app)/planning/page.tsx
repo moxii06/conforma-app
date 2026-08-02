@@ -59,16 +59,30 @@ export default async function PlanningPage(props: { searchParams: Promise<{ tab?
 }
 
 async function ListTab({ organizationId, ownerFilter }: { organizationId: string; ownerFilter: { trainerId?: string } }) {
-  // ROLLING (bande passante) sessions have no cohort date — Planning's
-  // list/calendar are for dated sessions to staff/schedule; a rolling
-  // course's roster lives on /formations instead, where it doesn't need a
-  // date to make sense.
-  const sessions = await prisma.session.findMany({
-    where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date() }, archivedAt: null, ...ownerFilter },
-    include: { course: true, trainer: true, dossiers: true },
-    orderBy: { startsAt: "asc" },
-    take: 20,
-  });
+  // Une session en bande passante n'a pas de date de cohorte : elle n'a
+  // donc rien à faire dans le calendrier, et le raisonnement d'origine
+  // l'excluait de tout le Planning.
+  //
+  // Sauf que l'écran PROPOSE de la créer. On cliquait, ça réussissait, et
+  // ça disparaissait — sans message, sans trace. Un formulaire qui crée ce
+  // que sa propre page est incapable de montrer n'est pas défendable :
+  // elles ont désormais leur section, sous les sessions datées.
+  const [sessions, rolling] = await Promise.all([
+    prisma.session.findMany({
+      where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date() }, archivedAt: null, ...ownerFilter },
+      include: { course: true, trainer: true, dossiers: true },
+      orderBy: { startsAt: "asc" },
+      take: 20,
+    }),
+    prisma.session.findMany({
+      where: { organizationId, mode: "ROLLING", archivedAt: null, ...ownerFilter },
+      include: { course: true, trainer: true, dossiers: true },
+      // Session n'a pas de createdAt. En bande passante, startsAt porte la
+      // date de création — c'est ce que pose la route faute de cohorte.
+      orderBy: { startsAt: "desc" },
+      take: 20,
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -111,6 +125,46 @@ async function ListTab({ organizationId, ownerFilter }: { organizationId: string
         );
       })}
       {sessions.length === 0 && <div className="text-[12.5px] text-slate">Aucune session à venir.</div>}
+
+      {rolling.length > 0 && (
+        <div className="mt-4">
+          <div className="text-[11px] font-semibold text-slate uppercase tracking-wide mb-2">
+            En continu (bande passante)
+          </div>
+          <div className="text-[11.5px] text-slate mb-2.5">
+            Sans date de cohorte : chaque apprenant démarre quand il s&apos;inscrit, avec son propre délai d&apos;accès.
+          </div>
+          <div className="flex flex-col gap-2.5">
+            {rolling.map((s) => (
+              <Link
+                key={s.id}
+                href={`/planning/${s.id}`}
+                className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6 hover:border-ink-soft"
+              >
+                <div className="w-24 shrink-0 text-[12px] text-slate">Toujours ouverte</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] font-semibold text-ink truncate">{s.course.title}</div>
+                  <div className="text-[11.5px] text-slate mt-0.5 truncate">
+                    {s.location ? `${s.location} · ` : ""}
+                    {FORMAT_LABELS[s.format]}
+                  </div>
+                </div>
+                <div className="text-[12.5px] text-ink w-28 shrink-0 truncate">
+                  {s.trainer ? s.trainer.name : "À assigner"}
+                </div>
+                {/* Pas de « x/capacité » ici : en bande passante il n'y a
+                    pas de places à remplir, seulement des inscrits. */}
+                <div className="text-[12.5px] text-slate w-14 shrink-0 text-right">
+                  {s.dossiers.length} inscrit{s.dossiers.length > 1 ? "s" : ""}
+                </div>
+                <div className="shrink-0">
+                  <Pill tone={s.trainer ? "good" : "danger"}>{s.trainer ? "Confirmée" : "Formateur à confirmer"}</Pill>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

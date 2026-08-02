@@ -67,7 +67,10 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
         endsAt,
         format,
         location: location || undefined,
-        capacity: parseInt(capacity, 10) || 1,
+        // En bande passante il n'y a pas de places a remplir. Le schema
+        // exige un entier positif : on envoie 1, qui n'est jamais lu — les
+        // ecrans en continu comptent les inscrits, pas les places restantes.
+        capacity: mode === "FIXED_DATE" ? parseInt(capacity, 10) || 1 : 1,
       }),
     });
 
@@ -152,7 +155,25 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
 
       <div className="flex gap-2">
         <input placeholder={LOCATION_PLACEHOLDER[format]} value={location} onChange={(e) => setLocation(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
-        <input required type="number" min={1} placeholder="Places" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-24" />
+        {/* Le nombre de places n'existe qu'en date fixe. En bande passante
+            il n'y a pas de promotion à remplir : chacun s'inscrit quand il
+            veut, avec son propre délai. Le champ s'affichait quand même, et
+            son libellé « Places » disparaissait dès qu'on saisissait un
+            chiffre — on voyait donc un nombre nu, sans savoir ce qu'il
+            comptait ni pourquoi il fallait le renseigner. */}
+        {mode === "FIXED_DATE" && (
+          <label className="flex items-center gap-1.5 text-[12px] text-slate shrink-0">
+            <span>Places</span>
+            <input
+              required
+              type="number"
+              min={1}
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-20"
+            />
+          </label>
+        )}
       </div>
 
       <div className="flex items-center gap-2.5">
