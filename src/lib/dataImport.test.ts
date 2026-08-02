@@ -219,6 +219,75 @@ describe("parseXlsx", () => {
     expect(table.rows).toEqual([["jean@ex.fr", "Dupont"]]);
   });
 
+  it("converts a genuinely date-typed cell to ISO, using the cell's style — not just its raw serial number", () => {
+    // A numeric cell's cached <v> is indistinguishable from a price or a
+    // duration without cross-referencing xl/styles.xml's numFmtId for that
+    // cell's style (s="..."). This is what a real bank-statement .xlsx
+    // export produces for its date column (Excel writers store dates as
+    // typed cells, not text) — see bankStatementImport.ts's parseBankDate,
+    // which needs a real date string and previously got a bare serial
+    // number like "45823" instead.
+    const serial = Math.round(Date.UTC(2025, 5, 15) / 86400000) + 25569; // 2025-06-15
+    const xlsx = zipStore([
+      {
+        name: "xl/workbook.xml",
+        data: '<workbook xmlns:r="r"><sheets><sheet name="Feuil1" sheetId="1" r:id="rId1"/></sheets></workbook>',
+      },
+      {
+        name: "xl/_rels/workbook.xml.rels",
+        data: '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+      },
+      {
+        name: "xl/styles.xml",
+        data:
+          '<styleSheet xmlns="m"><cellXfs count="3">' +
+          '<xf numFmtId="0"/>' + // index 0: General — the amount column below uses this
+          '<xf numFmtId="14"/>' + // index 1: builtin short date
+          '<xf numFmtId="164"/>' + // index 2: custom format, defined below
+          "</cellXfs>" +
+          '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/></numFmts>' +
+          "</styleSheet>",
+      },
+      {
+        name: "xl/worksheets/sheet1.xml",
+        data:
+          "<worksheet><sheetData>" +
+          '<row r="1"><c r="A1" t="inlineStr"><is><t>date</t></is></c><c r="B1" t="inlineStr"><is><t>montant</t></is></c><c r="C1" t="inlineStr"><is><t>date2</t></is></c></row>' +
+          `<row r="2"><c r="A2" s="1"><v>${serial}</v></c><c r="B2" s="0"><v>140</v></c><c r="C2" s="2"><v>${serial}</v></c></row>` +
+          "</sheetData></worksheet>",
+      },
+    ]);
+    const table = parseXlsx(new Uint8Array(xlsx));
+    expect(table.rows).toEqual([["2025-06-15", "140", "2025-06-15"]]);
+  });
+
+  it("leaves a plain numeric cell (no date style) as-is, so prices and durations don't get mangled", () => {
+    const xlsx = zipStore([
+      {
+        name: "xl/workbook.xml",
+        data: '<workbook xmlns:r="r"><sheets><sheet name="Feuil1" sheetId="1" r:id="rId1"/></sheets></workbook>',
+      },
+      {
+        name: "xl/_rels/workbook.xml.rels",
+        data: '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+      },
+      {
+        name: "xl/styles.xml",
+        data: '<styleSheet xmlns="m"><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="2"/></cellXfs></styleSheet>',
+      },
+      {
+        name: "xl/worksheets/sheet1.xml",
+        data:
+          "<worksheet><sheetData>" +
+          '<row r="1"><c r="A1" t="inlineStr"><is><t>duree</t></is></c></row>' +
+          '<row r="2"><c r="A2" s="1"><v>21</v></c></row>' + // numFmtId 2 = "0.00", not a date
+          "</sheetData></worksheet>",
+      },
+    ]);
+    const table = parseXlsx(new Uint8Array(xlsx));
+    expect(table.rows).toEqual([["21"]]);
+  });
+
   it("rejects a non-xlsx buffer with a clear French error", () => {
     expect(() => parseXlsx(new Uint8Array(Buffer.from("pas un zip du tout")))).toThrow(/classeur Excel/);
   });

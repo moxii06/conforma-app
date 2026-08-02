@@ -140,14 +140,14 @@ export function BankStatementImportDialog() {
         ) : !analysis ? (
           <div className="flex flex-col gap-3">
             <div className="text-[12.5px] text-slate leading-relaxed">
-              Export CSV de votre compte en ligne (relevé de mouvements). Seules les entrées créditrices (encaissements)
-              sont retenues — les prélèvements et débits sont ignorés.
+              Export CSV ou Excel de votre compte en ligne (relevé de mouvements). Seules les entrées créditrices
+              (encaissements) sont retenues — les prélèvements et débits sont ignorés.
             </div>
             <label className="border border-dashed border-line rounded-md px-4 py-8 text-center text-[12.5px] text-slate cursor-pointer hover:border-ink-soft hover:text-ink">
-              {analyzing ? "Analyse du fichier…" : file ? file.name : "Choisir un fichier .csv"}
+              {analyzing ? "Analyse du fichier…" : file ? file.name : "Choisir un fichier .csv ou .xlsx"}
               <input
                 type="file"
-                accept=".csv,text/csv"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
                 disabled={analyzing}
                 onChange={(e) => {

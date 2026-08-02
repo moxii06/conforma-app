@@ -102,6 +102,60 @@ function parseSharedStrings(xml: string | null): string[] {
   return items;
 }
 
+// A numeric cell's cached <v> is an Excel serial number whether it holds a
+// duration, a price, or a date — nothing distinguishes them except the
+// number FORMAT applied to that cell, which lives in xl/styles.xml, not in
+// the cell itself. Skipping this (as an earlier version of this file did,
+// on the assumption "no import target field is ever a date") silently
+// corrupts every date column of any .xlsx whose dates are real date-typed
+// cells rather than text — which most spreadsheet tools produce by
+// default. CSV/text-typed cells never hit this path at all.
+const BUILTIN_DATE_NUMFMT_IDS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]);
+
+function looksLikeDateFormatCode(code: string): boolean {
+  // Strip quoted literals ("Semaine ") and bracketed locale/color tags
+  // ([Red], [$-40c]) first — their own letters must not count.
+  const stripped = code.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "");
+  return /[ymdhs]/i.test(stripped);
+}
+
+// Returns, indexed by cellXf position (what a cell's s="N" attribute
+// refers to), whether that style applies a date/time number format.
+function parseCellDateFormats(xml: string | null): boolean[] {
+  if (!xml) return [];
+  const customCodes = new Map<number, string>();
+  const numFmtRe = new RegExp(`<${TAG}numFmt\\s([^>]*)\\/?>`, "g");
+  let m: RegExpExecArray | null;
+  while ((m = numFmtRe.exec(xml))) {
+    const id = m[1].match(/numFmtId="(\d+)"/)?.[1];
+    const code = m[1].match(/formatCode="([^"]*)"/)?.[1];
+    if (id !== undefined && code !== undefined) customCodes.set(parseInt(id, 10), decodeEntities(code));
+  }
+
+  const cellXfsBlock = xml.match(new RegExp(`<${TAG}cellXfs[^>]*>([\\s\\S]*?)<\\/${TAG}cellXfs>`));
+  if (!cellXfsBlock) return [];
+  const xfRe = new RegExp(`<${TAG}xf\\s([^>]*?)\\/?>`, "g");
+  const isDate: boolean[] = [];
+  let xfMatch: RegExpExecArray | null;
+  while ((xfMatch = xfRe.exec(cellXfsBlock[1]))) {
+    const id = parseInt(xfMatch[1].match(/numFmtId="(\d+)"/)?.[1] ?? "0", 10);
+    isDate.push(BUILTIN_DATE_NUMFMT_IDS.has(id) || looksLikeDateFormatCode(customCodes.get(id) ?? ""));
+  }
+  return isDate;
+}
+
+// Excel's day 0 is 1899-12-30; serial 25569 lands on 1970-01-01 (Unix
+// epoch) — the standard conversion (also used by SheetJS/openpyxl). Not
+// worth special-casing Excel's 1900 leap-year bug (serials 0-60): no real
+// client record predates March 1900. Returns just the date part (ISO,
+// YYYY-MM-DD) — every current date-consuming field (parseBankDate) only
+// needs the day, and its regex only anchors the start of the string so a
+// longer ISO value here would still match if that ever changes.
+function excelSerialToIso(serial: number): string {
+  const ms = Math.round((serial - 25569) * 86400 * 1000);
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
 function columnIndex(cellRef: string): number {
   let idx = 0;
   for (const ch of cellRef) {
@@ -143,6 +197,9 @@ export function parseXlsx(input: Uint8Array): ParsedTable {
   const sharedEntry = entries.get("xl/sharedStrings.xml");
   const shared = parseSharedStrings(sharedEntry ? readEntryData(buf, sharedEntry).toString("utf8") : null);
 
+  const stylesEntry = entries.get("xl/styles.xml");
+  const dateStyles = parseCellDateFormats(stylesEntry ? readEntryData(buf, stylesEntry).toString("utf8") : null);
+
   const grid: string[][] = [];
   let maxCol = 0;
   const rowRe = new RegExp(`<${TAG}row(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${TAG}row>`, "g");
@@ -169,10 +226,12 @@ export function parseXlsx(input: Uint8Array): ParsedTable {
           value = Number.isInteger(idx) && shared[idx] !== undefined ? shared[idx] : "";
         } else if (type === "b") {
           value = raw === "1" ? "vrai" : "faux";
+        } else if (type === "n" && raw !== "") {
+          const styleIdx = parseInt(attrs.match(/\ss="(\d+)"/)?.[1] ?? "-1", 10);
+          const serial = parseFloat(raw);
+          value = styleIdx >= 0 && dateStyles[styleIdx] && Number.isFinite(serial) ? excelSerialToIso(serial) : raw;
         } else {
-          // n, str, e — the raw cached value. Date cells arrive as Excel
-          // serial numbers; none of the import target fields are dates, so
-          // no serial→date conversion is attempted here.
+          // str, e, or an empty n — the raw cached value/error code.
           value = raw;
         }
       }
