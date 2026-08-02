@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Script from "next/script";
 import { Settings2 } from "lucide-react";
 
@@ -39,6 +40,15 @@ const HAS_ADS_TAG = Boolean(META_PIXEL_ID || LINKEDIN_PARTNER_ID);
 const HAS_ANY_TAG = HAS_AUDIENCE_TAG || HAS_ADS_TAG;
 const CONSENT_KEY = "jalon-consent-v2";
 
+// Mirrors middleware.ts's matcher: the same set of routes reachable without
+// a Jalon session. Marketing/audience measurement only makes sense for an
+// anonymous visitor on those pages — mounted in the root layout, this
+// component used to render on every authenticated page too (client
+// feedback: the collapsed "Gérer les cookies" pill had nowhere safe to sit
+// there and started colliding with ordinary page content).
+const PUBLIC_PATH_RE =
+  /^\/(login|formulaire|satisfaction|mot-de-passe-oublie|reinitialiser-mot-de-passe|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo)(\/|$)|^\/$/;
+
 type Categories = { audience: boolean; ads: boolean };
 const REFUSE_ALL: Categories = { audience: false, ads: false };
 const ACCEPT_ALL: Categories = { audience: true, ads: true };
@@ -56,6 +66,7 @@ function readStoredConsent(): Categories | null {
 }
 
 export function CookieConsent() {
+  const pathname = usePathname();
   const [consent, setConsent] = useState<Categories | null>(null);
   const [ready, setReady] = useState(false);
   const [customizing, setCustomizing] = useState(false);
@@ -79,6 +90,9 @@ export function CookieConsent() {
 
   // No-op complet si aucune balise n'est configurée : ni bannière, ni script.
   if (!HAS_ANY_TAG) return null;
+  // No-op à l'intérieur de l'application authentifiée : rien n'y est mesuré
+  // à des fins marketing, et la bannière/pastille n'y a pas sa place.
+  if (!PUBLIC_PATH_RE.test(pathname ?? "")) return null;
 
   const showPrompt = ready && (consent === null || customizing);
 
