@@ -89,3 +89,59 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   return NextResponse.json(updated);
 }
+
+// A course can only be hard-deleted while nothing has actually happened on
+// it yet — the moment a single learner is enrolled (via any of its
+// sessions), archiving is the only path: their dossier's history, documents
+// and certificates must stay intact and queryable, which a delete can't
+// offer. Below that line, nothing hanging off the course (LMS content,
+// empty sessions, automation rules, satisfaction surveys) has any meaning
+// without it, so the transaction takes it all — children before parents,
+// since none of these FKs cascade at the database level (RESTRICT, so the
+// course itself can't be deleted while any of them still point to it).
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+  if (can(session.role, "planning") !== "full") {
+    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+
+  const existing = await prisma.course.findFirst({ where: { id: params.id, organizationId: session.organizationId } });
+  if (!existing) return NextResponse.json({ error: "Formation introuvable." }, { status: 404 });
+
+  const learnerCount = await prisma.dossier.count({ where: { session: { courseId: existing.id } } });
+  if (learnerCount > 0) {
+    return NextResponse.json(
+      {
+        error: `${learnerCount} apprenant${learnerCount > 1 ? "s" : ""} déjà inscrit${learnerCount > 1 ? "s" : ""} sur cette formation — impossible de la supprimer. Archivez-la à la place.`,
+      },
+      { status: 409 }
+    );
+  }
+
+  const moduleIds = (
+    await prisma.elearningModule.findMany({ where: { courseId: existing.id }, select: { id: true } })
+  ).map((m) => m.id);
+
+  try {
+    await prisma.$transaction([
+      prisma.elearningModuleAttachment.deleteMany({ where: { moduleId: { in: moduleIds } } }),
+      prisma.elearningModuleVersion.deleteMany({ where: { moduleId: { in: moduleIds } } }),
+      prisma.quizQuestion.deleteMany({ where: { quiz: { moduleId: { in: moduleIds } } } }),
+      prisma.quiz.deleteMany({ where: { moduleId: { in: moduleIds } } }),
+      prisma.elearningModule.deleteMany({ where: { courseId: existing.id } }),
+      prisma.chapter.deleteMany({ where: { courseId: existing.id } }),
+      prisma.session.deleteMany({ where: { courseId: existing.id } }),
+      prisma.satisfactionSurveyResponse.deleteMany({ where: { survey: { courseId: existing.id } } }),
+      prisma.satisfactionSurveyQuestion.deleteMany({ where: { survey: { courseId: existing.id } } }),
+      prisma.satisfactionSurvey.deleteMany({ where: { courseId: existing.id } }),
+      prisma.automationRule.deleteMany({ where: { courseId: existing.id } }),
+      prisma.course.delete({ where: { id: existing.id } }),
+    ]);
+  } catch {
+    return NextResponse.json({ error: "Suppression impossible — des éléments liés subsistent sur cette formation." }, { status: 409 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

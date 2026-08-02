@@ -26,6 +26,7 @@ import { EnrollLearnerPanel } from "@/components/EnrollLearnerPanel";
 import { RemoveLearnerButton } from "@/components/RemoveLearnerButton";
 import { EditCourseForm } from "@/components/EditCourseForm";
 import { ArchiveCourseButton } from "@/components/ArchiveCourseButton";
+import { DeleteCourseButton } from "@/components/DeleteCourseButton";
 import { DuplicateCourseButton } from "@/components/DuplicateCourseButton";
 import { AutomationRulesPanel } from "@/components/AutomationRulesPanel";
 import { SatisfactionSurveyEditor } from "@/components/SatisfactionSurveyEditor";
@@ -296,6 +297,7 @@ function ResumeTab({
           />
           <DuplicateCourseButton courseId={course.id} />
           <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
+          <DeleteCourseButton courseId={course.id} />
         </div>
       )}
 
