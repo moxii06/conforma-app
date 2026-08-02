@@ -160,6 +160,7 @@ export default async function PlatformAdminOrganizationsPage() {
               <tr className="border-b border-line">
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Organisme</th>
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Offre</th>
+                <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Revenu mensuel</th>
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Abonnement</th>
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Échéance</th>
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Accès</th>
@@ -170,6 +171,7 @@ export default async function PlatformAdminOrganizationsPage() {
               {organizations.map((org) => {
                 const sub = org.subscription;
                 const deadline = sub?.status === "trialing" ? sub.trialEndsAt : sub?.currentPeriodEnd;
+                const orgPriceCents = sub ? (prices?.[sub.plan as PlanKey]?.amountCents ?? null) : null;
                 return (
                   <tr key={org.id} className="border-b border-line last:border-b-0 align-top">
                     <td className="px-4 py-3">
@@ -192,6 +194,23 @@ export default async function PlatformAdminOrganizationsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-ink">{sub ? (PLAN_LABELS[sub.plan] ?? sub.plan) : "—"}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {orgPriceCents == null ? (
+                        <span className="text-slate">—</span>
+                      ) : (
+                        <span
+                          className={
+                            sub?.status === "active"
+                              ? "text-ink font-medium"
+                              : sub?.status === "past_due"
+                                ? "text-rust"
+                                : "text-slate"
+                          }
+                        >
+                          {formatCents(orgPriceCents)}/mois
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {sub ? (
                         <div className="flex flex-col gap-1 items-start">
