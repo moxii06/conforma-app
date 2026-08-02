@@ -177,6 +177,22 @@ model Organization {
   webhooks                    Webhook[]
   clientOutreaches            ClientOutreach[]
   subscription                Subscription?
+
+  // Manual access control, set by Jalon's own platform owner (a distinct
+  // surface from every Organization's own app — see src/lib/platformAdmin.ts)
+  // — deliberately separate from Subscription.status, which mirrors Stripe's
+  // payment state via webhook and must never be silently overwritten by a
+  // human decision, or vice versa. accessWarningAt is the soft step (every
+  // user in the org sees a persistent banner, nothing is blocked);
+  // suspendedAt is the hard one (no page in (app)/ renders for anyone in
+  // the org until it's cleared) — see AppLayout, which is where both are
+  // actually enforced. Edge middleware can't run this check itself (Prisma's
+  // Node engine doesn't run there), hence the layout-level gate instead.
+  suspendedAt                 DateTime?
+  suspendedReason             String?
+  accessWarningAt             DateTime?
+  accessWarningReason         String?
+
   qualityRisks                QualityRisk[]
   resultIndicators            ResultIndicator[]
   dashboardTaskDismissals     DashboardTaskDismissal[]

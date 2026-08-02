@@ -31,7 +31,11 @@ export default withAuth({
 // (/mot-de-passe-oublie and /reinitialiser-mot-de-passe/[token] — by
 // definition reached by someone who CANNOT sign in, so gating them behind
 // a session made the flow circular and locked the user out for good);
-// and the marketing/pricing page at the site root. Static assets (_next,
+// the marketing/pricing page at the site root; and /plateforme + its API
+// (Jalon's own cross-tenant back-office for the platform owner, gated by
+// its own separate shared-secret cookie — see src/lib/platformAdmin.ts —
+// since a NextAuth session is tenant-scoped by definition and the platform
+// owner isn't a User row inside any Organization). Static assets (_next,
 // favicon) are excluded so the app shell can still load its CSS/JS while an
 // unauthenticated user is bounced to /login.
 // The trailing `|$` is what excludes the *exact* root "/" — everything
@@ -49,6 +53,6 @@ export const config = {
     // gated by CRON_SECRET instead (see src/lib/cronAuth.ts), which now
     // REFUSES in production when the variable is missing — without that,
     // removing them from the middleware would leave them wide open.
-    "/((?!login|formulaire|satisfaction|mot-de-passe-oublie|reinitialiser-mot-de-passe|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|api/auth|api/public|api/v1|api/cron|api/signup|api/webhooks|api/newsletter|_next/static|_next/image|favicon.ico|$).*)",
+    "/((?!login|formulaire|satisfaction|mot-de-passe-oublie|reinitialiser-mot-de-passe|catalogue|essai|activation|actualites|diagnostic-qualiopi|demo|plateforme|api/auth|api/public|api/v1|api/cron|api/signup|api/webhooks|api/newsletter|api/plateforme|_next/static|_next/image|favicon.ico|$).*)",
   ],
 };
