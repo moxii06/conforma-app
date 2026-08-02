@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { scopeLabel, scopeHint, type DocumentScope } from "@/lib/documentScope";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { ensureHtml } from "@/lib/plainTextToHtml";
 
 // L'écran de création : le document à gauche, les réglages à droite.
 //
@@ -45,9 +47,8 @@ export function DocumentComposer({
   // Le texte édité à la main. Tant qu'il est null, la prévisualisation
   // pilote l'affichage ; dès que l'organisme écrit, c'est SON texte qui
   // fait foi — sinon un changement d'option écraserait sa rédaction.
-  const [texteÉdité, setTexteÉdité] = useState<string | null>(draft?.bodyText ?? null);
+  const [texteÉdité, setTexteÉdité] = useState<string | null>(draft ? ensureHtml(draft.bodyText) : null);
   const [enÉdition, setEnÉdition] = useState(false);
-  const zoneRef = useRef<HTMLTextAreaElement>(null);
 
   // La conversation avec l'assistant. La proposition en cours n'est PAS
   // appliquée : elle s'affiche à gauche, en vert, et attend Accepter ou
@@ -84,7 +85,10 @@ export function DocumentComposer({
   }, [charger]);
 
   const scope: DocumentScope = preview?.scope ?? "single";
-  const texte = texteÉdité ?? preview?.bodyText ?? "";
+  // Toujours du HTML côté écran : l'aperçu arrive en texte brut du
+  // serveur, l'éditeur produit du HTML, et le générateur PDF attend du
+  // HTML. Convertir ici évite que chaque appelant s'en préoccupe.
+  const texte = texteÉdité ?? (preview?.bodyText ? ensureHtml(preview.bodyText) : "");
   const titre = preview?.title ?? template.title;
   const balisesRestantes = texteÉdité
     ? // Recalculé côté serveur à l'enregistrement ; ici on se contente de
@@ -93,22 +97,6 @@ export function DocumentComposer({
       []
     : (preview?.remainingTags ?? []);
 
-  function insérerBalise(token: string) {
-    const zone = zoneRef.current;
-    const base = texteÉdité ?? texte;
-    if (!zone) {
-      setTexteÉdité(base + token);
-      return;
-    }
-    const début = zone.selectionStart ?? base.length;
-    const fin = zone.selectionEnd ?? début;
-    const nouveau = base.slice(0, début) + token + base.slice(fin);
-    setTexteÉdité(nouveau);
-    requestAnimationFrame(() => {
-      zone.focus();
-      zone.setSelectionRange(début + token.length, début + token.length);
-    });
-  }
 
   async function demanderIa(texteDemande?: string) {
     const demande = (texteDemande ?? instruction).trim();
@@ -182,6 +170,14 @@ export function DocumentComposer({
     if (res.ok) router.push("/documents");
   }
 
+  // ATTENTION : le vocabulaire du document est {{cle.pointee}} — voir
+  // mergeTemplate.ts. MERGE_TAGS (mergeTags.ts) porte des [Crochets] et
+  // sert aux corps d'emails d'automatisation ; les passer ici ferait
+  // insérer dans un contrat des balises que le moteur ne résoudrait
+  // jamais, et le document partirait chez le client avec « [Prénom] »
+  // en toutes lettres.
+  const balisesDocument = mergeFields.map((cle) => ({ tag: `{{${cle}}}`, label: cle }));
+
   const btn = "text-[13px] font-medium rounded-md inline-flex items-center justify-center min-h-[40px] px-4 disabled:opacity-50";
   const champ = "w-full border border-line rounded-md px-2.5 py-2 text-[12.5px] text-ink outline-none focus:border-seal min-h-[40px]";
 
@@ -222,46 +218,33 @@ export function DocumentComposer({
           {/* Volet gauche : le document */}
           <div className="flex flex-col gap-2">
             {enÉdition ? (
-              <>
-                <textarea
-                  ref={zoneRef}
-                  value={texte}
-                  onChange={(e) => setTexteÉdité(e.target.value)}
-                  className="bg-white border border-seal rounded-card p-6 text-[12.5px] text-ink leading-relaxed font-sans outline-none"
-                  style={{ minHeight: 520 }}
-                />
-                <div className="flex flex-wrap gap-1.5 items-center">
-                  <span className="text-[11px] text-slate mr-1">Insérer :</span>
-                  {mergeFields.map((token) => (
-                    <button
-                      key={token}
-                      type="button"
-                      onClick={() => insérerBalise(`{{${token}}}`)}
-                      className="font-mono text-[10.5px] bg-[#EFE7D6] text-seal-dark border border-[#E0D3B4] rounded px-2 min-h-[30px] hover:bg-seal hover:text-white hover:border-seal"
-                    >
-                      {`{{${token}}}`}
-                    </button>
-                  ))}
-                </div>
-                <div className="text-[11.5px] text-slate">
-                  Une balise se remplit automatiquement à la génération —{" "}
-                  <span className="font-mono">{"{{contact.firstName}}"}</span> devient le prénom réel de chaque destinataire.
-                </div>
-              </>
+              <RichTextEditor
+                html={texte}
+                onChange={setTexteÉdité}
+                mergeTags={balisesDocument}
+                size="lg"
+                placeholder="Rédigez votre document…"
+              />
             ) : (
               <div
-                className="bg-white border border-line rounded-card p-6 text-[12.5px] text-ink leading-relaxed whitespace-pre-wrap overflow-y-auto"
+                className="bg-white border border-line rounded-card p-6 text-[12.5px] text-ink leading-relaxed overflow-y-auto"
                 style={{ minHeight: 520, maxHeight: 620 }}
               >
                 {chargement ? (
                   <span className="text-slate">Chargement de l&apos;aperçu…</span>
                 ) : proposition ? (
-                  // La version proposée, sur fond vert, pour qu'on la
-                  // reconnaisse d'un coup d'œil comme n'étant pas encore
-                  // le document.
-                  <span className="bg-[#E4EAE6] block -m-2 p-2 rounded">{proposition.bodyText}</span>
+                  <div
+                    className="bg-[#E4EAE6] -m-2 p-2 rounded"
+                    dangerouslySetInnerHTML={{ __html: ensureHtml(proposition.bodyText) }}
+                  />
+                ) : texte ? (
+                  // Le corps vient de nos propres modèles et de l'éditeur,
+                  // tous deux passés par plainTextToHtml qui échappe déjà
+                  // le balisage saisi. Aucune source tierce n'alimente ce
+                  // champ.
+                  <div dangerouslySetInnerHTML={{ __html: texte }} />
                 ) : (
-                  texte || <span className="text-slate">Aperçu vide.</span>
+                  <span className="text-slate">Aperçu vide.</span>
                 )}
               </div>
             )}
