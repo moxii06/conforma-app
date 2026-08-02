@@ -216,6 +216,11 @@ model Organization {
   // (voir PlatformEmailMessage) — sans lien avec EmailMessage/ClientOutreach,
   // qui sont la boîte mail de CET organisme vers SES PROPRES prospects.
   platformEmailMessages       PlatformEmailMessage[]
+  // Prises de contact notées à la main par le propriétaire de la plateforme
+  // (appel, rendez-vous...) — fusionnées avec platformEmailMessages dans la
+  // frise "Activité" de la fiche organisme, comme l'onglet Activité du CRM
+  // de chaque OFP fusionne plusieurs sources.
+  platformContactNotes        PlatformContactNote[]
 
   // Which version of the RNQ this org is currently auditing itself against
   // (see QualiopiReferentielVersion) — nullable only until the backfill
@@ -496,6 +501,22 @@ model PlatformEmailMessage {
   body           String
   scheduledAt    DateTime?
   sentAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+}
+
+// Une prise de contact notée à la main par le propriétaire de la plateforme
+// — appel, rendez-vous, échange hors email — pour tout ce qui n'existe pas
+// déjà comme PlatformEmailMessage. occurredAt est distinct de createdAt : un
+// appel se note souvent après coup, la frise doit trier sur "quand c'est
+// arrivé", pas "quand ça a été saisi".
+model PlatformContactNote {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  note           String
+  occurredAt     DateTime     @default(now())
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])

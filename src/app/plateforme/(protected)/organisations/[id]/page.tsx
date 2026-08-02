@@ -8,6 +8,7 @@ import { Pill, InfoRow } from "@/components/ui";
 import { OrganizationAccessActions } from "@/components/OrganizationAccessActions";
 import { OrganizationCgvControl } from "@/components/OrganizationCgvControl";
 import { PlatformEmailComposer } from "@/components/PlatformEmailComposer";
+import { PlatformContactNoteForm } from "@/components/PlatformContactNoteForm";
 import { fetchPlanPrices, type PlanKey } from "@/lib/billing";
 
 const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team", growth: "Growth" };
@@ -34,11 +35,42 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
       subscription: true,
       _count: { select: { users: true } },
       platformEmailMessages: { orderBy: { createdAt: "desc" }, take: 20 },
+      platformContactNotes: { orderBy: { occurredAt: "desc" }, take: 20 },
     },
   });
   if (!organization) notFound();
 
   const sub = organization.subscription;
+
+  // Frise "Activité" : fusion des deux sources, triée par date — même
+  // principe que l'onglet Activité du CRM de chaque OFP (qui fusionne
+  // ClientOutreach/EmailMessage/Document/Invoice), transposé ici aux deux
+  // seules sources qui existent côté plateforme.
+  const activity = [
+    ...organization.platformEmailMessages.map((msg) => ({
+      id: `email-${msg.id}`,
+      at: msg.sentAt ?? msg.scheduledAt ?? msg.createdAt,
+      text: msg.sentAt ? `Email envoyé — ${msg.subject}` : `Email programmé — ${msg.subject}`,
+      dot: (msg.sentAt ? "sage" : "seal") as "sage" | "seal" | "slate",
+    })),
+    ...organization.platformContactNotes.map((n) => ({
+      id: `note-${n.id}`,
+      at: n.occurredAt,
+      text: n.note,
+      dot: "slate" as "sage" | "seal" | "slate",
+    })),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
+  const ACTIVITY_DOT_CLASSES: Record<"sage" | "seal" | "slate", string> = {
+    sage: "bg-sage",
+    seal: "bg-seal-light",
+    slate: "bg-ash",
+  };
+
+  // Qualité — dérivée de l'abonnement, pas une saisie séparée : un abonnement
+  // "actif" est un client payant, tout le reste (essai/impayé/résilié/aucun)
+  // reste un prospect. Cohérent avec le filtre de la liste /plateforme.
+  const isClient = sub?.status === "active";
+
   const planKey = (sub?.plan as PlanKey) ?? "solo";
   const prices = sub ? await fetchPlanPrices() : null;
   const price = prices ? prices[planKey] : null;
@@ -60,7 +92,10 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
         </Link>
         <div className="flex items-center justify-between mt-1.5 gap-4">
           <div>
-            <div className="text-[18px] font-display text-ink">{organization.name}</div>
+            <div className="flex items-center gap-2">
+              <div className="text-[18px] font-display text-ink">{organization.name}</div>
+              <Pill tone={isClient ? "good" : "neutral"}>{isClient ? "Client" : "Prospect"}</Pill>
+            </div>
             <div className="text-[12.5px] text-slate mt-0.5">
               {organization._count.users} membre{organization._count.users > 1 ? "s" : ""} · depuis{" "}
               {format(organization.createdAt, "d MMMM yyyy", { locale: fr })}
@@ -175,27 +210,28 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
         </div>
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13px] font-semibold text-ink">Communications</div>
-          <PlatformEmailComposer organizationId={organization.id} defaultTo={admin?.email ?? ""} />
-          {organization.platformEmailMessages.length > 0 && (
-            <div className="flex flex-col gap-2.5 pt-3 border-t border-line">
-              {organization.platformEmailMessages.map((msg) => (
-                <div key={msg.id} className="text-[12px] flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-ink">{msg.subject}</span>
-                    {msg.sentAt ? (
-                      <Pill tone="good">Envoyé le {format(msg.sentAt, "d MMM yyyy", { locale: fr })}</Pill>
-                    ) : (
-                      <Pill tone="warn">
-                        Programmé{msg.scheduledAt ? ` pour le ${format(msg.scheduledAt, "d MMM yyyy", { locale: fr })}` : ""}
-                      </Pill>
-                    )}
-                  </div>
-                  <span className="text-slate">à {msg.toEmail}</span>
+          <div className="text-[13px] font-semibold text-ink">Activité</div>
+          <div className="grid grid-cols-2 gap-4">
+            <PlatformEmailComposer organizationId={organization.id} defaultTo={admin?.email ?? ""} />
+            <PlatformContactNoteForm organizationId={organization.id} />
+          </div>
+          <div className="flex flex-col pt-3 border-t border-line">
+            {activity.map((e, i) => (
+              <div key={e.id} className="flex gap-3 pb-4 relative">
+                {i < activity.length - 1 && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-line" />}
+                <span className={`w-[11px] h-[11px] rounded-full mt-0.5 shrink-0 z-10 ${ACTIVITY_DOT_CLASSES[e.dot]}`} />
+                <div className="min-w-0">
+                  <div className="text-[12.5px] text-ink leading-snug whitespace-pre-wrap">{e.text}</div>
+                  <div className="text-[11px] text-slate mt-0.5">{format(e.at, "d MMMM yyyy", { locale: fr })}</div>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+            {activity.length === 0 && (
+              <div className="text-[12.5px] text-slate">
+                Aucune activité pour l&apos;instant — les emails et les contacts notés apparaîtront ici.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -17,8 +17,25 @@ const STATUS_TONES: Record<string, "neutral" | "warn" | "danger" | "good"> = {
   canceled: "neutral",
 };
 const PLAN_KEYS: PlanKey[] = ["solo", "team", "growth"];
+const ACTIVITY_DOT_CLASSES: Record<"sage" | "seal" | "slate", string> = {
+  sage: "bg-sage",
+  seal: "bg-seal-light",
+  slate: "bg-ash",
+};
 
-export default async function PlatformAdminOrganizationsPage() {
+// Qualité = client payant (abonnement actif) ou prospect (tout le reste :
+// essai, impayé, résilié, ou aucun abonnement) — dérivée, jamais saisie,
+// pour qu'elle ne puisse jamais diverger du statut réel de l'abonnement.
+function isClientOrg(org: { subscription: { status: string } | null }): boolean {
+  return org.subscription?.status === "active";
+}
+
+export default async function PlatformAdminOrganizationsPage(props: {
+  searchParams: Promise<{ qualite?: string }>;
+}) {
+  const searchParams = await props.searchParams;
+  const qualiteFilter = searchParams.qualite === "prospect" || searchParams.qualite === "client" ? searchParams.qualite : null;
+
   const organizations = await prisma.organization.findMany({
     include: { subscription: true, _count: { select: { users: true } } },
     orderBy: { createdAt: "desc" },
@@ -28,6 +45,15 @@ export default async function PlatformAdminOrganizationsPage() {
   const trialingCount = organizations.filter((o) => o.subscription?.status === "trialing").length;
   const pastDueCount = organizations.filter((o) => o.subscription?.status === "past_due").length;
   const suspendedCount = organizations.filter((o) => o.suspendedAt).length;
+
+  // Le filtre ne touche que le tableau et la frise d'activité ci-dessous —
+  // les compteurs et le résumé financier au-dessus restent globaux, pour ne
+  // jamais donner l'impression que le MRR a changé parce qu'on a filtré.
+  const visibleOrganizations = organizations.filter((org) => {
+    if (qualiteFilter === "client") return isClientOrg(org);
+    if (qualiteFilter === "prospect") return !isClientOrg(org);
+    return true;
+  });
 
   // Revenu de Jalon lui-même (ce que ses clients OFP lui paient) — jamais à
   // confondre avec l'argent qui transite par /facturation, qui appartient à
@@ -76,6 +102,41 @@ export default async function PlatformAdminOrganizationsPage() {
     ? PLAN_KEYS.filter((key) => activeRevenue.byPlan[key].count > 0 && !prices?.[key])
     : [];
 
+  // Frise "Activité récente", tous organismes confondus — pour repérer d'un
+  // coup d'œil qui n'a pas eu de nouvelles depuis longtemps, plutôt que de
+  // devoir ouvrir chaque fiche une par une. Même fusion email+note que sur
+  // la fiche organisme, avec l'organisme d'origine en plus sur chaque ligne.
+  const orgById = new Map(organizations.map((o) => [o.id, o]));
+  const [recentEmails, recentNotes] = await Promise.all([
+    prisma.platformEmailMessage.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.platformContactNote.findMany({ orderBy: { occurredAt: "desc" }, take: 50 }),
+  ]);
+  const globalActivity = [
+    ...recentEmails.map((msg) => ({
+      id: `email-${msg.id}`,
+      organizationId: msg.organizationId,
+      at: msg.sentAt ?? msg.scheduledAt ?? msg.createdAt,
+      text: msg.sentAt ? `Email envoyé — ${msg.subject}` : `Email programmé — ${msg.subject}`,
+      dot: (msg.sentAt ? "sage" : "seal") as "sage" | "seal" | "slate",
+    })),
+    ...recentNotes.map((n) => ({
+      id: `note-${n.id}`,
+      organizationId: n.organizationId,
+      at: n.occurredAt,
+      text: n.note,
+      dot: "slate" as "sage" | "seal" | "slate",
+    })),
+  ]
+    .filter((e) => {
+      const org = orgById.get(e.organizationId);
+      if (!org) return false;
+      if (qualiteFilter === "client") return isClientOrg(org);
+      if (qualiteFilter === "prospect") return !isClientOrg(org);
+      return true;
+    })
+    .sort((a, b) => b.at.getTime() - a.at.getTime())
+    .slice(0, 20);
+
   return (
     <div className="min-h-screen bg-mist">
       <div className="flex items-center justify-between px-8 pt-6 pb-4">
@@ -94,6 +155,23 @@ export default async function PlatformAdminOrganizationsPage() {
           <MetricCard label="Suspendus" value={String(suspendedCount)} tone={suspendedCount > 0 ? "danger" : "ink"} />
         </div>
         <AddOrganizationForm />
+      </div>
+      <div className="px-8 pb-4 flex items-center gap-1">
+        {[
+          { key: null, label: "Tous" },
+          { key: "prospect", label: "Prospects" },
+          { key: "client", label: "Clients" },
+        ].map((opt) => (
+          <Link
+            key={opt.label}
+            href={opt.key ? `/plateforme?qualite=${opt.key}` : "/plateforme"}
+            className={`text-[12px] px-2.5 py-1 rounded-full ${
+              qualiteFilter === opt.key ? "bg-ink text-white" : "text-slate hover:text-ink"
+            }`}
+          >
+            {opt.label}
+          </Link>
+        ))}
       </div>
       <div className="px-8 pb-4">
         <div className="bg-white border border-line rounded-card p-5">
@@ -159,6 +237,7 @@ export default async function PlatformAdminOrganizationsPage() {
             <thead>
               <tr className="border-b border-line">
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Organisme</th>
+                <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Qualité</th>
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Offre</th>
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Revenu mensuel</th>
                 <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Abonnement</th>
@@ -168,7 +247,7 @@ export default async function PlatformAdminOrganizationsPage() {
               </tr>
             </thead>
             <tbody>
-              {organizations.map((org) => {
+              {visibleOrganizations.map((org) => {
                 const sub = org.subscription;
                 const deadline = sub?.status === "trialing" ? sub.trialEndsAt : sub?.currentPeriodEnd;
                 const orgPriceCents = sub ? (prices?.[sub.plan as PlanKey]?.amountCents ?? null) : null;
@@ -192,6 +271,9 @@ export default async function PlatformAdminOrganizationsPage() {
                           Voir sur Stripe →
                         </a>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Pill tone={isClientOrg(org) ? "good" : "neutral"}>{isClientOrg(org) ? "Client" : "Prospect"}</Pill>
                     </td>
                     <td className="px-4 py-3 text-ink">{sub ? (PLAN_LABELS[sub.plan] ?? sub.plan) : "—"}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -253,7 +335,46 @@ export default async function PlatformAdminOrganizationsPage() {
               })}
             </tbody>
           </table>
-          {organizations.length === 0 && <div className="text-[12.5px] text-slate px-4 py-4">Aucun organisme.</div>}
+          {visibleOrganizations.length === 0 && (
+            <div className="text-[12.5px] text-slate px-4 py-4">
+              {qualiteFilter ? "Aucun organisme dans cette catégorie." : "Aucun organisme."}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-8 pb-8">
+        <div className="bg-white border border-line rounded-card p-5">
+          <div className="flex items-baseline justify-between mb-3.5">
+            <div className="text-[13px] font-semibold text-ink">Activité récente</div>
+            <div className="text-[12px] text-slate">tous organismes{qualiteFilter ? ` — ${qualiteFilter === "client" ? "clients" : "prospects"}` : ""}</div>
+          </div>
+          <div className="flex flex-col">
+            {globalActivity.map((e, i) => {
+              const org = orgById.get(e.organizationId);
+              return (
+                <div key={e.id} className="flex gap-3 pb-4 relative">
+                  {i < globalActivity.length - 1 && <span className="absolute left-[5px] top-4 bottom-0 w-px bg-line" />}
+                  <span className={`w-[11px] h-[11px] rounded-full mt-0.5 shrink-0 z-10 ${ACTIVITY_DOT_CLASSES[e.dot]}`} />
+                  <div className="min-w-0">
+                    <div className="text-[12.5px] text-ink leading-snug whitespace-pre-wrap">
+                      {org && (
+                        <Link href={`/plateforme/organisations/${org.id}`} className="font-medium text-ink hover:text-seal hover:underline">
+                          {org.name}
+                        </Link>
+                      )}
+                      {org ? " — " : ""}
+                      {e.text}
+                    </div>
+                    <div className="text-[11px] text-slate mt-0.5">{format(e.at, "d MMM yyyy", { locale: fr })}</div>
+                  </div>
+                </div>
+              );
+            })}
+            {globalActivity.length === 0 && (
+              <div className="text-[12.5px] text-slate">Aucune activité pour l&apos;instant.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
