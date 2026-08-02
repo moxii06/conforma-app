@@ -219,6 +219,7 @@ export function findEmptyMergeFields(bodyText: string, ctx: MergeContext): strin
 }
 
 export const MERGE_FIELD_HINTS: Record<string, { label: string; fixHref: string }> = {
+  "organization.siret": { label: "SIRET", fixHref: "/profil" },
   "organization.legalForm": { label: "Forme juridique", fixHref: "/profil" },
   "organization.shareCapital": { label: "Capital social", fixHref: "/profil" },
   "organization.legalAddress": { label: "Adresse du siège social", fixHref: "/profil" },

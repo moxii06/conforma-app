@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 type LegalInfo = {
+  siret: string;
   legalForm: string;
   shareCapital: string;
   legalAddress: string;
@@ -76,6 +77,17 @@ export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
           value={values.legalAddress}
           onChange={(e) => set("legalAddress", e.target.value)}
           placeholder="12 rue des Formateurs, 75011 Paris"
+          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+        />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-[11px] text-slate uppercase tracking-wide">SIRET</span>
+        <input
+          value={values.siret}
+          onChange={(e) => set("siret", e.target.value.replace(/\s+/g, ""))}
+          placeholder="12345678900012 (14 chiffres)"
+          inputMode="numeric"
+          maxLength={14}
           className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
         />
       </label>

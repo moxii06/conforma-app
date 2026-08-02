@@ -88,6 +88,7 @@ export default async function ProfilePage() {
               </div>
               <OrganizationLegalForm
                 initial={{
+                  siret: organization.siret ?? "",
                   legalForm: organization.legalForm ?? "",
                   shareCapital: organization.shareCapital ?? "",
                   legalAddress: organization.legalAddress ?? "",

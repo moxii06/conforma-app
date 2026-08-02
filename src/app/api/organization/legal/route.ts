@@ -4,7 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
 import { Role } from "@prisma/client";
 
+// Même validation qu'à l'inscription (voir /api/signup) — un SIRET fait
+// 14 chiffres, jamais plus ni moins.
+const optionalSiret = z
+  .string()
+  .trim()
+  .regex(/^\d{14}$/, "Le SIRET doit contenir 14 chiffres.")
+  .optional()
+  .or(z.literal(""));
+
 const schema = z.object({
+  siret: optionalSiret,
   legalForm: z.string().trim().max(100).optional(),
   shareCapital: z.string().trim().max(100).optional(),
   legalAddress: z.string().trim().max(300).optional(),

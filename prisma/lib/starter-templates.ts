@@ -81,19 +81,6 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
       "Article 13 — Publicité et entrée en vigueur. Le présent règlement est remis à chaque stagiaire préalablement à son inscription définitive et, lorsque la formation a lieu en présentiel, affiché dans les locaux de formation. Toute modification est portée à la connaissance des stagiaires déjà inscrits avant son entrée en application à leur égard, et ne s'applique de plein droit qu'aux stagiaires inscrits à une action postérieure à cette modification.",
   },
   {
-    category: "convention",
-    title: "Convention de formation professionnelle",
-    bodyText:
-      "CONVENTION DE FORMATION PROFESSIONNELLE\n" +
-      "(article L.6353-1 et suivants du Code du travail)\n\n" +
-      "Entre [NOM DE L'ORGANISME], d'une part, et [NOM DU CLIENT / ENTREPRISE], d'autre part.\n\n" +
-      "Article 1 — Objet : la présente convention a pour objet la réalisation de l'action de formation suivante : [INTITULÉ DE LA FORMATION].\n\n" +
-      "Article 2 — Nature et durée : [DATES, DURÉE, MODALITÉS (présentiel/distanciel)].\n\n" +
-      "Article 3 — Effectifs : [NOMBRE DE STAGIAIRES].\n\n" +
-      "Article 4 — Dispositions financières : coût total, modalités de règlement, prise en charge éventuelle : [À COMPLÉTER].\n\n" +
-      "Article 5 — Sanction de la formation : attestation de fin de formation remise à l'issue de l'action.",
-  },
-  {
     category: "contrat_formation",
     title: "Contrat de formation professionnelle (particulier) — paragraphes conditionnels",
     bodyText: "Modèle assemblé automatiquement à partir des paragraphes ci-dessous — voir l'onglet Modèles, Bibliothèque.",

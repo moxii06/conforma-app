@@ -130,11 +130,9 @@ describe("champs manquants", () => {
     expect(missing).toEqual([]);
   });
 
-  it("ne signale pas un champ organisation sans écran de réglage connu", () => {
-    // organization.siret has no settings form yet — flagging it would send
-    // staff to a dead end, see describeMissingFields.
+  it("signale le SIRET manquant, avec son propre écran de réglage", () => {
     const missing = findEmptyMergeFields("{{organization.siret}}", ctx());
-    expect(missing).toEqual([]);
+    expect(missing).toEqual(["organization.siret"]);
   });
 
   it("fournit un libellé et un lien de correction pour chaque champ signalé", () => {
