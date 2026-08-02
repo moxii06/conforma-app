@@ -25,11 +25,28 @@ const LOCATION_PLACEHOLDER: Record<SessionFormat, string> = {
   HYBRID: "Lieu et/ou lien de visio",
 };
 
-export function CreateSessionForm({ courses, trainers }: { courses: Course[]; trainers: Trainer[] }) {
+export function CreateSessionForm({
+  courses,
+  trainers,
+  lockedCourse,
+  onCreated,
+}: {
+  courses: Course[];
+  trainers: Trainer[];
+  // Appelé depuis la fiche d'une formation : la formation est déjà connue,
+  // donc pas de sélecteur — juste son nom en rappel. Sans ce mode, créer
+  // une session depuis la fiche obligeait à retrouver la même formation
+  // dans une liste déroulante qu'on venait de quitter.
+  lockedCourse?: { id: string; title: string };
+  // Le planning fait confiance à router.refresh() pour révéler la nouvelle
+  // session. Ici, la fiche formation ne montre pas la liste du planning :
+  // on prévient l'appelant pour qu'il l'affiche lui-même (ou y renvoie).
+  onCreated?: (session: { id: string }) => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [courseMode, setCourseMode] = useState<"existing" | "new">(courses.length > 0 ? "existing" : "new");
-  const [courseId, setCourseId] = useState(courses[0]?.id ?? "");
+  const [courseMode, setCourseMode] = useState<"existing" | "new">(courses.length > 0 || !!lockedCourse ? "existing" : "new");
+  const [courseId, setCourseId] = useState(lockedCourse?.id ?? courses[0]?.id ?? "");
   const [courseTitle, setCourseTitle] = useState("");
   const [trainerId, setTrainerId] = useState("");
   const [mode, setMode] = useState<SessionMode>(SessionMode.FIXED_DATE);
@@ -59,7 +76,7 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         courseMode,
-        courseId: courseMode === "existing" ? courseId : undefined,
+        courseId: courseMode === "existing" ? (lockedCourse?.id ?? courseId) : undefined,
         courseTitle: courseMode === "new" ? courseTitle : undefined,
         trainerId: trainerId || undefined,
         mode,
@@ -85,6 +102,8 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
     setLocation("");
     setDate("");
     setOpen(false);
+    const created = await res.json().catch(() => null);
+    if (onCreated && created?.id) onCreated(created);
     router.refresh();
   }
 
@@ -101,23 +120,31 @@ export function CreateSessionForm({ courses, trainers }: { courses: Course[]; tr
 
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-line rounded-card p-4 flex flex-col gap-3 max-w-xl">
-      <div className="flex items-center gap-2 text-[12.5px]">
-        <button type="button" onClick={() => setCourseMode("existing")} disabled={courses.length === 0} className={`px-2.5 py-1 rounded-md ${courseMode === "existing" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
-          Cours existant
-        </button>
-        <button type="button" onClick={() => setCourseMode("new")} className={`px-2.5 py-1 rounded-md ${courseMode === "new" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
-          Nouveau cours
-        </button>
-      </div>
-
-      {courseMode === "existing" ? (
-        <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
-          {courses.map((c) => (
-            <option key={c.id} value={c.id}>{c.title}</option>
-          ))}
-        </select>
+      {lockedCourse ? (
+        <div className="text-[12.5px] text-ink">
+          Formation : <span className="font-medium">{lockedCourse.title}</span>
+        </div>
       ) : (
-        <input required placeholder="Intitulé du cours" value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+        <>
+          <div className="flex items-center gap-2 text-[12.5px]">
+            <button type="button" onClick={() => setCourseMode("existing")} disabled={courses.length === 0} className={`px-2.5 py-1 rounded-md ${courseMode === "existing" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
+              Cours existant
+            </button>
+            <button type="button" onClick={() => setCourseMode("new")} className={`px-2.5 py-1 rounded-md ${courseMode === "new" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
+              Nouveau cours
+            </button>
+          </div>
+
+          {courseMode === "existing" ? (
+            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>{c.title}</option>
+              ))}
+            </select>
+          ) : (
+            <input required placeholder="Intitulé du cours" value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+          )}
+        </>
       )}
 
       <div className="flex items-center gap-2 text-[12.5px]">

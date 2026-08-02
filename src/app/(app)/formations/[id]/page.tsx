@@ -34,9 +34,14 @@ import { TemplateEditor } from "@/components/TemplateEditor";
 import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
 import { AddModuleAttachmentForm } from "@/components/AddModuleAttachmentForm";
 import { DeleteAttachmentButton } from "@/components/DeleteAttachmentButton";
+import { CreateSessionForm } from "@/components/CreateSessionForm";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 
 const TYPE_ICONS: Record<string, LucideIcon> = { video: Video, document: FileText, quiz: HelpCircle, page: BookOpen };
+
+// Même trois libellés que CreateSessionForm/EditSessionForm — dupliqué là
+// où l'app affiche déjà ces valeurs sans lib partagée (pas le sujet ici).
+const SESSION_FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
 
 const courseInclude = {
   elearningModules: {
@@ -50,7 +55,10 @@ const courseInclude = {
     orderBy: { order: "asc" as const },
   },
   chapters: { orderBy: { createdAt: "asc" as const } },
-  sessions: { include: { dossiers: { include: { contact: true } } } },
+  sessions: {
+    include: { dossiers: { include: { contact: true } }, trainer: { select: { name: true } } },
+    orderBy: { startsAt: "desc" as const },
+  },
   responsibleUsers: true,
   subcontractors: true,
   automationRules: { orderBy: { createdAt: "asc" as const } },
@@ -87,7 +95,7 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
   const activeTab = searchParams.tab && TABS.some((t) => t.key === searchParams.tab) ? searchParams.tab : "resume";
   const docsView = searchParams.docs === "signes" ? "signes" : "modeles";
 
-  const [course, members, subcontractors] = await Promise.all([
+  const [course, members, subcontractors, trainers] = await Promise.all([
     prisma.course.findFirst({ where: { id: params.id, organizationId }, include: courseInclude }),
     canManage
       ? prisma.user.findMany({
@@ -99,6 +107,15 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
     canManage
       ? prisma.subcontractor.findMany({
           where: { organizationId, status: "active" },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+    // Pour le formulaire "+ Nouvelle session" de l'onglet Résumé — le même
+    // besoin que /planning, ici scopé à cette seule formation.
+    canManage
+      ? prisma.user.findMany({
+          where: { organizationId, status: "active", role: Role.TRAINER },
           select: { id: true, name: true },
           orderBy: { name: "asc" },
         })
@@ -188,6 +205,7 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
             course={course}
             members={members}
             subcontractors={subcontractors}
+            trainers={trainers}
             canManage={canManage}
             canSeeMoney={canSeeMoney}
             rollingSessionCount={rollingSessionCount}
@@ -222,6 +240,7 @@ function ResumeTab({
   course,
   members,
   subcontractors,
+  trainers,
   canManage,
   canSeeMoney,
   rollingSessionCount,
@@ -231,6 +250,7 @@ function ResumeTab({
   course: CourseWithIncludes;
   members: { id: string; name: string }[];
   subcontractors: { id: string; name: string }[];
+  trainers: { id: string; name: string }[];
   canManage: boolean;
   canSeeMoney: boolean;
   rollingSessionCount: number;
@@ -278,6 +298,54 @@ function ResumeTab({
           <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
         </div>
       )}
+
+      {/* Avant, créer une session pour cette formation obligeait à aller sur
+          /planning et à la retrouver dans une liste déroulante — la
+          retrouver, pas la choisir, puisqu'on venait de la quitter. La
+          session créée ici est la même que celle du planning (mêmes
+          tables, mêmes routes) : elle y apparaît immédiatement, dans
+          l'onglet daté ou dans « En continu » selon son mode. */}
+      <div className="border-t border-line pt-3.5 flex flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
+            Sessions ({sessionCount})
+          </div>
+        </div>
+        {course.sessions.length > 0 && (
+          <div className="flex flex-col">
+            {course.sessions.map((s) => {
+              const isCancelled = s.status === "CANCELLED";
+              const isRolling = s.mode === "ROLLING";
+              return (
+                <Link
+                  key={s.id}
+                  href={`/planning/${s.id}`}
+                  className="flex items-center gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded"
+                >
+                  <div className="w-32 shrink-0 text-[12px] text-ink">
+                    {isRolling ? "Toujours ouverte" : format(s.startsAt, "d MMM yyyy", { locale: fr })}
+                  </div>
+                  <div className="flex-1 min-w-0 text-[12px] text-slate truncate">
+                    {SESSION_FORMAT_LABELS[s.format]}
+                    {s.trainer ? ` · ${s.trainer.name}` : ""}
+                  </div>
+                  <div className="text-[11.5px] text-slate shrink-0">
+                    {isRolling ? `${s.dossiers.length} inscrit${s.dossiers.length > 1 ? "s" : ""}` : `${s.dossiers.length}/${s.capacity}`}
+                  </div>
+                  <div className="shrink-0">
+                    {isCancelled ? (
+                      <Pill tone="danger">Annulée</Pill>
+                    ) : (
+                      <Pill tone={s.trainer ? "good" : "danger"}>{s.trainer ? "Confirmée" : "Formateur à confirmer"}</Pill>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+        {canManage && <CreateSessionForm courses={[]} trainers={trainers} lockedCourse={{ id: course.id, title: course.title }} />}
+      </div>
 
       {canManage && (
         <div className="border-t border-line pt-3.5 flex flex-col gap-1.5">
