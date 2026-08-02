@@ -19,6 +19,8 @@ export type GroupMember = {
   signed: boolean;
   signedLabel: string | null;
   href: string;
+  /** Vrai pour un PDF, qu'on ouvre à côté ; faux pour une page de Jalon. */
+  external: boolean;
   canMarkSigned: boolean;
 };
 
@@ -62,7 +64,7 @@ function GroupRow({ group }: { group: Group }) {
     return (
       <div className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-linen">
         <FileText size={15} className="text-ash shrink-0" />
-        <a href={m.href} target="_blank" rel="noreferrer" className="flex-1 min-w-0">
+        <a href={m.href} {...(m.external ? { target: "_blank", rel: "noreferrer" } : {})} className="flex-1 min-w-0">
           <div className="text-[13px] text-ink font-medium truncate">{group.title}</div>
           {group.subtitle && <div className="text-[11.5px] text-slate truncate">{group.subtitle}</div>}
         </a>
@@ -115,7 +117,7 @@ function GroupRow({ group }: { group: Group }) {
           {/* Les non-signés d'abord : c'est la raison d'avoir ouvert. */}
           {[...group.members].sort((a, b) => Number(a.signed) - Number(b.signed)).map((m) => (
             <div key={m.id} className="flex items-center gap-3 pl-11 pr-4 py-2 border-t border-line first:border-t-0">
-              <a href={m.href} target="_blank" rel="noreferrer" className="flex-1 min-w-0 hover:underline decoration-line">
+              <a href={m.href} {...(m.external ? { target: "_blank", rel: "noreferrer" } : {})} className="flex-1 min-w-0 hover:underline decoration-line">
                 <span className="text-[12.5px] text-ink">{m.recipientName ?? "Destinataire inconnu"}</span>
               </a>
               {m.signed ? (

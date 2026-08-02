@@ -81,6 +81,9 @@ export default async function DocumentsPage(props: {
       createdAt: true,
       status: true,
       batchId: true,
+      // Le modèle d'origine : c'est lui qui permet de rouvrir un brouillon
+      // dans l'écran de création plutôt que dans la visionneuse PDF.
+      templateOrigin: true,
       sentByUserId: true,
       signatureStatus: true,
       signedAt: true,
@@ -148,7 +151,16 @@ export default async function DocumentsPage(props: {
             recipientName: m.recipientName,
             signed: signé,
             signedLabel: signé && r.signedAt ? `Signé le ${new Date(r.signedAt).toLocaleDateString("fr-FR")}` : signé ? "Signé" : null,
-            href: r.bodyText ? `/api/documents/generated/${m.id}` : `/api/documents/${m.id}/file`,
+            // Un brouillon se ROUVRE, il ne se consulte pas : le PDF d'un
+            // texte inachevé n'intéresse personne, et c'est l'édition
+            // qu'on venait reprendre. L'écran de création sait déjà
+            // recharger un brouillon via ?doc= — il n'y avait simplement
+            // aucun lien qui y menait.
+            href: hrefDe(m, r),
+            // Un PDF s'ouvre à côté, une page de Jalon dans l'onglet
+            // courant : rouvrir un brouillon dans un nouvel onglet
+            // laisserait derrière soi une liste devenue périmée.
+            external: !(m.status === "draft" && r.templateOrigin),
             // Proposé seulement là où il a un sens : déclarer signé un
             // document qui n'est même pas parti n'en est pas un.
             canMarkSigned: canMarkSigned && !signé && documentBucket(m) === "sent",
@@ -191,6 +203,18 @@ export default async function DocumentsPage(props: {
       </div>
     </>
   );
+}
+
+/** Où mène un clic sur un document. */
+function hrefDe(m: BatchMember, r: { id: string; bodyText: string | null; templateOrigin: string | null }): string {
+  // Le brouillon repart en édition. Sans modèle d'origine — cas qui ne
+  // devrait pas exister, les brouillons étant tous créés par
+  // /api/documents/draft — on retombe sur la consultation plutôt que de
+  // fabriquer une URL qui donnerait un 404.
+  if (m.status === "draft" && r.templateOrigin) {
+    return `/documents/nouveau/${r.templateOrigin}?doc=${r.id}`;
+  }
+  return r.bodyText ? `/api/documents/generated/${r.id}` : `/api/documents/${r.id}/file`;
 }
 
 type Row = {
