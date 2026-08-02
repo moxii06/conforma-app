@@ -76,9 +76,18 @@ function decodeEntities(text: string): string {
 }
 
 // Concatenates every <t>…</t> inside one <si> (plain or rich-text runs).
+//
+// Every tag matched below tolerates an optional namespace prefix
+// (`<x:row>`, `<ns:c>`...) — legal, spec-compliant OOXML that most writers
+// skip (they bind the spreadsheetml namespace as the *default*, unprefixed
+// one) but that some export tools use anyway. A file that does gets
+// silently read as entirely empty otherwise: none of `<row>`, `<c>`, `<v>`
+// match `<x:row>` etc., and an empty grid looks identical to a genuinely
+// empty sheet from here on.
+const TAG = "(?:\\w+:)?";
 function textOfSharedItem(si: string): string {
   let out = "";
-  const re = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g;
+  const re = new RegExp(`<${TAG}t(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${TAG}t>|<${TAG}t(?:\\s[^>]*)?\\/>`, "g");
   let m: RegExpExecArray | null;
   while ((m = re.exec(si))) out += m[1] ? decodeEntities(m[1]) : "";
   return out;
@@ -87,7 +96,7 @@ function textOfSharedItem(si: string): string {
 function parseSharedStrings(xml: string | null): string[] {
   if (!xml) return [];
   const items: string[] = [];
-  const re = /<si(?:\s[^>]*)?>([\s\S]*?)<\/si>/g;
+  const re = new RegExp(`<${TAG}si(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${TAG}si>`, "g");
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml))) items.push(textOfSharedItem(m[1]));
   return items;
@@ -110,9 +119,9 @@ function firstSheetPath(entries: Map<string, ZipEntry>, buf: Buffer): string {
   if (workbookEntry && relsEntry) {
     const workbook = readEntryData(buf, workbookEntry).toString("utf8");
     const rels = readEntryData(buf, relsEntry).toString("utf8");
-    const firstSheet = workbook.match(/<sheet\s[^>]*r:id="([^"]+)"/);
+    const firstSheet = workbook.match(new RegExp(`<${TAG}sheet\\s[^>]*r:id="([^"]+)"`));
     if (firstSheet) {
-      const rel = rels.match(new RegExp(`<Relationship\\s[^>]*Id="${firstSheet[1]}"[^>]*Target="([^"]+)"`));
+      const rel = rels.match(new RegExp(`<${TAG}Relationship\\s[^>]*Id="${firstSheet[1]}"[^>]*Target="([^"]+)"`));
       if (rel) {
         const target = rel[1].replace(/^\//, "");
         return target.startsWith("xl/") ? target : `xl/${target}`;
@@ -136,8 +145,8 @@ export function parseXlsx(input: Uint8Array): ParsedTable {
 
   const grid: string[][] = [];
   let maxCol = 0;
-  const rowRe = /<row(?:\s[^>]*)?>([\s\S]*?)<\/row>/g;
-  const cellRe = /<c\s([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+  const rowRe = new RegExp(`<${TAG}row(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${TAG}row>`, "g");
+  const cellRe = new RegExp(`<${TAG}c\\s([^>]*?)(?:\\/>|>([\\s\\S]*?)<\\/${TAG}c>)`, "g");
   let rowMatch: RegExpExecArray | null;
   while ((rowMatch = rowRe.exec(sheetXml))) {
     const cells: string[] = [];
@@ -153,7 +162,7 @@ export function parseXlsx(input: Uint8Array): ParsedTable {
       if (type === "inlineStr") {
         value = textOfSharedItem(inner);
       } else {
-        const v = inner.match(/<v(?:\s[^>]*)?>([\s\S]*?)<\/v>/);
+        const v = inner.match(new RegExp(`<${TAG}v(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${TAG}v>`));
         const raw = v ? decodeEntities(v[1]) : "";
         if (type === "s") {
           const idx = parseInt(raw, 10);

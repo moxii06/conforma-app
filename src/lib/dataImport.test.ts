@@ -188,6 +188,37 @@ describe("parseXlsx", () => {
     expect(table.rows).toEqual([["jean@ex.fr", "Dupont", "14"]]);
   });
 
+  it("reads a workbook whose writer bound the spreadsheetml namespace to a prefix", () => {
+    // Legal, spec-compliant OOXML (<x:row>/<x:c>/<x:v> instead of the usual
+    // unprefixed default namespace) that a real export tool produced and
+    // that silently parsed as a totally empty sheet before the tag regexes
+    // were made prefix-tolerant — see xlsxRead.ts's TAG constant.
+    const xlsx = zipStore([
+      {
+        name: "xl/workbook.xml",
+        data:
+          '<x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+          '<x:sheets><x:sheet name="Clients" sheetId="1" r:id="rId1" xmlns:r="r"/></x:sheets></x:workbook>',
+      },
+      {
+        name: "xl/_rels/workbook.xml.rels",
+        data: '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+      },
+      { name: "xl/sharedStrings.xml", data: '<x:sst xmlns:x="m"/>' },
+      {
+        name: "xl/worksheets/sheet1.xml",
+        data:
+          '<x:worksheet xmlns:x="m"><x:sheetData>' +
+          '<x:row r="1"><x:c r="A1" t="str"><x:v>email</x:v></x:c><x:c r="B1" t="str"><x:v>nom</x:v></x:c></x:row>' +
+          '<x:row r="2"><x:c r="A2" t="str"><x:v>jean@ex.fr</x:v></x:c><x:c r="B2" t="str"><x:v>Dupont</x:v></x:c></x:row>' +
+          "</x:sheetData></x:worksheet>",
+      },
+    ]);
+    const table = parseXlsx(new Uint8Array(xlsx));
+    expect(table.headers).toEqual(["email", "nom"]);
+    expect(table.rows).toEqual([["jean@ex.fr", "Dupont"]]);
+  });
+
   it("rejects a non-xlsx buffer with a clear French error", () => {
     expect(() => parseXlsx(new Uint8Array(Buffer.from("pas un zip du tout")))).toThrow(/classeur Excel/);
   });
