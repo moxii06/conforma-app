@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Tabs } from "@/components/Tabs";
 import { CreateSessionForm } from "@/components/CreateSessionForm";
+import { TrainerFilter } from "@/components/TrainerFilter";
 import { PlanningCalendar } from "@/components/PlanningCalendar";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
 import { Role } from "@prisma/client";
@@ -23,19 +24,23 @@ const TABS = [
   { key: "archives", label: "Archives" },
 ];
 
-export default async function PlanningPage(props: { searchParams: Promise<{ tab?: string; month?: string }> }) {
+export default async function PlanningPage(props: { searchParams: Promise<{ tab?: string; month?: string; trainer?: string }> }) {
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none") redirect("/dashboard");
   const canCreate = can(role, "planning") === "full";
   const activeTab = searchParams.tab ?? "liste";
   // Spec §2: "Trainer: their own sessions" — every other role with
-  // planning access sees the whole org's schedule.
-  const ownerFilter = role === Role.TRAINER ? { trainerId: userId } : {};
+  // planning access sees the whole org's schedule, optionally narrowed
+  // to one trainer via the filter below (moot for TRAINER, who is
+  // already locked to themselves).
+  const canFilterByTrainer = role !== Role.TRAINER;
+  const ownerFilter =
+    role === Role.TRAINER ? { trainerId: userId } : searchParams.trainer ? { trainerId: searchParams.trainer } : {};
 
   const [courses, trainers] = await Promise.all([
     canCreate ? prisma.course.findMany({ where: { organizationId }, orderBy: { title: "asc" } }) : Promise.resolve([]),
-    canCreate
+    canFilterByTrainer
       ? prisma.user.findMany({ where: { organizationId, role: Role.TRAINER }, orderBy: { name: "asc" } })
       : Promise.resolve([]),
   ]);
@@ -45,6 +50,19 @@ export default async function PlanningPage(props: { searchParams: Promise<{ tab?
       <PageHeader title="Planning des sessions" subtitle="Formateurs, salles et visioconférence" />
       <Tabs basePath="/planning" tabs={TABS} active={activeTab} />
       <div className="p-8 flex flex-col gap-4">
+        {canFilterByTrainer && trainers.length > 0 && (
+          <div className="flex items-center gap-2.5">
+            <TrainerFilter trainers={trainers} />
+            {searchParams.trainer && (
+              <a
+                href={`/api/planning/export?trainer=${searchParams.trainer}`}
+                className="text-[12.5px] text-slate hover:text-ink underline underline-offset-2"
+              >
+                Exporter ce planning (PDF)
+              </a>
+            )}
+          </div>
+        )}
         {canCreate && <CreateSessionForm courses={courses} trainers={trainers} />}
         {activeTab === "calendrier" ? (
           <CalendarTab organizationId={organizationId} monthParam={searchParams.month} ownerFilter={ownerFilter} />
