@@ -11,6 +11,11 @@ const schema = z
     email: z.string().email().optional(),
     phone: z.string().nullable().optional(),
     address: z.string().nullable().optional(),
+    industry: z.string().nullable().optional(),
+    urgencyLevel: z.enum(["low", "medium", "high"]).nullable().optional(),
+    emailConsent: z.boolean().nullable().optional(),
+    smsConsent: z.boolean().nullable().optional(),
+    notes: z.string().nullable().optional(),
   })
   .merge(enrollmentCategorySchema);
 
@@ -53,6 +58,17 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       phone: parsed.data.phone === undefined ? undefined : parsed.data.phone || null,
       address: parsed.data.address === undefined ? undefined : parsed.data.address || null,
       defaultLearnerCategory: parsed.data.learnerCategory,
+      industry: parsed.data.industry === undefined ? undefined : parsed.data.industry || null,
+      urgencyLevel: parsed.data.urgencyLevel,
+      notes: parsed.data.notes === undefined ? undefined : parsed.data.notes || null,
+      // Both true and false are a real recorded answer worth timestamping;
+      // only explicitly clearing back to null (never asked) drops the date.
+      ...(parsed.data.emailConsent === undefined
+        ? {}
+        : { emailConsent: parsed.data.emailConsent, emailConsentAt: parsed.data.emailConsent === null ? null : new Date() }),
+      ...(parsed.data.smsConsent === undefined
+        ? {}
+        : { smsConsent: parsed.data.smsConsent, smsConsentAt: parsed.data.smsConsent === null ? null : new Date() }),
     },
   });
 

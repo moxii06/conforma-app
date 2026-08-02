@@ -612,6 +612,24 @@ model Contact {
   // view the same way Course.archivedAt hides finished formations.
   archivedAt             DateTime?
 
+  // Commercial-relationship fields, all optional — the "prospect" is real
+  // from their very first CRM entry, before any of these are known. Live
+  // on Contact (the persistent relationship), not Dossier (one course
+  // engagement): a person's sector, priority, marketing consent and sales
+  // notes don't reset between the different formations they take over time.
+  industry     String? // secteur d'activité
+  urgencyLevel String? // low | medium | high — sales-set priority, not derived
+  // *Consent is null until a staff member records an answer either way —
+  // distinct from false, which means "asked, declined." *ConsentAt stamps
+  // WHEN that answer (true or false, both are real answers) was last
+  // confirmed, and is cleared back to null only alongside null — this is a
+  // manual record kept by staff, not a real double opt-in flow.
+  emailConsent   Boolean?
+  emailConsentAt DateTime?
+  smsConsent     Boolean?
+  smsConsentAt   DateTime?
+  notes          String?
+
   dossiers                Dossier[]
   emailMessages           EmailMessage[]
   quotes                  Quote[]

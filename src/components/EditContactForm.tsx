@@ -3,7 +3,49 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Contact = { id: string; firstName: string; lastName: string; email: string; phone: string | null; address: string | null };
+type Contact = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  industry?: string | null;
+  urgencyLevel?: string | null;
+  emailConsent?: boolean | null;
+  smsConsent?: boolean | null;
+  notes?: string | null;
+};
+
+const URGENCY_LABELS: Record<string, string> = { low: "Faible", medium: "Moyenne", high: "Élevée" };
+
+// Tri-state: a consent field is null (jamais demandé) until explicitly set
+// true/false — a plain checkbox can't express "unknown," so it's a 3-way
+// select instead, matching how the field is actually stored.
+function ConsentSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean | null;
+  onChange: (v: boolean | null) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-[12.5px] text-ink">
+      <span className="w-24 shrink-0 text-slate">{label}</span>
+      <select
+        value={value === null ? "" : value ? "yes" : "no"}
+        onChange={(e) => onChange(e.target.value === "" ? null : e.target.value === "yes")}
+        className="flex-1 bg-white border border-line rounded-md px-2 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+      >
+        <option value="">Jamais demandé</option>
+        <option value="yes">Accepté</option>
+        <option value="no">Refusé</option>
+      </select>
+    </label>
+  );
+}
 
 export function EditContactForm({ contact, title }: { contact: Contact; title: string }) {
   const router = useRouter();
@@ -13,6 +55,11 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
   const [email, setEmail] = useState(contact.email);
   const [phone, setPhone] = useState(contact.phone ?? "");
   const [address, setAddress] = useState(contact.address ?? "");
+  const [industry, setIndustry] = useState(contact.industry ?? "");
+  const [urgencyLevel, setUrgencyLevel] = useState(contact.urgencyLevel ?? "");
+  const [emailConsent, setEmailConsent] = useState<boolean | null>(contact.emailConsent ?? null);
+  const [smsConsent, setSmsConsent] = useState<boolean | null>(contact.smsConsent ?? null);
+  const [notes, setNotes] = useState(contact.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,6 +76,11 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
         email: email.trim(),
         phone: phone.trim() || null,
         address: address.trim() || null,
+        industry: industry.trim() || null,
+        urgencyLevel: urgencyLevel || null,
+        emailConsent,
+        smsConsent,
+        notes: notes.trim() || null,
       }),
     });
     setSaving(false);
@@ -84,6 +136,38 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
             <div className="text-[11px] text-slate uppercase tracking-wide">Adresse</div>
             <div className="text-[13px] text-ink">{contact.address || "—"}</div>
           </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Secteur d'activité</div>
+            <div className="text-[13px] text-ink">{contact.industry || "—"}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Niveau d'urgence</div>
+            <div className="text-[13px] text-ink">{contact.urgencyLevel ? URGENCY_LABELS[contact.urgencyLevel] : "—"}</div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Consentement email</div>
+            <div className="text-[13px] text-ink">
+              {contact.emailConsent === null || contact.emailConsent === undefined
+                ? "Jamais demandé"
+                : contact.emailConsent
+                  ? "Accepté"
+                  : "Refusé"}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Consentement SMS</div>
+            <div className="text-[13px] text-ink">
+              {contact.smsConsent === null || contact.smsConsent === undefined
+                ? "Jamais demandé"
+                : contact.smsConsent
+                  ? "Accepté"
+                  : "Refusé"}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] text-slate uppercase tracking-wide">Notes</div>
+            <div className="text-[13px] text-ink whitespace-pre-wrap">{contact.notes || "—"}</div>
+          </div>
         </div>
       </>
     );
@@ -125,6 +209,34 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
         onChange={(e) => setAddress(e.target.value)}
         placeholder="Adresse (optionnel)"
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+      />
+      <input
+        value={industry}
+        onChange={(e) => setIndustry(e.target.value)}
+        placeholder="Secteur d'activité (optionnel)"
+        className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+      />
+      <label className="flex items-center gap-2 text-[12.5px] text-ink">
+        <span className="w-24 shrink-0 text-slate">Urgence</span>
+        <select
+          value={urgencyLevel}
+          onChange={(e) => setUrgencyLevel(e.target.value)}
+          className="flex-1 bg-white border border-line rounded-md px-2 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
+        >
+          <option value="">Non définie</option>
+          <option value="low">Faible</option>
+          <option value="medium">Moyenne</option>
+          <option value="high">Élevée</option>
+        </select>
+      </label>
+      <ConsentSelect label="Email" value={emailConsent} onChange={setEmailConsent} />
+      <ConsentSelect label="SMS" value={smsConsent} onChange={setSmsConsent} />
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes (optionnel)"
+        rows={3}
+        className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-y"
       />
       <div className="flex items-center gap-2.5 mt-1">
         <button

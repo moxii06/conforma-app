@@ -199,7 +199,19 @@ export default async function ContactRecordPage(
           <>
             <div className="bg-white border border-line rounded-card p-5">
               <EditContactForm
-                contact={{ id: contact.id, firstName: contact.firstName, lastName: contact.lastName, email: contact.email, phone: contact.phone, address: contact.address }}
+                contact={{
+                  id: contact.id,
+                  firstName: contact.firstName,
+                  lastName: contact.lastName,
+                  email: contact.email,
+                  phone: contact.phone,
+                  address: contact.address,
+                  industry: contact.industry,
+                  urgencyLevel: contact.urgencyLevel,
+                  emailConsent: contact.emailConsent,
+                  smsConsent: contact.smsConsent,
+                  notes: contact.notes,
+                }}
                 title="Coordonnées"
               />
             </div>

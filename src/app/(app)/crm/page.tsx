@@ -4,15 +4,11 @@ import { PipelineStage, Prisma } from "@prisma/client";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { NewOpportunityForm } from "@/components/NewOpportunityForm";
-import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
 import { OpportunityFilterBar } from "@/components/OpportunityFilterBar";
-import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
 import { ImportDataDialog } from "@/components/ImportDataDialog";
-import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
 import { ArchiveContactButton } from "@/components/ArchiveContactButton";
+import { OpportunityTable } from "@/components/OpportunityTable";
 import { isYousignConfigured } from "@/lib/yousign";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
@@ -97,7 +93,18 @@ export default async function CrmPage(
         contact: { archivedAt: view === "archives" ? { not: null } : null },
       },
       include: {
-        contact: { include: { dossiers: { select: { id: true }, orderBy: { session: { startsAt: "desc" } }, take: 1 } } },
+        contact: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            industry: true,
+            urgencyLevel: true,
+            emailConsent: true,
+            smsConsent: true,
+            dossiers: { select: { id: true }, orderBy: { session: { startsAt: "desc" } }, take: 1 },
+          },
+        },
         needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 },
       },
       orderBy: view === "archives" ? { contact: { archivedAt: "desc" } } : view === "table" ? orderBy : { createdAt: "desc" },
@@ -224,64 +231,13 @@ export default async function CrmPage(
         ) : (
           <>
             <OpportunityFilterBar />
-            <div className="bg-white border border-line rounded-card overflow-x-auto">
-              <table className="w-full border-collapse text-[12.5px]">
-                <thead>
-                  <tr className="border-b border-line">
-                    <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Prospect</th>
-                    <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Formation</th>
-                    <th className="text-right font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Montant</th>
-                    <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Date</th>
-                    <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Étape</th>
-                    {canWrite && <th className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {opportunities.map((o) => {
-                    const lastRequest = o.needsAssessmentRequests[0];
-                    return (
-                      <tr key={o.id} className="border-b border-line last:border-b-0 hover:bg-mist">
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <Link
-                            href={contactHref(o.contact)}
-                            className="font-semibold text-ink hover:underline"
-                            title={o.contact.dossiers.length > 0 ? "Ouvre le dossier de formation" : "Ouvre la fiche prospect"}
-                          >
-                            {o.contact.firstName} {o.contact.lastName}
-                          </Link>
-                          {o.contact.dossiers.length > 0 && (
-                            <span className="ml-1.5 text-[10px] text-slate align-middle">· dossier</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-slate max-w-[220px] truncate">{o.label}</td>
-                        <td className="px-4 py-3 text-ink font-mono tabular-nums text-right whitespace-nowrap">{formatAmount(o.amountCents)}</td>
-                        <td className="px-4 py-3 text-slate whitespace-nowrap">{format(o.createdAt, "d MMM yyyy", { locale: fr })}</td>
-                        <td className="px-4 py-3">
-                          {canWrite ? <OpportunityStageSelect opportunityId={o.id} stage={o.stage} /> : <Pill tone="neutral">{STAGE_LABELS[o.stage]}</Pill>}
-                        </td>
-                        {canWrite && (
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <SendProspectDocumentDialog
-                                opportunityId={o.id}
-                                alreadySentNeedsAssessment={Boolean(lastRequest)}
-                                templates={templates}
-                                contactFirstName={o.contact.firstName}
-                                signatureHtml={signatureHtml}
-                                eSignatureAvailable={eSignatureAvailable}
-                              />
-                              <ArchiveContactButton contactId={o.contactId} archived={false} />
-                              <DeleteOpportunityButton opportunityId={o.id} />
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {opportunities.length === 0 && <div className="text-[12.5px] text-slate px-4 py-4">Aucun prospect.</div>}
-            </div>
+            <OpportunityTable
+              opportunities={opportunities}
+              canWrite={canWrite}
+              templates={templates}
+              signatureHtml={signatureHtml}
+              eSignatureAvailable={eSignatureAvailable}
+            />
           </>
         )}
       </div>
