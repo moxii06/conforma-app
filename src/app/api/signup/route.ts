@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { sendWelcomeEmail } from "@/lib/onboardingEmails";
 import { resolveAppOrigin } from "@/lib/appUrl";
 import { consumeRateLimit, clientIp, tooManyRequests, RATE_LIMITS } from "@/lib/rateLimit";
+import { sendTransactionalEmail, isBrevoConfigured } from "@/lib/brevo";
+import { platformContactEmail } from "@/lib/platformAdmin";
 
 // Billing identity (SIRET + adresse) is intentionally OPTIONAL at signup:
 // it's only needed once a trial converts to a paid Jalon subscription (not
@@ -102,6 +104,31 @@ export async function POST(request: Request) {
     name: `${data.firstName} ${data.lastName}`,
     orgName: data.organizationName,
   }).catch(() => {});
+
+  // Prévient Jalon lui-même côté /plateforme : c'est le seul moment où un
+  // nouvel essai existe sans qu'aucune notification n'arrive autrement (il
+  // apparaît dans la liste, mais rien ne signale qu'il vient d'apparaître).
+  // Non bloquant, comme l'email de bienvenue ci-dessus.
+  const notifyEmail = platformContactEmail();
+  if (notifyEmail && isBrevoConfigured()) {
+    await sendTransactionalEmail({
+      to: notifyEmail,
+      toName: "Équipe Jalon",
+      senderName: "Jalon",
+      subject: `Nouvel essai : ${data.organizationName}`,
+      text: [
+        `Organisme : ${data.organizationName}`,
+        `Formule choisie : ${data.plan}`,
+        `Contact : ${data.firstName} ${data.lastName} (${email})`,
+        data.siret ? `SIRET : ${data.siret}` : null,
+        "",
+        `Fiche : ${baseUrl}/plateforme`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      replyTo: email,
+    }).catch(() => {});
+  }
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

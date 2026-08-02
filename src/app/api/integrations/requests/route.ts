@@ -3,19 +3,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendTransactionalEmail, isBrevoConfigured } from "@/lib/brevo";
+import { platformContactEmail } from "@/lib/platformAdmin";
 
 const schema = z.object({
   toolName: z.string().min(2).max(120),
   useCase: z.string().min(10).max(2000),
 });
-
-// Where a "please connect this tool" request lands on Jalon's side. Falls
-// back to the platform sender address, which is by definition a mailbox
-// Jalon controls — so a deployment that can send email at all can always
-// receive these, without a second env var to remember to set.
-function platformContactEmail() {
-  return process.env.PLATFORM_CONTACT_EMAIL || process.env.BREVO_SENDER_EMAIL || null;
-}
 
 export async function POST(request: Request) {
   const session = await getSessionContext();

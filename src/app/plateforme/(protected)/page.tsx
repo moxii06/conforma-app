@@ -2,8 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { Pill, MetricCard } from "@/components/ui";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import Link from "next/link";
 import { OrganizationAccessActions } from "@/components/OrganizationAccessActions";
 import { PlatformAdminLogoutButton } from "@/components/PlatformAdminLogoutButton";
+import { AddOrganizationForm } from "@/components/AddOrganizationForm";
 
 const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team", growth: "Growth" };
 const STATUS_LABELS: Record<string, string> = { trialing: "Essai", active: "Actif", past_due: "Impayé", canceled: "Résilié" };
@@ -34,12 +36,15 @@ export default async function PlatformAdminOrganizationsPage() {
         </div>
         <PlatformAdminLogoutButton />
       </div>
-      <div className="px-8 flex gap-3.5 mb-4">
-        <MetricCard label="Organismes" value={String(organizations.length)} />
-        <MetricCard label="Actifs" value={String(activeCount)} tone="good" />
-        <MetricCard label="En essai" value={String(trialingCount)} />
-        <MetricCard label="Impayés" value={String(pastDueCount)} tone={pastDueCount > 0 ? "danger" : "ink"} />
-        <MetricCard label="Suspendus" value={String(suspendedCount)} tone={suspendedCount > 0 ? "danger" : "ink"} />
+      <div className="px-8 flex items-start justify-between gap-4 mb-4">
+        <div className="flex gap-3.5">
+          <MetricCard label="Organismes" value={String(organizations.length)} />
+          <MetricCard label="Actifs" value={String(activeCount)} tone="good" />
+          <MetricCard label="En essai" value={String(trialingCount)} />
+          <MetricCard label="Impayés" value={String(pastDueCount)} tone={pastDueCount > 0 ? "danger" : "ink"} />
+          <MetricCard label="Suspendus" value={String(suspendedCount)} tone={suspendedCount > 0 ? "danger" : "ink"} />
+        </div>
+        <AddOrganizationForm />
       </div>
       <div className="px-8 pb-8">
         <div className="bg-white border border-line rounded-card overflow-x-auto">
@@ -61,7 +66,9 @@ export default async function PlatformAdminOrganizationsPage() {
                 return (
                   <tr key={org.id} className="border-b border-line last:border-b-0 align-top">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-ink">{org.name}</div>
+                      <Link href={`/plateforme/organisations/${org.id}`} className="font-semibold text-ink hover:text-seal hover:underline">
+                        {org.name}
+                      </Link>
                       <div className="text-[11px] text-slate mt-0.5">
                         {org._count.users} membre{org._count.users > 1 ? "s" : ""} · depuis{" "}
                         {format(org.createdAt, "d MMM yyyy", { locale: fr })}

@@ -192,6 +192,11 @@ model Organization {
   suspendedReason             String?
   accessWarningAt             DateTime?
   accessWarningReason         String?
+  // Date à laquelle l'organisme a accepté les CGV de Jalon — saisie à la
+  // main par le propriétaire de la plateforme (rien ne la capture
+  // automatiquement aujourd'hui, ni à l'inscription essai ni au paiement
+  // Stripe), donc nullable tant qu'elle n'a pas été renseignée.
+  cgvAcceptedAt                DateTime?
 
   qualityRisks                QualityRisk[]
   resultIndicators            ResultIndicator[]
@@ -201,6 +206,10 @@ model Organization {
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
   bankConnections             BankConnection[]
   bankTransactions            BankTransaction[]
+  // Emails envoyés par le propriétaire de la plateforme depuis /plateforme
+  // (voir PlatformEmailMessage) — sans lien avec EmailMessage/ClientOutreach,
+  // qui sont la boîte mail de CET organisme vers SES PROPRES prospects.
+  platformEmailMessages       PlatformEmailMessage[]
 
   // Which version of the RNQ this org is currently auditing itself against
   // (see QualiopiReferentielVersion) — nullable only until the backfill
@@ -461,6 +470,29 @@ model Subscription {
   cancelAtPeriodEnd    Boolean      @default(false)
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
+}
+
+// Un email envoyé (ou programmé) par le propriétaire de la plateforme à un
+// organisme, depuis sa fiche sur /plateforme — pas une relance automatisée
+// (celles-là restent dans ClientOutreach, propres à chaque organisme) mais
+// une communication ponctuelle de Jalon vers SON client. scheduledAt null =
+// envoyé immédiatement à la création ; renseigné = laissé au cron
+// /api/cron/platform-emails, qui envoie tout ce dont l'échéance est passée
+// et n'a pas encore de sentAt. La ligne existe dès la création (envoyée ou
+// non) pour garder un historique consultable sur la fiche, y compris pour
+// ce qui est encore en attente.
+model PlatformEmailMessage {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  toEmail        String
+  subject        String
+  body           String
+  scheduledAt    DateTime?
+  sentAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
 }
 
 // The dashboard's "À faire" list is computed live from dossier/invoice/etc.

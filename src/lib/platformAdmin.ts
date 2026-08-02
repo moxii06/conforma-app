@@ -59,3 +59,12 @@ export async function clearPlatformAdminCookie(): Promise<void> {
   const store = await cookies();
   store.delete(COOKIE_NAME);
 }
+
+// Where Jalon-the-company hears about its own business events (new trial,
+// new paying customer, an OF asking to connect a tool). Falls back to the
+// platform sender address, which is by definition a mailbox Jalon controls
+// — so a deployment that can send email at all can always receive these,
+// without a second env var to remember to set.
+export function platformContactEmail(): string | null {
+  return process.env.PLATFORM_CONTACT_EMAIL || process.env.BREVO_SENDER_EMAIL || null;
+}

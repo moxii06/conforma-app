@@ -2,6 +2,24 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { verifyBillingWebhook } from "@/lib/billing";
+import { sendTransactionalEmail, isBrevoConfigured } from "@/lib/brevo";
+import { platformContactEmail } from "@/lib/platformAdmin";
+
+// Non bloquant à dessein, comme toute notification interne dans cette app :
+// un échec d'envoi ne doit jamais faire échouer le webhook (Stripe le
+// retenterait indéfiniment) ni retarder l'activation de l'abonnement.
+async function notifyPlatformOfConversion(organizationId: string, plan: string): Promise<void> {
+  const notifyEmail = platformContactEmail();
+  if (!notifyEmail || !isBrevoConfigured()) return;
+  const organization = await prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } });
+  await sendTransactionalEmail({
+    to: notifyEmail,
+    toName: "Équipe Jalon",
+    senderName: "Jalon",
+    subject: `Nouveau client payant : ${organization?.name ?? organizationId} (${plan})`,
+    text: `${organization?.name ?? organizationId} vient de passer sur l'offre ${plan} — paiement confirmé par Stripe.\n\nFiche : /plateforme`,
+  }).catch(() => {});
+}
 
 // Jalon's own subscription webhook — distinct from
 // /api/webhooks/stripe/[organizationId], which belongs to each OF's own
@@ -46,6 +64,7 @@ export async function POST(request: Request) {
           cancelAtPeriodEnd: false,
         },
       });
+      await notifyPlatformOfConversion(organizationId, plan);
       break;
     }
 
