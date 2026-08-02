@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, X } from "lucide-react";
 import { importFieldsFor, type ImportKind, type ImportMapping } from "@/lib/dataImport";
@@ -20,7 +20,13 @@ type Report = {
   enrolled?: number;
   alreadyEnrolled?: number;
   errors: { line: number; message: string }[];
+  missingCourseTitles?: string[];
 };
+
+function csvFromTitles(titles: string[]): File {
+  const csv = "titre\n" + titles.map((t) => `"${t.replace(/"/g, '""')}"`).join("\n");
+  return new File([csv], "formations-manquantes.csv", { type: "text/csv" });
+}
 
 type SessionChoice = { id: string; startsAt: string; format: string; mode: string; spotsLeft: number };
 
@@ -31,6 +37,8 @@ export function ImportDataDialog({
   kind,
   courses,
   triggerClassName,
+  initialFile,
+  onClose,
 }: {
   kind: ImportKind;
   courses?: { id: string; title: string }[];
@@ -38,10 +46,20 @@ export function ImportDataDialog({
   // next to "+ Nouveau prospect" on /crm, bordered next to "+ Créer une
   // formation" on /formations).
   triggerClassName?: string;
+  // Opens straight into the mapping step with this file already analyzed,
+  // skipping the picker — used by the contacts-import report to bridge
+  // straight into "create these missing course titles" (see missingCourseTitles
+  // below) without asking the user to build their own file.
+  initialFile?: File;
+  // Called instead of the default "just close" when initialFile is set: the
+  // parent owns that file's lifetime (a piece of its own state), so it needs
+  // to know when to stop rendering this instance rather than have it reset
+  // back to an empty, file-picker-less dialog.
+  onClose?: () => void;
 }) {
   const router = useRouter();
   const fields = importFieldsFor(kind);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(initialFile));
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -53,6 +71,7 @@ export function ImportDataDialog({
   const [importing, setImporting] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [missingCoursesFile, setMissingCoursesFile] = useState<File | null>(null);
 
   function reset() {
     setFile(null);
@@ -66,6 +85,17 @@ export function ImportDataDialog({
     setReport(null);
     setError(null);
   }
+
+  function closeAndReset() {
+    setOpen(false);
+    reset();
+    onClose?.();
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (initialFile) analyze(initialFile);
+  }, []);
 
   async function analyze(selected: File) {
     setFile(selected);
@@ -141,20 +171,14 @@ export function ImportDataDialog({
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-card border border-line w-full max-w-xl max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
         <div className="flex items-center justify-between">
           <div className="text-[13.5px] font-semibold text-ink">
             {kind === "contacts" ? "Importer des contacts" : "Importer des formations"}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              reset();
-            }}
-            className="text-slate hover:text-ink"
-          >
+          <button type="button" onClick={closeAndReset} className="text-slate hover:text-ink">
             <X size={16} />
           </button>
         </div>
@@ -183,12 +207,30 @@ export function ImportDataDialog({
                 </ul>
               </div>
             )}
+            {report.missingCourseTitles && report.missingCourseTitles.length > 0 && (
+              <div className="border border-line rounded-md p-3 flex flex-col gap-2">
+                <div className="text-[12px] text-ink">
+                  {report.missingCourseTitles.length} formation{report.missingCourseTitles.length > 1 ? "s" : ""} du fichier{" "}
+                  {report.missingCourseTitles.length > 1 ? "n'existent" : "n'existe"} pas encore dans le catalogue — les
+                  contacts concernés ont bien été importés, mais sans inscription :
+                </div>
+                <ul className="text-[12px] text-slate list-disc list-inside">
+                  {report.missingCourseTitles.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => setMissingCoursesFile(csvFromTitles(report.missingCourseTitles!))}
+                  className="self-start text-[12px] font-medium text-seal hover:underline"
+                >
+                  Créer ces formations maintenant →
+                </button>
+              </div>
+            )}
             <button
               type="button"
-              onClick={() => {
-                setOpen(false);
-                reset();
-              }}
+              onClick={closeAndReset}
               className="self-start bg-ink text-white text-[12.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft mt-1"
             >
               Fermer
@@ -333,5 +375,9 @@ export function ImportDataDialog({
         )}
       </div>
     </div>
+    {missingCoursesFile && (
+      <ImportDataDialog kind="courses" initialFile={missingCoursesFile} onClose={() => setMissingCoursesFile(null)} />
+    )}
+    </>
   );
 }

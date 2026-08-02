@@ -124,6 +124,11 @@ export async function POST(request: Request) {
     }
   }
 
+  // Titles that matched no Course at all (as opposed to matching one but
+  // failing session resolution, e.g. full/needs-picker below) — surfaced
+  // separately so the dialog can offer to create exactly these, rather than
+  // leaving the user to retype them into the course importer by hand.
+  const missingCourseTitles: string[] = [];
   const sessionByTitle = new Map<string, { id: string; mode: string } | { rowError: string }>();
   for (const title of new Set(records.map((r) => r.courseTitle).filter(Boolean))) {
     const course = await prisma.course.findFirst({
@@ -131,6 +136,7 @@ export async function POST(request: Request) {
     });
     if (!course) {
       sessionByTitle.set(title, { rowError: `Formation introuvable : « ${title} » — contact importé sans inscription.` });
+      missingCourseTitles.push(title);
       continue;
     }
     try {
@@ -236,5 +242,6 @@ export async function POST(request: Request) {
     enrolled,
     alreadyEnrolled,
     errors,
+    missingCourseTitles,
   });
 }
