@@ -6,6 +6,8 @@ import { getSessionContext, can } from "@/lib/tenant";
 import { buildDocumentAttachment } from "@/lib/documentSending";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { mergeTemplate } from "@/lib/mergeTemplate";
+import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
+import { fillMergeTags } from "@/lib/mergeTags";
 import { planSend, invalidRecipients, type Recipient } from "@/lib/documentBatch";
 import { scopeOfCategory } from "@/lib/documentScope";
 
@@ -30,7 +32,9 @@ const schema = z.object({
     )
     .min(1)
     .max(200),
-  message: z.string().max(5000).optional(),
+  // Généreux : un message enrichi (gras/italique/police) avec la signature
+  // de l'expéditeur ajoutée en fin de corps dépasse vite le texte brut.
+  message: z.string().max(20000).optional(),
   requestSignature: z.boolean().optional(),
 });
 
@@ -45,6 +49,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
   const { recipients, message, requestSignature } = parsed.data;
+  // Assaini une seule fois — jamais le HTML brut envoyé par le client
+  // directement dans un email. Fusionné par destinataire plus bas, comme le
+  // corps du document juste en dessous.
+  const messageHtml = sanitizeRichText(message ?? "");
 
   const patron = await prisma.document.findFirst({
     where: { id: params.id, organizationId: auth.organizationId },
@@ -109,6 +117,23 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           })
         : patron.bodyText;
 
+    // Même logique que le corps juste au-dessus : les balises [Prénom] etc.
+    // ne se résolvent que quand on a un dossier à qui les rattacher — en
+    // scope "single" ou sans dossier, le message part tel quel.
+    const messagePersonnalisé =
+      plan.scope === "per_learner" && dossier
+        ? fillMergeTags(messageHtml, {
+            firstName: dossier.contact.firstName,
+            lastName: dossier.contact.lastName,
+            courseTitle: dossier.session.course.title,
+            sessionDateLabel:
+              dossier.session.mode === "ROLLING"
+                ? "formation en continu"
+                : dossier.session.startsAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
+            organizationName: organization.name,
+          })
+        : messageHtml;
+
     const titre = `${patron.title}${prévu.titleSuffix}`;
 
     let pièce: Awaited<ReturnType<typeof buildDocumentAttachment>>;
@@ -150,13 +175,18 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     });
     créés.push(doc.id);
 
+    const texteBrut =
+      richTextToPlainText(messagePersonnalisé) ||
+      `Bonjour,\n\nVous trouverez ci-joint : ${titre}.\n\nBien cordialement,\n${expéditeur}\n${organization.name}`;
+
     for (const destinataire of prévu.to) {
       try {
         await sendTransactionalEmail({
           to: destinataire.email,
           toName: destinataire.name,
           subject: titre,
-          text: message?.trim() || `Bonjour,\n\nVous trouverez ci-joint : ${titre}.\n\nBien cordialement,\n${expéditeur}\n${organization.name}`,
+          text: texteBrut,
+          html: messagePersonnalisé || undefined,
           senderName: organization.name,
           replyTo: auth.email,
           attachment: { name: pièce.fileName, contentBase64: pièce.contentBase64 },

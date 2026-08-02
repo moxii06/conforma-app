@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { RichTextEditor } from "@/components/RichTextEditor";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { MERGE_TAGS } from "@/lib/mergeTags";
 
 // L'envoi d'un document finalisé.
 //
@@ -13,22 +16,32 @@ import { useRouter } from "next/navigation";
 type Recipient = { dossierId: string | null; contactId: string | null; name: string; email: string };
 type Groupe = { titre: string; membres: Recipient[] };
 
+function défautMessage(documentTitle: string): string {
+  return `<p>Bonjour,</p><p>Veuillez trouver ci-joint : ${documentTitle}.</p>`;
+}
+
 export function SendFinalDocumentDialog({
   documentId,
   documentTitle,
   scopeLabel,
   signatureAvailable,
+  signatureHtml,
 }: {
   documentId: string;
   documentTitle: string;
   scopeLabel: string;
   signatureAvailable: boolean;
+  // La signature de l'expéditeur (réglée sur /profil), résolue côté serveur
+  // et transmise telle quelle — jamais reconstruite depuis des données
+  // client. Même contrainte que SignatureCheckbox : voir son commentaire.
+  signatureHtml: string;
 }) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [groupes, setGroupes] = useState<Groupe[]>([]);
   const [choisis, setChoisis] = useState<Set<string>>(new Set());
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(() => défautMessage(documentTitle));
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [signature, setSignature] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -62,14 +75,20 @@ export function SendFinalDocumentDialog({
 
   const tous = groupes.flatMap((g) => g.membres);
   const sélection = tous.filter((r) => choisis.has(cléDe(r)));
+  const toutCoché = tous.length > 0 && tous.every((r) => choisis.has(cléDe(r)));
+
+  function basculerTout() {
+    setChoisis(toutCoché ? new Set() : new Set(tous.map(cléDe)));
+  }
 
   async function envoyer() {
     setEnvoi(true);
     setErreur(null);
+    const corpsMessage = includeSignature ? message + signatureHtml : message;
     const res = await fetch(`/api/documents/${documentId}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipients: sélection, message: message || undefined, requestSignature: signature }),
+      body: JSON.stringify({ recipients: sélection, message: corpsMessage || undefined, requestSignature: signature }),
     });
     const body = await res.json().catch(() => ({}));
     setEnvoi(false);
@@ -112,7 +131,18 @@ export function SendFinalDocumentDialog({
 
         <div className="p-5 grid gap-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div>
-            <div className="text-[10.5px] uppercase tracking-wide text-slate font-semibold mb-2.5">Destinataires</div>
+            <div className="flex items-center justify-between gap-2 mb-2.5">
+              <div className="text-[10.5px] uppercase tracking-wide text-slate font-semibold">Destinataires</div>
+              {tous.length > 0 && (
+                <button
+                  type="button"
+                  onClick={basculerTout}
+                  className="text-[11px] text-ink underline decoration-line hover:decoration-ink shrink-0"
+                >
+                  {toutCoché ? "Tout désélectionner" : "Tout sélectionner"}
+                </button>
+              )}
+            </div>
             {groupes.length === 0 && <div className="text-[12.5px] text-slate">Chargement…</div>}
             {groupes.map((g) => (
               <div key={g.titre} className="mb-3.5">
@@ -138,13 +168,10 @@ export function SendFinalDocumentDialog({
 
           <div>
             <div className="text-[10.5px] uppercase tracking-wide text-slate font-semibold mb-2.5">Message d&apos;accompagnement</div>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Laissez vide pour le message par défaut."
-              className="w-full border border-line rounded-md px-2.5 py-2 text-[12.5px] text-ink outline-none focus:border-seal"
-              style={{ minHeight: 130 }}
-            />
+            <RichTextEditor html={message} onChange={setMessage} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
+            <div className="mt-2">
+              <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
+            </div>
 
             {signatureAvailable && (
               <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
@@ -167,20 +194,26 @@ export function SendFinalDocumentDialog({
           </div>
         </div>
 
-        <div className="px-5 py-3 border-t border-line flex items-center gap-2.5 flex-wrap">
-          <button type="button" onClick={() => setOuvert(false)} className={`${btn} text-slate hover:text-ink px-3`}>
-            Annuler
-          </button>
-          <div className="flex-1" />
-          {erreur && <div className="text-[12px] text-rust max-w-md">{erreur}</div>}
-          <button
-            type="button"
-            onClick={envoyer}
-            disabled={envoi || sélection.length === 0}
-            className={`${btn} bg-seal text-white hover:bg-seal-dark min-h-[44px] px-5`}
-          >
-            {envoi ? "Envoi…" : `Envoyer à ${sélection.length} destinataire${sélection.length > 1 ? "s" : ""}`}
-          </button>
+        {/* Erreur sous la rangée de boutons, jamais dedans : un message long
+            (des noms de destinataires, souvent) ne doit jamais décaler
+            "Envoyer" — client feedback après qu'un prénom/nom trop long a
+            fait sauter le bouton d'un envoi à l'autre. */}
+        <div className="px-5 py-3 border-t border-line flex flex-col gap-2">
+          <div className="flex items-center gap-2.5">
+            <button type="button" onClick={() => setOuvert(false)} className={`${btn} text-slate hover:text-ink px-3`}>
+              Annuler
+            </button>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={envoyer}
+              disabled={envoi || sélection.length === 0}
+              className={`${btn} bg-seal text-white hover:bg-seal-dark min-h-[44px] px-5`}
+            >
+              {envoi ? "Envoi…" : `Envoyer à ${sélection.length} destinataire${sélection.length > 1 ? "s" : ""}`}
+            </button>
+          </div>
+          {erreur && <div className="text-[12px] text-rust text-right">{erreur}</div>}
         </div>
       </div>
     </div>

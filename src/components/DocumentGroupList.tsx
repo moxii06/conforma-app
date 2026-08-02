@@ -33,7 +33,7 @@ export type Group = {
   progressLabel: string | null;
   isBatch: boolean;
   /** Renseigné seulement dans l'onglet « finalisés » : le document est prêt à partir. */
-  sendable: { scopeLabel: string; signatureAvailable: boolean } | null;
+  sendable: { scopeLabel: string; signatureAvailable: boolean; signatureHtml: string } | null;
   members: GroupMember[];
 };
 
@@ -75,6 +75,7 @@ function GroupRow({ group }: { group: Group }) {
             documentTitle={group.title}
             scopeLabel={group.sendable.scopeLabel}
             signatureAvailable={group.sendable.signatureAvailable}
+            signatureHtml={group.sendable.signatureHtml}
           />
         )}
         {m.canMarkSigned && <MarkSignedButton documentId={m.id} />}

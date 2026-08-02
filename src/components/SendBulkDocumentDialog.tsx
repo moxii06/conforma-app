@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { MERGE_TAGS } from "@/lib/mergeTags";
 import { LibraryPanel } from "@/components/LibraryPanel";
 
@@ -21,7 +22,19 @@ function stripHtml(html: string): string {
 // message uses [Prénom]-style merge tags (same as the single-send dialog)
 // since it's personalized per recipient server-side — see
 // /api/planning/sessions/[id]/documents/send-bulk.
-export function SendBulkDocumentDialog({ sessionId, templates, recipients }: { sessionId: string; templates: Template[]; recipients: Recipient[] }) {
+export function SendBulkDocumentDialog({
+  sessionId,
+  templates,
+  recipients,
+  signatureHtml,
+}: {
+  sessionId: string;
+  templates: Template[];
+  recipients: Recipient[];
+  // Résolue côté serveur depuis le profil de l'expéditeur — voir
+  // SignatureCheckbox et emailSignature.ts.
+  signatureHtml: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"template" | "upload">("template");
@@ -31,6 +44,7 @@ export function SendBulkDocumentDialog({ sessionId, templates, recipients }: { s
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyResetKey, setBodyResetKey] = useState(0);
   const [message, setMessage] = useState("<p>Bonjour [Prénom],</p><p>Veuillez trouver ci-joint le document.</p>");
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [category, setCategory] = useState<string>("other");
   const [file, setFile] = useState<File | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set(recipients.map((r) => r.id)));
@@ -78,6 +92,7 @@ export function SendBulkDocumentDialog({ sessionId, templates, recipients }: { s
     setBodyHtml("");
     setBodyResetKey((k) => k + 1);
     setMessage("<p>Bonjour [Prénom],</p><p>Veuillez trouver ci-joint le document.</p>");
+    setIncludeSignature(true);
     setCategory("other");
     setFile(null);
     setSelected(new Set(recipients.map((r) => r.id)));
@@ -99,7 +114,7 @@ export function SendBulkDocumentDialog({ sessionId, templates, recipients }: { s
     formData.set("mode", mode);
     formData.set("title", title);
     formData.set("category", category);
-    formData.set("message", message);
+    formData.set("message", includeSignature ? message + signatureHtml : message);
     for (const id of selected) formData.append("dossierIds", id);
     if (mode === "template") {
       formData.set("templateId", templateId);
@@ -275,6 +290,7 @@ export function SendBulkDocumentDialog({ sessionId, templates, recipients }: { s
             <div className="flex flex-col gap-1">
               <div className="text-[11px] text-slate uppercase tracking-wide">Message accompagnant l&apos;envoi (personnalisé par apprenant)</div>
               <RichTextEditor html={message} onChange={setMessage} placeholder="Votre message…" mergeTags={MERGE_TAGS} />
+              <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
             </div>
 
             <div className="flex items-center gap-2.5">

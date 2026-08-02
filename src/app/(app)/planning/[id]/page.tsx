@@ -160,6 +160,11 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         orderBy: { title: "asc" },
       })
     : [];
+  // Résolue côté serveur depuis le profil de l'expéditeur — voir
+  // SignatureCheckbox et emailSignature.ts.
+  const senderSignatureHtml = canManage
+    ? (await prisma.user.findUnique({ where: { id: auth.userId }, select: { emailSignature: true } }))?.emailSignature ?? ""
+    : "";
   const courseTitle = session.course.title;
   const dateLabel = format(session.startsAt, "d MMMM yyyy", { locale: fr });
   const timeLabel = format(session.startsAt, "HH:mm");
@@ -389,6 +394,7 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                 sessionId={session.id}
                 templates={documentTemplates}
                 recipients={session.dossiers.map((d) => ({ id: d.id, name: `${d.contact.firstName} ${d.contact.lastName}` }))}
+                signatureHtml={senderSignatureHtml}
               />
             )}
           </div>

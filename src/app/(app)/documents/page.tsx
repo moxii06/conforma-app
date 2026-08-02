@@ -100,6 +100,11 @@ export default async function DocumentsPage(props: {
   // La signature électronique n'est proposée que si elle est réellement
   // branchée — cocher une case qui ne fait rien serait pire que son absence.
   const signatureAvailable = Boolean(process.env.YOUSIGN_API_KEY);
+  // La signature de mail de l'expéditeur (réglée sur /profil) — résolue ici,
+  // côté serveur, jamais reconstruite depuis des données transmises par le
+  // client. Même contrainte que partout ailleurs où elle s'insère.
+  const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { emailSignature: true } });
+  const signatureHtml = currentUser?.emailSignature ?? "";
 
   // Inféré du select ci-dessus plutôt qu'écrit à la main : un champ ajouté
   // au select suit tout seul, et rien ne peut diverger silencieusement.
@@ -141,7 +146,7 @@ export default async function DocumentsPage(props: {
         // dupliquerait le document sans que personne ne l'ait demandé.
         sendable:
           activeTab === "final"
-            ? { scopeLabel: scopeLabel(scopeOfCategory(premier.category)), signatureAvailable: signatureAvailable }
+            ? { scopeLabel: scopeLabel(scopeOfCategory(premier.category)), signatureAvailable, signatureHtml }
             : null,
         members: g.members.map((m) => {
           const r = (m as BatchMember & { row: Ligne }).row;
