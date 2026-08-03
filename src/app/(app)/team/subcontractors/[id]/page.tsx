@@ -180,7 +180,7 @@ export default async function SubcontractorRecordPage(props: { params: Promise<{
                   <a href={`/api/documents/${doc.id}/file`} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline decoration-line hover:decoration-ink min-w-0 truncate">
                     {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
                   </a>
-                  <DocumentActions documentId={doc.id} archived={false} />
+                  <DocumentActions documentId={doc.id} archived={false} title={doc.title} />
                 </div>
               ))}
             </div>
@@ -199,7 +199,7 @@ export default async function SubcontractorRecordPage(props: { params: Promise<{
                   <a href={`/api/documents/${doc.id}/file`} target="_blank" rel="noreferrer" className="text-[12px] text-slate underline decoration-line hover:decoration-ink min-w-0 truncate">
                     {CATEGORY_LABELS[doc.category] ?? doc.category} — {doc.title}
                   </a>
-                  <DocumentActions documentId={doc.id} archived={true} />
+                  <DocumentActions documentId={doc.id} archived={true} title={doc.title} />
                 </div>
               ))}
             </div>

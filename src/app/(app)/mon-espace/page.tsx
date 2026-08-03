@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { MetricCard, PageHeader, Pill } from "@/components/ui";
+import { Button, MetricCard, PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -261,12 +261,11 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
                     <div className="h-1.5 bg-pebble rounded-full overflow-hidden mb-2.5">
                       <div className="h-full bg-sage" style={{ width: `${progress.totalPercent}%` }} />
                     </div>
-                    <Link
-                      href={`/mon-espace/formation/${d.id}`}
-                      className="inline-block bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft"
-                    >
+                    {/* size="touch" : c'est LE bouton que l'apprenant tape
+                        au doigt sur téléphone — 44 px minimum (audit S5). */}
+                    <Button href={`/mon-espace/formation/${d.id}`} size="touch" className="self-start">
                       {ctaLabel}
-                    </Link>
+                    </Button>
                   </>
                 );
               })()}

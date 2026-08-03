@@ -297,7 +297,7 @@ function ResumeTab({
           />
           <DuplicateCourseButton courseId={course.id} />
           <ArchiveCourseButton courseId={course.id} archived={Boolean(course.archivedAt)} />
-          <DeleteCourseButton courseId={course.id} />
+          <DeleteCourseButton courseId={course.id} courseTitle={course.title} />
         </div>
       )}
 
@@ -663,7 +663,12 @@ function ContenuTab({
                           </span>
                           <ProgressBar percent={p.percentComplete} />
                           <span className="text-[11px] text-slate w-9 text-right tabular-nums shrink-0">{p.percentComplete}%</span>
-                          {canManage && <RevokeAccessButton progressId={p.id} />}
+                          {canManage && (
+                            <RevokeAccessButton
+                              progressId={p.id}
+                              learnerName={`${p.dossier.contact.firstName} ${p.dossier.contact.lastName}`}
+                            />
+                          )}
                         </div>
                       ))
                     ) : (

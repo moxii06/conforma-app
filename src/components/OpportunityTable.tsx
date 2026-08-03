@@ -194,7 +194,7 @@ export function OpportunityTable({
               eSignatureAvailable={eSignatureAvailable}
             />
             <ArchiveContactButton contactId={o.contactId} archived={false} />
-            <DeleteOpportunityButton opportunityId={o.id} />
+            <DeleteOpportunityButton opportunityId={o.id} contactName={`${o.contact.firstName} ${o.contact.lastName}`} />
           </div>
         );
     }

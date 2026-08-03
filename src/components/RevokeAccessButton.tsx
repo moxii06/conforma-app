@@ -2,39 +2,35 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
-export function RevokeAccessButton({ progressId }: { progressId: string }) {
+export function RevokeAccessButton({ progressId, learnerName }: { progressId: string; learnerName: string }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  async function handleClick() {
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
+  async function handleRevoke() {
     setLoading(true);
     await fetch(`/api/lms/progress/${progressId}`, { method: "DELETE" });
     setLoading(false);
+    setOpen(false);
     router.refresh();
   }
 
-  if (confirming) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <button onClick={handleClick} disabled={loading} className="text-[11px] font-medium text-rust hover:underline disabled:opacity-60">
-          {loading ? "…" : "Confirmer"}
-        </button>
-        <button onClick={() => setConfirming(false)} className="text-[11px] text-slate hover:underline">
-          Annuler
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <button onClick={handleClick} className="text-[11px] text-slate hover:text-rust hover:underline">
-      Retirer l&apos;accès
-    </button>
+    <>
+      <button onClick={() => setOpen(true)} className="text-[11px] text-slate hover:text-rust hover:underline">
+        Retirer l&apos;accès
+      </button>
+      <ConfirmDialog
+        open={open}
+        title={`Retirer l'accès de ${learnerName} ?`}
+        description="Sa progression sur ce module sera supprimée — un nouvel accès repartira de zéro."
+        confirmLabel="Retirer l'accès"
+        loading={loading}
+        onConfirm={handleRevoke}
+        onCancel={() => setOpen(false)}
+      />
+    </>
   );
 }

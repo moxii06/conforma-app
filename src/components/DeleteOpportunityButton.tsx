@@ -2,49 +2,47 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
-export function DeleteOpportunityButton({ opportunityId }: { opportunityId: string }) {
+export function DeleteOpportunityButton({ opportunityId, contactName }: { opportunityId: string; contactName: string }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  async function handleDelete(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
+  async function handleDelete() {
     setDeleting(true);
     await fetch(`/api/crm/opportunities/${opportunityId}`, { method: "DELETE" });
     setDeleting(false);
+    setOpen(false);
     router.refresh();
   }
 
-  function handleCancel(e: React.MouseEvent) {
-    e.stopPropagation();
-    setConfirming(false);
-  }
-
-  if (confirming) {
-    return (
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleDelete}
-          disabled={deleting}
-          className="text-[11px] font-medium text-rust hover:underline disabled:opacity-60"
-        >
-          {deleting ? "…" : "Confirmer la suppression"}
-        </button>
-        <button onClick={handleCancel} className="text-[11px] text-slate hover:underline">
-          Annuler
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <button onClick={handleDelete} className="text-[11px] text-slate hover:text-rust hover:underline self-start">
-      Supprimer
-    </button>
+    <>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className="text-[11px] text-slate hover:text-rust hover:underline self-start"
+      >
+        Supprimer
+      </button>
+      {/* stopPropagation on the wrapper: the dialog lives inside a clickable
+          table row — without it, closing the dialog would also open the
+          prospect's page. */}
+      {open && (
+        <span onClick={(e) => e.stopPropagation()}>
+          <ConfirmDialog
+            open={open}
+            title={`Supprimer l'opportunité de ${contactName} ?`}
+            description="L'opportunité et son historique commercial seront définitivement supprimés — la fiche contact, elle, est conservée."
+            loading={deleting}
+            onConfirm={handleDelete}
+            onCancel={() => setOpen(false)}
+          />
+        </span>
+      )}
+    </>
   );
 }

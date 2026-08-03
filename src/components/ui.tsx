@@ -40,6 +40,56 @@ export function MetricCard({
   return <div className={className}>{content}</div>;
 }
 
+// The one place button looks are defined (audit S5 : le même bouton
+// primaire existait en ~9 combinaisons taille/texte à travers ~116
+// fichiers). New screens use this; existing ones migrate as they get
+// touched. Sizes carry a real min-height because no hand-rolled button
+// reached the 44px touch minimum: sm stays compact for dense desktop
+// tables, md is the default, touch is for screens operated with a finger
+// (émargement, portail apprenant).
+const BUTTON_VARIANTS: Record<string, string> = {
+  primary: "bg-ink text-white hover:bg-ink-soft",
+  secondary: "bg-white border border-line text-ink hover:bg-linen",
+  tertiary: "text-slate hover:text-ink hover:underline",
+  destructive: "bg-rust text-white hover:opacity-90",
+};
+
+const BUTTON_SIZES: Record<string, string> = {
+  sm: "min-h-8 px-3 text-[12px]",
+  md: "min-h-10 px-4 text-[13px]",
+  touch: "min-h-11 px-5 text-[14px]",
+};
+
+export function Button({
+  variant = "primary",
+  size = "md",
+  href,
+  className = "",
+  type = "button",
+  children,
+  ...rest
+}: {
+  variant?: keyof typeof BUTTON_VARIANTS;
+  size?: keyof typeof BUTTON_SIZES;
+  // A navigation CTA styled as a button — same look, real <a> semantics.
+  href?: string;
+  children: React.ReactNode;
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children">) {
+  const cls = `inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-seal ${BUTTON_VARIANTS[variant]} ${BUTTON_SIZES[size]} ${className}`;
+  if (href) {
+    return (
+      <Link href={href} className={cls}>
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <button type={type} className={cls} {...rest}>
+      {children}
+    </button>
+  );
+}
+
 const PILL_STYLES: Record<string, string> = {
   neutral: "bg-pebble text-slate",
   warn: "bg-[#EDDFC6] text-seal-dark",
