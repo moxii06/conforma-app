@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
 import { Settings2 } from "lucide-react";
+import { Button } from "@/components/ui";
 
 // ---------------------------------------------------------------------------
 // Socle de mesure marketing + consentement RGPD (lignes directrices CNIL).
@@ -152,24 +153,15 @@ export function CookieConsent() {
                   moment via le lien « Gérer les cookies ».
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2.5">
-                  <button
-                    onClick={() => save(ACCEPT_ALL)}
-                    className="bg-ink text-white text-[13px] font-medium rounded-md px-4 py-2.5 hover:bg-ink-soft"
-                  >
+                  <Button size="touch" onClick={() => save(ACCEPT_ALL)}>
                     Tout accepter
-                  </button>
-                  <button
-                    onClick={() => save(REFUSE_ALL)}
-                    className="bg-white border border-line text-ink text-[13px] font-medium rounded-md px-4 py-2.5 hover:border-ink-soft"
-                  >
+                  </Button>
+                  <Button variant="secondary" size="touch" onClick={() => save(REFUSE_ALL)}>
                     Tout refuser
-                  </button>
-                  <button
-                    onClick={openCustomize}
-                    className="text-ink text-[13px] font-medium underline decoration-line hover:decoration-ink px-1.5 py-2.5"
-                  >
+                  </Button>
+                  <Button variant="tertiary" size="touch" onClick={openCustomize}>
                     Personnaliser
-                  </button>
+                  </Button>
                 </div>
               </>
             ) : (
@@ -214,18 +206,12 @@ export function CookieConsent() {
                   )}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2.5">
-                  <button
-                    onClick={() => save(draft)}
-                    className="bg-ink text-white text-[13px] font-medium rounded-md px-4 py-2.5 hover:bg-ink-soft"
-                  >
+                  <Button size="touch" onClick={() => save(draft)}>
                     Enregistrer mes choix
-                  </button>
-                  <button
-                    onClick={() => save(REFUSE_ALL)}
-                    className="bg-white border border-line text-ink text-[13px] font-medium rounded-md px-4 py-2.5 hover:border-ink-soft"
-                  >
+                  </Button>
+                  <Button variant="secondary" size="touch" onClick={() => save(REFUSE_ALL)}>
                     Tout refuser
-                  </button>
+                  </Button>
                 </div>
               </>
             )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui";
 
 // The public page's only interactive element. Deliberately short: every
 // extra field on a public form costs conversions, and everything else the OF
@@ -88,14 +89,11 @@ export function PublicEnrollmentForm({
               ? "Renseignez vos coordonnées : votre place est réservée immédiatement."
               : "Laissez vos coordonnées, l'organisme revient vers vous avec les modalités et les dates."}
           </p>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            style={{ backgroundColor: accent }}
-            className="text-white text-[13px] font-medium rounded-md px-4 py-2.5 hover:opacity-90"
-          >
+          {/* Le style inline porte la couleur de marque de l'OF (marque
+              blanche) — il l'emporte sur le bg-ink de la variante primaire. */}
+          <Button type="button" size="touch" onClick={() => setOpen(true)} style={{ backgroundColor: accent }} className="hover:opacity-90">
             {mode === "direct" ? "S'inscrire" : "Demander une inscription"}
-          </button>
+          </Button>
         </>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -168,17 +166,12 @@ export function PublicEnrollmentForm({
           {error && <div className="text-[12.5px] text-rust">{error}</div>}
 
           <div className="flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ backgroundColor: accent }}
-              className="text-white text-[13px] font-medium rounded-md px-4 py-2.5 hover:opacity-90 disabled:opacity-60"
-            >
+            <Button type="submit" size="touch" disabled={loading} style={{ backgroundColor: accent }} className="hover:opacity-90">
               {loading ? "Envoi…" : mode === "direct" ? "Confirmer mon inscription" : "Envoyer ma demande"}
-            </button>
-            <button type="button" onClick={() => setOpen(false)} className="text-[12.5px] text-slate hover:text-ink">
+            </Button>
+            <Button type="button" variant="tertiary" size="touch" onClick={() => setOpen(false)}>
               Annuler
-            </button>
+            </Button>
           </div>
 
           <p className="text-[11px] text-slate leading-relaxed">

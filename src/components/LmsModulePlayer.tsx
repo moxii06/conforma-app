@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pill } from "@/components/ui";
+import { Pill, Button } from "@/components/ui";
 
 type Props = {
   dossierId: string;
@@ -177,13 +177,14 @@ export function LmsModulePlayer({ dossierId, moduleId, type, hasFile, percentCom
         {percent >= 100 ? (
           <span className="text-[11px] text-sage">Lu</span>
         ) : (
-          <button
+          <Button
+            variant="tertiary"
             onClick={() => { setPercent(100); save(100, 0, true); }}
             disabled={saving}
-            className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60"
+            className="underline decoration-line hover:decoration-ink text-ink px-0"
           >
             {saving ? "…" : "Marquer comme lu"}
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -218,15 +219,10 @@ export function LmsModulePlayer({ dossierId, moduleId, type, hasFile, percentCom
           <div className="bg-linen border border-line rounded-md p-3 flex flex-col gap-2">
             <div className="text-[12.5px] text-ink">Êtes-vous sûr(e) d&apos;avoir vu la vidéo en entier ?</div>
             <div className="flex items-center gap-2.5">
-              <button
-                onClick={handleConfirmYes}
-                className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft"
-              >
-                Oui, j&apos;ai tout vu
-              </button>
-              <button onClick={handleConfirmNo} className="text-[12px] text-slate hover:text-ink">
+              <Button onClick={handleConfirmYes}>Oui, j&apos;ai tout vu</Button>
+              <Button variant="tertiary" onClick={handleConfirmNo}>
                 Non, revoir
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -292,13 +288,14 @@ export function LmsModulePlayer({ dossierId, moduleId, type, hasFile, percentCom
       {percent >= 100 ? (
         <span className="text-[11px] text-sage">Terminé</span>
       ) : (
-        <button
+        <Button
+          variant="tertiary"
           onClick={() => { setPercent(100); save(100, 0, true); }}
           disabled={saving}
-          className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60"
+          className="underline decoration-line hover:decoration-ink text-ink px-0"
         >
           {saving ? "…" : "Marquer comme terminé"}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { trackEvent } from "@/lib/track";
+import { Button } from "@/components/ui";
 
 const PLAN_LABELS: Record<string, { name: string; price: string }> = {
   solo: { name: "Solo", price: "39 €/mois" },
@@ -214,13 +215,9 @@ export function SignupForm({ initialPlan }: { initialPlan: string }) {
 
       {error && <div className="text-[12.5px] text-rust">{error}</div>}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-ink text-white text-sm font-medium rounded-md py-2.5 mt-1 hover:bg-ink-soft disabled:opacity-60"
-      >
+      <Button type="submit" size="touch" disabled={loading} className="w-full mt-1">
         {loading ? "Création du compte…" : "Créer mon compte d'essai"}
-      </button>
+      </Button>
       <div className="text-[11.5px] text-slate text-center">
         14 jours d&apos;essai gratuit, sans carte bancaire. Aucun engagement.
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui";
 
 type Question = { id: string; type: string; prompt: string; options: { id: string; text: string }[] | null };
 
@@ -116,13 +117,9 @@ export function SatisfactionSurveyForm({ token, questions }: { token: string; qu
         </div>
       ))}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-ink text-white text-[13px] font-medium rounded-md py-2.5 hover:bg-ink-soft disabled:opacity-60 self-start px-5"
-      >
+      <Button type="submit" size="touch" disabled={loading} className="self-start">
         {loading ? "Envoi…" : "Envoyer ma réponse"}
-      </button>
+      </Button>
       {error && <div className="text-[12.5px] text-rust">{error}</div>}
     </form>
   );

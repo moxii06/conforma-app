@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Milestone } from "lucide-react";
+import { Button } from "@/components/ui";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -59,13 +60,9 @@ export function ForgotPasswordForm() {
                   placeholder="marie@formations-nova.fr"
                 />
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-ink text-white text-sm font-medium rounded-md py-2.5 hover:bg-ink-soft disabled:opacity-60"
-              >
+              <Button type="submit" size="touch" disabled={loading} className="w-full">
                 {loading ? "Envoi…" : "Envoyer le lien"}
-              </button>
+              </Button>
             </form>
           )}
           <Link href="/login" className="block text-center text-[12.5px] text-ink underline decoration-line hover:decoration-ink mt-4">

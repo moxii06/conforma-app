@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Milestone } from "lucide-react";
 import { GOOGLE_LOGIN_PROVIDER_ID, SOCIAL_LOGIN_DENIED, LOGIN_RATE_LIMITED } from "@/lib/authProviders";
+import { Button } from "@/components/ui";
 
 // Google's brand mark, inlined rather than fetched — the login page must
 // render identically offline and behind a strict CSP, and this is the one
@@ -152,13 +153,9 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
 
           {error && <div className="text-[12.5px] text-rust">{error}</div>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-ink text-white text-sm font-medium rounded-md py-2.5 mt-1 hover:bg-ink-soft disabled:opacity-60"
-          >
+          <Button type="submit" size="touch" disabled={loading} className="w-full mt-1">
             {loading ? "Connexion…" : "Se connecter"}
-          </button>
+          </Button>
 
           <Link href="/mot-de-passe-oublie" className="text-center text-[12.5px] text-ink underline decoration-line hover:decoration-ink">
             Mot de passe oublié ?

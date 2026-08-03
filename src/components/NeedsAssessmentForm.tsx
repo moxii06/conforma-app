@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { parseNeedsAssessmentBody, joinNeedsAssessmentAnswers } from "@/lib/needsAssessmentQuestions";
+import { Button } from "@/components/ui";
 
 export function NeedsAssessmentForm({ token, templateBody }: { token: string; templateBody: string }) {
   // Un champ par question quand le modèle est structuré. Avant, les quatre
@@ -128,13 +129,9 @@ export function NeedsAssessmentForm({ token, templateBody }: { token: string; te
         )}
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-ink text-white text-[13px] font-medium rounded-md py-2.5 hover:bg-ink-soft disabled:opacity-60 self-start px-5"
-      >
+      <Button type="submit" size="touch" disabled={loading} className="self-start">
         {loading ? "Envoi…" : "Envoyer ma réponse"}
-      </button>
+      </Button>
       {error && <div className="text-[12.5px] text-rust">{error}</div>}
     </form>
   );

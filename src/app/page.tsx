@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Button } from "@/components/ui";
 import {
   ShieldCheck,
   Milestone,
@@ -118,18 +119,10 @@ export default function MarketingPage() {
             >
               Espace apprenant
             </Link>
-            <Link
-              href="/login"
-              className="text-ink text-[13.5px] font-medium rounded-md px-4 py-2 border border-line hover:border-ink-soft"
-            >
+            <Button variant="secondary" href="/login">
               Espace organisme
-            </Link>
-            <Link
-              href="/essai"
-              className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft"
-            >
-              Essai gratuit
-            </Link>
+            </Button>
+            <Button href="/essai">Essai gratuit</Button>
           </div>
         </div>
       </header>
@@ -138,7 +131,7 @@ export default function MarketingPage() {
       {/* ---- Hero ---- */}
       <section className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
         <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#F0E7D4] border border-[#D9C79E] rounded-full px-3 py-1 mb-6">
-          Hébergement France · Qualiopi · RGPD
+          Données hébergées dans l&apos;UE · Qualiopi · RGPD
         </div>
         <h1 className="font-display text-[40px] sm:text-[52px] leading-[1.08] text-ink mb-5 text-balance">
           Arrêtez de reconstituer votre dossier Qualiopi la veille de l&apos;audit
@@ -148,19 +141,13 @@ export default function MarketingPage() {
           facturation et preuves de conformité, tenus à jour par le travail que vous faites déjà — pas en plus.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link
-            href="/essai?plan=team"
-            className="w-full sm:w-auto bg-ink text-white text-[14px] font-medium rounded-md px-5 py-2.5 hover:bg-ink-soft inline-flex items-center justify-center gap-1.5"
-          >
+          <Button href="/essai?plan=team" size="touch" className="w-full sm:w-auto">
             Commencer l&apos;essai gratuit
             <ArrowRight size={15} />
-          </Link>
-          <Link
-            href="/demo"
-            className="w-full sm:w-auto bg-white border border-line text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:border-ink-soft inline-flex items-center justify-center"
-          >
+          </Button>
+          <Button variant="secondary" href="/demo" size="touch" className="w-full sm:w-auto">
             Réserver une démo
-          </Link>
+          </Button>
         </div>
         <div className="text-[12.5px] text-slate mt-4">14 jours d&apos;essai gratuit — sans carte bancaire.</div>
         <a
@@ -325,19 +312,13 @@ export default function MarketingPage() {
           <h2 className="font-display text-[26px] text-ink mb-3 text-balance">Prêt à essayer Jalon ?</h2>
           <p className="text-[13.5px] text-slate mb-7">14 jours d&apos;essai gratuit, sans carte bancaire. Résiliable à tout moment.</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href="/essai?plan=team"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-ink text-white text-[14px] font-medium rounded-md px-5 py-2.5 hover:bg-ink-soft"
-            >
+            <Button href="/essai?plan=team" size="touch" className="w-full sm:w-auto">
               Commencer l&apos;essai gratuit
               <ArrowRight size={15} />
-            </Link>
-            <Link
-              href="/demo"
-              className="w-full sm:w-auto bg-white border border-line text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:border-ink-soft inline-flex items-center justify-center"
-            >
+            </Button>
+            <Button variant="secondary" href="/demo" size="touch" className="w-full sm:w-auto">
               Réserver une démo
-            </Link>
+            </Button>
           </div>
         </div>
       </section>

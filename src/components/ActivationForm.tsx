@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 export function ActivationForm({ token, email }: { token: string; email: string }) {
   const router = useRouter();
@@ -69,13 +70,9 @@ export function ActivationForm({ token, email }: { token: string; email: string 
         />
       </div>
       {error && <div className="text-[12.5px] text-rust">{error}</div>}
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-ink text-white text-sm font-medium rounded-md py-2.5 mt-1 hover:bg-ink-soft disabled:opacity-60"
-      >
+      <Button type="submit" size="touch" disabled={loading} className="w-full mt-1">
         {loading ? "Activation…" : "Activer mon compte"}
-      </button>
+      </Button>
     </form>
   );
 }
