@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Libre_Caslon_Text, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { SessionProviderWrapper } from "@/components/SessionProviderWrapper";
 import { CookieConsent } from "@/components/CookieConsent";
+import { ToastProvider } from "@/components/ToastProvider";
 import "./globals.css";
 
 // Titles get a classic serif with real ink (Libre Caslon Text); body copy
@@ -22,7 +23,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className={`${displayFont.variable} ${sansFont.variable} ${monoFont.variable}`}>
       <body>
-        <SessionProviderWrapper>{children}</SessionProviderWrapper>
+        <SessionProviderWrapper>
+          <ToastProvider>{children}</ToastProvider>
+        </SessionProviderWrapper>
         <CookieConsent />
       </body>
     </html>

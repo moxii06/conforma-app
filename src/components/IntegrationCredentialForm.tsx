@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
+import { useToast } from "@/components/ToastProvider";
 
 export function IntegrationCredentialForm({
   provider,
@@ -22,15 +23,14 @@ export function IntegrationCredentialForm({
   clientSecretPlaceholder?: string;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [apiKey, setApiKey] = useState("");
   const [clientId, setClientId] = useState(initialClientId ?? "");
   const [clientSecret, setClientSecret] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   async function handleSave() {
     setSaving(true);
-    setSaved(false);
     await fetch("/api/integrations/credentials", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -43,7 +43,7 @@ export function IntegrationCredentialForm({
       ),
     });
     setSaving(false);
-    setSaved(true);
+    toast.success("Identifiants enregistrés.");
     setApiKey("");
     setClientSecret("");
     router.refresh();
@@ -62,7 +62,6 @@ export function IntegrationCredentialForm({
         <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
           {saving ? "…" : "Enregistrer"}
         </Button>
-        {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
       </div>
     );
   }
@@ -90,7 +89,6 @@ export function IntegrationCredentialForm({
           <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
             {saving ? "…" : "Enregistrer"}
           </Button>
-          {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
         </div>
       </div>
     );
@@ -114,7 +112,6 @@ export function IntegrationCredentialForm({
       <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
         {saving ? "…" : "Enregistrer"}
       </Button>
-      {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
     </div>
   );
 }

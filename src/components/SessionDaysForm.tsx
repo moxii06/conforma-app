@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Lock } from "lucide-react";
 import { Button } from "@/components/ui";
+import { useToast } from "@/components/ToastProvider";
 
 type Day = { date: string; morningHours: number | null; afternoonHours: number | null; locked: boolean };
 
@@ -30,6 +31,7 @@ export function SessionDaysForm({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [days, setDays] = useState<Day[]>(
     initialDays.length > 0
       ? initialDays
@@ -37,11 +39,9 @@ export function SessionDaysForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   function update(i: number, patch: Partial<Day>) {
     setDays((prev) => prev.map((d, j) => (j === i ? { ...d, ...patch } : d)));
-    setSaved(false);
   }
 
   function addDay() {
@@ -54,13 +54,11 @@ export function SessionDaysForm({
       ...prev,
       { date: next.toISOString().slice(0, 10), morningHours: 3.5, afternoonHours: 3.5, locked: false },
     ]);
-    setSaved(false);
   }
 
   async function save() {
     setSaving(true);
     setError(null);
-    setSaved(false);
     const res = await fetch(`/api/planning/sessions/${sessionId}/days`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -78,7 +76,7 @@ export function SessionDaysForm({
       setError(body.error ?? "Enregistrement impossible.");
       return;
     }
-    setSaved(true);
+    toast.success("Journées enregistrées.");
     router.refresh();
   }
 
@@ -128,10 +126,7 @@ export function SessionDaysForm({
             canEdit && (
               <button
                 type="button"
-                onClick={() => {
-                  setDays((prev) => prev.filter((_, j) => j !== i));
-                  setSaved(false);
-                }}
+                onClick={() => setDays((prev) => prev.filter((_, j) => j !== i))}
                 aria-label="Retirer cette journée"
                 className="text-slate hover:text-rust min-h-11 min-w-11 flex items-center justify-center"
               >
@@ -152,7 +147,6 @@ export function SessionDaysForm({
             <Plus size={13} /> Ajouter une journée
           </button>
           <div className="flex-1" />
-          {saved && <span className="text-[11.5px] text-sage">Enregistré</span>}
           {error && <span className="text-[11.5px] text-rust">{error}</span>}
           <Button type="button" size="sm" onClick={save} disabled={saving}>
             {saving ? "…" : "Enregistrer les journées"}

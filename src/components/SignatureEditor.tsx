@@ -3,22 +3,23 @@
 import { useState } from "react";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { Button } from "@/components/ui";
+import { useToast } from "@/components/ToastProvider";
 
 export function SignatureEditor({ initialSignature }: { initialSignature: string }) {
   const [signature, setSignature] = useState(initialSignature);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const toast = useToast();
 
   async function handleSave() {
     setSaving(true);
-    setSaved(false);
     const res = await fetch("/api/profile/signature", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ signature }),
     });
     setSaving(false);
-    if (res.ok) setSaved(true);
+    if (res.ok) toast.success("Signature enregistrée.");
+    else toast.error("Échec de l'enregistrement de la signature.");
   }
 
   async function handleUploadImage(file: File): Promise<string> {
@@ -44,7 +45,6 @@ export function SignatureEditor({ initialSignature }: { initialSignature: string
         <Button type="button" size="sm" className="self-start" onClick={handleSave} disabled={saving}>
           {saving ? "…" : "Enregistrer la signature"}
         </Button>
-        {saved && <span className="text-[12px] text-sage">Enregistrée.</span>}
       </div>
     </div>
   );

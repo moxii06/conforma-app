@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronUp, ChevronDown } from "lucide-react";
 import { QUESTIONS, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { Button } from "@/components/ui";
+import { useToast } from "@/components/ToastProvider";
 
 export type BlockCondition = { questionKey: QuestionKey; in: string[] };
 export type BlockRow = { bodyText: string; conditions: BlockCondition[] | null };
@@ -28,14 +29,29 @@ export function TemplateBlocksEditor({
   canEdit: boolean;
 }) {
   const router = useRouter();
-  const [blocks, setBlocks] = useState<BlockRow[]>(initialBlocks.length > 0 ? initialBlocks : [emptyBlock()]);
+  const toast = useToast();
+  const initial = initialBlocks.length > 0 ? initialBlocks : [emptyBlock()];
+  const [blocks, setBlocks] = useState<BlockRow[]>(initial);
+  const [savedBlocks, setSavedBlocks] = useState<BlockRow[]>(initial);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = JSON.stringify(blocks) !== JSON.stringify(savedBlocks);
+
+  // Un questionnaire de paragraphes conditionnels se construit bloc par
+  // bloc — perdre la session en fermant l'onglet par erreur signifie tout
+  // reprendre depuis zéro (audit S6, finding E3).
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty]);
 
   function updateBlock(index: number, patch: Partial<BlockRow>) {
     setBlocks((prev) => prev.map((b, i) => (i === index ? { ...b, ...patch } : b)));
-    setSaved(false);
   }
 
   function move(index: number, dir: -1 | 1) {
@@ -46,17 +62,14 @@ export function TemplateBlocksEditor({
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
-    setSaved(false);
   }
 
   function removeBlock(index: number) {
     setBlocks((prev) => prev.filter((_, i) => i !== index));
-    setSaved(false);
   }
 
   function addBlock() {
     setBlocks((prev) => [...prev, emptyBlock()]);
-    setSaved(false);
   }
 
   function setConditional(index: number, conditional: boolean) {
@@ -71,14 +84,12 @@ export function TemplateBlocksEditor({
         return { ...b, conditions };
       }),
     );
-    setSaved(false);
   }
 
   function addCondition(blockIndex: number) {
     setBlocks((prev) =>
       prev.map((b, i) => (i === blockIndex ? { ...b, conditions: [...(b.conditions ?? []), { questionKey: QUESTIONS[0].key, in: [] }] } : b)),
     );
-    setSaved(false);
   }
 
   function removeCondition(blockIndex: number, condIndex: number) {
@@ -89,7 +100,6 @@ export function TemplateBlocksEditor({
         return { ...b, conditions: conditions.length > 0 ? conditions : null };
       }),
     );
-    setSaved(false);
   }
 
   async function handleSave() {
@@ -112,7 +122,8 @@ export function TemplateBlocksEditor({
       setError(body.error ?? "L'enregistrement a échoué.");
       return;
     }
-    setSaved(true);
+    setSavedBlocks(blocks);
+    toast.success("Paragraphes enregistrés.");
     router.refresh();
   }
 
@@ -243,7 +254,6 @@ export function TemplateBlocksEditor({
           <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "…" : "Enregistrer"}
           </Button>
-          {saved && <span className="text-[12px] text-sage">Enregistré.</span>}
         </div>
       )}
       {error && <div className="text-[11.5px] text-rust">{error}</div>}

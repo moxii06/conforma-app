@@ -64,6 +64,13 @@ export function DocumentComposer({
   const [documentId, setDocumentId] = useState<string | null>(draft?.id ?? null);
   const [enregistrement, setEnregistrement] = useState<"idle" | "saving" | "saved">("idle");
   const [finalisé, setFinalisé] = useState(false);
+  // Dernier texte connu du serveur — sert uniquement à détecter une
+  // rédaction non enregistrée, pas à piloter l'affichage.
+  const [texteEnregistré, setTexteEnregistré] = useState(draft ? ensureHtml(draft.bodyText) : "");
+  // Heure du dernier autosave silencieux — distinct de `enregistrement`
+  // (le bouton manuel) pour ne jamais désactiver "Enregistrer"/"Finaliser"
+  // pendant qu'une sauvegarde de fond est en cours.
+  const [dernierAutosave, setDernierAutosave] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     setChargement(true);
@@ -91,6 +98,52 @@ export function DocumentComposer({
   // HTML. Convertir ici évite que chaque appelant s'en préoccupe.
   const texte = texteÉdité ?? (preview?.bodyText ? ensureHtml(preview.bodyText) : "");
   const titre = preview?.title ?? template.title;
+  // Seule une rédaction manuelle compte comme travail à protéger — le texte
+  // dérivé du gabarit se régénère à l'identique en rouvrant l'écran, mais
+  // une correction tapée à la main sur un contrat ne se retape pas
+  // (audit S6, finding E3).
+  const nonEnregistré = !finalisé && texteÉdité !== null && texteÉdité !== texteEnregistré;
+
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (!nonEnregistré) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [nonEnregistré]);
+
+  // Autosave debouncé (P2, audit S6 finding E3) : le garde-fou beforeunload
+  // ci-dessus prévient la perte de travail si l'organisme part sans
+  // enregistrer, mais ne protège pas d'un crash ou d'une coupure. 3s
+  // d'inactivité après la dernière frappe suffisent à ne jamais sauvegarder
+  // à mi-mot, sans non plus attendre que l'utilisateur pense à cliquer.
+  useEffect(() => {
+    if (!nonEnregistré || enregistrement !== "idle") return;
+    const timer = setTimeout(async () => {
+      const res = await fetch("/api/documents/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentId: documentId ?? undefined,
+          templateId: template.id,
+          sessionId: sessionId || null,
+          title: titre,
+          bodyText: texte,
+          category: template.category,
+          finalize: false,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return;
+      setDocumentId(body.id);
+      setTexteEnregistré(texte);
+      setDernierAutosave(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [texte, nonEnregistré, enregistrement, documentId, sessionId, titre, template.id, template.category]);
+
   const balisesRestantes = texteÉdité
     ? // Recalculé côté serveur à l'enregistrement ; ici on se contente de
       // ne pas afficher une alerte périmée sur un texte que l'organisme
@@ -152,6 +205,7 @@ export function DocumentComposer({
       return;
     }
     setDocumentId(body.id);
+    setTexteEnregistré(texte);
     if (finalize) {
       setFinalisé(true);
       router.push("/documents?tab=final");
@@ -235,7 +289,7 @@ export function DocumentComposer({
                   <span className="text-slate">Chargement de l&apos;aperçu…</span>
                 ) : proposition ? (
                   <div
-                    className="bg-[#E4EAE6] -m-2 p-2 rounded"
+                    className="bg-[#DEE5E0] -m-2 p-2 rounded"
                     dangerouslySetInnerHTML={{ __html: ensureHtml(proposition.bodyText) }}
                   />
                 ) : texte ? (
@@ -275,7 +329,7 @@ export function DocumentComposer({
                 <div className="text-[11px] font-semibold text-ink">Destinataires</div>
                 <span
                   className={`text-[10.5px] font-semibold rounded px-1.5 py-0.5 ${
-                    scope === "per_learner" ? "bg-[#EFE7D6] text-seal-dark" : "bg-[#E4EAE6] text-sage"
+                    scope === "per_learner" ? "bg-[#EDDFC6] text-seal-dark" : "bg-[#DEE5E0] text-sage"
                   }`}
                 >
                   {scopeLabel(scope)}
@@ -342,7 +396,7 @@ export function DocumentComposer({
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {balisesRestantes.map((t) => (
-                    <span key={t} className="font-mono text-[10.5px] bg-[#F3E6E2] text-rust rounded px-1.5 py-0.5">
+                    <span key={t} className="font-mono text-[10.5px] bg-[#E9D8D3] text-rust rounded px-1.5 py-0.5">
                       {t}
                     </span>
                   ))}
@@ -380,7 +434,7 @@ export function DocumentComposer({
               )}
 
               {proposition && (
-                <div className="bg-[#E4EAE6] border border-sage/30 rounded-md p-2.5 mb-2.5">
+                <div className="bg-[#DEE5E0] border border-sage/30 rounded-md p-2.5 mb-2.5">
                   <div className="text-[11.5px] text-ink leading-snug mb-2">
                     La version proposée s&apos;affiche à gauche. Comparez avant d&apos;accepter.
                   </div>
@@ -435,12 +489,15 @@ export function DocumentComposer({
 
         {/* Barre d'action : un seul bouton dominant, le destructif à l'opposé */}
         <div className="bg-white border border-line rounded-card p-3 flex items-center gap-2.5 flex-wrap">
-          <button type="button" onClick={supprimer} className={`${btn} text-rust hover:bg-[#F3E6E2] px-3`}>
+          <button type="button" onClick={supprimer} className={`${btn} text-rust hover:bg-[#E9D8D3] px-3`}>
             Supprimer
           </button>
           <div className="flex-1" />
           {erreur && <div className="text-[12px] text-rust">{erreur}</div>}
           {enregistrement === "saved" && <div className="text-[12px] text-sage">Brouillon enregistré</div>}
+          {enregistrement === "idle" && !nonEnregistré && dernierAutosave && !finalisé && (
+            <div className="text-[11.5px] text-slate">Enregistré automatiquement à {dernierAutosave}</div>
+          )}
           <Button
             onClick={() => enregistrer(false)}
             disabled={enregistrement === "saving" || finalisé}

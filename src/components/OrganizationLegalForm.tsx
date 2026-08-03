@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui";
+import { useToast } from "@/components/ToastProvider";
 
 type LegalInfo = {
   siret: string;
@@ -20,17 +21,15 @@ type LegalInfo = {
 export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
   const [values, setValues] = useState(initial);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   function set<K extends keyof LegalInfo>(key: K, value: string) {
     setValues((v) => ({ ...v, [key]: value }));
-    setSaved(false);
   }
 
   async function handleSave() {
     setSaving(true);
-    setSaved(false);
     setError(null);
     const res = await fetch("/api/organization/legal", {
       method: "PATCH",
@@ -47,7 +46,7 @@ export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
       setError(b.error ?? "Erreur lors de l'enregistrement.");
       return;
     }
-    setSaved(true);
+    toast.success("Informations légales enregistrées.");
   }
 
   return (
@@ -189,7 +188,6 @@ export function OrganizationLegalForm({ initial }: { initial: LegalInfo }) {
         <Button type="button" size="sm" onClick={handleSave} disabled={saving} className="self-start">
           {saving ? "…" : "Enregistrer"}
         </Button>
-        {saved && <span className="text-[12px] text-sage">Enregistré.</span>}
         {error && <span className="text-[12px] text-rust">{error}</span>}
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Milestone, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui";
+import { useToast } from "@/components/ToastProvider";
 
 const DEFAULT_COLOR = "#C9A15A"; // matches the app's own --seal fallback swatch
 
@@ -18,7 +19,7 @@ export function OrganizationBrandingForm({
   const [uploading, setUploading] = useState(false);
   const [savingColor, setSavingColor] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const toast = useToast();
 
   async function handleUpload(file: File) {
     setUploading(true);
@@ -49,7 +50,6 @@ export function OrganizationBrandingForm({
 
   async function handleSaveColor() {
     setSavingColor(true);
-    setSaved(false);
     setError(null);
     const res = await fetch("/api/organization/branding", {
       method: "PATCH",
@@ -62,7 +62,7 @@ export function OrganizationBrandingForm({
       setError(b.error ?? "Erreur lors de l'enregistrement.");
       return;
     }
-    setSaved(true);
+    toast.success("Marque enregistrée.");
   }
 
   return (
@@ -119,18 +119,12 @@ export function OrganizationBrandingForm({
           <input
             type="color"
             value={color || DEFAULT_COLOR}
-            onChange={(e) => {
-              setColor(e.target.value);
-              setSaved(false);
-            }}
+            onChange={(e) => setColor(e.target.value)}
             className="w-8 h-8 rounded border border-line cursor-pointer bg-white p-0.5"
           />
           <input
             value={color}
-            onChange={(e) => {
-              setColor(e.target.value);
-              setSaved(false);
-            }}
+            onChange={(e) => setColor(e.target.value)}
             placeholder="#C9A15A"
             className="flex-1 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
           />
@@ -143,13 +137,13 @@ export function OrganizationBrandingForm({
           <input
             type="email"
             value={publicContactEmail}
-            onChange={(e) => { setPublicContactEmail(e.target.value); setSaved(false); }}
+            onChange={(e) => setPublicContactEmail(e.target.value)}
             placeholder="contact@votre-organisme.fr"
             className="flex-1 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
           />
           <input
             value={publicContactPhone}
-            onChange={(e) => { setPublicContactPhone(e.target.value); setSaved(false); }}
+            onChange={(e) => setPublicContactPhone(e.target.value)}
             placeholder="01 23 45 67 89"
             className="w-40 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
           />
@@ -160,7 +154,6 @@ export function OrganizationBrandingForm({
         <Button type="button" size="sm" onClick={handleSaveColor} disabled={savingColor} className="self-start">
           {savingColor ? "…" : "Enregistrer"}
         </Button>
-        {saved && <span className="text-[12px] text-sage">Enregistrée.</span>}
         {error && <span className="text-[12px] text-rust">{error}</span>}
       </div>
     </div>
