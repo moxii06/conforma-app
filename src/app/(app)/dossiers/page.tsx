@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar } from "@/components/ui";
+import { PageHeader, Pill, Avatar, EmptyState, Button } from "@/components/ui";
 import Link from "next/link";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -171,9 +171,15 @@ export default async function DossiersPage(
             </details>
           ))}
           {learnerGroups.length === 0 && (
-            <div className="text-[12.5px] text-slate">
-              {q ? "Aucun apprenant ne correspond à cette recherche." : "Aucun dossier."}
-            </div>
+            q ? (
+              <div className="text-[12.5px] text-slate">Aucun apprenant ne correspond à cette recherche.</div>
+            ) : (
+              <EmptyState
+                title="Aucun dossier pour l'instant"
+                description="Un dossier apparaît automatiquement dès qu'un apprenant est inscrit à une session — retrouvez vos formations dans le catalogue pour inscrire le premier."
+                action={<Button href="/formations" size="sm">Aller au catalogue</Button>}
+              />
+            )
           )}
         </div>
         <Pagination basePath="/dossiers" searchParams={{ q, status: searchParams.status, page: searchParams.page }} page={page} totalPages={totalPages} />

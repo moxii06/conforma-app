@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, MetricCard } from "@/components/ui";
+import { PageHeader, Pill, MetricCard, EmptyState, FaqHelpLink } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { NewQuoteForm } from "@/components/NewQuoteForm";
 import { NewInvoiceForm } from "@/components/NewInvoiceForm";
-import { DocStatusSelect, statusLabels } from "@/components/DocStatusSelect";
+import { DocStatusSelect, statusLabels, DOC_STATUS_TONE } from "@/components/DocStatusSelect";
 import { DocFilterBar } from "@/components/DocFilterBar";
 import { RecordPaymentForm } from "@/components/RecordPaymentForm";
 import { CreatePaymentLinkButton } from "@/components/CreatePaymentLinkButton";
@@ -23,14 +23,6 @@ import { AWAITING_FUNDER, FUNDER_SILENCE_DAYS, AGREEMENT_EXPIRY_WARNING_DAYS } f
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-
-const STATUS_TONE: Record<DocStatus, "good" | "warn" | "danger" | "neutral"> = {
-  DRAFT: "neutral",
-  SENT: "warn",
-  SIGNED: "good",
-  PAID: "good",
-  OVERDUE: "danger",
-};
 
 function formatAmount(cents: number) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -152,7 +144,7 @@ export default async function FacturationPage(
 
   return (
     <>
-      <PageHeader title="Facturation" subtitle="Devis et factures de votre organisme" />
+      <PageHeader title="Facturation" subtitle="Devis et factures de votre organisme" action={<FaqHelpLink anchor="facturation" />} />
       <Tabs basePath="/facturation" tabs={tabs} active={activeTab} />
       <div className="p-8 flex flex-col gap-4">
         {(activeTab === "devis" || activeTab === "factures") && (
@@ -421,7 +413,7 @@ async function QuotesTab({
                 </div>
               </div>
               <div className="shrink-0">
-                {canWrite ? <DocStatusSelect kind="quotes" id={q.id} status={q.status} /> : <Pill tone={STATUS_TONE[q.status]}>{statusLabels("quotes")[q.status]}</Pill>}
+                {canWrite ? <DocStatusSelect kind="quotes" id={q.id} status={q.status} /> : <Pill tone={DOC_STATUS_TONE[q.status]}>{statusLabels("quotes")[q.status]}</Pill>}
               </div>
             </div>
             {canWrite && (
@@ -437,7 +429,16 @@ async function QuotesTab({
             )}
           </div>
         ))}
-        {quotes.length === 0 && <div className="text-[12.5px] text-slate">Aucun devis enregistré.</div>}
+        {quotes.length === 0 && (
+          <EmptyState
+            title="Aucun devis enregistré"
+            description={
+              canWrite
+                ? "Un devis envoyé ici met automatiquement à jour l'étape du prospect dans le CRM — créez le premier avec le formulaire ci-dessus."
+                : "Aucun devis n'a encore été créé."
+            }
+          />
+        )}
       </div>
     </div>
   );
@@ -520,7 +521,7 @@ async function InvoicesTab({
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
                   {isOverdue && inv.status !== "OVERDUE" && <Pill tone="danger">En retard</Pill>}
-                  {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={STATUS_TONE[inv.status]}>{statusLabels("invoices")[inv.status]}</Pill>}
+                  {canWrite ? <DocStatusSelect kind="invoices" id={inv.id} status={inv.status} /> : <Pill tone={DOC_STATUS_TONE[inv.status]}>{statusLabels("invoices")[inv.status]}</Pill>}
                 </div>
               </div>
               {canWrite && (
@@ -545,7 +546,16 @@ async function InvoicesTab({
             </div>
           );
         })}
-        {invoices.length === 0 && <div className="text-[12.5px] text-slate">Aucune facture enregistrée.</div>}
+        {invoices.length === 0 && (
+          <EmptyState
+            title="Aucune facture enregistrée"
+            description={
+              canWrite
+                ? "Une facture réglée se rapproche automatiquement de votre relevé bancaire si vous l'avez connecté — créez la première avec le formulaire ci-dessus."
+                : "Aucune facture n'a encore été créée."
+            }
+          />
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, MetricCard } from "@/components/ui";
+import { PageHeader, Pill, MetricCard, FaqHelpLink } from "@/components/ui";
 import { getAutomaticEvidence } from "@/lib/qualiopiEvidence";
 import { applicableIndicators, countApprenticeshipIndicators } from "@/lib/qualiopiScope";
 import { ApprenticeshipScopeControl } from "@/components/ApprenticeshipScopeControl";
@@ -71,7 +71,12 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
       <PageHeader
         title="Conformité Qualiopi"
         subtitle="Référentiel National Qualité — 7 critères, 32 indicateurs"
-        action={<LibraryPanel variant="button" label="Bibliothèque de documents" />}
+        action={
+          <div className="flex items-center gap-4">
+            <FaqHelpLink anchor="qualiopi" />
+            <LibraryPanel variant="button" label="Bibliothèque de documents" />
+          </div>
+        }
       />
       <Tabs basePath="/qualiopi" tabs={TABS} active={activeTab} />
       <div className="p-8">
@@ -521,7 +526,7 @@ async function ReformeTab({ organizationId }: { organizationId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="bg-[#F0E7D4] rounded-card px-4 py-3 text-[12.5px] text-seal-dark leading-relaxed">
+      <div className="bg-[#EDDFC6] rounded-card px-4 py-3 text-[12.5px] text-seal-dark leading-relaxed">
         <strong>Texte non publié au Journal officiel.</strong> Le référentiel applicable reste celui du décret
         n° 2019-565 du 6 juin 2019, avec ses 32 indicateurs. Ce qui suit reconstitue le projet de décret
         NOR TRSD2609875D à partir d&apos;analyses publiques concordantes, pour vous laisser prendre de

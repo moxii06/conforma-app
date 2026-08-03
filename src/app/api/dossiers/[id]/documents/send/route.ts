@@ -8,6 +8,7 @@ import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
 import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
+import { recordActivationEvent } from "@/lib/activation";
 
 // A payment schedule rides along when the document is a contract or a
 // convention (see PaymentScheduleBuilder). Stored on the Document row, NOT
@@ -124,6 +125,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       ...(paymentSchedule !== undefined ? { paymentSchedule } : {}),
     },
   });
+  await recordActivationEvent(auth.organizationId, "first_document_sent");
 
   // Real Yousign flow when the org has a key configured — falls back to the
   // internal stub (learner clicks "signer" in mon-espace) otherwise, same

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { FAQ_STARTER_STEPS } from "@/lib/faqContent";
+import { recordActivationEvent } from "@/lib/activation";
 
 // Le parcours de démarrage existait déjà, écrit et ordonné, dans la FAQ —
 // mais en texte statique : il fallait aller le chercher, et rien ne disait où
@@ -52,6 +53,14 @@ export async function getOnboardingSteps(organizationId: string): Promise<Onboar
     dossierCount > 0,
     mailboxCount > 0,
   ];
+
+  if (done.every(Boolean)) {
+    // Fire-and-forget : recordActivationEvent est un upsert idempotent
+    // (contrainte unique organizationId+type), donc l'appeler à chaque
+    // rendu du tableau de bord une fois l'onboarding fini ne crée jamais
+    // de doublon — pas besoin de détecter la transition précisément.
+    await recordActivationEvent(organizationId, "onboarding_completed");
+  }
 
   return FAQ_STARTER_STEPS.map((step, i) => ({
     title: step.title,

@@ -1,4 +1,4 @@
-import { PageHeader, MetricCard } from "@/components/ui";
+import { PageHeader, MetricCard, FaqHelpLink } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { computeBpfReport } from "@/lib/bpfReport";
@@ -20,7 +20,11 @@ export default async function BpfPage(props: { searchParams: Promise<{ year?: st
 
   return (
     <>
-      <PageHeader title="Bilan pédagogique et financier" subtitle={`Année ${report.year} — Cerfa n°10443`} />
+      <PageHeader
+        title="Bilan pédagogique et financier"
+        subtitle={`Année ${report.year} — Cerfa n°10443`}
+        action={<FaqHelpLink anchor="bpf" />}
+      />
       <div className="p-8 flex flex-col gap-5 max-w-3xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-[12.5px]">
@@ -43,7 +47,7 @@ export default async function BpfPage(props: { searchParams: Promise<{ year?: st
             hours silently under-declare the total. Better to name the gap
             than to let someone submit a number they believe is complete. */}
         {report.dossiersWithoutHours > 0 && (
-          <div className="bg-[#F7EDD6] border border-[#D9C79E] rounded-card px-4 py-3 text-[12.5px] text-ink">
+          <div className="bg-[#EDDFC6] border border-[#dccba8] rounded-card px-4 py-3 text-[12.5px] text-ink">
             <span className="font-semibold">
               {report.dossiersWithoutHours === 1
                 ? "1 inscription n'est pas comptée dans les heures"

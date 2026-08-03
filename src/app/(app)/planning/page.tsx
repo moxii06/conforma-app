@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, EmptyState } from "@/components/ui";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, parse, isValid } from "date-fns";
 import { fr } from "date-fns/locale";
 import { requireSessionContext, can } from "@/lib/tenant";
@@ -69,14 +69,22 @@ export default async function PlanningPage(props: { searchParams: Promise<{ tab?
         ) : activeTab === "archives" ? (
           <ArchivesTab organizationId={organizationId} ownerFilter={ownerFilter} canEdit={canCreate} />
         ) : (
-          <ListTab organizationId={organizationId} ownerFilter={ownerFilter} />
+          <ListTab organizationId={organizationId} ownerFilter={ownerFilter} canCreate={canCreate} />
         )}
       </div>
     </>
   );
 }
 
-async function ListTab({ organizationId, ownerFilter }: { organizationId: string; ownerFilter: { trainerId?: string } }) {
+async function ListTab({
+  organizationId,
+  ownerFilter,
+  canCreate,
+}: {
+  organizationId: string;
+  ownerFilter: { trainerId?: string };
+  canCreate: boolean;
+}) {
   // Une session en bande passante n'a pas de date de cohorte : elle n'a
   // donc rien à faire dans le calendrier, et le raisonnement d'origine
   // l'excluait de tout le Planning.
@@ -142,7 +150,16 @@ async function ListTab({ organizationId, ownerFilter }: { organizationId: string
           </Link>
         );
       })}
-      {sessions.length === 0 && <div className="text-[12.5px] text-slate">Aucune session à venir.</div>}
+      {sessions.length === 0 && (
+        <EmptyState
+          title="Aucune session à venir"
+          description={
+            canCreate
+              ? "Une session planifiée apparaît ici avec ses inscrits, son formateur et son statut — créez la première avec le formulaire ci-dessus."
+              : "Aucune session planifiée ne vous est actuellement assignée."
+          }
+        />
+      )}
 
       {rolling.length > 0 && (
         <div className="mt-4">

@@ -207,6 +207,7 @@ model Organization {
   qualityRisks                QualityRisk[]
   resultIndicators            ResultIndicator[]
   dashboardTaskDismissals     DashboardTaskDismissal[]
+  activationEvents            ActivationEvent[]
   orgChartSnapshots           OrgChartSnapshot[]
   satisfactionSurveys         SatisfactionSurvey[]
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
@@ -541,6 +542,28 @@ model DashboardTaskDismissal {
   @@index([organizationId])
 }
 
+// One row per organization per milestone, never repeated (the unique
+// constraint below, paired with skipDuplicates at the call site, IS the
+// "first" in "first course created" — no need to compute MIN(createdAt)
+// later). Answers "what % of trials reach activation" — audit S6 (M3)
+// found this unmeasured: track.ts only ever covered marketing conversion
+// (GA4, loaded on public pages), never in-app product usage. Deliberately
+// NOT routed through track.ts/gtag: GA4 is gated to anonymous marketing
+// pages by design (see CookieConsent.tsx), and sending per-org product
+// activity to a third-party ad platform from inside the authenticated app
+// would be an odd fit for a Qualiopi-compliance tool. This is a first-party,
+// internal log only — queried by hand (Prisma Studio) for now.
+model ActivationEvent {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  type           String
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, type])
+  @@index([organizationId])
+}
+
 // A dated, frozen copy of the org chart (who was on the team, in which
 // role, and which subcontractors were tracked, grouped exactly like the
 // live "Organigramme" tab) — client feedback: the live view always
@@ -609,8 +632,29 @@ model User {
   responsibleForCourses            Course[]                @relation("CourseResponsibles")
   subcontractorRecord              Subcontractor?
   documents                        Document[]              @relation("UserDocuments")
+  notificationDismissals           NotificationDismissal[]
 
   @@index([organizationId])
+}
+
+// La cloche de notifications (NotificationBell.tsx) recalcule sa liste "à
+// faire" en direct depuis dashboardTasks.ts à chaque chargement — il n'y a
+// donc rien à marquer "lu" sur la tâche elle-même, seulement "je l'ai déjà
+// vue" côté lecteur. Personnel (userId), pas par organisation comme
+// DashboardTaskDismissal : "j'ai déjà vu cette relance" est un état de
+// lecture propre à chacun, pas une décision d'équipe partagée — ce que
+// l'audit S6 (finding M5) demandait : partagé entre les appareils d'UNE
+// même personne, plutôt que prisonnier d'un seul navigateur.
+model NotificationDismissal {
+  id          String   @id @default(cuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  kind        String
+  entityId    String
+  dismissedAt DateTime @default(now())
+
+  @@unique([userId, kind, entityId])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

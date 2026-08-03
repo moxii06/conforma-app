@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HelpCircle } from "lucide-react";
 
 const METRIC_VALUE_TONES: Record<string, string> = {
   ink: "text-ink",
@@ -178,6 +179,37 @@ export function ContextBanner({
       <span>{children}</span>
       {action && <span className="shrink-0">{action}</span>}
     </div>
+  );
+}
+
+// État vide générique — bénéfice + action, plutôt qu'une ligne "Aucun X."
+// sans issue. Reprend le pattern déjà réussi de la boîte mail et du registre
+// RGPD (audit S6, finding M1) : le premier écran vide qu'un essai rencontre
+// est le moment où il a le plus besoin d'être guidé, pas juste informé.
+export function EmptyState({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
+  return (
+    <div className="bg-white border border-line rounded-card p-6 flex flex-col gap-3 max-w-xl">
+      <div>
+        <div className="text-[14px] font-semibold text-ink mb-1">{title}</div>
+        <div className="text-[12.5px] text-slate leading-relaxed">{description}</div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+// Lien discret vers la section FAQ correspondante — pour les écrans les plus
+// complexes (BPF, rapprochement bancaire, Qualiopi, automatisations),
+// l'audit S6 (finding M4) note que l'aide existe mais qu'un seul écran
+// (le tableau de bord) y renvoie. `anchor` doit correspondre à une `key`
+// de FAQ_CATEGORIES (src/lib/faqContent.tsx) : FaqBrowser scrolle jusqu'à
+// la section #anchor et l'ouvre.
+export function FaqHelpLink({ anchor, label = "Comment ça marche ?" }: { anchor: string; label?: string }) {
+  return (
+    <Link href={`/faq#${anchor}`} className="inline-flex items-center gap-1 text-[12px] text-slate hover:text-ink shrink-0">
+      <HelpCircle size={13} />
+      {label}
+    </Link>
   );
 }
 

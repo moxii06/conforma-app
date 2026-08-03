@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { recordActivationEvent } from "@/lib/activation";
 import {
   resolveContact,
   resolveEnrollmentSession,
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
     },
     include: { responsibleUsers: true, subcontractors: true },
   });
+  await recordActivationEvent(session.organizationId, "first_course_created");
 
   if (parsed.data.outline?.length) {
     let order = 0;

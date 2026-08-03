@@ -6,6 +6,7 @@ import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
 import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
+import { recordActivationEvent } from "@/lib/activation";
 
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/send — see
 // that route's comment for the real-attachment + rich-message rationale.
@@ -87,6 +88,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       opportunityId: opportunity.id,
     },
   });
+  await recordActivationEvent(session.organizationId, "first_document_sent");
 
   let sentViaYousign = false;
   if (requiresSignature && (await isYousignConfigured(session.organizationId))) {

@@ -4,6 +4,7 @@ import { addDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { checkLines } from "@/lib/invoiceLines";
+import { recordActivationEvent } from "@/lib/activation";
 
 const DEFAULT_PAYMENT_TERM_DAYS = 30;
 
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
     },
     include: { contact: true },
   });
+  await recordActivationEvent(session.organizationId, "first_invoice_created");
 
   return NextResponse.json(invoice, { status: 201 });
 }

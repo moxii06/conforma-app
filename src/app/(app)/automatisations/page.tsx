@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, FaqHelpLink } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
@@ -56,7 +56,11 @@ export default async function AutomationsPage() {
 
   return (
     <>
-      <PageHeader title="Automatisations" subtitle="Ce qui se déclenche automatiquement pour vos apprenants, sans action manuelle" />
+      <PageHeader
+        title="Automatisations"
+        subtitle="Ce qui se déclenche automatiquement pour vos apprenants, sans action manuelle"
+        action={<FaqHelpLink anchor="automatisations" />}
+      />
       <div className="p-8 max-w-4xl flex flex-col gap-6">
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-white border border-line rounded-card p-4">

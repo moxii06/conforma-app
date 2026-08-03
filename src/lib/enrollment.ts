@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { LEARNER_CATEGORY_VALUES } from "@/lib/bpfCategories";
+import { recordActivationEvent } from "@/lib/activation";
 
 export class EnrollmentError extends Error {
   status: number;
@@ -195,7 +196,7 @@ export async function createDossier(
     where: { organizationId, contactId, status: "completed" },
   });
 
-  return prisma.dossier.create({
+  const dossier = await prisma.dossier.create({
     data: {
       organizationId,
       contactId,
@@ -207,4 +208,6 @@ export async function createDossier(
     },
     include: { contact: true },
   });
+  await recordActivationEvent(organizationId, "first_dossier_created");
+  return dossier;
 }

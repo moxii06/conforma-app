@@ -245,7 +245,15 @@ export function OpportunityTable({
           ))}
         </tbody>
       </table>
-      {opportunities.length === 0 && <div className="text-[12.5px] text-slate px-4 py-4">Aucun prospect.</div>}
+      {opportunities.length === 0 && (
+        <div className="px-4 py-8 text-center">
+          <div className="text-[13px] font-medium text-ink mb-1">Aucun prospect pour l&apos;instant</div>
+          <div className="text-[12px] text-slate leading-relaxed max-w-sm mx-auto">
+            Chaque prospect suit ici son parcours du premier contact au paiement — créez-en un avec le bouton
+            ci-dessus, ou importez vos contacts existants.
+          </div>
+        </div>
+      )}
     </div>
   );
 }

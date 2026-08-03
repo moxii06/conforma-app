@@ -13,6 +13,7 @@ import { fr } from "date-fns/locale";
 import { buildCourseProgress } from "@/lib/lms";
 import { CourseCertificateButton } from "@/components/CourseCertificateButton";
 import { ImportDataDialog } from "@/components/ImportDataDialog";
+import { FirstVisitBanner } from "@/components/FirstVisitBanner";
 
 const TABS = [
   { key: "catalogue", label: "Catalogue" },
@@ -134,6 +135,10 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
       <div className="p-8 flex flex-col gap-4 max-w-2xl">
         {activeTab === "catalogue" ? (
           <>
+            <FirstVisitBanner id="formations">
+              Une formation regroupe son contenu (modules e-learning) et ses sessions (dates, apprenants inscrits) —
+              ouvrez-en une pour gérer les deux.
+            </FirstVisitBanner>
             <div className="flex gap-3.5">
               <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} />
               <MetricCard label="Apprenants actifs" value={String(activeLearnerCount.length)} />

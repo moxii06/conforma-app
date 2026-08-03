@@ -9,6 +9,7 @@ import { OpportunityFilterBar } from "@/components/OpportunityFilterBar";
 import { ImportDataDialog } from "@/components/ImportDataDialog";
 import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 import { OpportunityTable } from "@/components/OpportunityTable";
+import { FirstVisitBanner } from "@/components/FirstVisitBanner";
 import { isYousignConfigured } from "@/lib/yousign";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
@@ -164,6 +165,12 @@ export default async function CrmPage(
         </Link>
       </div>
       <div className="p-8 flex flex-col gap-4">
+        {view !== "archives" && (
+          <FirstVisitBanner id="crm">
+            Chaque prospect avance ici du premier contact jusqu&apos;au paiement — changez son étape à mesure qu&apos;il
+            progresse. Tout l&apos;historique (emails, documents envoyés) reste sur sa fiche.
+          </FirstVisitBanner>
+        )}
         {view === "table" && (
           <div className="flex gap-3.5">
             <MetricCard label="Prospects actifs" value={String(activeCount)} />

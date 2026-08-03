@@ -5,6 +5,7 @@ import { getSessionContext, can } from "@/lib/tenant";
 import { addDays } from "date-fns";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
 import { nextInvoiceReference } from "@/lib/invoiceReference";
+import { recordActivationEvent } from "@/lib/activation";
 
 // Two invoices can come out of a funding plan, and this route generates
 // both kinds:
@@ -86,6 +87,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       where: { id: commitment.id },
       data: { invoiceId: invoice.id, status: "invoiced" },
     });
+    await recordActivationEvent(session.organizationId, "first_invoice_created");
     return NextResponse.json(invoice, { status: 201 });
   }
 
@@ -123,5 +125,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       fundingOrigin: null,
     },
   });
+  await recordActivationEvent(session.organizationId, "first_invoice_created");
   return NextResponse.json(invoice, { status: 201 });
 }
