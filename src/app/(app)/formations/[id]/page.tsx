@@ -679,7 +679,7 @@ function ContenuTab({
                   {canManage && (
                     <div className="flex items-center justify-between gap-3.5 border-t border-line pt-3.5">
                       <AssignLearnersPanel moduleId={m.id} eligibleDossiers={eligible} />
-                      <DeleteModuleButton moduleId={m.id} />
+                      <DeleteModuleButton moduleId={m.id} moduleTitle={m.title} />
                     </div>
                   )}
                 </div>

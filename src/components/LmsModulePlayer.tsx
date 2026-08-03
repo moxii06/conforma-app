@@ -255,16 +255,12 @@ export function LmsModulePlayer({ dossierId, moduleId, type, hasFile, percentCom
                 formation.
               </div>
               <div className="flex items-center gap-2.5">
-                <button
-                  onClick={handleSkip}
-                  disabled={skipping}
-                  className="bg-rust text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-60"
-                >
+                <Button variant="destructive" onClick={handleSkip} disabled={skipping}>
                   {skipping ? "…" : "Passer quand même"}
-                </button>
-                <button onClick={() => setConfirmSkipOpen(false)} className="text-[12px] text-slate hover:text-ink">
+                </Button>
+                <Button variant="tertiary" onClick={() => setConfirmSkipOpen(false)}>
                   Annuler
-                </button>
+                </Button>
               </div>
             </div>
           ) : (

@@ -2,39 +2,34 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
-export function DeleteModuleButton({ moduleId }: { moduleId: string }) {
+export function DeleteModuleButton({ moduleId, moduleTitle }: { moduleId: string; moduleTitle: string }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  async function handleClick() {
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
+  async function handleDelete() {
     setLoading(true);
     await fetch(`/api/lms/modules/${moduleId}`, { method: "DELETE" });
     setLoading(false);
+    setOpen(false);
     router.refresh();
   }
 
-  if (confirming) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <button onClick={handleClick} disabled={loading} className="text-[11px] font-medium text-rust hover:underline disabled:opacity-60">
-          {loading ? "…" : "Confirmer la suppression"}
-        </button>
-        <button onClick={() => setConfirming(false)} className="text-[11px] text-slate hover:underline">
-          Annuler
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <button onClick={handleClick} className="text-[11px] text-slate hover:text-rust hover:underline">
-      Supprimer le module
-    </button>
+    <>
+      <button onClick={() => setOpen(true)} className="text-[11px] text-slate hover:text-rust hover:underline">
+        Supprimer le module
+      </button>
+      <ConfirmDialog
+        open={open}
+        title={`Supprimer le module « ${moduleTitle} » ?`}
+        description="Le contenu du module et la progression des apprenants dessus seront définitivement supprimés."
+        loading={loading}
+        onConfirm={handleDelete}
+        onCancel={() => setOpen(false)}
+      />
+    </>
   );
 }

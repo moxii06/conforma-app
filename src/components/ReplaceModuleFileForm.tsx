@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 export function ReplaceModuleFileForm({ moduleId, type }: { moduleId: string; type: string }) {
   const router = useRouter();
@@ -48,16 +49,12 @@ export function ReplaceModuleFileForm({ moduleId, type }: { moduleId: string; ty
       <div className="flex flex-col gap-2 bg-linen border border-line rounded-md p-3">
         <div className="text-[12px] text-rust">{confirmMessage}</div>
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => submit(true)}
-            disabled={loading}
-            className="bg-rust text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:opacity-90 disabled:opacity-60"
-          >
+          <Button variant="destructive" size="sm" onClick={() => submit(true)} disabled={loading}>
             {loading ? "…" : "Remplacer quand même"}
-          </button>
-          <button onClick={() => { setConfirmMessage(null); setOpen(false); setFile(null); }} className="text-[12px] text-slate hover:text-ink">
+          </Button>
+          <Button variant="tertiary" size="sm" onClick={() => { setConfirmMessage(null); setOpen(false); setFile(null); }}>
             Annuler
-          </button>
+          </Button>
         </div>
       </div>
     );

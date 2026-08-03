@@ -806,7 +806,12 @@ async function AuditsTab({ organizationId, canEdit }: { organizationId: string; 
                   </Pill>
                 )}
               </div>
-              {canEdit && <QualiopiAuditDeleteButton auditId={audit.id} />}
+              {canEdit && (
+                <QualiopiAuditDeleteButton
+                  auditId={audit.id}
+                  auditLabel={`${(AUDIT_TYPE_LABELS[audit.type] ?? audit.type).toLowerCase()} du ${format(audit.auditDate, "d MMMM yyyy", { locale: fr })}`}
+                />
+              )}
             </div>
 
             <div className="text-[11.5px] text-slate">

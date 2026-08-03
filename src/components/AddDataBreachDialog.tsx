@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui";
 
 // GDPR art. 33/34 register — the RGPD module tracked planned risk
 // (registre, DPIA) but had nowhere to log an actual incident. Modal, same
@@ -59,9 +60,9 @@ export function AddDataBreachDialog() {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="bg-rust text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:opacity-90">
+      <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
         + Signaler un incident
-      </button>
+      </Button>
     );
   }
 
@@ -76,6 +77,7 @@ export function AddDataBreachDialog() {
               setOpen(false);
               reset();
             }}
+            aria-label="Fermer sans enregistrer"
             className="text-slate hover:text-ink"
           >
             <X size={16} />
