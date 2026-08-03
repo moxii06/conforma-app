@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 export function TemplateEditor({ templateId, title, bodyText }: { templateId: string; title: string; bodyText: string }) {
   const router = useRouter();
@@ -38,13 +39,9 @@ export function TemplateEditor({ templateId, title, bodyText }: { templateId: st
         className="border border-line rounded-md px-3 py-2 text-[12.5px] text-ink outline-none focus:border-seal font-mono leading-relaxed"
       />
       <div className="flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-        >
+        <Button size="sm" onClick={handleSave} disabled={saving}>
           {saving ? "…" : "Enregistrer"}
-        </button>
+        </Button>
         <button onClick={handleDelete} disabled={deleting} className="text-[12px] text-rust hover:underline disabled:opacity-60">
           {deleting ? "…" : "Supprimer"}
         </button>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 /**
  * Deux formes selon l'état de la réponse.
@@ -46,20 +47,12 @@ export function ApprenticeshipScopeControl({
           puissiez rien y faire.
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => save(false)}
-            disabled={saving}
-            className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-          >
+          <Button size="sm" onClick={() => save(false)} disabled={saving}>
             Non, jamais
-          </button>
-          <button
-            onClick={() => save(true)}
-            disabled={saving}
-            className="bg-white border border-line text-ink text-[12px] font-medium rounded-md px-3 py-1.5 hover:border-ink-soft disabled:opacity-60"
-          >
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => save(true)} disabled={saving}>
             Oui
-          </button>
+          </Button>
         </div>
       </div>
     );

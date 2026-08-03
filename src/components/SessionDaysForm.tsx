@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Lock } from "lucide-react";
+import { Button } from "@/components/ui";
 
 type Day = { date: string; morningHours: number | null; afternoonHours: number | null; locked: boolean };
 
@@ -153,14 +154,9 @@ export function SessionDaysForm({
           <div className="flex-1" />
           {saved && <span className="text-[11.5px] text-sage">Enregistré</span>}
           {error && <span className="text-[11.5px] text-rust">{error}</span>}
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-          >
+          <Button type="button" size="sm" onClick={save} disabled={saving}>
             {saving ? "…" : "Enregistrer les journées"}
-          </button>
+          </Button>
         </div>
       )}
     </div>

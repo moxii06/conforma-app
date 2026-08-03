@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ShieldCheck, ArrowLeft, ArrowRight, Milestone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { Button } from "@/components/ui";
 
 const CATEGORY_LABELS: Record<string, string> = {
   qualiopi: "Qualiopi",
@@ -67,9 +68,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
             </div>
             <span className="font-display text-lg text-ink tracking-wide">Jalon</span>
           </Link>
-          <Link href="/login" className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft">
-            Se connecter
-          </Link>
+          <Button href="/login">Se connecter</Button>
         </div>
       </header>
 
@@ -98,13 +97,10 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
           <p className="text-[13px] text-white/70 max-w-md mx-auto mb-4">
             Faites le point en 3 minutes avec notre diagnostic gratuit : score par critère et points à renforcer.
           </p>
-          <Link
-            href="/diagnostic-qualiopi"
-            className="inline-flex items-center gap-1.5 bg-seal text-ink text-[13.5px] font-medium rounded-md px-5 py-2.5 hover:bg-[#A9884A]"
-          >
+          <Button href="/diagnostic-qualiopi" variant="accent" size="touch">
             Lancer mon diagnostic Qualiopi
             <ArrowRight size={15} />
-          </Link>
+          </Button>
         </div>
       </article>
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Role } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/tenant";
+import { Button } from "@/components/ui";
 
 const INVITABLE_ROLES = Object.values(Role).filter((r) => r !== Role.ADMIN_OF);
 
@@ -79,13 +80,9 @@ export function InviteMemberForm() {
           ))}
         </select>
       </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-      >
+      <Button type="submit" disabled={loading} size="sm">
         {loading ? "Envoi…" : "Inviter"}
-      </button>
+      </Button>
       {error && <div className="text-[12px] text-rust w-full">{error}</div>}
       {activationUrl && (
         <div className="text-[12px] text-sage w-full">

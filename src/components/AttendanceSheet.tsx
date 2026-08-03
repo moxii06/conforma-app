@@ -6,6 +6,7 @@ import { Check, X, PenLine } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { SignaturePad } from "@/components/SignaturePad";
+import { Button } from "@/components/ui";
 
 type HalfDay = "MORNING" | "AFTERNOON";
 type Entry = {
@@ -250,28 +251,28 @@ function SignaturePadWrapper({ onSubmit }: { onSubmit: (dataUrl: string | null) 
     <>
       <SignaturePad onChange={setDataUrl} disabled={saving} />
       <div className="flex items-center gap-2.5 flex-wrap">
-        <button
+        <Button
           type="button"
           disabled={!dataUrl || saving}
           onClick={() => {
             setSaving(true);
             onSubmit(dataUrl);
           }}
-          className="bg-ink text-white text-[13px] font-medium rounded-md px-4 min-h-11 hover:bg-ink-soft disabled:opacity-60"
         >
           {saving ? "Enregistrement…" : "Valider la signature"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="tertiary"
+          size="sm"
           disabled={saving}
           onClick={() => {
             setSaving(true);
             onSubmit(null);
           }}
-          className="text-[12px] text-slate hover:text-ink underline decoration-line disabled:opacity-60"
         >
           Noter présent sans signature
-        </button>
+        </Button>
       </div>
       <p className="text-[11px] text-slate">
         La signature de l&apos;apprenant est la preuve attendue en audit. « Noter présent » reste possible (feuille

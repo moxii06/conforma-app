@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronUp, ChevronDown } from "lucide-react";
 import { QUESTIONS, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { Button } from "@/components/ui";
 
 export type BlockCondition = { questionKey: QuestionKey; in: string[] };
 export type BlockRow = { bodyText: string; conditions: BlockCondition[] | null };
@@ -239,14 +240,9 @@ export function TemplateBlocksEditor({
           <button type="button" onClick={addBlock} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
             + Ajouter un paragraphe
           </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-          >
+          <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "…" : "Enregistrer"}
-          </button>
+          </Button>
           {saved && <span className="text-[12px] text-sage">Enregistré.</span>}
         </div>
       )}

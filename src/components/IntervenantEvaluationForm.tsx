@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 const LABEL = "text-[10.5px] font-semibold text-slate uppercase tracking-wide";
 const FIELD = "bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal";
@@ -76,12 +77,12 @@ export function IntervenantEvaluationForm({ userId, subcontractorId }: { userId?
         <input value={comment} onChange={(e) => setComment(e.target.value)} className={FIELD} />
       </div>
       <div className="flex items-center gap-2.5">
-        <button type="submit" disabled={loading} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button type="submit" size="sm" disabled={loading}>
           {loading ? "…" : "Enregistrer l'évaluation"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </form>

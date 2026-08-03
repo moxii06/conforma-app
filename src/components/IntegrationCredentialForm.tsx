@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 export function IntegrationCredentialForm({
   provider,
@@ -58,9 +59,9 @@ export function IntegrationCredentialForm({
           onChange={(e) => setApiKey(e.target.value)}
           className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
         />
-        <button onClick={handleSave} disabled={saving} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 shrink-0">
+        <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
           {saving ? "…" : "Enregistrer"}
-        </button>
+        </Button>
         {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
       </div>
     );
@@ -86,9 +87,9 @@ export function IntegrationCredentialForm({
             onChange={(e) => setClientSecret(e.target.value)}
             className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
           />
-          <button onClick={handleSave} disabled={saving} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 shrink-0">
+          <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
             {saving ? "…" : "Enregistrer"}
-          </button>
+          </Button>
           {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
         </div>
       </div>
@@ -110,9 +111,9 @@ export function IntegrationCredentialForm({
         onChange={(e) => setClientSecret(e.target.value)}
         className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1"
       />
-      <button onClick={handleSave} disabled={saving} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 shrink-0">
+      <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
         {saving ? "…" : "Enregistrer"}
-      </button>
+      </Button>
       {saved && <span className="text-[12px] text-sage shrink-0">Enregistré</span>}
     </div>
   );

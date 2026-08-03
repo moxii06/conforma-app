@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { SessionFormat } from "@prisma/client";
 import { format as formatDate } from "date-fns";
 import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui";
 
 type Trainer = { id: string; name: string };
 
@@ -127,12 +128,12 @@ export function EditSessionForm({
         <input required type="number" min={1} placeholder="Places" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-24" />
       </div>
       <div className="flex items-center gap-2.5">
-        <button type="submit" disabled={loading} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button type="submit" size="sm" disabled={loading}>
           {loading ? "…" : "Enregistrer"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </form>

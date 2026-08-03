@@ -277,14 +277,14 @@ export default function MarketingPage() {
                   </li>
                 ))}
               </ul>
-              <Link
+              <Button
                 href={`/essai?plan=${plan.slug}`}
-                className={`text-center text-[13.5px] font-medium rounded-md px-4 py-2.5 ${
-                  plan.featured ? "bg-seal text-mist hover:bg-[#7E6029]" : "bg-ink text-white hover:bg-ink-soft"
-                }`}
+                variant={plan.featured ? "accent" : "primary"}
+                size="touch"
+                className="w-full"
               >
                 Commencer l&apos;essai
-              </Link>
+              </Button>
             </div>
           ))}
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Search, UserPlus } from "lucide-react";
 import { LearnerCategoryFields, EMPTY_COMPANY_FIELDS, toCompanyInput, type CompanyFieldsState } from "@/components/LearnerCategoryFields";
+import { Button } from "@/components/ui";
 
 type CategoryPayload = { learnerCategory?: string; company?: ReturnType<typeof toCompanyInput> };
 
@@ -170,13 +171,9 @@ export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, lab
               className="flex-1 bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
             />
           </div>
-          <button
-            type="button"
-            onClick={submitNew}
-            className="self-start inline-flex items-center gap-1.5 bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft"
-          >
+          <Button type="button" size="sm" onClick={submitNew} className="self-start">
             <UserPlus size={13} /> Ajouter cet apprenant
-          </button>
+          </Button>
         </div>
       )}
     </div>

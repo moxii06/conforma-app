@@ -6,6 +6,7 @@ import Link from "next/link";
 import { scopeLabel, scopeHint, type DocumentScope } from "@/lib/documentScope";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { ensureHtml } from "@/lib/plainTextToHtml";
+import { Button } from "@/components/ui";
 
 // L'écran de création : le document à gauche, les réglages à droite.
 //
@@ -440,22 +441,19 @@ export function DocumentComposer({
           <div className="flex-1" />
           {erreur && <div className="text-[12px] text-rust">{erreur}</div>}
           {enregistrement === "saved" && <div className="text-[12px] text-sage">Brouillon enregistré</div>}
-          <button
-            type="button"
+          <Button
             onClick={() => enregistrer(false)}
             disabled={enregistrement === "saving" || finalisé}
-            className={`${btn} bg-white text-ink border border-line hover:bg-pebble`}
+            variant="secondary"
           >
             {enregistrement === "saving" ? "…" : "Enregistrer le brouillon"}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
             onClick={() => enregistrer(true)}
             disabled={enregistrement === "saving" || finalisé || !texte}
-            className={`${btn} bg-ink text-white hover:bg-ink-soft min-h-[44px] px-5`}
           >
             Finaliser le document
-          </button>
+          </Button>
         </div>
       </div>
     </>

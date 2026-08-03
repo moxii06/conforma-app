@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 // Client feedback: validating a session (DRAFT -> VALIDATED) was one-way —
 // once validated there was no way back short of editing the database. The
@@ -40,13 +41,9 @@ export function ValidateSessionButton({ sessionId, isValidated }: { sessionId: s
           {loading ? "…" : "Repasser en brouillon"}
         </button>
       ) : (
-        <button
-          onClick={() => setStatus("VALIDATED")}
-          disabled={loading}
-          className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
-        >
+        <Button size="sm" onClick={() => setStatus("VALIDATED")} disabled={loading} className="self-start">
           {loading ? "…" : "Valider la session"}
-        </button>
+        </Button>
       )}
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </div>

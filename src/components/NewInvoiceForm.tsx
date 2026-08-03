@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { FUNDING_ORIGIN_LABELS } from "@/lib/bpfCategories";
+import { Button } from "@/components/ui";
 
 type Contact = { id: string; firstName: string; lastName: string };
 type Dossier = { id: string; label: string };
@@ -71,9 +72,9 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft self-start">
+      <Button size="sm" onClick={() => setOpen(true)} className="self-start">
         + Nouvelle facture
-      </button>
+      </Button>
     );
   }
 
@@ -139,12 +140,12 @@ export function NewInvoiceForm({ contacts, dossiers }: { contacts: Contact[]; do
         amountCents={Math.round(parseFloat(amount || "0") * 100)}
       />
       <div className="flex items-center gap-2.5">
-        <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button type="submit" size="sm" disabled={loading}>
           {loading ? "…" : "Créer"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-[12.5px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </form>

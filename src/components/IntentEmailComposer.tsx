@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { Button } from "@/components/ui";
 
 type Intent = "follow_up" | "payment_reminder" | "quote_follow_up" | "custom";
 
@@ -102,9 +103,9 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft self-start">
+      <Button size="sm" onClick={() => setOpen(true)} className="self-start">
         Envoyer un email
-      </button>
+      </Button>
     );
   }
 
@@ -171,12 +172,12 @@ export function IntentEmailComposer({ contactId, hasUnpaidInvoice, hasQuote }: {
       {notice && <div className="text-[11.5px] text-slate">{notice}</div>}
       <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
-        <button onClick={handleSend} disabled={sending || !subject.trim() || !body.trim()} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button size="sm" onClick={handleSend} disabled={sending || !subject.trim() || !body.trim()}>
           {sending ? "…" : "Envoyer"}
-        </button>
-        <button onClick={() => { setOpen(false); setSubject(""); setBody(""); setError(null); setNotice(null); }} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button variant="tertiary" size="sm" onClick={() => { setOpen(false); setSubject(""); setBody(""); setError(null); setNotice(null); }}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </div>

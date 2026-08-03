@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, X } from "lucide-react";
 import { importFieldsFor, type ImportMapping } from "@/lib/dataImport";
+import { Button } from "@/components/ui";
 
 type Analysis = { headers: string[]; sampleRows: string[][]; totalRows: number; mapping: ImportMapping };
 type Report = { totalRows: number; creditRowsFound: number; imported: number; alreadyKnown: number; errors: { line: number; message: string }[] };
@@ -77,14 +78,10 @@ export function BankStatementImportDialog() {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink border border-line rounded-md px-3 py-1.5 hover:border-ink-soft"
-      >
+      <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)}>
         <Upload size={13} />
         Importer un relevé
-      </button>
+      </Button>
     );
   }
 
@@ -126,16 +123,16 @@ export function BankStatementImportDialog() {
                 </ul>
               </div>
             )}
-            <button
+            <Button
               type="button"
+              className="self-start mt-1"
               onClick={() => {
                 setOpen(false);
                 reset();
               }}
-              className="self-start bg-ink text-white text-[12.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft mt-1"
             >
               Fermer
-            </button>
+            </Button>
           </div>
         ) : !analysis ? (
           <div className="flex flex-col gap-3">
@@ -188,17 +185,12 @@ export function BankStatementImportDialog() {
             </div>
             {error && <div className="text-[12.5px] text-rust">{error}</div>}
             <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={runImport}
-                disabled={importing || missingRequired}
-                className="bg-ink text-white text-[12.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft disabled:opacity-50"
-              >
+              <Button type="button" onClick={runImport} disabled={importing || missingRequired}>
                 {importing ? "Import en cours…" : "Importer"}
-              </button>
-              <button type="button" onClick={() => reset()} disabled={importing} className="text-[12.5px] text-slate hover:text-ink">
+              </Button>
+              <Button type="button" variant="tertiary" onClick={() => reset()} disabled={importing}>
                 Changer de fichier
-              </button>
+              </Button>
             </div>
           </div>
         )}

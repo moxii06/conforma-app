@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 type Option = { id: string; text: string; correct: boolean };
 type Question = { id: string; type: string; prompt: string; options: unknown; correctAnswerText: string | null };
@@ -216,10 +217,10 @@ export function QuizBuilder({
           )}
 
           <div className="flex items-center gap-2.5">
-            <button type="submit" disabled={loading} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+            <Button type="submit" size="sm" disabled={loading}>
               {loading ? "…" : "Ajouter"}
-            </button>
-            <button type="button" onClick={() => setAddOpen(false)} className="text-[12px] text-slate hover:text-ink">Annuler</button>
+            </Button>
+            <Button type="button" variant="tertiary" size="sm" onClick={() => setAddOpen(false)}>Annuler</Button>
           </div>
           {error && <div className="text-[11.5px] text-rust">{error}</div>}
         </form>

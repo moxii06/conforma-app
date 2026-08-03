@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { ArrowRight, ShieldCheck, Check } from "lucide-react";
 import { trackEvent } from "@/lib/track";
+import { Button } from "@/components/ui";
 
 // ---------------------------------------------------------------------------
 // Auto-diagnostic « préparation Qualiopi » — aimant à prospects (lead magnet).
@@ -158,9 +158,9 @@ export function DiagnosticQualiopi() {
             Jalon centralise vos preuves Qualiopi au fil de votre activité : chaque session, dossier et évaluation
             se rattache au bon critère. Vous préparez votre audit en continu, pas dans l'urgence.
           </p>
-          <Link href="/essai?plan=team" className="inline-flex items-center gap-1.5 bg-seal text-ink text-[14px] font-medium rounded-md px-5 py-2.5 hover:bg-[#A9884A]">
+          <Button href="/essai?plan=team" variant="accent" size="touch">
             Essayer Jalon gratuitement <ArrowRight size={15} />
-          </Link>
+          </Button>
           <div className="text-[11.5px] text-white/50 mt-3">14 jours d'essai, sans carte bancaire.</div>
         </div>
 
@@ -196,9 +196,9 @@ export function DiagnosticQualiopi() {
             className="w-full border border-line rounded-md px-3 py-2.5 text-sm text-ink outline-none focus:border-seal"
           />
           {error && <div className="text-[12.5px] text-rust">{error}</div>}
-          <button type="submit" disabled={loading} className="bg-ink text-white text-[13.5px] font-medium rounded-md py-2.5 hover:bg-ink-soft disabled:opacity-60">
+          <Button type="submit" disabled={loading}>
             {loading ? "…" : "Afficher mon bilan détaillé"}
-          </button>
+          </Button>
           <div className="text-[11px] text-slate text-center">Pas de spam. Vous pouvez vous désinscrire à tout moment.</div>
         </form>
       </div>
@@ -245,14 +245,9 @@ export function DiagnosticQualiopi() {
         </div>
       ))}
 
-      <button
-        type="button"
-        disabled={!allAnswered}
-        onClick={() => setStep("gate")}
-        className="bg-ink text-white text-[14px] font-medium rounded-md py-3 hover:bg-ink-soft disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5"
-      >
+      <Button type="button" disabled={!allAnswered} onClick={() => setStep("gate")} size="touch">
         {allAnswered ? <>Voir mon score <ArrowRight size={15} /></> : `Répondez aux ${QUESTIONS.length - answeredCount} questions restantes`}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -52,6 +52,10 @@ const BUTTON_VARIANTS: Record<string, string> = {
   secondary: "bg-white border border-line text-ink hover:bg-linen",
   tertiary: "text-slate hover:text-ink hover:underline",
   destructive: "bg-rust text-white hover:opacity-90",
+  // Laiton de marque, pour le CTA qu'on veut détacher d'un fond ink : offre
+  // mise en avant, CTA de fin d'article, invitation au diagnostic. Distinct
+  // de primary parce qu'il sert justement là où primary se fondrait.
+  accent: "bg-seal text-mist hover:bg-[#7E6029]",
 };
 
 const BUTTON_SIZES: Record<string, string> = {

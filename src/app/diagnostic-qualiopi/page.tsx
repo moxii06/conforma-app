@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ShieldCheck, Milestone } from "lucide-react";
 import { DiagnosticQualiopi } from "@/components/DiagnosticQualiopi";
+import { Button } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Diagnostic Qualiopi gratuit — êtes-vous prêt pour votre audit ? | Jalon",
@@ -21,12 +22,10 @@ export default function DiagnosticQualiopiPage() {
             <span className="font-display text-lg text-ink tracking-wide">Jalon</span>
           </Link>
           <div className="flex items-center gap-2.5">
-            <Link href="/essai" className="text-ink text-[13.5px] font-medium rounded-md px-4 py-2 border border-line hover:border-ink-soft">
+            <Button variant="secondary" href="/essai">
               Essai gratuit
-            </Link>
-            <Link href="/login" className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft">
-              Se connecter
-            </Link>
+            </Button>
+            <Button href="/login">Se connecter</Button>
           </div>
         </div>
       </header>

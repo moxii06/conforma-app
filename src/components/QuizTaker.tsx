@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 type Option = { id: string; text: string };
 type Question = { id: string; type: string; prompt: string; options: Option[] | null };
@@ -138,13 +139,13 @@ export function QuizTaker({
         </div>
       ))}
       <div className="flex items-center gap-2.5">
-        <button
+        <Button
           type="submit"
+          size="sm"
           disabled={loading || Object.keys(answers).length < questions.length}
-          className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
         >
           {loading ? "…" : "Valider mes réponses"}
-        </button>
+        </Button>
         {attemptsLeft != null && <span className="text-[11px] text-slate">{attemptsLeft} tentative(s) restante(s)</span>}
       </div>
       {error && <div className="text-[11.5px] text-rust">{error}</div>}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { Button } from "@/components/ui";
 
 export function EmailReplyComposer({ messageId }: { messageId: string }) {
   const router = useRouter();
@@ -107,15 +108,15 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
       {aiNotice && <div className="text-[11.5px] text-slate">{aiNotice}</div>}
       <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
-        <button onClick={handleSend} disabled={loading || !text.trim()} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button size="sm" onClick={handleSend} disabled={loading || !text.trim()}>
           {loading ? "…" : "Envoyer"}
-        </button>
-        <button onClick={handleAiAssist} disabled={aiLoading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+        </Button>
+        <Button variant="tertiary" size="sm" onClick={handleAiAssist} disabled={aiLoading}>
           {aiLoading ? "…" : "Assister avec l'IA"}
-        </button>
-        <button onClick={() => { setOpen(false); setText(""); setError(null); setAiNotice(null); }} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button variant="tertiary" size="sm" onClick={() => { setOpen(false); setText(""); setError(null); setAiNotice(null); }}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MERGE_TAGS, CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { Button } from "@/components/ui";
 
 // A brand-new outgoing email to this contact — distinct from
 // EmailReplyComposer, which only replies to an existing "in" message.
@@ -77,13 +78,9 @@ export function NewEmailComposer({ contactId, dossierId }: { contactId: string; 
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft self-start mb-3"
-      >
+      <Button size="sm" onClick={() => setOpen(true)} className="self-start mb-3">
         + Nouveau message
-      </button>
+      </Button>
     );
   }
 
@@ -131,24 +128,25 @@ export function NewEmailComposer({ contactId, dossierId }: { contactId: string; 
       />
       <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
-        <button
+        <Button
           type="button"
+          size="sm"
           onClick={handleSend}
           disabled={sending || !subject.trim() || !body.trim()}
-          className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
         >
           {sending ? "…" : "Envoyer"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="tertiary"
+          size="sm"
           onClick={() => {
             setOpen(false);
             reset();
           }}
-          className="text-[12px] text-slate hover:text-ink"
         >
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </div>

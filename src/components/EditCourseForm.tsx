@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 type Member = { id: string; name: string };
 
@@ -234,12 +235,12 @@ export function EditCourseForm({
         </div>
       )}
       <div className="flex items-center gap-2.5">
-        <button type="submit" disabled={loading || !title.trim()} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button type="submit" size="sm" disabled={loading || !title.trim()}>
           {loading ? "…" : "Enregistrer"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-[12.5px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </form>

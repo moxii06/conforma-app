@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 type Contact = {
   id: string;
@@ -239,17 +240,17 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-y"
       />
       <div className="flex items-center gap-2.5 mt-1">
-        <button
+        <Button
           type="button"
+          size="sm"
           onClick={handleSave}
           disabled={saving || !firstName.trim() || !lastName.trim() || !email.trim()}
-          className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
         >
           {saving ? "…" : "Enregistrer"}
-        </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={() => setEditing(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
       </div>

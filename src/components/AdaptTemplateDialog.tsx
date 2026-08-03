@@ -7,6 +7,7 @@ import { SHORT_OPTION_LABELS, type QuestionDefinition, type QuestionKey } from "
 import { TemplateBlocksEditor, type BlockRow } from "@/components/TemplateBlocksEditor";
 import { TemplateEditor } from "@/components/TemplateEditor";
 import { ActivateBlocksButton } from "@/components/ActivateBlocksButton";
+import { Button } from "@/components/ui";
 
 /**
  * The "Adapter ce modèle" flow, rebuilt as a dialog — client feedback: the
@@ -191,14 +192,15 @@ export function AdaptTemplateDialog({
                 </select>
               </div>
             ))}
-            <button
+            <Button
               type="button"
+              size="sm"
+              className="self-start"
               onClick={() => fetchPreview(answers)}
               disabled={loading || questions.some((q) => !answers[q.key])}
-              className="self-start bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
             >
               {loading ? "…" : "Voir le modèle adapté"}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -239,22 +241,18 @@ export function AdaptTemplateDialog({
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap border-t border-line pt-3">
-              <button
-                type="button"
-                onClick={() => handleDownload("docx")}
-                disabled={downloading != null || loading}
-                className="inline-flex items-center gap-1.5 bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-              >
+              <Button type="button" size="sm" onClick={() => handleDownload("docx")} disabled={downloading != null || loading}>
                 <FileText size={13} /> {downloading === "docx" ? "…" : "Télécharger en Word"}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => handleDownload("pdf")}
                 disabled={downloading != null || loading}
-                className="inline-flex items-center gap-1.5 border border-line text-ink text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:border-ink-soft disabled:opacity-60"
               >
                 <FileDown size={13} /> {downloading === "pdf" ? "…" : "Télécharger en PDF"}
-              </button>
+              </Button>
               <div className="flex-1" />
               <button
                 type="button"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui";
 
 type Intent = "complaint" | "question" | "secure_report" | "rights_request" | "accommodation_request";
 
@@ -107,13 +108,9 @@ export function SupportRequestDialog({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-2 hover:bg-ink-soft"
-      >
+      <Button type="button" size="sm" onClick={() => setOpen(true)}>
         Nouvelle demande
-      </button>
+      </Button>
     );
   }
 
@@ -273,13 +270,9 @@ export function SupportRequestDialog({
             )}
 
             {intent && (
-              <button
-                type="submit"
-                disabled={sending}
-                className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
-              >
+              <Button type="submit" size="sm" disabled={sending} className="self-start">
                 {sending ? "Envoi…" : "Envoyer"}
-              </button>
+              </Button>
             )}
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </form>

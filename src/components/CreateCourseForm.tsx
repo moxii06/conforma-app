@@ -7,6 +7,7 @@ import { SuggestedLearners } from "@/components/SuggestedLearners";
 import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
 import { COURSE_TEMPLATES, COURSE_TEMPLATE_SECTORS } from "@/lib/courseTemplates";
 import { X, FileUp, LayoutTemplate, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui";
 
 type Member = { id: string; name: string };
 type PendingLearner = { key: string; label: string; input: LearnerInput & { accessDurationDays?: number } };
@@ -185,9 +186,9 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft">
+      <Button onClick={() => setOpen(true)} size="sm">
         + Créer une formation
-      </button>
+      </Button>
     );
   }
 
@@ -264,17 +265,17 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                 />
                 {generateError && <div className="text-[11.5px] text-rust">{generateError}</div>}
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
                     onClick={handleGenerate}
                     disabled={generating || !title.trim() || !aiIntention.trim()}
-                    className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+                    size="sm"
                   >
                     {generating ? "Génération…" : "Générer"}
-                  </button>
-                  <button type="button" onClick={() => setShowAiPrompt(false)} className="text-[12px] text-slate hover:text-ink">
+                  </Button>
+                  <Button variant="tertiary" size="sm" type="button" onClick={() => setShowAiPrompt(false)}>
                     Annuler
-                  </button>
+                  </Button>
                   {!title.trim() && <span className="text-[11px] text-slate">Renseignez d&apos;abord le titre ci-dessous.</span>}
                 </div>
               </div>
@@ -473,14 +474,9 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
         </form>
 
         <div className="flex items-center gap-2.5 px-5 py-4 border-t border-line shrink-0">
-          <button
-            type="submit"
-            form="create-course-form"
-            disabled={loading || !title.trim()}
-            className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-          >
+          <Button type="submit" form="create-course-form" disabled={loading || !title.trim()} size="sm">
             {loading ? "…" : "Créer la formation"}
-          </button>
+          </Button>
           {error && <div className="text-[11.5px] text-rust">{error}</div>}
         </div>
       </div>

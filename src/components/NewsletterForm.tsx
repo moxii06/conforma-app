@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui";
 
 export function NewsletterForm() {
   const [email, setEmail] = useState("");
@@ -31,13 +32,9 @@ export function NewsletterForm() {
         onChange={(e) => setEmail(e.target.value)}
         className="bg-white border border-line rounded-md px-3 py-2 text-[13px] text-ink w-64 focus:outline-none focus:border-ink-soft"
       />
-      <button
-        type="submit"
-        disabled={status === "saving"}
-        className="bg-ink text-white text-[13px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft disabled:opacity-60"
-      >
+      <Button type="submit" size="touch" disabled={status === "saving"}>
         {status === "saving" ? "…" : "S'inscrire"}
-      </button>
+      </Button>
       {status === "error" && <div className="text-[12px] text-rust w-full">Une erreur est survenue, réessayez.</div>}
     </form>
   );

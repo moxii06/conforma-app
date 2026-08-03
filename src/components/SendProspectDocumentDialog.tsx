@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { Button } from "@/components/ui";
 
 type Template = { id: string; title: string; category: string };
 type Mode = "template" | "upload";
@@ -318,27 +319,28 @@ export function SendProspectDocumentDialog({
               )}
 
               <div className="flex items-center gap-2.5">
-                <button
+                <Button
                   type="submit"
+                  size="sm"
                   disabled={
                     sending ||
                     (mode === "template" && !templateId) ||
                     (!isNeedsAssessment && (!title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)))
                   }
-                  className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
                 >
                   {sending ? "Envoi…" : "Envoyer au client"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="tertiary"
+                  size="sm"
                   onClick={() => {
                     setOpen(false);
                     reset();
                   }}
-                  className="text-[12.5px] text-slate hover:text-ink"
                 >
                   Annuler
-                </button>
+                </Button>
               </div>
             </form>
             {error && <div className="text-[11.5px] text-rust">{error}</div>}

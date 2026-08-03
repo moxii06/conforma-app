@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 function oneMonthFromNow() {
   const d = new Date();
@@ -59,9 +60,9 @@ export function AddRightsRequestForm() {
         <label className="text-[11.5px] text-slate mb-1 block">Échéance</label>
         <input type="date" required value={deadline} onChange={(e) => setDeadline(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
       </div>
-      <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+      <Button type="submit" disabled={loading}>
         {loading ? "…" : "Ajouter"}
-      </button>
+      </Button>
       {error && <div className="text-[12px] text-rust w-full">{error}</div>}
     </form>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui";
 
 type ContractPolicy = {
   withdrawalAccessPolicy: string;
@@ -120,14 +121,9 @@ export function OrganizationContractPolicyForm({ initial }: { initial: ContractP
       </div>
 
       <div className="flex items-center gap-2.5 mt-1">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
-        >
+        <Button type="button" size="sm" className="self-start" onClick={handleSave} disabled={saving}>
           {saving ? "…" : "Enregistrer"}
-        </button>
+        </Button>
         {saved && <span className="text-[12px] text-sage">Enregistré.</span>}
         {error && <span className="text-[12px] text-rust">{error}</span>}
       </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { Button } from "@/components/ui";
 
 export function ReplyToComplaintDialog({ complaintId }: { complaintId: string }) {
   const router = useRouter();
@@ -83,12 +84,12 @@ export function ReplyToComplaintDialog({ complaintId }: { complaintId: string })
       />
       <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
       <div className="flex items-center gap-2.5">
-        <button type="button" onClick={handleSend} disabled={loading || !text.trim()} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button type="button" size="sm" onClick={handleSend} disabled={loading || !text.trim()}>
           {loading ? "…" : "Envoyer"}
-        </button>
-        <button type="button" onClick={() => { setOpen(false); setText(""); setError(null); }} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={() => { setOpen(false); setText(""); setError(null); }}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </div>

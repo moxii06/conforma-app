@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { Button } from "@/components/ui";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
 
 type Template = { id: string; title: string; category: string };
@@ -254,14 +255,15 @@ export function SendSubcontractorDocumentDialog({
                       </select>
                     </div>
                   ))}
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
                     onClick={handleAnswerAndContinue}
                     disabled={pending.some((q) => !answers[q.key])}
-                    className="self-start bg-ink text-white text-[11.5px] font-medium rounded-md px-2.5 py-1 hover:bg-ink-soft disabled:opacity-60"
+                    className="self-start"
                   >
                     Valider les réponses
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <>
@@ -327,8 +329,9 @@ export function SendSubcontractorDocumentDialog({
               )}
 
               <div className="flex items-center gap-2.5">
-                <button
+                <Button
                   type="submit"
+                  size="sm"
                   disabled={
                     sending ||
                     (mode === "template" && !templateId) ||
@@ -337,20 +340,20 @@ export function SendSubcontractorDocumentDialog({
                     (mode === "template" && !stripHtml(bodyHtml)) ||
                     (mode === "upload" && !file)
                   }
-                  className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
                 >
                   {sending ? "Envoi…" : "Envoyer"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="tertiary"
+                  size="sm"
                   onClick={() => {
                     setOpen(false);
                     reset();
                   }}
-                  className="text-[12.5px] text-slate hover:text-ink"
                 >
                   Annuler
-                </button>
+                </Button>
               </div>
             </form>
             {error && <div className="text-[11.5px] text-rust">{error}</div>}

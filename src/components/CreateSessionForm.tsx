@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SessionFormat, SessionMode } from "@prisma/client";
+import { Button } from "@/components/ui";
 
 type Course = { id: string; title: string };
 type Trainer = { id: string; name: string };
@@ -109,12 +110,9 @@ export function CreateSessionForm({
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft self-start"
-      >
+      <Button onClick={() => setOpen(true)} size="sm" className="self-start">
         + Nouvelle session
-      </button>
+      </Button>
     );
   }
 
@@ -204,12 +202,12 @@ export function CreateSessionForm({
       </div>
 
       <div className="flex items-center gap-2.5">
-        <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button type="submit" disabled={loading} size="sm">
           {loading ? "…" : "Créer"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-[12.5px] text-slate hover:text-ink">
+        </Button>
+        <Button variant="tertiary" size="sm" type="button" onClick={() => setOpen(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </form>

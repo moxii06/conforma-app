@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AUTOMATION_TRIGGER_LABELS, AUTOMATION_TRIGGER_VALUES } from "@/lib/automationRules";
 import { insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
+import { Button } from "@/components/ui";
 
 type Rule = {
   id: string;
@@ -218,19 +219,20 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
           )}
 
           <div className="flex items-center gap-2.5 mt-1">
-            <button type="button" onClick={handleAdd} disabled={loading} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+            <Button type="button" size="sm" onClick={handleAdd} disabled={loading}>
               {loading ? "…" : "Créer la règle"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="tertiary"
+              size="sm"
               onClick={() => {
                 setAdding(false);
                 resetForm();
               }}
-              className="text-[12px] text-slate hover:text-ink"
             >
               Annuler
-            </button>
+            </Button>
           </div>
           {error && <div className="text-[11.5px] text-rust">{error}</div>}
         </div>

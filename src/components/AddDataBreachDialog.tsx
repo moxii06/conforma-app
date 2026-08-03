@@ -146,9 +146,9 @@ export function AddDataBreachDialog() {
             La CNIL doit en principe être notifiée dans les 72h suivant la découverte (art. 33 RGPD), sauf si le risque pour les personnes est écarté.
           </div>
           <div className="flex items-center gap-2.5">
-            <button type="submit" disabled={loading || !title.trim() || !description.trim() || !affectedDataTypes.trim()} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+            <Button type="submit" size="sm" disabled={loading || !title.trim() || !description.trim() || !affectedDataTypes.trim()}>
               {loading ? "…" : "Enregistrer"}
-            </button>
+            </Button>
           </div>
           {error && <div className="text-[11.5px] text-rust">{error}</div>}
         </form>

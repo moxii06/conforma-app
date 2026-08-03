@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 // Standalone on purpose — this is NOT a Jalon account login (see
 // src/lib/platformAdmin.ts): no email, just the one shared secret.
@@ -46,13 +47,9 @@ export default function PlatformAdminLoginPage() {
           className="bg-white border border-line rounded-md px-3 py-2 text-[13px] text-ink focus:outline-none focus:border-ink-soft"
         />
         {error && <div className="text-[12.5px] text-rust">{error}</div>}
-        <button
-          type="submit"
-          disabled={loading || !password}
-          className="bg-ink text-white text-[13px] font-medium rounded-md px-4 py-2.5 hover:bg-ink-soft disabled:opacity-50"
-        >
+        <Button type="submit" disabled={loading || !password} className="w-full">
           {loading ? "…" : "Entrer"}
-        </button>
+        </Button>
       </form>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
+import { Button } from "@/components/ui";
 
 type Course = { id: string; title: string };
 
@@ -72,12 +73,9 @@ export function NewTemplateForm({
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft self-start"
-      >
+      <Button type="button" size="sm" onClick={() => setOpen(true)} className="self-start">
         + Ajouter votre propre modèle
-      </button>
+      </Button>
     );
   }
 
@@ -129,12 +127,12 @@ export function NewTemplateForm({
         className="border border-line rounded-md px-3 py-2 text-[12.5px] text-ink outline-none focus:border-seal font-mono leading-relaxed disabled:bg-linen disabled:text-slate"
       />
       <div className="flex items-center gap-2.5">
-        <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+        <Button type="submit" size="sm" disabled={loading}>
           {loading ? "…" : "Créer"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-[12.5px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </form>

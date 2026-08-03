@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 function formatAmount(cents: number) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -81,12 +82,12 @@ export function RecordPaymentForm({
             placeholder="Moyen (virement, CB…)"
             className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal w-40"
           />
-          <button type="submit" disabled={loading} className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1 hover:bg-ink-soft disabled:opacity-60">
+          <Button type="submit" size="sm" disabled={loading}>
             {loading ? "…" : "Ajouter"}
-          </button>
-          <button type="button" onClick={() => setOpen(false)} className="text-[12px] text-slate hover:text-ink">
+          </Button>
+          <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
             Annuler
-          </button>
+          </Button>
         </form>
       )}
       {error && <div className="text-[11.5px] text-rust">{error}</div>}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LEGAL_BASES, type LegalBasisKey } from "@/lib/rgpdLegalBases";
+import { Button } from "@/components/ui";
 
 // Le formulaire ne demandait que quatre champs, dont une base légale en
 // texte libre. Il en manquait cinq pour que la ligne produite tienne devant
@@ -193,13 +194,9 @@ export function AddProcessingActivityForm() {
             <option value="to_review">À revoir</option>
           </select>
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-        >
+        <Button type="submit" disabled={loading}>
           {loading ? "…" : "Ajouter au registre"}
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}
     </form>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 type EligibleDossier = { id: string; contactName: string };
 
@@ -107,16 +108,12 @@ export function AssignLearnersPanel({ moduleId, eligibleDossiers }: { moduleId: 
         {filtered.length === 0 && <div className="text-[11.5px] text-slate">Aucun apprenant ne correspond.</div>}
       </div>
       <div className="flex items-center gap-2.5">
-        <button
-          onClick={handleAssign}
-          disabled={loading || selected.size === 0}
-          className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-        >
+        <Button size="sm" onClick={handleAssign} disabled={loading || selected.size === 0}>
           {loading ? "…" : `Assigner (${selected.size})`}
-        </button>
-        <button onClick={() => setOpen(false)} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button variant="tertiary" size="sm" onClick={() => setOpen(false)}>
           Annuler
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </div>

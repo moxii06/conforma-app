@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { PLANS, type PlanKey } from "@/lib/billing";
+import { Button } from "@/components/ui";
 
 export function SubscriptionActions({
   currentPlan,
@@ -60,13 +61,9 @@ export function SubscriptionActions({
             Moyen de paiement, factures, changement de formule et résiliation — le tout sur l&apos;espace sécurisé
             de Stripe. Vos coordonnées bancaires ne transitent jamais par Jalon.
           </div>
-          <button
-            onClick={() => go("/api/billing/portal", undefined, "portal")}
-            disabled={loading !== null}
-            className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-2 hover:bg-ink-soft disabled:opacity-60"
-          >
+          <Button onClick={() => go("/api/billing/portal", undefined, "portal")} disabled={loading !== null}>
             {loading === "portal" ? "Ouverture…" : "Ouvrir l'espace de facturation"}
-          </button>
+          </Button>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { MetricCard, PageHeader, Pill, Avatar, initialsOf } from "@/components/ui";
+import { MetricCard, PageHeader, Pill, Avatar, Button, initialsOf } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
@@ -280,12 +280,9 @@ function LearnerCourseCard({
             <div className="h-full bg-sage" style={{ width: `${progress!.totalPercent}%` }} />
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <Link
-              href={`/mon-espace/formation/${dossier.id}`}
-              className="inline-block bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-2 hover:bg-ink-soft"
-            >
+            <Button href={`/mon-espace/formation/${dossier.id}`} size="sm">
               {ctaLabel}
-            </Link>
+            </Button>
             {progress!.allCompleted && <CourseCertificateButton dossierId={dossier.id} />}
           </div>
         </>

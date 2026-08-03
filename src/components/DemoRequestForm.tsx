@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { BookDemoButton } from "@/components/BookDemoButton";
 import { trackEvent } from "@/lib/track";
+import { Button } from "@/components/ui";
 
 const ORG_SIZES = ["1 personne (indépendant)", "2 à 5 personnes", "6 à 10 personnes", "11 à 20 personnes", "Plus de 20 personnes"];
 const TIMELINES = ["Dès que possible", "Sous 3 mois", "Cette année", "Je me renseigne"];
@@ -130,9 +131,9 @@ export function DemoRequestForm() {
 
       {error && <div className="text-[12.5px] text-rust">{error}</div>}
 
-      <button type="submit" disabled={loading} className="bg-ink text-white text-sm font-medium rounded-md py-2.5 mt-1 hover:bg-ink-soft disabled:opacity-60">
+      <Button type="submit" disabled={loading} className="w-full mt-1">
         {loading ? "Envoi…" : "Demander ma démonstration"}
-      </button>
+      </Button>
       <div className="text-[11.5px] text-slate text-center">Réponse sous 1 jour ouvré. Aucune carte bancaire, aucun engagement.</div>
     </form>
   );

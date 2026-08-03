@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ShieldCheck, Milestone } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { NewsletterForm } from "@/components/NewsletterForm";
+import { Button } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Actualités — Jalon",
@@ -30,12 +31,10 @@ export default async function ActualitesPage() {
             <span className="font-display text-lg text-ink tracking-wide">Jalon</span>
           </Link>
           <div className="flex items-center gap-2.5">
-            <Link href="/essai" className="text-ink text-[13.5px] font-medium rounded-md px-4 py-2 border border-line hover:border-ink-soft">
+            <Button variant="secondary" href="/essai">
               M&apos;inscrire
-            </Link>
-            <Link href="/login" className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft">
-              Se connecter
-            </Link>
+            </Button>
+            <Button href="/login">Se connecter</Button>
           </div>
         </div>
       </header>

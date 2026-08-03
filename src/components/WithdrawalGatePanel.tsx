@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 /**
  * What a learner sees while their withdrawal period keeps the content
@@ -78,14 +79,9 @@ export function WithdrawalGatePanel({
           <span>J&apos;ai lu ce qui précède et je formule cette demande expresse.</span>
         </label>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!checked || sending}
-            className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-2 hover:bg-ink-soft disabled:opacity-50 self-start"
-          >
+          <Button size="sm" onClick={submit} disabled={!checked || sending} className="self-start">
             {sending ? "…" : "Accéder dès maintenant à ma formation"}
-          </button>
+          </Button>
           {error && <span className="text-[11.5px] text-rust">{error}</span>}
         </div>
       </div>

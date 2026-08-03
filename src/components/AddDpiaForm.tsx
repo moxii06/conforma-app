@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 export function AddDpiaForm({ activities }: { activities: { id: string; name: string }[] }) {
   const router = useRouter();
@@ -71,9 +72,9 @@ export function AddDpiaForm({ activities }: { activities: { id: string; name: st
           <option value="not_required">Non requise</option>
         </select>
       </div>
-      <button type="submit" disabled={loading} className="bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60">
+      <Button type="submit" disabled={loading}>
         {loading ? "…" : "Ajouter"}
-      </button>
+      </Button>
       {error && <div className="text-[12px] text-rust w-full">{error}</div>}
     </form>
   );

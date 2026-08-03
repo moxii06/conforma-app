@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LearnerCategoryFields, EMPTY_COMPANY_FIELDS, toCompanyInput, type CompanyFieldsState } from "@/components/LearnerCategoryFields";
+import { Button } from "@/components/ui";
 
 type Suggestion = { opportunityId: string; contactName: string };
 
@@ -61,13 +62,9 @@ export function EnrollProspectForm({ sessionId, suggestions }: { sessionId: stri
             </option>
           ))}
         </select>
-        <button
-          onClick={handleEnroll}
-          disabled={loading}
-          className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 shrink-0"
-        >
+        <Button size="sm" className="shrink-0" onClick={handleEnroll} disabled={loading}>
           {loading ? "…" : "Inscrire"}
-        </button>
+        </Button>
       </div>
       <LearnerCategoryFields category={category} onCategoryChange={setCategory} company={company} onCompanyChange={setCompany} />
       {error && <div className="text-[12px] text-rust">{error}</div>}

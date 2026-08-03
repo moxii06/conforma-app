@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
 import { SearchableDossierSelect } from "@/components/SearchableDossierSelect";
+import { Button } from "@/components/ui";
 
 type Dossier = { id: string; label: string };
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
@@ -101,13 +102,14 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
               </select>
             </div>
           ))}
-          <button
+          <Button
+            size="sm"
+            className="self-start"
             onClick={handleAnswerAndContinue}
             disabled={loading || pending.some((q) => !answers[q.key])}
-            className="self-start bg-ink text-white text-[11.5px] font-medium rounded-md px-2.5 py-1 hover:bg-ink-soft disabled:opacity-60"
           >
             {loading ? "…" : "Générer le document"}
-          </button>
+          </Button>
         </div>
       )}
 

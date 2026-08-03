@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 type RequestType = "access" | "erasure" | "portability" | "rectification";
 
@@ -80,16 +81,12 @@ export function RgpdSuggestionActions({
         />
       </div>
       <div className="flex items-center gap-2.5">
-        <button
-          onClick={handleConfirm}
-          disabled={loading !== null || !personLabel.trim()}
-          className="bg-ink text-white text-[11.5px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-        >
+        <Button size="sm" onClick={handleConfirm} disabled={loading !== null || !personLabel.trim()}>
           {loading === "confirm" ? "…" : "Confirmer la demande"}
-        </button>
-        <button onClick={handleDismiss} disabled={loading !== null} className="text-[11.5px] text-slate hover:text-ink disabled:opacity-60">
+        </Button>
+        <Button variant="tertiary" size="sm" onClick={handleDismiss} disabled={loading !== null}>
           {loading === "dismiss" ? "…" : "Ce n'est pas une demande RGPD"}
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </div>

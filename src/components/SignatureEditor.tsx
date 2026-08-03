@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { Button } from "@/components/ui";
 
 export function SignatureEditor({ initialSignature }: { initialSignature: string }) {
   const [signature, setSignature] = useState(initialSignature);
@@ -40,14 +41,9 @@ export function SignatureEditor({ initialSignature }: { initialSignature: string
         onUploadImage={handleUploadImage}
       />
       <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
-        >
+        <Button type="button" size="sm" className="self-start" onClick={handleSave} disabled={saving}>
           {saving ? "…" : "Enregistrer la signature"}
-        </button>
+        </Button>
         {saved && <span className="text-[12px] text-sage">Enregistrée.</span>}
       </div>
     </div>

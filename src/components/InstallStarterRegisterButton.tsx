@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { STARTER_REGISTER, STARTER_REGISTER_NOTICE } from "@/lib/rgpdStarterRegister";
+import { Button } from "@/components/ui";
 
 // Le registre type, proposé au lieu d'une page blanche. On montre ce qui
 // sera créé AVANT de le créer : installer dix traitements d'un clic sans les
@@ -36,13 +37,9 @@ export function InstallStarterRegisterButton() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="bg-ink text-white text-[13px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft self-start"
-      >
+      <Button type="button" onClick={() => setOpen(true)} className="self-start">
         Partir du registre type d&apos;un organisme de formation
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 pt-16 overflow-y-auto" onClick={() => setOpen(false)}>
@@ -81,17 +78,12 @@ export function InstallStarterRegisterButton() {
               </div>
               <div className="flex items-center gap-2.5">
                 {erreur && <span className="text-[12px] text-rust">{erreur}</span>}
-                <button type="button" onClick={() => setOpen(false)} className="text-[12.5px] text-slate hover:text-ink">
+                <Button type="button" variant="tertiary" onClick={() => setOpen(false)}>
                   Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={installer}
-                  disabled={loading}
-                  className="bg-ink text-white text-[13px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft disabled:opacity-60"
-                >
+                </Button>
+                <Button type="button" onClick={installer} disabled={loading}>
                   {loading ? "Installation…" : "Installer ces traitements"}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

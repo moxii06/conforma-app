@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 export function ImapMailboxForm() {
   const router = useRouter();
@@ -46,9 +47,9 @@ export function ImapMailboxForm() {
         <input required placeholder="Serveur SMTP (ex : smtp.hebergeur.fr)" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
         <input required placeholder="Port" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} inputMode="numeric" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
       </div>
-      <button type="submit" disabled={loading} className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start">
+      <Button type="submit" size="sm" disabled={loading} className="self-start">
         {loading ? "Test de connexion…" : "Tester et connecter"}
-      </button>
+      </Button>
       {error && <div className="text-[12px] text-rust">{error}</div>}
       <div className="text-[11px] text-slate">
         Ports courants : 993 (IMAP) et 465 (SMTP), les deux en connexion chiffrée. Certains hébergeurs demandent un

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Landmark, X } from "lucide-react";
+import { Button } from "@/components/ui";
 
 type Connection = { id: string; institutionName: string; status: string; lastSyncedAt: string | null };
 
@@ -68,14 +69,10 @@ export function BankConnectionPanel({ connections }: { connections: Connection[]
       ))}
 
       {!open ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink border border-line rounded-md px-3 py-1.5 hover:border-ink-soft"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={() => setOpen(true)}>
           <Landmark size={13} />
           Connecter ma banque
-        </button>
+        </Button>
       ) : (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-card border border-line w-full max-w-md p-5 flex flex-col gap-3.5">
@@ -91,14 +88,9 @@ export function BankConnectionPanel({ connections }: { connections: Connection[]
               DSP2/ACPR).
             </div>
             {error && <div className="text-[12.5px] text-rust">{error}</div>}
-            <button
-              type="button"
-              onClick={connect}
-              disabled={loading}
-              className="self-start bg-ink text-white text-[12.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft disabled:opacity-50"
-            >
+            <Button type="button" onClick={connect} disabled={loading} className="self-start">
               {loading ? "…" : "Continuer vers Bridge"}
-            </button>
+            </Button>
           </div>
         </div>
       )}

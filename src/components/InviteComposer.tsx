@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { Button } from "@/components/ui";
 
 type Doc = { id: string; title: string };
 type NewDoc = { title: string; url: string };
@@ -212,14 +213,15 @@ export function InviteComposer({
       </div>
 
       <div className="flex items-center gap-3">
-        <button
+        <Button
           type="button"
           onClick={handleSend}
           disabled={sending || !subject.trim() || !body.trim()}
-          className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
+          size="sm"
+          className="self-start"
         >
           {sending ? "Envoi…" : alreadyInvited ? "Renvoyer l'invitation" : "Envoyer l'invitation"}
-        </button>
+        </Button>
         {success && <span className="text-[12px] text-sage">Invitation envoyée.</span>}
       </div>
       {error && <div className="text-[12px] text-rust">{error}</div>}

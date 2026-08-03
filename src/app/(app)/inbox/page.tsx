@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar, initialsOf } from "@/components/ui";
+import { PageHeader, Pill, Avatar, initialsOf, Button } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can, canWriteRgpd } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -113,12 +113,9 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
               </li>
             </ul>
             {peutConnecter ? (
-              <Link
-                href="/integrations"
-                className="bg-ink text-white text-[13px] font-medium rounded-md px-5 py-2.5 self-start hover:bg-ink-soft"
-              >
+              <Button href="/integrations" className="self-start">
                 Connecter une boîte mail
-              </Link>
+              </Button>
             ) : (
               <div className="text-[12px] text-slate border-t border-line pt-3">
                 Seul le titulaire du compte peut connecter une boîte mail, depuis Intégrations.

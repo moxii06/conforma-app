@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, X } from "lucide-react";
 import { importFieldsFor, type ImportKind, type ImportMapping } from "@/lib/dataImport";
+import { Button } from "@/components/ui";
 
 type Analysis = {
   headers: string[];
@@ -228,13 +229,9 @@ export function ImportDataDialog({
                 </button>
               </div>
             )}
-            <button
-              type="button"
-              onClick={closeAndReset}
-              className="self-start bg-ink text-white text-[12.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft mt-1"
-            >
+            <Button type="button" onClick={closeAndReset} className="self-start mt-1">
               Fermer
-            </button>
+            </Button>
           </div>
         ) : !analysis ? (
           <div className="flex flex-col gap-3">
@@ -354,22 +351,16 @@ export function ImportDataDialog({
             {error && <div className="text-[12.5px] text-rust">{error}</div>}
 
             <div className="flex items-center gap-2.5">
-              <button
+              <Button
                 type="button"
                 onClick={runImport}
                 disabled={importing || (sessionChoices !== null && !sessionId)}
-                className="bg-ink text-white text-[12.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft disabled:opacity-50"
               >
                 {importing ? "Import en cours…" : `Importer ${analysis.totalRows} ligne(s)`}
-              </button>
-              <button
-                type="button"
-                onClick={() => reset()}
-                disabled={importing}
-                className="text-[12.5px] text-slate hover:text-ink"
-              >
+              </Button>
+              <Button type="button" variant="tertiary" onClick={() => reset()} disabled={importing}>
                 Changer de fichier
-              </button>
+              </Button>
             </div>
           </div>
         )}

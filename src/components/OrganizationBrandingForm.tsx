@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Milestone, Upload, X } from "lucide-react";
+import { Button } from "@/components/ui";
 
 const DEFAULT_COLOR = "#C9A15A"; // matches the app's own --seal fallback swatch
 
@@ -156,14 +157,9 @@ export function OrganizationBrandingForm({
       </div>
 
       <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          onClick={handleSaveColor}
-          disabled={savingColor}
-          className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60 self-start"
-        >
+        <Button type="button" size="sm" onClick={handleSaveColor} disabled={savingColor} className="self-start">
           {savingColor ? "…" : "Enregistrer"}
-        </button>
+        </Button>
         {saved && <span className="text-[12px] text-sage">Enregistrée.</span>}
         {error && <span className="text-[12px] text-rust">{error}</span>}
       </div>

@@ -12,6 +12,7 @@ import { LibraryPanel } from "@/components/LibraryPanel";
 import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
 import type { Instalment } from "@/lib/paymentSchedule";
 import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { Button } from "@/components/ui";
 
 type Template = { id: string; title: string; category: string };
 
@@ -142,17 +143,12 @@ function SessionDatesSection({
             className="border border-line rounded-md px-2 py-1 text-[11.5px] text-ink outline-none focus:border-seal bg-white"
           />
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSchedule}
-              disabled={saving}
-              className="bg-ink text-white text-[11.5px] font-medium rounded-md px-2.5 py-1 hover:bg-ink-soft disabled:opacity-60"
-            >
+            <Button type="button" size="sm" onClick={handleSchedule} disabled={saving}>
               {saving ? "…" : "Créer la session et rattacher le dossier"}
-            </button>
-            <button type="button" onClick={() => setOpen(false)} className="text-slate hover:text-ink">
+            </Button>
+            <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
               Annuler
-            </button>
+            </Button>
           </div>
           {error && <div className="text-rust">{error}</div>}
         </div>
@@ -328,13 +324,9 @@ export function SendDocumentDialog({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="border border-line rounded-md px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-ink-soft"
-      >
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
         Envoyer un document
-      </button>
+      </Button>
     );
   }
 
@@ -379,23 +371,24 @@ export function SendDocumentDialog({
 
   const sendButtons = (
     <div className="flex items-center gap-2.5">
-      <button
+      <Button
         type="submit"
+        size="sm"
         disabled={sending || !title.trim() || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
-        className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
       >
         {sending ? "Envoi…" : "Envoyer au client"}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="tertiary"
+        size="sm"
         onClick={() => {
           setOpen(false);
           reset();
         }}
-        className="text-[12.5px] text-slate hover:text-ink"
       >
         Annuler
-      </button>
+      </Button>
     </div>
   );
 
@@ -532,14 +525,15 @@ export function SendDocumentDialog({
                     </select>
                   </div>
                 ))}
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={handleAnswerAndPreview}
                   disabled={loadingPreview || pending.some((q) => !pendingAnswers[q.key])}
-                  className="self-start bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
+                  className="self-start"
                 >
                   {loadingPreview ? "…" : "Continuer"}
-                </button>
+                </Button>
               </div>
             ) : mode === "template" ? (
               <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] gap-5">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LearnerCategoryFields, EMPTY_COMPANY_FIELDS, toCompanyInput, type CompanyFieldsState } from "@/components/LearnerCategoryFields";
 import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
+import { Button } from "@/components/ui";
 
 type Company = {
   name: string;
@@ -96,17 +97,12 @@ export function EditLearnerCategoryForm({
       <div className="flex flex-col gap-1.5">
         <LearnerCategoryFields category={category} onCategoryChange={setCategory} company={companyFields} onCompanyChange={setCompanyFields} />
         <div className="flex items-center gap-2.5 mt-1">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-          >
+          <Button type="button" size="sm" onClick={handleSave} disabled={saving}>
             {saving ? "…" : "Enregistrer"}
-          </button>
-          <button type="button" onClick={() => setEditing(false)} className="text-[12px] text-slate hover:text-ink">
+          </Button>
+          <Button type="button" variant="tertiary" size="sm" onClick={() => setEditing(false)}>
             Annuler
-          </button>
+          </Button>
         </div>
         {error && <div className="text-[12px] text-rust">{error}</div>}
       </div>

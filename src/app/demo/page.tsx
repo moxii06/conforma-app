@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ShieldCheck, Milestone, Check } from "lucide-react";
 import { DemoRequestForm } from "@/components/DemoRequestForm";
+import { Button } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Réserver une démonstration — Jalon",
@@ -26,9 +27,7 @@ export default function DemoPage() {
             </div>
             <span className="font-display text-lg text-ink tracking-wide">Jalon</span>
           </Link>
-          <Link href="/essai" className="bg-ink text-white text-[13.5px] font-medium rounded-md px-4 py-2 hover:bg-ink-soft">
-            Essai gratuit
-          </Link>
+          <Button href="/essai">Essai gratuit</Button>
         </div>
       </header>
 

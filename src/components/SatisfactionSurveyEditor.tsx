@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { QUESTION_TYPE_LABELS, SURVEY_KIND_LABELS, defaultQuestions, type SurveyKind } from "@/lib/satisfactionSurveys";
+import { Button } from "@/components/ui";
 
 type Option = { id: string; text: string };
 type Question = { id: string; type: string; prompt: string; options: Option[] | null };
@@ -144,12 +145,12 @@ export function SatisfactionSurveyEditor({
           )}
 
           <div className="flex items-center gap-2.5">
-            <button type="submit" className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft">
+            <Button type="submit" size="sm">
               Ajouter
-            </button>
-            <button type="button" onClick={() => setAddOpen(false)} className="text-[12px] text-slate hover:text-ink">
+            </Button>
+            <Button type="button" variant="tertiary" size="sm" onClick={() => setAddOpen(false)}>
               Annuler
-            </button>
+            </Button>
           </div>
         </form>
       )}

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Button } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
@@ -183,18 +183,10 @@ export default async function DocumentsPage(props: {
         subtitle={DOCUMENT_BUCKETS.find((b) => b.key === activeTab)?.hint}
         action={
           <div className="flex items-center gap-2.5">
-            <a
-              href="/documents/bibliotheque"
-              className="inline-flex items-center border border-line bg-white text-ink text-[13px] font-medium rounded-md px-3.5 py-2 hover:bg-pebble"
-            >
+            <Button href="/documents/bibliotheque" variant="secondary">
               Accéder à ma bibliothèque
-            </a>
-            <a
-              href="/documents/nouveau"
-              className="inline-flex items-center bg-ink text-white text-[13px] font-medium rounded-md px-3.5 py-2 hover:bg-ink-soft"
-            >
-              + Créer un document
-            </a>
+            </Button>
+            <Button href="/documents/nouveau">+ Créer un document</Button>
           </div>
         }
       />

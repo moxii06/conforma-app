@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Search, ChevronRight } from "lucide-react";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
-import { Pill } from "@/components/ui";
+import { Pill, Button } from "@/components/ui";
 import { TemplateEditor } from "@/components/TemplateEditor";
 import { TemplateBlocksEditor, type BlockRow } from "@/components/TemplateBlocksEditor";
 import { NewTemplateForm } from "@/components/NewTemplateForm";
@@ -179,24 +179,21 @@ export function LibraryPanel({
               (alreadyForked ? (
                 <span className="text-[11.5px] text-sage">Déjà adapté</span>
               ) : (
-                <button
-                  onClick={() => fork(r.id)}
-                  disabled={busy === r.id}
-                  className="text-[11.5px] text-slate hover:text-ink underline decoration-line disabled:opacity-60"
-                >
+                <Button type="button" variant="tertiary" size="sm" onClick={() => fork(r.id)} disabled={busy === r.id}>
                   {busy === r.id ? "…" : "Adapter"}
-                </button>
+                </Button>
               ))}
             {onUse && (
-              <button
+              <Button
+                type="button"
+                size="sm"
                 onClick={() => {
                   onUse({ id: r.id, title: r.title, category: r.category });
                   setOpen(false);
                 }}
-                className="bg-ink text-white text-[11.5px] font-medium rounded-md px-2.5 py-1 hover:bg-ink-soft"
               >
                 {useLabel}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -229,17 +226,14 @@ export function LibraryPanel({
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant={variant === "button" ? "primary" : "tertiary"}
+        size="sm"
         onClick={() => setOpen(true)}
-        className={
-          variant === "button"
-            ? "bg-ink text-white text-[12.5px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft"
-            : "text-[11.5px] text-slate hover:text-ink underline decoration-line"
-        }
       >
         {label}
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">

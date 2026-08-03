@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
 
 function formatAmount(cents: number) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -88,22 +89,12 @@ export function BankTransactionReview({
         ) : (
           <div className="flex-1 min-w-[220px] text-[12px] text-slate italic">Aucune facture ouverte ne correspond.</div>
         )}
-        <button
-          type="button"
-          onClick={confirm}
-          disabled={!selectedId || loading !== null}
-          className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-50"
-        >
+        <Button type="button" size="sm" onClick={confirm} disabled={!selectedId || loading !== null}>
           {loading === "confirm" ? "…" : confident && top?.id === suggestions[0]?.id ? "Confirmer la suggestion" : "Associer"}
-        </button>
-        <button
-          type="button"
-          onClick={dismiss}
-          disabled={loading !== null}
-          className="text-[12px] text-slate hover:text-ink disabled:opacity-50"
-        >
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={dismiss} disabled={loading !== null}>
           {loading === "dismiss" ? "…" : "Ignorer"}
-        </button>
+        </Button>
       </div>
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </div>

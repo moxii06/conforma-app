@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pill } from "@/components/ui";
+import { Button, Pill } from "@/components/ui";
 import { API_SCOPES, API_SCOPE_LABELS, WEBHOOK_EVENTS, WEBHOOK_EVENT_LABELS, type ApiScope, type WebhookEvent } from "@/lib/apiKeys";
 
 export type ApiKeyRow = {
@@ -125,16 +125,17 @@ export function ApiAccessPanel({
             <code className="flex-1 bg-white border border-line rounded-md px-2.5 py-1.5 text-[11.5px] text-ink break-all font-mono">
               {freshKey}
             </code>
-            <button
+            <Button
+              size="sm"
+              className="shrink-0"
               onClick={async () => {
                 await navigator.clipboard.writeText(freshKey);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft shrink-0"
             >
               {copied ? "Copié ✓" : "Copier"}
-            </button>
+            </Button>
           </div>
           <button onClick={() => setFreshKey(null)} className="text-[11.5px] text-seal-dark underline mt-2.5">
             J&apos;ai copié la clé
@@ -215,16 +216,12 @@ export function ApiAccessPanel({
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              <button
-                type="submit"
-                disabled={loading || scopes.length === 0}
-                className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-              >
+              <Button type="submit" size="sm" disabled={loading || scopes.length === 0}>
                 {loading ? "…" : "Créer la clé"}
-              </button>
-              <button type="button" onClick={() => setCreatingKey(false)} className="text-[12px] text-slate hover:text-ink">
+              </Button>
+              <Button type="button" variant="tertiary" size="sm" onClick={() => setCreatingKey(false)}>
                 Annuler
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -330,16 +327,12 @@ export function ApiAccessPanel({
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              <button
-                type="submit"
-                disabled={loading || hookEvents.length === 0}
-                className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-              >
+              <Button type="submit" size="sm" disabled={loading || hookEvents.length === 0}>
                 {loading ? "…" : "Ajouter"}
-              </button>
-              <button type="button" onClick={() => setCreatingHook(false)} className="text-[12px] text-slate hover:text-ink">
+              </Button>
+              <Button type="button" variant="tertiary" size="sm" onClick={() => setCreatingHook(false)}>
                 Annuler
-              </button>
+              </Button>
             </div>
           </form>
         )}

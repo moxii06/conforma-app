@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pill } from "@/components/ui";
+import { Pill, Button } from "@/components/ui";
 import { X, TriangleAlert } from "lucide-react";
 import {
   computeFundingSummary,
@@ -529,16 +529,12 @@ export function DossierFundingPanel({
           {error && <div className="text-[11.5px] text-rust">{error}</div>}
 
           <div className="flex items-center gap-2.5">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-            >
+            <Button type="submit" disabled={loading} size="sm">
               {loading ? "…" : "Enregistrer"}
-            </button>
-            <button type="button" onClick={() => setAdding(false)} className="text-[12px] text-slate hover:text-ink">
+            </Button>
+            <Button variant="tertiary" size="sm" type="button" onClick={() => setAdding(false)}>
               Annuler
-            </button>
+            </Button>
           </div>
         </form>
       )}

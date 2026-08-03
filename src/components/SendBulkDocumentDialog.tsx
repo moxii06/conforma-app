@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { MERGE_TAGS } from "@/lib/mergeTags";
 import { LibraryPanel } from "@/components/LibraryPanel";
+import { Button } from "@/components/ui";
 
 type Template = { id: string; title: string; category: string };
 type Recipient = { id: string; name: string };
@@ -138,13 +139,9 @@ export function SendBulkDocumentDialog({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="border border-line rounded-md px-2.5 py-1.5 text-[12px] font-medium text-ink hover:border-ink-soft"
-      >
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
         Envoyer à plusieurs apprenants
-      </button>
+      </Button>
     );
   }
 
@@ -294,23 +291,24 @@ export function SendBulkDocumentDialog({
             </div>
 
             <div className="flex items-center gap-2.5">
-              <button
+              <Button
                 type="submit"
+                size="sm"
                 disabled={sending || !title.trim() || selected.size === 0 || (mode === "template" && !stripHtml(bodyHtml)) || (mode === "upload" && !file)}
-                className="bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft disabled:opacity-60"
               >
                 {sending ? "Envoi…" : `Envoyer à ${selected.size} apprenant${selected.size > 1 ? "s" : ""}`}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="tertiary"
+                size="sm"
                 onClick={() => {
                   setOpen(false);
                   reset();
                 }}
-                className="text-[12.5px] text-slate hover:text-ink"
               >
                 Annuler
-              </button>
+              </Button>
             </div>
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </form>

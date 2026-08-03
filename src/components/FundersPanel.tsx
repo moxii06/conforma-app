@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pill, PhoneLink } from "@/components/ui";
+import { Pill, PhoneLink, Button } from "@/components/ui";
 import { formatCents, FUNDER_TYPE_LABELS } from "@/lib/funding";
 
 export type FunderRow = {
@@ -349,16 +349,12 @@ function FunderForm({
         celle de l&apos;accord écrit du financeur.
       </div>
       <div className="flex items-center gap-2.5">
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-ink text-white text-[12px] font-medium rounded-md px-3 py-1.5 hover:bg-ink-soft disabled:opacity-60"
-        >
+        <Button type="submit" size="sm" disabled={loading}>
           {loading ? "…" : submitLabel}
-        </button>
-        <button type="button" onClick={onCancel} className="text-[12px] text-slate hover:text-ink">
+        </Button>
+        <Button type="button" variant="tertiary" size="sm" onClick={onCancel}>
           Annuler
-        </button>
+        </Button>
       </div>
     </form>
   );

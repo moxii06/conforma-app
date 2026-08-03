@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, Button } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
@@ -158,12 +158,9 @@ export default async function IntegrationsPage(props: {
                     <MailboxActions provider="gmail" connectionId={conn.id} />
                   </div>
                 ))}
-                <a
-                  href="/api/integrations/google/connect"
-                  className="inline-block bg-ink text-white text-[12.5px] font-medium rounded-md px-3.5 py-1.5 hover:bg-ink-soft self-start"
-                >
+                <Button href="/api/integrations/google/connect" size="sm" className="self-start">
                   {googleConnections.length > 0 ? "Connecter un autre compte Google" : "Connecter Google"}
-                </a>
+                </Button>
               </div>
             </Card>
 
