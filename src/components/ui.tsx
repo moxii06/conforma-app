@@ -78,6 +78,19 @@ export function Avatar({ initials, size = "md" }: { initials: string; size?: "md
   );
 }
 
+// Every displayed phone number goes through this so it is always dialable —
+// a plain-text number is a dead end on mobile (audit S5 : zéro lien tel:
+// dans l'app pour 7 numéros affichés). Color and size inherit from the
+// surrounding text on purpose: the same link must sit in a muted 11px
+// funder line and a 13px ink contact card without restyling either.
+export function PhoneLink({ phone }: { phone: string }) {
+  return (
+    <a href={`tel:${phone.replace(/[^+\d]/g, "")}`} className="underline decoration-line hover:decoration-ink">
+      {phone}
+    </a>
+  );
+}
+
 // One label/value line of an identity card's facts block.
 export function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (

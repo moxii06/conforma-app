@@ -26,6 +26,7 @@ export function DismissTaskButton({ kind, id }: { kind: string; id: string }) {
       onClick={handleDismiss}
       disabled={loading}
       title="Ignorer — ne réapparaîtra plus dans À faire"
+      aria-label="Ignorer cette tâche — ne réapparaîtra plus dans À faire"
       className="text-slate hover:text-rust disabled:opacity-60 shrink-0"
     >
       <X size={13} />

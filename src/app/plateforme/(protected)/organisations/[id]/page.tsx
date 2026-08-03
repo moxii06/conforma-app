@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import { Pill, InfoRow } from "@/components/ui";
+import { Pill, InfoRow, PhoneLink } from "@/components/ui";
 import { OrganizationAccessActions } from "@/components/OrganizationAccessActions";
 import { OrganizationCgvControl } from "@/components/OrganizationCgvControl";
 import { PlatformEmailComposer } from "@/components/PlatformEmailComposer";
@@ -174,7 +174,7 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
             <div className="flex flex-col gap-1.5">
               <div className="text-[10.5px] uppercase tracking-wide text-slate font-semibold mb-0.5">Facturation Jalon</div>
-              <InfoRow label="Téléphone">{organization.billingPhone ?? "—"}</InfoRow>
+              <InfoRow label="Téléphone">{organization.billingPhone ? <PhoneLink phone={organization.billingPhone} /> : "—"}</InfoRow>
               <InfoRow label="SIRET">{organization.siret ?? "—"}</InfoRow>
               <InfoRow label="Adresse">{organization.billingAddress ?? "—"}</InfoRow>
               <InfoRow label="Code postal">{organization.billingPostalCode ?? "—"}</InfoRow>
@@ -203,8 +203,18 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
           {(organization.publicContactEmail || organization.publicContactPhone) && (
             <div className="flex flex-col gap-1.5 pt-2.5 border-t border-line">
               <div className="text-[10.5px] uppercase tracking-wide text-slate font-semibold mb-0.5">Contact public (catalogue)</div>
-              <InfoRow label="Email">{organization.publicContactEmail ?? "—"}</InfoRow>
-              <InfoRow label="Téléphone">{organization.publicContactPhone ?? "—"}</InfoRow>
+              <InfoRow label="Email">
+                {organization.publicContactEmail ? (
+                  <a href={`mailto:${organization.publicContactEmail}`} className="underline decoration-line hover:decoration-ink">
+                    {organization.publicContactEmail}
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </InfoRow>
+              <InfoRow label="Téléphone">
+                {organization.publicContactPhone ? <PhoneLink phone={organization.publicContactPhone} /> : "—"}
+              </InfoRow>
             </div>
           )}
         </div>

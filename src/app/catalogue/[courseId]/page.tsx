@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { BrandedLogo } from "@/components/BrandedLogo";
 import { PublicEnrollmentForm } from "@/components/PublicEnrollmentForm";
+import { PhoneLink } from "@/components/ui";
 
 export async function generateMetadata(props: { params: Promise<{ courseId: string }> }): Promise<Metadata> {
   const params = await props.params;
@@ -132,7 +133,11 @@ export default async function PublicCoursePage(props: { params: Promise<{ course
               </a>
             </div>
           )}
-          {org.publicContactPhone && <div className="text-[12.5px] text-slate mt-0.5">{org.publicContactPhone}</div>}
+          {org.publicContactPhone && (
+            <div className="text-[12.5px] text-slate mt-0.5">
+              <PhoneLink phone={org.publicContactPhone} />
+            </div>
+          )}
           {(org.billingAddress || org.billingCity) && (
             <div className="text-[12.5px] text-slate mt-0.5">
               {[org.billingAddress, [org.billingPostalCode, org.billingCity].filter(Boolean).join(" ")].filter(Boolean).join(", ")}

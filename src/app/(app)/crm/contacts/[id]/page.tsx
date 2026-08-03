@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar, InfoRow } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow, PhoneLink } from "@/components/ui";
 import { PipelineStage, DocStatus, Role } from "@prisma/client";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -156,7 +156,11 @@ export default async function ContactRecordPage(
             )}
             <div className="mt-4 pt-4 border-t border-line flex flex-col gap-2.5">
               {contact.company && <InfoRow label="Entreprise">{contact.company.name}</InfoRow>}
-              {contact.phone && <InfoRow label="Téléphone">{contact.phone}</InfoRow>}
+              {contact.phone && (
+                <InfoRow label="Téléphone">
+                  <PhoneLink phone={contact.phone} />
+                </InfoRow>
+              )}
               <InfoRow label="Email">
                 <span className="break-all">{contact.email}</span>
               </InfoRow>

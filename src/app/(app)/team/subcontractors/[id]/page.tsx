@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill } from "@/components/ui";
+import { PageHeader, Pill, PhoneLink } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -111,7 +111,9 @@ export default async function SubcontractorRecordPage(props: { params: Promise<{
             {subcontractor.contactPhone && (
               <div>
                 <div className="text-[11px] text-slate uppercase tracking-wide mb-1">Téléphone</div>
-                <div className="text-ink">{subcontractor.contactPhone}</div>
+                <div className="text-ink">
+                  <PhoneLink phone={subcontractor.contactPhone} />
+                </div>
               </div>
             )}
             {subcontractor.contractEndDate && (

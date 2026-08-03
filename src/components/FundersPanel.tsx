@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pill } from "@/components/ui";
+import { Pill, PhoneLink } from "@/components/ui";
 import { formatCents, FUNDER_TYPE_LABELS } from "@/lib/funding";
 
 export type FunderRow = {
@@ -157,7 +157,12 @@ export function FundersPanel({ funders, canWrite }: { funders: FunderRow[]; canW
                       </div>
                       <div className="text-[11px] text-slate">
                         {f.contactEmail || "Sans contact"}
-                        {f.contactPhone && ` · ${f.contactPhone}`}
+                        {f.contactPhone && (
+                          <>
+                            {" · "}
+                            <PhoneLink phone={f.contactPhone} />
+                          </>
+                        )}
                       </div>
                       {(f.hourlyRateCents != null || f.maxAmountCents != null) && (
                         <div className="text-[11px] text-slate">

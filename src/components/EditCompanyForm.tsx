@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PhoneLink } from "@/components/ui";
 
 type Company = {
   id: string;
@@ -86,7 +87,11 @@ export function EditCompanyForm({ company, title }: { company: Company; title: s
             </div>
           )}
           {company.responsableEmail && <div className="text-[12px] text-slate">{company.responsableEmail}</div>}
-          {company.responsablePhone && <div className="text-[12px] text-slate">{company.responsablePhone}</div>}
+          {company.responsablePhone && (
+            <div className="text-[12px] text-slate">
+              <PhoneLink phone={company.responsablePhone} />
+            </div>
+          )}
           {company.legalRepresentativeName && (
             <div className="text-[12px] text-slate mt-1.5">Représentant légal : {company.legalRepresentativeName}</div>
           )}

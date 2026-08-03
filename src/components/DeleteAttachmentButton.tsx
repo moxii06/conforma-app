@@ -16,7 +16,13 @@ export function DeleteAttachmentButton({ attachmentId }: { attachmentId: string 
   }
 
   return (
-    <button onClick={handleClick} disabled={loading} title="Retirer ce document" className="text-slate hover:text-rust shrink-0 disabled:opacity-60">
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      title="Retirer ce document"
+      aria-label="Retirer ce document"
+      className="text-slate hover:text-rust shrink-0 disabled:opacity-60"
+    >
       <X size={13} />
     </button>
   );
