@@ -33,7 +33,7 @@ export default function DemoPage() {
 
       <div className="max-w-4xl mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-[1fr_400px] gap-10">
         <div>
-          <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#F0E7D4] border border-[#D9C79E] rounded-full px-3 py-1 mb-5">
+          <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#EDDFC6] border border-[#dccba8] rounded-full px-3 py-1 mb-5">
             Démonstration personnalisée · sans engagement
           </div>
           <h1 className="font-display text-[32px] sm:text-[38px] leading-[1.1] text-ink mb-4 text-balance">

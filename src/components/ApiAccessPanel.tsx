@@ -115,7 +115,7 @@ export function ApiAccessPanel({
 
       {/* The one moment the key is visible. Made deliberately hard to miss. */}
       {freshKey && (
-        <div className="bg-[#F0E7D4] border border-seal rounded-card p-4">
+        <div className="bg-[#EDDFC6] border border-seal rounded-card p-4">
           <div className="text-[12.5px] font-semibold text-seal-dark mb-1">Copiez cette clé maintenant</div>
           <div className="text-[11.5px] text-seal-dark mb-2.5">
             Elle ne sera plus jamais affichée : nous n&apos;en gardons qu&apos;une empreinte, pas la clé elle-même.

@@ -328,7 +328,7 @@ export function DossierFundingPanel({
       )}
 
       {summary.expiringSoon.length > 0 && (
-        <div className="flex items-start gap-2 bg-[#F0E7D4] rounded-md px-3 py-2 text-[12px] text-seal-dark">
+        <div className="flex items-start gap-2 bg-[#EDDFC6] rounded-md px-3 py-2 text-[12px] text-seal-dark">
           <TriangleAlert size={14} className="mt-0.5 shrink-0" />
           <span>
             {summary.expiringSoon.length === 1 ? "Un accord de prise en charge arrive" : `${summary.expiringSoon.length} accords de prise en charge arrivent`}{" "}

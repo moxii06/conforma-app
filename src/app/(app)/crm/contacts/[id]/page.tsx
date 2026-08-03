@@ -15,6 +15,7 @@ import { EditLearnerCategoryForm } from "@/components/EditLearnerCategoryForm";
 import { LEARNER_CATEGORY_LABELS, LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCategories";
 import { SendDocumentDialog } from "@/components/SendDocumentDialog";
 import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
+import { DOC_STATUS_TONE } from "@/components/DocStatusSelect";
 import { isYousignConfigured } from "@/lib/yousign";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -27,14 +28,6 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   TO_INVOICE: "À facturer",
   INVOICED: "Facturé",
   PAID: "Payé",
-};
-
-const DOC_STATUS_TONE: Record<DocStatus, "good" | "warn" | "danger" | "neutral"> = {
-  DRAFT: "neutral",
-  SENT: "warn",
-  SIGNED: "good",
-  PAID: "good",
-  OVERDUE: "danger",
 };
 
 const OUTREACH_LABELS: Record<string, string> = {

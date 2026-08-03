@@ -31,7 +31,7 @@ export default function DiagnosticQualiopiPage() {
       </header>
 
       <section className="max-w-3xl mx-auto px-6 pt-14 pb-8 text-center">
-        <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#F0E7D4] border border-[#D9C79E] rounded-full px-3 py-1 mb-5">
+        <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#EDDFC6] border border-[#dccba8] rounded-full px-3 py-1 mb-5">
           Gratuit · 3 minutes · sans engagement
         </div>
         <h1 className="font-display text-[34px] sm:text-[42px] leading-[1.1] text-ink mb-4 text-balance">

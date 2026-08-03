@@ -196,7 +196,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const fieldClass = "w-full bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-seal placeholder:text-ash";
   const quickStartButtonClass = (active: boolean) =>
     `flex flex-col items-center justify-center gap-1.5 rounded-md border px-2 py-3 text-[11px] text-center leading-snug transition-colors ${
-      active ? "border-seal bg-[#F0E7D4] text-seal-dark" : "border-line text-slate hover:border-ink-soft hover:text-ink hover:bg-linen"
+      active ? "border-seal bg-[#EDDFC6] text-seal-dark" : "border-line text-slate hover:border-ink-soft hover:text-ink hover:bg-linen"
     }`;
 
   return (

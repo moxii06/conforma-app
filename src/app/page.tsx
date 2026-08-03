@@ -130,7 +130,7 @@ export default function MarketingPage() {
       <main>
       {/* ---- Hero ---- */}
       <section className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#F0E7D4] border border-[#D9C79E] rounded-full px-3 py-1 mb-6">
+        <div className="inline-flex items-center gap-2 text-[12px] font-medium text-seal-dark bg-[#EDDFC6] border border-[#dccba8] rounded-full px-3 py-1 mb-6">
           Données hébergées dans l&apos;UE · Qualiopi · RGPD
         </div>
         <h1 className="font-display text-[40px] sm:text-[52px] leading-[1.08] text-ink mb-5 text-balance">

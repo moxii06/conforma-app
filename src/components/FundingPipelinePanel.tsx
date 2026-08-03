@@ -204,7 +204,7 @@ export function FundingPipelinePanel({
       </div>
 
       {alertTotal > 0 && (
-        <div className="flex items-start gap-2 bg-[#F0E7D4] rounded-card px-4 py-3 text-[12.5px] text-seal-dark">
+        <div className="flex items-start gap-2 bg-[#EDDFC6] rounded-card px-4 py-3 text-[12.5px] text-seal-dark">
           <TriangleAlert size={15} className="mt-0.5 shrink-0" />
           <span>
             {[

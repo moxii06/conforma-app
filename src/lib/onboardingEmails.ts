@@ -57,7 +57,7 @@ function wrapHtml(c: OnboardingContext, bodyHtml: string, cta: OnboardingStep["c
         <tr><td style="padding:4px 28px 20px;font-size:14px;line-height:1.6;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td>${bodyHtml}</td></tr>${button}</table>
         </td></tr>
-        <tr><td style="padding:14px 28px 22px;border-top:1px solid #EFE7D6;font-size:11.5px;color:#5A6672;line-height:1.5;">
+        <tr><td style="padding:14px 28px 22px;border-top:1px solid #EDDFC6;font-size:11.5px;color:#5A6672;line-height:1.5;">
           Vous recevez cet email parce que vous avez ouvert un essai gratuit de Jalon (${c.orgName}).
           Une question&nbsp;? Répondez simplement à ce message, une vraie personne vous lira.
         </td></tr>

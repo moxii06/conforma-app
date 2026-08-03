@@ -66,7 +66,7 @@ export default async function NouveauDocumentPage() {
                   <div className="flex items-center gap-1.5 flex-wrap mt-1">
                     <span
                       className={`text-[10.5px] font-semibold rounded px-1.5 py-0.5 ${
-                        scope === "per_learner" ? "bg-[#EFE7D6] text-seal-dark" : "bg-[#E4EAE6] text-sage"
+                        scope === "per_learner" ? "bg-[#EDDFC6] text-seal-dark" : "bg-[#DEE5E0] text-sage"
                       }`}
                     >
                       {scopeLabel(scope)}

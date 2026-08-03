@@ -558,11 +558,11 @@ const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team", growth
 function TrialBanner({ plan, trialEndsAt }: { plan: string; trialEndsAt: Date }) {
   const daysLeft = Math.max(0, differenceInCalendarDays(trialEndsAt, new Date()));
   return (
-    <div className="bg-[#F0E7D4] border border-[#D9C79E] rounded-card px-4 py-3 flex items-center justify-between gap-3">
+    <div className="bg-[#EDDFC6] border border-[#dccba8] rounded-card px-4 py-3 flex items-center justify-between gap-3">
       <div className="text-[12.5px] text-seal-dark">
         Essai <strong>{PLAN_LABELS[plan] ?? plan}</strong> — {daysLeft > 0 ? `${daysLeft} jour${daysLeft > 1 ? "s" : ""} restant${daysLeft > 1 ? "s" : ""}` : "se termine aujourd'hui"}, sans carte bancaire.
       </div>
-      <Link href="/abonnement" className="text-[12px] font-medium text-seal-dark underline decoration-[#D9C79E] hover:decoration-seal-dark shrink-0">
+      <Link href="/abonnement" className="text-[12px] font-medium text-seal-dark underline decoration-[#dccba8] hover:decoration-seal-dark shrink-0">
         Gérer la facturation
       </Link>
     </div>

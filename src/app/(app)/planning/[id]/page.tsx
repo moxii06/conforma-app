@@ -369,7 +369,7 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                           step.done
                             ? "bg-[#DEE5E0] text-sage"
                             : step.due
-                              ? "bg-[#F4E3DE] text-rust"
+                              ? "bg-[#E9D8D3] text-rust"
                               : "bg-pebble text-slate"
                         }`}
                       >

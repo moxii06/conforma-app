@@ -60,7 +60,7 @@ export function InstallStarterRegisterButton() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="text-[12.5px] text-ink font-medium">{p.name}</div>
                     {p.needsReview && (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#F4E3DE] text-rust shrink-0">
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#E9D8D3] text-rust shrink-0">
                         à revoir
                       </span>
                     )}

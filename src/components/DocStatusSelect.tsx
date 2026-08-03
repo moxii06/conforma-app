@@ -17,6 +17,18 @@ export function statusLabels(kind: "quotes" | "invoices"): Record<DocStatus, str
   };
 }
 
+// Seule source de vérité pour la couleur d'un statut de devis/facture —
+// dupliquée à l'identique dans facturation/page.tsx et crm/contacts/[id]/
+// page.tsx avant ce partage (audit S6, cohérence des couleurs) ; les deux
+// copies auraient pu diverger sans que rien ne le signale.
+export const DOC_STATUS_TONE: Record<DocStatus, "good" | "warn" | "danger" | "neutral"> = {
+  DRAFT: "neutral",
+  SENT: "warn",
+  SIGNED: "good",
+  PAID: "good",
+  OVERDUE: "danger",
+};
+
 export function DocStatusSelect({ kind, id, status }: { kind: "quotes" | "invoices"; id: string; status: DocStatus }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
