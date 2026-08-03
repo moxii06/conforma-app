@@ -60,7 +60,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
   const oauthError = searchParams.get("error");
   const oauthErrorMessage =
     oauthError === SOCIAL_LOGIN_DENIED
-      ? "Aucun compte Jalon actif ne correspond à ce compte Google. La connexion Google est réservée aux membres de l'organisme dont le compte est déjà créé et activé."
+      ? "Aucun compte actif ne correspond à ce compte Google. La connexion Google est réservée aux membres de l'organisme dont le compte est déjà créé et activé."
       : oauthError
         ? "La connexion via Google a échoué. Réessayez ou utilisez votre email et mot de passe."
         : null;
@@ -90,15 +90,19 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
   return (
     <main className="min-h-screen bg-paper flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2.5 justify-center mb-3">
-          <div className="w-8 h-8 rounded-md bg-seal flex items-center justify-center">
-            <Milestone size={18} className="text-ink" strokeWidth={2.4} />
-          </div>
-          <div className="font-display text-xl text-ink tracking-wide">Jalon</div>
-        </div>
-        <div className="text-center text-[13px] text-slate mb-8">
-          {isLearner ? "Espace apprenant" : "Espace organisme de formation"}
-        </div>
+        {isLearner ? (
+          <div className="text-center font-display text-xl text-ink tracking-wide mb-8">Espace apprenant</div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5 justify-center mb-3">
+              <div className="w-8 h-8 rounded-md bg-seal flex items-center justify-center">
+                <Milestone size={18} className="text-ink" strokeWidth={2.4} />
+              </div>
+              <div className="font-display text-xl text-ink tracking-wide">Jalon</div>
+            </div>
+            <div className="text-center text-[13px] text-slate mb-8">Espace organisme de formation</div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit} className="bg-white border border-line rounded-card p-6 flex flex-col gap-4">
           {oauthErrorMessage && (

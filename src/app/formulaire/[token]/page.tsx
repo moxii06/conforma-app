@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { NeedsAssessmentForm } from "@/components/NeedsAssessmentForm";
 import { BrandedLogo } from "@/components/BrandedLogo";
 import { parseNeedsAssessmentBody } from "@/lib/needsAssessmentQuestions";
+
+export async function generateMetadata(props: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const params = await props.params;
+  const request = await prisma.needsAssessmentRequest.findUnique({
+    where: { token: params.token },
+    select: { organization: { select: { name: true } } },
+  });
+  return { title: request ? `Recueil des besoins — ${request.organization.name}` : "Jalon" };
+}
 
 export default async function NeedsAssessmentPublicPage(props: { params: Promise<{ token: string }> }) {
   const params = await props.params;

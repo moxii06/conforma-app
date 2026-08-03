@@ -1,8 +1,20 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { SatisfactionSurveyForm } from "@/components/SatisfactionSurveyForm";
 import { SURVEY_KIND_LABELS, type SurveyKind } from "@/lib/satisfactionSurveys";
 import { BrandedLogo } from "@/components/BrandedLogo";
+
+export async function generateMetadata(props: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const params = await props.params;
+  const response = await prisma.satisfactionSurveyResponse.findUnique({
+    where: { token: params.token },
+    select: { survey: { select: { kind: true, organization: { select: { name: true } } } } },
+  });
+  if (!response) return { title: "Jalon" };
+  const kindLabel = SURVEY_KIND_LABELS[response.survey.kind as SurveyKind] ?? "Évaluation";
+  return { title: `${kindLabel} — ${response.survey.organization.name}` };
+}
 
 export default async function SatisfactionSurveyPublicPage(props: { params: Promise<{ token: string }> }) {
   const params = await props.params;

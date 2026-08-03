@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 import { authOptions, googleLoginEnabled } from "@/lib/auth";
 import { LoginForm } from "@/components/LoginForm";
 
-export const metadata: Metadata = {
-  title: "Connexion — Jalon",
-};
+export async function generateMetadata(props: { searchParams: Promise<{ as?: string }> }): Promise<Metadata> {
+  const searchParams = await props.searchParams;
+  return { title: searchParams.as === "learner" ? "Connexion" : "Connexion — Jalon" };
+}
 
 export default async function LoginPage() {
   const session = await getServerSession(authOptions);

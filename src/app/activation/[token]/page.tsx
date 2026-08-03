@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { BrandedLogo } from "@/components/BrandedLogo";
 import { ActivationForm } from "@/components/ActivationForm";
 import { ROLE_LABELS } from "@/lib/tenant";
+
+export async function generateMetadata(props: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const params = await props.params;
+  const user = await prisma.user.findUnique({
+    where: { activationToken: params.token },
+    select: { organization: { select: { name: true } } },
+  });
+  return { title: user ? `Activation de compte — ${user.organization.name}` : "Jalon" };
+}
 
 export default async function ActivationPage(props: { params: Promise<{ token: string }> }) {
   const params = await props.params;

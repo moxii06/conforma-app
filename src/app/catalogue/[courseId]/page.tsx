@@ -1,7 +1,17 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { BrandedLogo } from "@/components/BrandedLogo";
 import { PublicEnrollmentForm } from "@/components/PublicEnrollmentForm";
+
+export async function generateMetadata(props: { params: Promise<{ courseId: string }> }): Promise<Metadata> {
+  const params = await props.params;
+  const course = await prisma.course.findFirst({
+    where: { id: params.courseId, isPublic: true, archivedAt: null },
+    select: { title: true, organization: { select: { name: true } } },
+  });
+  return { title: course ? `${course.title} — ${course.organization.name}` : "Jalon" };
+}
 
 // The public course page — RNQ indicator 1's ten mandatory items on one
 // URL the OF can put on its website, quotes and social posts. Opt-in
