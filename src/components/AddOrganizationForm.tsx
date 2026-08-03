@@ -64,7 +64,7 @@ export function AddOrganizationForm() {
   if (result) {
     return (
       <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-2.5 max-w-md">
-        <div className="text-[13px] font-semibold text-ink">Organisme créé</div>
+        <div className="text-[13.5px] font-semibold text-ink">Organisme créé</div>
         {result.emailSent ? (
           <p className="text-[12.5px] text-slate leading-relaxed">
             L&apos;email d&apos;activation a été envoyé à {email}.
@@ -95,7 +95,7 @@ export function AddOrganizationForm() {
 
   return (
     <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3 max-w-md">
-      <div className="text-[13px] font-semibold text-ink">Ajouter un organisme</div>
+      <div className="text-[13.5px] font-semibold text-ink">Ajouter un organisme</div>
       <div className="flex flex-col gap-2.5">
         <label className="flex flex-col gap-1">
           <span className="text-[11px] uppercase tracking-wide text-slate font-medium">Nom de l&apos;organisme</span>

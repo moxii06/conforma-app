@@ -144,7 +144,7 @@ export function ApiAccessPanel({
       )}
 
       <div className="bg-white border border-line rounded-card p-4">
-        <div className="text-[13px] font-semibold text-ink mb-1">Clés d&apos;API</div>
+        <div className="text-[13.5px] font-semibold text-ink mb-1">Clés d&apos;API</div>
         <div className="text-[12px] text-slate mb-3">
           Chaque clé porte ses propres permissions. Créez-en une par outil : révoquer l&apos;une n&apos;interrompt
           pas les autres.
@@ -245,7 +245,7 @@ export function ApiAccessPanel({
       </div>
 
       <div className="bg-white border border-line rounded-card p-4">
-        <div className="text-[13px] font-semibold text-ink mb-1">Webhooks</div>
+        <div className="text-[13.5px] font-semibold text-ink mb-1">Webhooks</div>
         <div className="text-[12px] text-slate mb-3">
           Jalon appelle votre URL dès qu&apos;un événement se produit — sans attendre que vous veniez demander.
           C&apos;est ce qui permet aux automatisations Zapier ou Make de réagir à la seconde.

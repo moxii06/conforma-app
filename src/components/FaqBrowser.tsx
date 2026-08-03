@@ -196,7 +196,7 @@ export function FaqBrowser({ visibleKeys, showStarter }: { visibleKeys: string[]
             <LifeBuoy size={15} className="text-ink" />
           </div>
           <div className="flex-1">
-            <div className="text-[13px] font-semibold text-ink mb-0.5">Vous n&apos;avez pas trouvé ?</div>
+            <div className="text-[13.5px] font-semibold text-ink mb-0.5">Vous n&apos;avez pas trouvé ?</div>
             <div className="text-[12px] text-slate">
               Posez votre question depuis{" "}
               <Link href="/support" className="text-ink underline decoration-line hover:decoration-ink">

@@ -60,7 +60,7 @@ export function IntegrationRequestForm({ pastRequests }: { pastRequests: PastReq
 
   return (
     <div className="bg-white border border-line rounded-card p-4">
-      <div className="text-[13px] font-semibold text-ink mb-1">Un outil manque à cette liste ?</div>
+      <div className="text-[13.5px] font-semibold text-ink mb-1">Un outil manque à cette liste ?</div>
       <div className="text-[12px] text-slate mb-3">
         Dites-nous lequel et ce que vous en attendez. Les demandes orientent réellement l&apos;ordre dans lequel
         nous branchons les connecteurs — c&apos;est le meilleur moyen de faire remonter le vôtre.

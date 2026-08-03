@@ -308,7 +308,7 @@ export function DocumentComposer({
           {/* Volet droit : les réglages */}
           <div className="bg-white border border-line rounded-card divide-y divide-line">
             <div className="p-4">
-              <div className="text-[11px] font-semibold text-ink mb-2">Formation concernée</div>
+              <div className="text-[11.5px] font-semibold text-ink mb-2">Formation concernée</div>
               <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} className={champ}>
                 <option value="">— Aucune formation (document générique) —</option>
                 {sessions.map((s) => (
@@ -326,7 +326,7 @@ export function DocumentComposer({
 
             <div className="p-4">
               <div className="flex items-center justify-between gap-2 mb-1.5">
-                <div className="text-[11px] font-semibold text-ink">Destinataires</div>
+                <div className="text-[11.5px] font-semibold text-ink">Destinataires</div>
                 <span
                   className={`text-[10.5px] font-semibold rounded px-1.5 py-0.5 ${
                     scope === "per_learner" ? "bg-[#EDDFC6] text-seal-dark" : "bg-[#DEE5E0] text-sage"
@@ -342,7 +342,7 @@ export function DocumentComposer({
 
             {(preview?.needsAnswers.length ?? 0) > 0 && (
               <div className="p-4">
-                <div className="text-[11px] font-semibold text-ink mb-1">Options du document</div>
+                <div className="text-[11.5px] font-semibold text-ink mb-1">Options du document</div>
                 <div className="text-[11.5px] text-slate mb-2.5 leading-snug">
                   Ce modèle contient des paragraphes conditionnels. Ces réponses décident lesquels apparaissent.
                 </div>
@@ -373,7 +373,7 @@ export function DocumentComposer({
 
             {(preview?.applied?.length ?? 0) > 0 && (
               <div className="p-4">
-                <div className="text-[11px] font-semibold text-ink mb-2">Paragraphes retenus</div>
+                <div className="text-[11.5px] font-semibold text-ink mb-2">Paragraphes retenus</div>
                 <div className="flex flex-wrap gap-1.5">
                   {preview!.applied!.map((a) => (
                     <span key={a.key} className="text-[10.5px] bg-linen text-slate rounded px-1.5 py-0.5">

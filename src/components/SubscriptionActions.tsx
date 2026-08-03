@@ -41,7 +41,7 @@ export function SubscriptionActions({
   if (!billingEnabled) {
     return (
       <div className="bg-white border border-line rounded-card p-5">
-        <div className="text-[13px] font-semibold text-ink mb-1">Souscrire une formule</div>
+        <div className="text-[13.5px] font-semibold text-ink mb-1">Souscrire une formule</div>
         <div className="text-[12.5px] text-slate">
           La souscription en ligne n&apos;est pas encore activée sur cette installation. Contactez-nous pour passer
           sur une formule payante.
@@ -56,7 +56,7 @@ export function SubscriptionActions({
 
       {hasPaidSubscription && (
         <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[13px] font-semibold text-ink mb-1">Gérer mon abonnement</div>
+          <div className="text-[13.5px] font-semibold text-ink mb-1">Gérer mon abonnement</div>
           <div className="text-[12.5px] text-slate mb-3.5">
             Moyen de paiement, factures, changement de formule et résiliation — le tout sur l&apos;espace sécurisé
             de Stripe. Vos coordonnées bancaires ne transitent jamais par Jalon.

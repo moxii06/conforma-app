@@ -41,7 +41,7 @@ export default async function ActualitesPage() {
 
       <section className="max-w-3xl mx-auto px-6 pt-16 pb-10 text-center">
         <div className="text-[12px] font-semibold text-seal-dark uppercase tracking-wide mb-2">Actualités</div>
-        <h1 className="font-display text-[34px] sm:text-[40px] leading-[1.1] text-ink mb-4 text-balance">
+        <h1 className="font-display text-[32px] sm:text-[38px] leading-[1.1] text-ink mb-4 text-balance">
           Qualiopi, RGPD, réglementation : nos analyses
         </h1>
         <p className="text-[15px] text-slate leading-relaxed max-w-xl mx-auto">

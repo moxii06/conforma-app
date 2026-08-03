@@ -37,7 +37,7 @@ export function ForgotPasswordForm() {
         <div className="bg-white border border-line rounded-card p-6">
           {done ? (
             <div className="text-center">
-              <div className="text-[13.5px] font-medium text-ink mb-1.5">Email envoyé</div>
+              <div className="text-[13.5px] font-semibold text-ink mb-1.5">Email envoyé</div>
               <div className="text-[12.5px] text-slate">
                 Si un compte existe pour cette adresse, un lien de réinitialisation valable 1 heure vient de lui être
                 envoyé.
@@ -46,7 +46,7 @@ export function ForgotPasswordForm() {
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
-                <div className="text-[13.5px] font-medium text-ink mb-1">Mot de passe oublié</div>
+                <div className="text-[13.5px] font-semibold text-ink mb-1">Mot de passe oublié</div>
                 <div className="text-[12.5px] text-slate mb-3">
                   Indiquez votre email, nous vous enverrons un lien pour définir un nouveau mot de passe.
                 </div>

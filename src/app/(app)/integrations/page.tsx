@@ -70,7 +70,7 @@ function Card({
   return (
     <div className="bg-white border border-line rounded-card p-4">
       <div className="flex items-center gap-2 mb-1">
-        <div className="text-[13px] font-semibold text-ink">{title}</div>
+        <div className="text-[13.5px] font-semibold text-ink">{title}</div>
         <Pill tone={tone}>{status}</Pill>
       </div>
       <div className="text-[12px] text-slate mb-3 last:mb-0">{description}</div>

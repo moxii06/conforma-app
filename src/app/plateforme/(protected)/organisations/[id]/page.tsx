@@ -111,7 +111,7 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
 
       <div className="px-8 pb-8 flex flex-col gap-4 max-w-3xl">
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-2.5">
-          <div className="text-[13px] font-semibold text-ink">Accès</div>
+          <div className="text-[13.5px] font-semibold text-ink">Accès</div>
           <div className="flex flex-wrap gap-2">
             {organization.suspendedAt && (
               <Pill tone="danger">
@@ -131,7 +131,7 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
-            <div className="text-[13px] font-semibold text-ink">Abonnement</div>
+            <div className="text-[13.5px] font-semibold text-ink">Abonnement</div>
             {sub && <Pill tone={STATUS_TONES[sub.status] ?? "neutral"}>{STATUS_LABELS[sub.status] ?? sub.status}</Pill>}
           </div>
           {sub ? (
@@ -165,12 +165,12 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
         </div>
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-2">
-          <div className="text-[13px] font-semibold text-ink">Conditions générales de vente</div>
+          <div className="text-[13.5px] font-semibold text-ink">Conditions générales de vente</div>
           <OrganizationCgvControl organizationId={organization.id} cgvAcceptedAt={organization.cgvAcceptedAt} />
         </div>
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13px] font-semibold text-ink">Informations renseignées par l&apos;organisme</div>
+          <div className="text-[13.5px] font-semibold text-ink">Informations renseignées par l&apos;organisme</div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
             <div className="flex flex-col gap-1.5">
               <div className="text-[10.5px] uppercase tracking-wide text-slate font-semibold mb-0.5">Facturation Jalon</div>
@@ -220,7 +220,7 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
         </div>
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
-          <div className="text-[13px] font-semibold text-ink">Activité</div>
+          <div className="text-[13.5px] font-semibold text-ink">Activité</div>
           <div className="grid grid-cols-2 gap-4">
             <PlatformEmailComposer organizationId={organization.id} defaultTo={admin?.email ?? ""} />
             <PlatformContactNoteForm organizationId={organization.id} />

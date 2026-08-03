@@ -42,7 +42,7 @@ export default async function EssaiPage(props: { searchParams: Promise<{ plan?: 
 
       <div className="max-w-4xl mx-auto px-6 py-14 grid grid-cols-1 md:grid-cols-[1fr_340px] gap-10">
         <div>
-          <h1 className="font-display text-[30px] text-ink mb-2">Créez votre compte</h1>
+          <h1 className="font-display text-[32px] sm:text-[38px] text-ink mb-2">Créez votre compte</h1>
           <p className="text-[14px] text-slate mb-8">
             14 jours d&apos;essai gratuit, sans carte bancaire. Votre espace est prêt en moins d&apos;une minute.
           </p>

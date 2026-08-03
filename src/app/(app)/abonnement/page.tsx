@@ -39,7 +39,7 @@ export default async function AbonnementPage() {
       <div className="p-8 flex flex-col gap-5 max-w-2xl">
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <div className="text-[13px] font-semibold text-ink">Formule actuelle</div>
+            <div className="text-[13.5px] font-semibold text-ink">Formule actuelle</div>
             {status && <Pill tone={status.tone}>{status.label}</Pill>}
           </div>
           {subscription ? (
@@ -61,7 +61,7 @@ export default async function AbonnementPage() {
         {signatureQuota.metered && (
           <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <div className="text-[13px] font-semibold text-ink">Signatures électroniques</div>
+              <div className="text-[13.5px] font-semibold text-ink">Signatures électroniques</div>
               <Pill tone={signatureQuota.overage > 0 ? "warn" : "neutral"}>
                 {Math.min(signatureQuota.used, signatureQuota.included)} / {signatureQuota.included} incluses ce mois-ci
               </Pill>

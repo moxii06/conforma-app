@@ -103,7 +103,7 @@ export function EditSessionForm({
         >
           <ArrowLeft size={15} />
         </button>
-        <div className="text-[12px] font-semibold text-ink">Modifier la session</div>
+        <div className="text-[12.5px] font-semibold text-ink">Modifier la session</div>
       </div>
       <div className="flex gap-2">
         <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">

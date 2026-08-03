@@ -28,7 +28,7 @@ export function MetricCard({
     <>
       <div className="text-[12.5px] text-slate mb-2">{label}</div>
       <div className={`text-2xl font-mono font-semibold tabular-nums ${METRIC_VALUE_TONES[tone]}`}>{value}</div>
-      {hint && <div className="text-xs text-slate mt-1.5">{hint}</div>}
+      {hint && <div className="text-[12.5px] text-slate mt-1.5">{hint}</div>}
     </>
   );
   if (href) {
@@ -104,7 +104,9 @@ const PILL_STYLES: Record<string, string> = {
 
 export function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: keyof typeof PILL_STYLES }) {
   return (
-    <span className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full ${PILL_STYLES[tone]}`}>
+    <span
+      className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 ${PILL_STYLES[tone]}`}
+    >
       {children}
     </span>
   );

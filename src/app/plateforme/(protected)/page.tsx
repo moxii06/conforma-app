@@ -176,7 +176,7 @@ export default async function PlatformAdminOrganizationsPage(props: {
       <div className="px-8 pb-4">
         <div className="bg-white border border-line rounded-card p-5">
           <div className="flex items-center justify-between mb-3.5">
-            <div className="text-[13px] font-semibold text-ink">Résumé financier</div>
+            <div className="text-[13.5px] font-semibold text-ink">Résumé financier</div>
             {financeEnabled && (
               <div className="text-[11px] text-slate">Estimation sur la base des tarifs catalogue actuels</div>
             )}
@@ -346,7 +346,7 @@ export default async function PlatformAdminOrganizationsPage(props: {
       <div className="px-8 pb-8">
         <div className="bg-white border border-line rounded-card p-5">
           <div className="flex items-baseline justify-between mb-3.5">
-            <div className="text-[13px] font-semibold text-ink">Activité récente</div>
+            <div className="text-[13.5px] font-semibold text-ink">Activité récente</div>
             <div className="text-[12px] text-slate">tous organismes{qualiteFilter ? ` — ${qualiteFilter === "client" ? "clients" : "prospects"}` : ""}</div>
           </div>
           <div className="flex flex-col">
