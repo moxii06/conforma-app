@@ -9,11 +9,12 @@ function taskKey(t: DashboardTask) {
   return `${t.kind}-${t.id}`;
 }
 
-// "Tout effacer" only dismisses items from this bell's dropdown (a personal,
-// per-browser "I've seen this" — stored client-side, nothing server-side to
-// migrate). It does NOT resolve the underlying issue, so the dashboard's own
-// À faire widget (the authoritative list staff act on) is unaffected —
-// dismissing here just quiets the bell until a *new* task shows up.
+// "Tout effacer" marque les tâches visibles comme vues pour CET utilisateur
+// (NotificationDismissal, côté serveur — partagé entre ses appareils, plus
+// prisonnier d'un seul navigateur : audit S6, finding M5). Ça ne résout pas
+// le sujet sous-jacent, donc le widget "À faire" du tableau de bord (la
+// liste faisant autorité pour agir) n'est pas affecté — effacer ici ne fait
+// que taire la cloche jusqu'à ce qu'une *nouvelle* tâche apparaisse.
 export function NotificationBell({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
   const [clearedKeys, setClearedKeys] = useState<Set<string>>(new Set());
@@ -22,23 +23,15 @@ export function NotificationBell({ userId }: { userId: string }) {
   // quinzaine de requêtes par navigation pour un compteur. Récupérée après
   // le rendu, la page ne l'attend plus.
   const [tasks, setTasks] = useState<DashboardTask[]>([]);
-  const storageKey = `conforma:notifications:cleared:${userId}`;
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) setClearedKeys(new Set(JSON.parse(raw)));
-    } catch {
-      // Ignore malformed/unavailable storage — worst case, nothing starts cleared.
-    }
-  }, [storageKey]);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/notifications")
-      .then((r) => (r.ok ? r.json() : { tasks: [] }))
+      .then((r) => (r.ok ? r.json() : { tasks: [], dismissedKeys: [] }))
       .then((data) => {
-        if (!cancelled) setTasks(data.tasks ?? []);
+        if (cancelled) return;
+        setTasks(data.tasks ?? []);
+        setClearedKeys(new Set(data.dismissedKeys ?? []));
       })
       // Silencieux : une cloche vide est un défaut acceptable, un écran
       // d'erreur sur toutes les pages ne l'est pas.
@@ -46,7 +39,7 @@ export function NotificationBell({ userId }: { userId: string }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   const visibleTasks = tasks.filter((t) => !clearedKeys.has(taskKey(t)));
   const overdueCount = visibleTasks.filter((t) => t.overdue).length;
@@ -55,11 +48,14 @@ export function NotificationBell({ userId }: { userId: string }) {
     const next = new Set(clearedKeys);
     tasks.forEach((t) => next.add(taskKey(t)));
     setClearedKeys(next);
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
-    } catch {
-      // Best-effort — the in-memory state still reflects the clear this session.
-    }
+    fetch("/api/notifications/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: tasks.map((t) => ({ kind: t.kind, entityId: t.id })) }),
+      // Best-effort — l'état en mémoire reflète déjà l'effacement pour
+      // cette session ; un échec réseau les fera juste réapparaître au
+      // prochain chargement plutôt que de bloquer le clic.
+    }).catch(() => {});
   }
 
   return (

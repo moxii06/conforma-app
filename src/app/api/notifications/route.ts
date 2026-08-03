@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionContext, can } from "@/lib/tenant";
 import { getDashboardTasks } from "@/lib/dashboardTasks";
+import { prisma } from "@/lib/prisma";
 
 // La liste « à faire » pour la cloche de notifications.
 //
@@ -15,8 +16,15 @@ import { getDashboardTasks } from "@/lib/dashboardTasks";
 export async function GET() {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "dashboard") === "none") return NextResponse.json({ tasks: [] });
+  if (can(session.role, "dashboard") === "none") return NextResponse.json({ tasks: [], dismissedKeys: [] });
 
-  const tasks = await getDashboardTasks(session.organizationId, session.role, session.userId);
-  return NextResponse.json({ tasks });
+  const [tasks, dismissals] = await Promise.all([
+    getDashboardTasks(session.organizationId, session.role, session.userId),
+    prisma.notificationDismissal.findMany({
+      where: { userId: session.userId },
+      select: { kind: true, entityId: true },
+    }),
+  ]);
+  const dismissedKeys = dismissals.map((d) => `${d.kind}-${d.entityId}`);
+  return NextResponse.json({ tasks, dismissedKeys });
 }
