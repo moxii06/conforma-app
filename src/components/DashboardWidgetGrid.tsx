@@ -54,9 +54,9 @@ export function DashboardWidgetGrid({ items, initialLayout }: { items: Item[]; i
   }, [layout]);
 
   function handleDrop(targetId: string) {
-    if (!dragId || dragId === targetId) return;
     const draggedId = dragId;
     setDragId(null);
+    if (!draggedId || draggedId === targetId) return;
     setLayout((prev) => {
       const next = [...prev];
       const fromIndex = next.findIndex((e) => e.id === draggedId);
@@ -89,6 +89,15 @@ export function DashboardWidgetGrid({ items, initialLayout }: { items: Item[]; i
               <div
                 draggable
                 onDragStart={() => setDragId(entry.id)}
+                // dragend fires on the source element whether the drop
+                // landed on a valid target, missed every drop zone, or was
+                // cancelled outright (Escape) — the only reliable place to
+                // guarantee this clears. handleDrop alone isn't enough: it
+                // never runs at all when nothing catches the drop, which
+                // left the card permanently at opacity-50 (blending white
+                // into the page's warm-gray background — read as "greyed
+                // out / disabled" rather than "mid-drag").
+                onDragEnd={() => setDragId(null)}
                 className="cursor-grab text-ash hover:text-slate shrink-0"
                 title="Glisser pour réordonner"
               >

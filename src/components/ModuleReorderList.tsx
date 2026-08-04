@@ -49,14 +49,15 @@ export function ModuleReorderList({ courseId, items }: { courseId: string; items
   }
 
   function handleDrop(targetId: string) {
-    if (!dragId || dragId === targetId) return;
+    const draggedId = dragId;
+    setDragId(null);
+    if (!draggedId || draggedId === targetId) return;
     const next = [...order];
-    const fromIndex = next.indexOf(dragId);
+    const fromIndex = next.indexOf(draggedId);
     const toIndex = next.indexOf(targetId);
     next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, dragId);
+    next.splice(toIndex, 0, draggedId);
     setOrder(next);
-    setDragId(null);
     void persist(next);
   }
 
@@ -83,6 +84,11 @@ export function ModuleReorderList({ courseId, items }: { courseId: string; items
               <div
                 draggable
                 onDragStart={() => setDragId(id)}
+                // dragend fires on the source regardless of whether the drop
+                // landed on a valid target — the only reliable place to
+                // guarantee dragId clears (see DashboardWidgetGrid, which
+                // hit the stuck-opacity bug this prevents).
+                onDragEnd={() => setDragId(null)}
                 className="pt-3.5 cursor-grab text-slate shrink-0"
                 title="Glisser pour réordonner"
               >
