@@ -485,6 +485,7 @@ async function DocumentsAndOutreachTab({
           {canWrite && !latestDossierId && latestOpportunity && (
             <SendProspectDocumentDialog
               opportunityId={latestOpportunity.id}
+              contactId={contactId}
               alreadySentNeedsAssessment={latestOpportunity.alreadySentNeedsAssessment}
               templates={templates}
               contactFirstName={contactFirstName}

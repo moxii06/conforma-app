@@ -7,6 +7,10 @@ import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
 import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
 import { recordActivationEvent } from "@/lib/activation";
+import { mergeTemplate } from "@/lib/mergeTemplate";
+import { resolveAnswers, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
+import { plainTextToHtml } from "@/lib/plainTextToHtml";
 
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/send — see
 // that route's comment for the real-attachment + rich-message rationale.
@@ -24,7 +28,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   const opportunity = await prisma.opportunity.findFirst({
     where: { id: params.id, organizationId: session.organizationId },
-    include: { contact: true },
+    include: { contact: { include: { company: true } }, courseOfInterest: true },
   });
   if (!opportunity) return NextResponse.json({ error: "Opportunité introuvable." }, { status: 404 });
   if (!canManageOpportunity(session.role, session.userId, opportunity)) {
@@ -48,14 +52,65 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   let resolvedCategory = category;
   let bodyHtml: string | undefined;
   if (mode === "template") {
-    bodyHtml = sanitizeRichText(formData.get("bodyText")?.toString() ?? "");
-    if (!richTextToPlainText(bodyHtml)) return NextResponse.json({ error: "Le contenu du document est vide." }, { status: 400 });
+    // Audit P1 : le document est assemblé et fusionné CÔTÉ SERVEUR depuis le
+    // modèle (+ réponses au questionnaire pour un modèle conditionnel) — le
+    // dialogue n'a plus d'éditeur de contenu, donc plus de bodyText client.
     const templateId = formData.get("templateId")?.toString() || null;
-    const template = templateId
-      ? await prisma.documentTemplate.findFirst({ where: { id: templateId, OR: [{ organizationId: session.organizationId }, { organizationId: null }] } })
-      : null;
-    templateOrigin = template?.title;
-    resolvedCategory = template?.category ?? category;
+    if (!templateId) return NextResponse.json({ error: "Modèle requis." }, { status: 400 });
+    const template = await prisma.documentTemplate.findFirst({
+      where: { id: templateId, OR: [{ organizationId: session.organizationId }, { organizationId: null }] },
+      include: { course: true, blocks: { orderBy: { order: "asc" } } },
+    });
+    if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
+
+    let manualAnswers: Partial<Record<QuestionKey, string>> = {};
+    const answersRaw = formData.get("answers")?.toString();
+    if (answersRaw) {
+      try {
+        manualAnswers = JSON.parse(answersRaw);
+      } catch {
+        return NextResponse.json({ error: "Paramètre answers invalide." }, { status: 400 });
+      }
+    }
+
+    const course = template.course ?? opportunity.courseOfInterest;
+    let bodyTextSource = template.bodyText;
+    if (template.blocks.length > 0) {
+      const { answers, unresolved } = resolveAnswers(
+        {
+          dossier: { learnerCategory: opportunity.contact.defaultLearnerCategory, agreedPriceCents: opportunity.amountCents },
+          session: { format: null },
+          course: { priceCents: course?.priceCents ?? null, certificationCode: course?.certificationCode ?? null },
+          fundingCommitments: [],
+          organization: { withdrawalAccessPolicy: organization.withdrawalAccessPolicy, cancellationFeePercent: organization.cancellationFeePercent },
+        },
+        manualAnswers,
+      );
+      const stillMissing = collectQuestionKeys(template.blocks).filter((k) => unresolved.includes(k));
+      if (stillMissing.length > 0) {
+        return NextResponse.json({ error: "Répondez d'abord aux questions du modèle." }, { status: 400 });
+      }
+      bodyTextSource = assembleBlocks(template.blocks, answers);
+    }
+
+    const bodyText = mergeTemplate(bodyTextSource, {
+      contact: opportunity.contact,
+      organization,
+      session: null,
+      course,
+      company: opportunity.contact.company
+        ? {
+            name: opportunity.contact.company.name,
+            siret: opportunity.contact.company.siret,
+            address: opportunity.contact.company.address,
+            legalRepresentativeName: opportunity.contact.company.legalRepresentativeName,
+          }
+        : null,
+    });
+    bodyHtml = sanitizeRichText(plainTextToHtml(bodyText));
+    if (!richTextToPlainText(bodyHtml)) return NextResponse.json({ error: "Le contenu du document est vide." }, { status: 400 });
+    templateOrigin = template.title;
+    resolvedCategory = template.category ?? category;
   }
 
   let attachment;

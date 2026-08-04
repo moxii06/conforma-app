@@ -172,6 +172,7 @@ export function OpportunityTable({
           <div className="flex items-center gap-3 flex-wrap">
             <SendProspectDocumentDialog
               opportunityId={o.id}
+              contactId={o.contact.id}
               alreadySentNeedsAssessment={o.needsAssessmentRequests.length > 0}
               templates={templates}
               contactFirstName={o.contact.firstName}

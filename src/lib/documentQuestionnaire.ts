@@ -172,7 +172,10 @@ export const SHORT_OPTION_LABELS: Record<string, Record<string, string>> = {
 
 export type ResolveContext = {
   dossier: { learnerCategory: string | null; agreedPriceCents: number | null };
-  session: { format: SessionFormat };
+  // null = pas encore de session (envoi depuis une opportunité CRM, avant
+  // toute inscription) — la question « modalité » est alors posée au lieu
+  // d'être auto-résolue.
+  session: { format: SessionFormat | null };
   course: { priceCents: number | null; certificationCode?: string | null };
   fundingCommitments: FundingCommitmentInput[];
   organization: { withdrawalAccessPolicy: string; cancellationFeePercent: number | null };
