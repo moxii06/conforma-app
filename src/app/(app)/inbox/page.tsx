@@ -48,7 +48,12 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
 
   const [unsorted, suggested, rgpdSuggested] = await Promise.all([
     prisma.emailMessage.findMany({
-      where: { organizationId, contactId: null, ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}) },
+      where: {
+        organizationId,
+        contactId: null,
+        ignoredAt: null,
+        ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
+      },
       orderBy: { receivedAt: "desc" },
     }),
     prisma.emailMessage.findMany({

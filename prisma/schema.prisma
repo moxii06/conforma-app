@@ -2478,6 +2478,13 @@ model EmailMessage {
   rgpdSuggestedType String? // access | erasure | portability | rectification | null
   rgpdReasoning     String?
 
+  // "Ignorer" on /inbox sets this instead of deleting the row — a delete
+  // left no trace that the message had been triaged, so it dedupes against
+  // nothing and the next sync (which only looks at the last 25 messages by
+  // externalId) recreates it. Setting ignoredAt keeps the externalId around
+  // for that dedupe check while dropping the row out of the "à trier" list.
+  ignoredAt DateTime?
+
   @@index([organizationId])
   @@index([contactId])
 }

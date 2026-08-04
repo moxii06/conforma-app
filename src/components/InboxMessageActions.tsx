@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Contact = { id: string; firstName: string; lastName: string; email: string };
@@ -29,6 +29,7 @@ export function InboxMessageActions({
   const suggested = splitName(fromName ?? null);
   const [mode, setMode] = useState<"idle" | "existing" | "new">("idle");
   const [contactId, setContactId] = useState(contacts[0]?.id ?? "");
+  const [contactSearch, setContactSearch] = useState("");
   const [firstName, setFirstName] = useState(suggested.firstName);
   const [lastName, setLastName] = useState(suggested.lastName);
   const [phone, setPhone] = useState("");
@@ -68,18 +69,20 @@ export function InboxMessageActions({
   }
 
   if (mode === "existing") {
+    const filteredContacts = contacts.filter((c) =>
+      `${c.firstName} ${c.lastName}`.toLowerCase().includes(contactSearch.trim().toLowerCase())
+    );
     return (
-      <div className="flex items-center gap-1.5">
-        <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal">
-          {contacts.map((c) => (
-            <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-          ))}
-        </select>
-        <button onClick={() => send({ action: "link", contactId })} disabled={loading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
-          Rattacher
-        </button>
-        <button onClick={() => setMode("idle")} className="text-[12px] text-slate">Annuler</button>
-      </div>
+      <ExistingContactPicker
+        contacts={filteredContacts}
+        contactId={contactId}
+        setContactId={setContactId}
+        search={contactSearch}
+        setSearch={setContactSearch}
+        loading={loading}
+        onLink={() => send({ action: "link", contactId })}
+        onCancel={() => setMode("idle")}
+      />
     );
   }
 
@@ -126,6 +129,75 @@ export function InboxMessageActions({
       <button onClick={() => send({ action: "discard" })} disabled={loading} className="text-[12px] text-rust hover:underline">
         Ignorer
       </button>
+    </div>
+  );
+}
+
+// Separate component so the "keep contactId in sync with the filtered list"
+// effect only ever runs against the current search results, not the full
+// contact list — typing a search that filters out the selected contact
+// should fall back to the first visible match rather than silently submit
+// a contact the user can no longer see.
+function ExistingContactPicker({
+  contacts,
+  contactId,
+  setContactId,
+  search,
+  setSearch,
+  loading,
+  onLink,
+  onCancel,
+}: {
+  contacts: Contact[];
+  contactId: string;
+  setContactId: (id: string) => void;
+  search: string;
+  setSearch: (value: string) => void;
+  loading: boolean;
+  onLink: () => void;
+  onCancel: () => void;
+}) {
+  useEffect(() => {
+    if (!contacts.some((c) => c.id === contactId)) {
+      setContactId(contacts[0]?.id ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts]);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <input
+        type="text"
+        autoFocus
+        placeholder="Rechercher un apprenant…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal w-44"
+      />
+      <div className="flex items-center gap-1.5">
+        <select
+          value={contactId}
+          onChange={(e) => setContactId(e.target.value)}
+          disabled={contacts.length === 0}
+          className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal disabled:opacity-60"
+        >
+          {contacts.length === 0 ? (
+            <option value="">Aucun résultat</option>
+          ) : (
+            contacts.map((c) => (
+              <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+            ))
+          )}
+        </select>
+        <button
+          onClick={onLink}
+          disabled={loading || !contactId}
+          className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60"
+        >
+          Rattacher
+        </button>
+        <button onClick={onCancel} className="text-[12px] text-slate">Annuler</button>
+      </div>
     </div>
   );
 }

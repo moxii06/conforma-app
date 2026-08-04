@@ -40,7 +40,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   if (!parsed.success) return NextResponse.json({ error: "Action invalide." }, { status: 400 });
 
   if (parsed.data.action === "discard") {
-    await prisma.emailMessage.delete({ where: { id: message.id } });
+    await prisma.emailMessage.update({ where: { id: message.id }, data: { ignoredAt: new Date() } });
     return NextResponse.json({ ok: true });
   }
 
