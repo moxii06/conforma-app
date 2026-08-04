@@ -3,16 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PipelineStage } from "@prisma/client";
-
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  PROSPECT: "Prospect",
-  QUOTE_SENT: "Devis envoyé",
-  CONTRACT_SIGNED: "Convention signée",
-  SESSION_SCHEDULED: "Session planifiée",
-  TO_INVOICE: "À facturer",
-  INVOICED: "Facturé",
-  PAID: "Payé",
-};
+import { STAGE_LABELS, STAGE_ORDER } from "@/lib/pipelineStages";
 
 export function OpportunityStageSelect({ opportunityId, stage }: { opportunityId: string; stage: PipelineStage }) {
   const router = useRouter();
@@ -37,9 +28,9 @@ export function OpportunityStageSelect({ opportunityId, stage }: { opportunityId
       onClick={(e) => e.stopPropagation()}
       className="text-[11px] border border-line rounded px-1.5 py-0.5 text-ink outline-none focus:border-seal disabled:opacity-60"
     >
-      {Object.entries(STAGE_LABELS).map(([value, label]) => (
+      {STAGE_ORDER.map((value) => (
         <option key={value} value={value}>
-          {label}
+          {STAGE_LABELS[value]}
         </option>
       ))}
     </select>

@@ -69,11 +69,12 @@ export async function POST(request: Request) {
       : (await prisma.quote.findUniqueOrThrow({ where: { id }, select: { contactId: true } })).contactId;
 
   if (kind === "invoice") {
+    // Audit P1 : envoyer une facture ne déplace plus l'affaire dans le CRM
+    // — le suivi « facturé / payé » vit en Facturation.
     await prisma.invoice.update({ where: { id }, data: { status: DocStatus.SENT } });
-    await advanceOpportunityStage(session.organizationId, contactId, PipelineStage.TO_INVOICE, PipelineStage.INVOICED);
   } else {
     await prisma.quote.update({ where: { id }, data: { status: DocStatus.SENT } });
-    await advanceOpportunityStage(session.organizationId, contactId, PipelineStage.PROSPECT, PipelineStage.QUOTE_SENT);
+    await advanceOpportunityStage(session.organizationId, contactId, [PipelineStage.PROSPECT], PipelineStage.QUOTE_SENT);
   }
 
   return NextResponse.json({ sent: true, to: built.contactEmail }, { status: 201 });

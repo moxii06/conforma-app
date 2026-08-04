@@ -436,7 +436,7 @@ export async function seedDemoData(prisma: PrismaClient) {
   await upsertOpportunity(prospect1.id, "Sécurité incendie", PipelineStage.PROSPECT, null, julien.id);
   await upsertOpportunity(prospect2.id, "Cybersécurité au quotidien", PipelineStage.QUOTE_SENT, 90000, julien.id);
   await upsertOpportunity(prospect3.id, "Excel — niveau 2", PipelineStage.CONTRACT_SIGNED, 60000, julien.id);
-  await upsertOpportunity(prospect4.id, "Management d'équipe", PipelineStage.TO_INVOICE, 150000, marie.id);
+  await upsertOpportunity(prospect4.id, "Management d'équipe", PipelineStage.COMPLETED, 150000, marie.id);
   await upsertOpportunity(sophie.contact.id, "Sécurité incendie", PipelineStage.SESSION_SCHEDULED, 45000, julien.id);
 
   // ============================================================

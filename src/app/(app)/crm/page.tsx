@@ -11,16 +11,7 @@ import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 import { OpportunityTable } from "@/components/OpportunityTable";
 import { FirstVisitBanner } from "@/components/FirstVisitBanner";
 import { isYousignConfigured } from "@/lib/yousign";
-
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  PROSPECT: "Prospect",
-  QUOTE_SENT: "Devis envoyé",
-  CONTRACT_SIGNED: "Convention signée",
-  SESSION_SCHEDULED: "Session planifiée",
-  TO_INVOICE: "À facturer",
-  INVOICED: "Facturé",
-  PAID: "Payé",
-};
+import { STAGE_LABELS, STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
 
 function formatAmount(cents: number | null) {
   if (cents === null) return "—";
@@ -139,9 +130,10 @@ export default async function CrmPage(
   const stageSum = (stages: PipelineStage[]) =>
     pipelineTotals.filter((g) => stages.includes(g.stage)).reduce((sum, g) => sum + (g._sum.amountCents ?? 0), 0);
   const activeCount = pipelineTotals.reduce((sum, g) => sum + g._count, 0);
-  const negotiationCents = stageSum(["PROSPECT", "QUOTE_SENT", "CONTRACT_SIGNED", "SESSION_SCHEDULED"]);
-  const toInvoiceCents = stageSum(["TO_INVOICE"]);
-  const wonCents = stageSum(["INVOICED", "PAID"]);
+  // Audit P1 : deux montants commerciaux, plus trois cases financières —
+  // « en cours » (tout ce qui n'est pas clos) et « conclu ».
+  const inProgressCents = stageSum(STAGES_BEFORE_COMPLETION);
+  const completedCents = stageSum([PipelineStage.COMPLETED]);
 
   return (
     <>
@@ -174,9 +166,9 @@ export default async function CrmPage(
         {view === "table" && (
           <div className="flex gap-3.5">
             <MetricCard label="Prospects actifs" value={String(activeCount)} />
-            <MetricCard label="En négociation" value={formatAmount(negotiationCents)} hint="du premier contact à la session planifiée" />
-            <MetricCard label="À facturer" value={formatAmount(toInvoiceCents)} tone={toInvoiceCents > 0 ? "danger" : "ink"} href="/crm?stage=TO_INVOICE" />
-            <MetricCard label="Facturé & payé" value={formatAmount(wonCents)} tone="good" href="/facturation?tab=factures" />
+            <MetricCard label="En cours" value={formatAmount(inProgressCents)} hint="du premier contact à la formation en cours" />
+            <MetricCard label="Conclu" value={formatAmount(completedCents)} tone="good" href="/crm?stage=COMPLETED" />
+            <MetricCard label="Suivi des règlements" value="Facturation" hint="factures émises, payées, en retard" href="/facturation?tab=factures" />
           </div>
         )}
         {canWrite && view !== "archives" && (

@@ -10,7 +10,6 @@ import { runTrialOnboarding } from "@/lib/onboardingEmails";
 import { syncAllMailboxConnections } from "@/lib/mailboxCron";
 import { sendDailyDigests } from "@/lib/dailyDigest";
 import { getCourseCompletion } from "@/lib/lms";
-import { advanceDeliveredSessionsToInvoicing } from "@/lib/pipeline";
 import type { Contact, Course, Session, Organization } from "@prisma/client";
 import { resolveAppOrigin } from "@/lib/appUrl";
 
@@ -94,16 +93,10 @@ export async function GET(request: Request) {
   // des AutomationRules ci-dessus. Voir src/lib/onboardingEmails.ts.
   const onboardingSent = await runTrialOnboarding(origin);
 
-  // Session livrée → étape "À facturer" du CRM. Comme les échéanciers
-  // ci-dessus, c'est un balayage global : une session terminée doit basculer
-  // qu'il existe ou non une AutomationRule sur la formation. Avant cela,
-  // TO_INVOICE n'était atteignable qu'à la main, donc la colonne restait
-  // vide et du travail livré n'était jamais facturé — voir lib/pipeline.ts.
-  const organizations = await prisma.organization.findMany({ select: { id: true } });
-  let advancedToInvoicing = 0;
-  for (const org of organizations) {
-    advancedToInvoicing += await advanceDeliveredSessionsToInvoicing(org.id);
-  }
+  // Audit P1 : le balayage « session livrée → étape À facturer » a disparu
+  // avec cette étape. Le besoin est couvert par la tâche
+  // `session_uninvoiced` du tableau de bord, recalculée à chaque affichage
+  // — donc sans le délai d'un jour qu'imposait ce cron. Voir lib/pipeline.ts.
 
   // Boîte mail : la seule autre voie de synchro était le bouton manuel
   // "Synchroniser maintenant" (contrairement à la synchro bancaire, déjà
@@ -115,7 +108,7 @@ export async function GET(request: Request) {
   // du jour — voir src/lib/dailyDigest.ts.
   const digest = await sendDailyDigests(origin);
 
-  return NextResponse.json({ sent, instalmentsIssued, onboardingSent, advancedToInvoicing, mailboxSync, digest });
+  return NextResponse.json({ sent, instalmentsIssued, onboardingSent, mailboxSync, digest });
 }
 
 function formatEuros(cents: number): string {

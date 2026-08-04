@@ -1,17 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { PipelineStage } from "@prisma/client";
-
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  PROSPECT: "Prospect",
-  QUOTE_SENT: "Devis envoyé",
-  CONTRACT_SIGNED: "Convention signée",
-  SESSION_SCHEDULED: "Session planifiée",
-  TO_INVOICE: "À facturer",
-  INVOICED: "Facturé",
-  PAID: "Payé",
-};
+import { STAGE_LABELS, STAGE_ORDER } from "@/lib/pipelineStages";
 
 const SORT_OPTIONS = [
   { value: "date_desc", label: "Plus récent" },
@@ -43,9 +33,9 @@ export function OpportunityFilterBar() {
         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
       >
         <option value="all">Toutes les étapes</option>
-        {Object.entries(STAGE_LABELS).map(([value, label]) => (
+        {STAGE_ORDER.map((value) => (
           <option key={value} value={value}>
-            {label}
+            {STAGE_LABELS[value]}
           </option>
         ))}
       </select>

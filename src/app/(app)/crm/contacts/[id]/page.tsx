@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, Avatar, InfoRow, PhoneLink } from "@/components/ui";
-import { PipelineStage, DocStatus, Role } from "@prisma/client";
+import { DocStatus, Role } from "@prisma/client";
+import { STAGE_LABELS } from "@/lib/pipelineStages";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Tabs } from "@/components/Tabs";
@@ -19,16 +20,6 @@ import { DOC_STATUS_TONE } from "@/components/DocStatusSelect";
 import { isYousignConfigured } from "@/lib/yousign";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  PROSPECT: "Prospect",
-  QUOTE_SENT: "Devis envoyé",
-  CONTRACT_SIGNED: "Convention signée",
-  SESSION_SCHEDULED: "Session planifiée",
-  TO_INVOICE: "À facturer",
-  INVOICED: "Facturé",
-  PAID: "Payé",
-};
 
 const OUTREACH_LABELS: Record<string, string> = {
   contract: "Contrat",
@@ -137,7 +128,9 @@ export default async function ContactRecordPage(
               {contact.firstName} {contact.lastName}
             </div>
             <div className="flex flex-wrap gap-1.5 mt-2">
-              {latestOpportunity && <Pill tone={latestOpportunity.stage === "PAID" ? "good" : "neutral"}>{STAGE_LABELS[latestOpportunity.stage]}</Pill>}
+              {latestOpportunity && (
+                <Pill tone={latestOpportunity.stage === "COMPLETED" ? "good" : "neutral"}>{STAGE_LABELS[latestOpportunity.stage]}</Pill>
+              )}
               {categoryPill && <Pill tone="neutral">{categoryPill}</Pill>}
             </div>
             {canSeePayments && (totalPaid > 0 || totalDue > 0) && (

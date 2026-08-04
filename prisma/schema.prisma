@@ -1288,14 +1288,16 @@ enum DocStatus {
   OVERDUE
 }
 
+// Audit P1 : les trois étapes financières (À facturer / Facturé / Payé)
+// doublonnaient l'espace Facturation, qui suit déjà l'état réel de chaque
+// facture — elles fusionnent en COMPLETED (« Terminé »). Le pipeline ne
+// décrit plus que l'avancement commercial ; l'argent se suit en Facturation.
 enum PipelineStage {
   PROSPECT
   QUOTE_SENT
   CONTRACT_SIGNED
   SESSION_SCHEDULED
-  TO_INVOICE
-  INVOICED
-  PAID
+  COMPLETED
 }
 
 model Opportunity {

@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { GripVertical } from "lucide-react";
 import { PipelineStage } from "@prisma/client";
+import { STAGE_LABELS } from "@/lib/pipelineStages";
 import { Pill } from "@/components/ui";
 import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
 import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
@@ -13,15 +14,6 @@ import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
 import { ContactNoteCell } from "@/components/ContactNoteCell";
 
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  PROSPECT: "Prospect",
-  QUOTE_SENT: "Devis envoyé",
-  CONTRACT_SIGNED: "Convention signée",
-  SESSION_SCHEDULED: "Session planifiée",
-  TO_INVOICE: "À facturer",
-  INVOICED: "Facturé",
-  PAID: "Payé",
-};
 
 function formatAmount(cents: number | null) {
   if (cents === null) return "—";

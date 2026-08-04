@@ -1,6 +1,7 @@
 import { PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { advanceOpportunityStage } from "@/lib/pipeline";
+import { STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
 import { emitWebhook } from "@/lib/webhooks";
 
 // Shared by every place a Payment gets created — manual entry
@@ -42,7 +43,14 @@ export async function recordInvoicePayment(params: {
   ]);
 
   if (justCompleted) {
-    await advanceOpportunityStage(params.organizationId, invoice.contactId, PipelineStage.INVOICED, PipelineStage.PAID);
+    // Facture soldée = affaire close, quelle que soit l'étape atteinte : un
+    // client peut régler avant, pendant ou après la formation.
+    await advanceOpportunityStage(
+      params.organizationId,
+      invoice.contactId,
+      STAGES_BEFORE_COMPLETION,
+      PipelineStage.COMPLETED,
+    );
     // A subrogated funding commitment is settled the moment its invoice is —
     // same "one place, every payment channel" rule as the rest of this
     // function: manual entry, Stripe and a confirmed bank match all land

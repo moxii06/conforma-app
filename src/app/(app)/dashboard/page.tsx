@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
-import { PipelineStage, Role } from "@prisma/client";
+import { Role } from "@prisma/client";
+import { STAGE_LABELS, STAGE_ORDER } from "@/lib/pipelineStages";
 import { addWeeks, addMonths, startOfWeek, startOfMonth, subMonths, format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
@@ -81,16 +82,6 @@ function parseDashboardLayout(raw: unknown): { id: string; span: 1 | 2 }[] | nul
   return entries.length > 0 ? entries : null;
 }
 
-const STAGE_LABELS: Record<PipelineStage, string> = {
-  PROSPECT: "Prospect",
-  QUOTE_SENT: "Devis",
-  CONTRACT_SIGNED: "Signée",
-  SESSION_SCHEDULED: "Planifiée",
-  TO_INVOICE: "À facturer",
-  INVOICED: "Facturé",
-  PAID: "Payé",
-};
-
 export default async function DashboardPage() {
   const { organizationId, role, userId } = await requireSessionContext();
   // /dashboard shows org-wide CRM pipeline and cross-learner progress
@@ -134,7 +125,8 @@ export default async function DashboardPage() {
     sessionsInProgress,
     openNonConformities,
     opportunitiesByStage,
-    amountsByStage,
+    awaitingInvoiceTotal,
+    paidInvoiceTotal,
     overdueInvoiceTotal,
     upcomingSessions,
     recentPayments,
@@ -149,11 +141,16 @@ export default async function DashboardPage() {
     }),
     prisma.nonConformity.count({ where: { organizationId, status: { not: "resolved" } } }),
     prisma.opportunity.groupBy({ by: ["stage"], where: { organizationId }, _count: true }),
-    prisma.opportunity.groupBy({
-      by: ["stage"],
-      where: { organizationId, stage: { in: ["TO_INVOICE", "INVOICED", "PAID"] } },
+    // Audit P1 : les montants de la section « Argent » venaient des étapes
+    // financières du pipeline CRM — le doublon que le client a signalé. Ils
+    // viennent maintenant des factures elles-mêmes, comme sur l'écran
+    // Facturation, avec le même découpage : en attente ≠ en retard, jamais
+    // la même facture comptée deux fois.
+    prisma.invoice.aggregate({
+      where: { organizationId, status: "SENT", OR: [{ dueDate: null }, { dueDate: { gte: new Date() } }] },
       _sum: { amountCents: true },
     }),
+    prisma.invoice.aggregate({ where: { organizationId, status: "PAID" }, _sum: { amountCents: true } }),
     // Same auto-detection as dashboardTasks.ts's invoice_overdue task
     // (dueDate passed, not PAID/DRAFT) — this card would otherwise keep
     // showing a stale, artificially low total for any invoice staff hasn't
@@ -182,9 +179,10 @@ export default async function DashboardPage() {
   ]);
 
   const stageCounts = new Map(opportunitiesByStage.map((g) => [g.stage, g._count]));
-  const stageAmounts = new Map(amountsByStage.map((g) => [g.stage, g._sum.amountCents ?? 0]));
   const formatAmount = (cents: number) => (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
-  const pipelineData = Object.values(PipelineStage).map((stage) => ({
+  // STAGE_ORDER, pas Object.values(PipelineStage) : l'ordre déclaré dans
+  // l'enum n'a pas à porter la sémantique d'affichage.
+  const pipelineData = STAGE_ORDER.map((stage) => ({
     label: STAGE_LABELS[stage],
     value: stageCounts.get(stage) ?? 0,
   }));
@@ -254,13 +252,12 @@ export default async function DashboardPage() {
           <div className="flex flex-col gap-2">
             <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Argent</div>
             <div className="flex gap-3.5">
-              <MetricCard label="À facturer" value={formatAmount(stageAmounts.get("TO_INVOICE") ?? 0)} href="/facturation?tab=factures" />
               <MetricCard
-                label="Facturé, en attente de paiement"
-                value={formatAmount(stageAmounts.get("INVOICED") ?? 0)}
+                label="En attente de paiement"
+                value={formatAmount(awaitingInvoiceTotal._sum.amountCents ?? 0)}
                 href="/facturation?tab=factures&status=SENT"
               />
-              <MetricCard label="Payé" value={formatAmount(stageAmounts.get("PAID") ?? 0)} href="/facturation?tab=factures&status=PAID" />
+              <MetricCard label="Encaissé" value={formatAmount(paidInvoiceTotal._sum.amountCents ?? 0)} tone="good" href="/facturation?tab=factures&status=PAID" />
               <MetricCard
                 label="Factures en retard"
                 value={formatAmount(overdueInvoiceTotal._sum.amountCents ?? 0)}

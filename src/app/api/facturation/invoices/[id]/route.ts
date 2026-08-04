@@ -4,6 +4,7 @@ import { DocStatus, PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { advanceOpportunityStage } from "@/lib/pipeline";
+import { STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
 
 const schema = z.object({ status: z.nativeEnum(DocStatus) });
 
@@ -24,12 +25,16 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   const updated = await prisma.invoice.update({ where: { id: invoice.id }, data: { status: parsed.data.status } });
 
-  // Same reasoning as the quotes route: sending or settling an invoice are
-  // pipeline milestones the CRM should reflect automatically.
-  if (parsed.data.status === "SENT") {
-    await advanceOpportunityStage(session.organizationId, invoice.contactId, PipelineStage.TO_INVOICE, PipelineStage.INVOICED);
-  } else if (parsed.data.status === "PAID") {
-    await advanceOpportunityStage(session.organizationId, invoice.contactId, PipelineStage.INVOICED, PipelineStage.PAID);
+  // Audit P1 : l'émission d'une facture ne déplace plus rien dans le CRM —
+  // « Facturé » n'est plus une étape commerciale, l'état de la facture se
+  // lit en Facturation. Seul l'encaissement complet clôt l'affaire.
+  if (parsed.data.status === "PAID") {
+    await advanceOpportunityStage(
+      session.organizationId,
+      invoice.contactId,
+      STAGES_BEFORE_COMPLETION,
+      PipelineStage.COMPLETED,
+    );
   }
 
   return NextResponse.json(updated);

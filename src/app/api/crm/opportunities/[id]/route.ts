@@ -31,10 +31,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     data: { stage: parsed.data.stage },
   });
 
-  // Client feedback: reaching PAID means the deal is closed out — archive
-  // the contact so they drop out of the default CRM view instead of
-  // lingering as an apparently-still-active prospect.
-  if (parsed.data.stage === PipelineStage.PAID) {
+  // Client feedback: reaching the terminal stage means the deal is closed
+  // out — archive the contact so they drop out of the default CRM view
+  // instead of lingering as an apparently-still-active prospect.
+  if (parsed.data.stage === PipelineStage.COMPLETED) {
     await prisma.contact.updateMany({
       where: { id: opportunity.contactId, archivedAt: null },
       data: { archivedAt: new Date() },

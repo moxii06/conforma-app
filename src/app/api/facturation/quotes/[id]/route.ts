@@ -29,9 +29,14 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   // someone having to remember to also click the stage dropdown over there
   // (client feedback: signing a quote had no effect on the CRM at all).
   if (parsed.data.status === "SENT") {
-    await advanceOpportunityStage(session.organizationId, quote.contactId, PipelineStage.PROSPECT, PipelineStage.QUOTE_SENT);
+    await advanceOpportunityStage(session.organizationId, quote.contactId, [PipelineStage.PROSPECT], PipelineStage.QUOTE_SENT);
   } else if (parsed.data.status === "SIGNED") {
-    await advanceOpportunityStage(session.organizationId, quote.contactId, PipelineStage.QUOTE_SENT, PipelineStage.CONTRACT_SIGNED);
+    await advanceOpportunityStage(
+      session.organizationId,
+      quote.contactId,
+      [PipelineStage.PROSPECT, PipelineStage.QUOTE_SENT],
+      PipelineStage.CONTRACT_SIGNED,
+    );
   }
 
   return NextResponse.json(updated);
