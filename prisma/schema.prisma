@@ -785,6 +785,8 @@ model Contact {
 
   @@unique([organizationId, email])
   @@index([organizationId])
+  // Filtre par défaut du CRM et des listes.
+  @@index([archivedAt])
 }
 
 // A specific training engagement for a Contact. A Contact can have many
@@ -868,6 +870,13 @@ model Dossier {
 
   @@index([organizationId])
   @@index([contactId])
+  // Volume : Postgres n'indexe pas les clés étrangères tout seul. sessionId
+  // sert tous les `include: { dossiers }` (planning, émargement, fiche
+  // formation, tâches du tableau de bord) ; learnerUserId est le filtre du
+  // portail apprenant, donc la requête la plus fréquente de l'application
+  // dès qu'il y a des milliers de comptes.
+  @@index([sessionId])
+  @@index([learnerUserId])
 }
 
 // The learner's express request to access the training content before their
@@ -1162,6 +1171,13 @@ model Session {
   days        SessionDay[]
 
   @@index([organizationId])
+  // courseId et trainerId : le filtre par propriétaire du formateur
+  // (session: { trainerId }) traverse cette table sur /dossiers, /planning
+  // et /formations. startsAt : toutes les fenêtres de dates du planning et
+  // du tableau de bord.
+  @@index([courseId])
+  @@index([trainerId])
+  @@index([startsAt])
 }
 
 // A session's actual teaching days. Additive on purpose: startsAt/endsAt
@@ -1433,6 +1449,11 @@ model Invoice {
   // falls due: without it the whole schedule would be e-mailed to the
   // learner on the day the contract is signed.
   @@index([status, dueDate])
+  // Clés étrangères : agrégats financiers par dossier (fiche formation) et
+  // par contact (tâches du tableau de bord) — sans ces index, chacun
+  // balayait les 20 000 factures d'un organisme installé.
+  @@index([contactId])
+  @@index([dossierId])
 }
 
 // A single installment against an Invoice — an invoice can be settled in
@@ -1717,6 +1738,9 @@ model Document {
   @@index([contactId])
   @@index([opportunityId])
   @@index([batchId])
+  // dossierId manquait alors que c'est le rattachement le plus utilisé :
+  // fiche dossier, « Mes documents » côté apprenant, envois groupés.
+  @@index([dossierId])
 }
 
 // The reusable document library (spec §5.8's "legal document toolkit" —
@@ -2415,6 +2439,9 @@ model ElearningProgress {
   skippedAt           DateTime?
 
   @@unique([dossierId, moduleId])
+  // L'unique couvre déjà dossierId seul (c'est son préfixe) mais pas
+  // moduleId : les comptages Qualiopi filtrent par module.course.
+  @@index([moduleId])
 }
 
 // ---------------------------------------------------------------------------
@@ -2526,6 +2553,14 @@ model EmailMessage {
 
   @@index([organizationId])
   @@index([contactId])
+  // receivedAt : tri de toute la boîte mail. ignoredAt : filtre de la file
+  // de triage. rgpdSuggestedType : le bandeau RGPD balayait la table
+  // entière. assignedToUserId : les tâches « email assigné ».
+  @@index([receivedAt])
+  @@index([ignoredAt])
+  @@index([rgpdSuggestedType])
+  @@index([assignedToUserId])
+  @@index([externalThreadId])
 }
 
 // One row per attachment on a synced message — same shape as

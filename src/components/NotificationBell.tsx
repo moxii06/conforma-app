@@ -17,21 +17,28 @@ function taskKey(t: DashboardTask) {
 // que taire la cloche jusqu'à ce qu'une *nouvelle* tâche apparaisse.
 export function NotificationBell({ userId }: { userId: string }) {
   const [open, setOpen] = useState(false);
-  const [clearedKeys, setClearedKeys] = useState<Set<string>>(new Set());
   // La liste n'arrive plus en props du serveur : elle était calculée dans la
   // Sidebar, donc dans le layout partagé, donc sur chaque page — une
   // quinzaine de requêtes par navigation pour un compteur. Récupérée après
   // le rendu, la page ne l'attend plus.
+  //
+  // Et elle n'arrive plus en entier : le serveur ne renvoie que les huit
+  // tâches réellement affichées et les décomptes (audit « 4 000
+  // apprenants » — 3,5 Mo de JSON par page mesurés avant). Le filtrage des
+  // tâches déjà vues se fait donc côté serveur, plus ici.
   const [tasks, setTasks] = useState<DashboardTask[]>([]);
+  const [count, setCount] = useState(0);
+  const [overdueCount, setOverdueCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/notifications")
-      .then((r) => (r.ok ? r.json() : { tasks: [], dismissedKeys: [] }))
+      .then((r) => (r.ok ? r.json() : { tasks: [], count: 0, overdueCount: 0 }))
       .then((data) => {
         if (cancelled) return;
         setTasks(data.tasks ?? []);
-        setClearedKeys(new Set(data.dismissedKeys ?? []));
+        setCount(data.count ?? 0);
+        setOverdueCount(data.overdueCount ?? 0);
       })
       // Silencieux : une cloche vide est un défaut acceptable, un écran
       // d'erreur sur toutes les pages ne l'est pas.
@@ -41,21 +48,17 @@ export function NotificationBell({ userId }: { userId: string }) {
     };
   }, [userId]);
 
-  const visibleTasks = tasks.filter((t) => !clearedKeys.has(taskKey(t)));
-  const overdueCount = visibleTasks.filter((t) => t.overdue).length;
-
   function clearAll() {
-    const next = new Set(clearedKeys);
-    tasks.forEach((t) => next.add(taskKey(t)));
-    setClearedKeys(next);
-    fetch("/api/notifications/clear", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: tasks.map((t) => ({ kind: t.kind, entityId: t.id })) }),
+    // Vidage optimiste : le serveur recalcule lui-même ce qu'il y a à
+    // masquer, on n'a plus rien à lui envoyer.
+    setTasks([]);
+    setCount(0);
+    setOverdueCount(0);
+    fetch("/api/notifications/clear", { method: "POST" })
       // Best-effort — l'état en mémoire reflète déjà l'effacement pour
       // cette session ; un échec réseau les fera juste réapparaître au
       // prochain chargement plutôt que de bloquer le clic.
-    }).catch(() => {});
+      .catch(() => {});
   }
 
   return (
@@ -66,13 +69,13 @@ export function NotificationBell({ userId }: { userId: string }) {
         aria-label="Notifications"
       >
         <Bell size={16} />
-        {visibleTasks.length > 0 && (
+        {count > 0 && (
           <span
             className={`absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-semibold flex items-center justify-center ${
               overdueCount > 0 ? "bg-rust text-white" : "bg-seal text-ink"
             }`}
           >
-            {visibleTasks.length > 9 ? "9+" : visibleTasks.length}
+            {count > 9 ? "9+" : count}
           </span>
         )}
       </button>
@@ -83,16 +86,16 @@ export function NotificationBell({ userId }: { userId: string }) {
           <div className="absolute left-0 top-10 z-20 w-80 bg-white border border-line rounded-card shadow-lg py-2">
             <div className="flex items-center justify-between px-3.5 py-1.5">
               <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
-                À faire ({visibleTasks.length})
+                À faire ({count})
               </div>
-              {visibleTasks.length > 0 && (
+              {count > 0 && (
                 <button type="button" onClick={clearAll} className="text-[11px] text-slate hover:text-ink underline decoration-line">
                   Tout effacer
                 </button>
               )}
             </div>
             <div className="max-h-80 overflow-y-auto">
-              {visibleTasks.slice(0, 8).map((t) => (
+              {tasks.map((t) => (
                 <Link
                   key={taskKey(t)}
                   href={t.href}
@@ -106,7 +109,7 @@ export function NotificationBell({ userId }: { userId: string }) {
                   </div>
                 </Link>
               ))}
-              {visibleTasks.length === 0 && <div className="px-3.5 py-3 text-[12px] text-slate">Rien à faire pour le moment.</div>}
+              {count === 0 && <div className="px-3.5 py-3 text-[12px] text-slate">Rien à faire pour le moment.</div>}
             </div>
             <div className="px-3.5 pt-1.5 border-t border-line mt-1">
               <Link href="/dashboard" onClick={() => setOpen(false)} className="text-[11.5px] text-ink underline decoration-line hover:decoration-ink">
