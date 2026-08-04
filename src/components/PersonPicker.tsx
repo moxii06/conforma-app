@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Search, UserPlus } from "lucide-react";
+import { useState } from "react";
+import { UserPlus } from "lucide-react";
 import { LearnerCategoryFields, EMPTY_COMPANY_FIELDS, toCompanyInput, type CompanyFieldsState } from "@/components/LearnerCategoryFields";
+import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
 import { Button } from "@/components/ui";
 
 type CategoryPayload = { learnerCategory?: string; company?: ReturnType<typeof toCompanyInput> };
@@ -10,8 +11,6 @@ type CategoryPayload = { learnerCategory?: string; company?: ReturnType<typeof t
 export type LearnerInput =
   | ({ contactId: string } & CategoryPayload)
   | ({ firstName: string; lastName: string; email: string; phone?: string } & CategoryPayload);
-
-type ContactHit = { id: string; firstName: string; lastName: string; email: string };
 
 // Shared "pick a person" building block for enrolling learners: search
 // among contacts already in the CRM, or type a brand-new one in on the
@@ -21,9 +20,6 @@ type ContactHit = { id: string; firstName: string; lastName: string; email: stri
 // vs. POST immediately), so that's left to onSelect.
 export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, label: string) => void }) {
   const [mode, setMode] = useState<"existing" | "new">("existing");
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<ContactHit[]>([]);
-  const [searching, setSearching] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -40,25 +36,8 @@ export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, lab
     setCompany(EMPTY_COMPANY_FIELDS);
   }
 
-  useEffect(() => {
-    if (mode !== "existing" || query.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query.trim())}`);
-      const data = await res.json().catch(() => []);
-      setSearching(false);
-      setResults(Array.isArray(data) ? data : []);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [query, mode]);
-
   function pickExisting(c: ContactHit) {
     onSelect({ contactId: c.id, ...categoryPayload() }, `${c.firstName} ${c.lastName}`);
-    setQuery("");
-    setResults([]);
     resetCategory();
   }
 
@@ -103,35 +82,7 @@ export function PersonPicker({ onSelect }: { onSelect: (input: LearnerInput, lab
       <LearnerCategoryFields category={category} onCategoryChange={setCategory} company={company} onCompanyChange={setCompany} />
 
       {mode === "existing" ? (
-        <div className="relative">
-          <div className="flex items-center gap-1.5 border border-line rounded-md px-2.5 py-1.5 bg-white">
-            <Search size={13} className="text-slate shrink-0" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher un contact par nom ou email…"
-              className="flex-1 text-[12.5px] text-ink focus:outline-none"
-            />
-          </div>
-          {query.trim().length >= 2 && (
-            <div className="absolute z-10 mt-1 w-full bg-white border border-line rounded-md shadow-sm max-h-52 overflow-y-auto">
-              {searching && <div className="px-2.5 py-1.5 text-[11.5px] text-slate">Recherche…</div>}
-              {!searching && results.length === 0 && (
-                <div className="px-2.5 py-1.5 text-[11.5px] text-slate">Aucun contact trouvé.</div>
-              )}
-              {results.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => pickExisting(c)}
-                  className="w-full text-left px-2.5 py-1.5 text-[12.5px] text-ink hover:bg-linen"
-                >
-                  {c.firstName} {c.lastName} <span className="text-slate">{c.email}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ContactSearchInput onSelect={pickExisting} />
       ) : (
         // A plain div, not a <form> — this renders inside CreateCourseForm's
         // own outer <form>, and HTML doesn't allow nested forms (the browser

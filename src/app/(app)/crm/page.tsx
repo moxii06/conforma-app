@@ -99,10 +99,7 @@ export default async function CrmPage(
             id: true,
             firstName: true,
             lastName: true,
-            industry: true,
-            urgencyLevel: true,
-            emailConsent: true,
-            smsConsent: true,
+            notes: true,
             dossiers: { select: { id: true }, orderBy: { session: { startsAt: "desc" } }, take: 1 },
           },
         },
@@ -110,10 +107,13 @@ export default async function CrmPage(
       },
       orderBy: view === "archives" ? { contact: { archivedAt: "desc" } } : view === "table" ? orderBy : { createdAt: "desc" },
     }),
+    // Le choix d'un contact existant passe désormais par la recherche
+    // serveur (ContactSearchInput) — il ne reste à charger qu'UN contact,
+    // juste pour savoir si l'onglet « Contact existant » a un sens.
     prisma.contact.findMany({
       where: { organizationId },
       select: { id: true, firstName: true, lastName: true, email: true },
-      orderBy: { lastName: "asc" },
+      take: 1,
     }),
     prisma.course.findMany({ where: { organizationId }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
     canWrite
@@ -216,7 +216,7 @@ export default async function CrmPage(
                         {o.contact.firstName} {o.contact.lastName}
                       </Link>
                       {o.contact.dossiers.length > 0 && (
-                        <span className="ml-1.5 text-[10px] text-slate align-middle">· dossier</span>
+                        <span className="ml-1.5 text-[10px] text-seal-dark align-middle whitespace-nowrap">→ dossier de formation</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate max-w-[220px] truncate">{o.label}</td>

@@ -64,7 +64,9 @@ export function LearnerCategoryFields({
         onChange={(e) => onCategoryChange(e.target.value)}
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
       >
-        <option value="">Non renseigné</option>
+        {/* Audit P1 : un « Non renseigné » nu ne dit pas de quoi parle la
+            liste — le placeholder nomme le champ. */}
+        <option value="">Catégorie d&apos;apprenant — non renseignée</option>
         {Object.entries(LEARNER_CATEGORY_LABELS)
           .filter(([key]) => key !== "unset")
           .map(([key, label]) => (

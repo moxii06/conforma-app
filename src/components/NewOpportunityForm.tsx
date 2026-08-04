@@ -3,16 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LearnerCategoryFields, EMPTY_COMPANY_FIELDS, toCompanyInput, type CompanyFieldsState } from "@/components/LearnerCategoryFields";
+import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
 import { Button } from "@/components/ui";
 
 type Contact = { id: string; firstName: string; lastName: string; email: string };
 type Course = { id: string; title: string };
 
+// `contacts` ne sert plus qu'à choisir l'onglet par défaut : le choix d'un
+// contact existant passe par la recherche serveur (audit P1), plus par un
+// <select> chargeant tout le CRM dans le DOM.
 export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Contact[]; courses?: Course[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"existing" | "new">(contacts.length > 0 ? "existing" : "new");
-  const [contactId, setContactId] = useState(contacts[0]?.id ?? "");
+  const [selectedContact, setSelectedContact] = useState<ContactHit | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,6 +30,10 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (mode === "existing" && !selectedContact) {
+      setError("Recherchez et sélectionnez un contact d'abord.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -39,7 +47,7 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
     };
     const body =
       mode === "existing"
-        ? { contactMode: "existing", contactId, ...shared }
+        ? { contactMode: "existing", contactId: selectedContact!.id, ...shared }
         : { contactMode: "new", firstName, lastName, email, ...shared };
 
     const res = await fetch("/api/crm/opportunities", {
@@ -62,6 +70,7 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
     setEmail("");
     setLearnerCategory("");
     setCompany(EMPTY_COMPANY_FIELDS);
+    setSelectedContact(null);
     setOpen(false);
     router.refresh();
   }
@@ -95,17 +104,19 @@ export function NewOpportunityForm({ contacts, courses = [] }: { contacts: Conta
       </div>
 
       {mode === "existing" ? (
-        <select
-          value={contactId}
-          onChange={(e) => setContactId(e.target.value)}
-          className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
-        >
-          {contacts.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.firstName} {c.lastName} — {c.email}
-            </option>
-          ))}
-        </select>
+        selectedContact ? (
+          <div className="flex items-center gap-2 border border-line rounded-md px-2.5 py-1.5 bg-mist text-[12.5px]">
+            <span className="text-ink font-medium">
+              {selectedContact.firstName} {selectedContact.lastName}
+            </span>
+            <span className="text-slate">{selectedContact.email}</span>
+            <button type="button" onClick={() => setSelectedContact(null)} className="ml-auto text-[11.5px] text-slate hover:text-ink underline">
+              Changer
+            </button>
+          </div>
+        ) : (
+          <ContactSearchInput onSelect={setSelectedContact} />
+        )
       ) : (
         <div className="grid grid-cols-3 gap-2">
           <input required placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />

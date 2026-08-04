@@ -203,8 +203,6 @@ export default async function ContactRecordPage(
                   email: contact.email,
                   phone: contact.phone,
                   address: contact.address,
-                  industry: contact.industry,
-                  urgencyLevel: contact.urgencyLevel,
                   emailConsent: contact.emailConsent,
                   smsConsent: contact.smsConsent,
                   notes: contact.notes,

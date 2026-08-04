@@ -11,6 +11,7 @@ import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
 import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
 import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 import { DeleteOpportunityButton } from "@/components/DeleteOpportunityButton";
+import { ContactNoteCell } from "@/components/ContactNoteCell";
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
   PROSPECT: "Prospect",
@@ -21,9 +22,6 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
   INVOICED: "Facturé",
   PAID: "Payé",
 };
-
-const URGENCY_LABELS: Record<string, string> = { low: "Faible", medium: "Moyenne", high: "Élevée" };
-const URGENCY_TONES: Record<string, "neutral" | "warn" | "danger"> = { low: "neutral", medium: "warn", high: "danger" };
 
 function formatAmount(cents: number | null) {
   if (cents === null) return "—";
@@ -38,16 +36,12 @@ function contactHref(contact: { id: string; dossiers: { id: string }[] }): strin
   return contact.dossiers.length > 0 ? `/dossiers/${contact.dossiers[0].id}` : `/crm/contacts/${contact.id}`;
 }
 
-function ConsentCell({ emailConsent, smsConsent }: { emailConsent: boolean | null; smsConsent: boolean | null }) {
-  if (emailConsent === null && smsConsent === null) return <span className="text-slate">—</span>;
-  return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {emailConsent !== null && <Pill tone={emailConsent ? "good" : "danger"}>Email {emailConsent ? "oui" : "non"}</Pill>}
-      {smsConsent !== null && <Pill tone={smsConsent ? "good" : "danger"}>SMS {smsConsent ? "oui" : "non"}</Pill>}
-    </div>
-  );
-}
-
+// Audit P1 : les colonnes Secteur/Urgence/Consentement sortent de l'écran
+// (les champs restent en base — le consentement sert de preuve RGPD que le
+// prospect a accepté d'être démarché, il est toujours saisi/visible sur la
+// fiche contact). loadOrder() purge tout seul les ids disparus d'un ordre
+// sauvegardé en localStorage avant ce changement. À la place : la note
+// libre du contact, éditable en ligne.
 export type OpportunityRow = {
   id: string;
   contactId: string;
@@ -60,15 +54,12 @@ export type OpportunityRow = {
     id: string;
     firstName: string;
     lastName: string;
-    industry: string | null;
-    urgencyLevel: string | null;
-    emailConsent: boolean | null;
-    smsConsent: boolean | null;
+    notes: string | null;
     dossiers: { id: string }[];
   };
 };
 
-type ColumnId = "prospect" | "formation" | "montant" | "date" | "etape" | "secteur" | "urgence" | "consentement" | "actions";
+type ColumnId = "prospect" | "formation" | "montant" | "date" | "etape" | "note" | "actions";
 
 const COLUMN_LABELS: Record<ColumnId, string> = {
   prospect: "Prospect",
@@ -76,13 +67,11 @@ const COLUMN_LABELS: Record<ColumnId, string> = {
   montant: "Montant",
   date: "Date",
   etape: "Étape",
-  secteur: "Secteur",
-  urgence: "Urgence",
-  consentement: "Consentement",
+  note: "Note",
   actions: "Actions",
 };
 
-const DEFAULT_ORDER: ColumnId[] = ["prospect", "formation", "montant", "date", "etape", "secteur", "urgence", "consentement", "actions"];
+const DEFAULT_ORDER: ColumnId[] = ["prospect", "formation", "montant", "date", "etape", "note", "actions"];
 const STORAGE_KEY = "jalon-crm-column-order-v1";
 
 function loadOrder(): ColumnId[] {
@@ -161,7 +150,11 @@ export function OpportunityTable({
             >
               {o.contact.firstName} {o.contact.lastName}
             </Link>
-            {o.contact.dossiers.length > 0 && <span className="ml-1.5 text-[10px] text-slate align-middle">· dossier</span>}
+            {/* Audit P1 : « · dossier » seul ne se comprenait pas — dire
+                explicitement ce que le clic ouvre. */}
+            {o.contact.dossiers.length > 0 && (
+              <span className="ml-1.5 text-[10px] text-seal-dark align-middle whitespace-nowrap">→ dossier de formation</span>
+            )}
           </>
         );
       case "formation":
@@ -172,16 +165,8 @@ export function OpportunityTable({
         return format(o.createdAt, "d MMM yyyy", { locale: fr });
       case "etape":
         return canWrite ? <OpportunityStageSelect opportunityId={o.id} stage={o.stage} /> : <Pill tone="neutral">{STAGE_LABELS[o.stage]}</Pill>;
-      case "secteur":
-        return o.contact.industry || "—";
-      case "urgence":
-        return o.contact.urgencyLevel ? (
-          <Pill tone={URGENCY_TONES[o.contact.urgencyLevel] ?? "neutral"}>{URGENCY_LABELS[o.contact.urgencyLevel] ?? o.contact.urgencyLevel}</Pill>
-        ) : (
-          "—"
-        );
-      case "consentement":
-        return <ConsentCell emailConsent={o.contact.emailConsent} smsConsent={o.contact.smsConsent} />;
+      case "note":
+        return <ContactNoteCell contactId={o.contact.id} note={o.contact.notes} canWrite={canWrite} />;
       case "actions":
         return (
           <div className="flex items-center gap-3 flex-wrap">

@@ -80,8 +80,9 @@ export default async function FacturationPage(
   const silenceThreshold = new Date(now.getTime() - FUNDER_SILENCE_DAYS * 86_400_000);
   const expiryThreshold = new Date(now.getTime() + AGREEMENT_EXPIRY_WARNING_DAYS * 86_400_000);
 
-  const [contacts, dossiers, pendingBankCount, fundingAlertCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
-    prisma.contact.findMany({ where: { organizationId }, select: { id: true, firstName: true, lastName: true }, orderBy: { lastName: "asc" } }),
+  // Plus de fetch de tous les contacts : le client d'un devis/d'une facture
+  // se choisit par recherche serveur dans les formulaires (audit P1).
+  const [dossiers, pendingBankCount, fundingAlertCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
     prisma.dossier.findMany({
       where: { organizationId },
       include: { contact: true, session: { include: { course: true } } },
@@ -215,9 +216,9 @@ export default async function FacturationPage(
               </div>
             )}
             {activeTab === "factures" ? (
-              <InvoicesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
+              <InvoicesTab organizationId={organizationId} canWrite={canWrite} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
             ) : (
-              <QuotesTab organizationId={organizationId} canWrite={canWrite} contacts={contacts} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
+              <QuotesTab organizationId={organizationId} canWrite={canWrite} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
             )}
           </>
         )}
@@ -369,7 +370,6 @@ async function BankValidationTab({ organizationId }: { organizationId: string })
 async function QuotesTab({
   organizationId,
   canWrite,
-  contacts,
   dossierOptions,
   statusFilter,
   orderBy,
@@ -379,7 +379,6 @@ async function QuotesTab({
 }: {
   organizationId: string;
   canWrite: boolean;
-  contacts: { id: string; firstName: string; lastName: string }[];
   dossierOptions: { id: string; label: string }[];
   statusFilter?: DocStatus;
   orderBy: Prisma.QuoteOrderByWithRelationInput;
@@ -400,7 +399,7 @@ async function QuotesTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {canWrite && <NewQuoteForm contacts={contacts} dossiers={dossierOptions} />}
+      {canWrite && <NewQuoteForm dossiers={dossierOptions} />}
       <div className="flex flex-col gap-2">
         {quotes.map((q) => (
           <div key={q.id} className="bg-white border border-line rounded-card px-5 py-3.5">
@@ -447,7 +446,6 @@ async function QuotesTab({
 async function InvoicesTab({
   organizationId,
   canWrite,
-  contacts,
   dossierOptions,
   statusFilter,
   orderBy,
@@ -457,7 +455,6 @@ async function InvoicesTab({
 }: {
   organizationId: string;
   canWrite: boolean;
-  contacts: { id: string; firstName: string; lastName: string }[];
   dossierOptions: { id: string; label: string }[];
   statusFilter?: DocStatus;
   orderBy: Prisma.InvoiceOrderByWithRelationInput;
@@ -492,7 +489,7 @@ async function InvoicesTab({
 
   return (
     <div className="flex flex-col gap-4">
-      {canWrite && <NewInvoiceForm contacts={contacts} dossiers={dossierOptions} />}
+      {canWrite && <NewInvoiceForm dossiers={dossierOptions} />}
       <div className="flex flex-col gap-2">
         {invoices.map((inv) => {
           const totalPaidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);

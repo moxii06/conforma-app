@@ -3,15 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
+import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
 import { Button } from "@/components/ui";
 
-type Contact = { id: string; firstName: string; lastName: string };
 type Dossier = { id: string; label: string };
 
-export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; dossiers: Dossier[] }) {
+// Le client du devis se choisit par recherche serveur (audit P1), plus par
+// un <select> chargeant tout le CRM.
+export function NewQuoteForm({ dossiers }: { dossiers: Dossier[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [contactId, setContactId] = useState(contacts[0]?.id ?? "");
+  const [selectedContact, setSelectedContact] = useState<ContactHit | null>(null);
   const [dossierId, setDossierId] = useState("");
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
@@ -22,6 +24,10 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selectedContact) {
+      setError("Recherchez et sélectionnez un client d'abord.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -29,7 +35,7 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contactId,
+        contactId: selectedContact.id,
         dossierId: dossierId || undefined,
         reference,
         description: description || undefined,
@@ -65,11 +71,18 @@ export function NewQuoteForm({ contacts, dossiers }: { contacts: Contact[]; doss
           "Sans dossier lié" instead of drifting — two independent flex rows
           don't share column boundaries even with matching item counts. */}
       <div className="grid grid-cols-[2fr_1fr] gap-2">
-        <select value={contactId} onChange={(e) => setContactId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
-          {contacts.map((c) => (
-            <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-          ))}
-        </select>
+        {selectedContact ? (
+          <div className="flex items-center gap-2 border border-line rounded-md px-2.5 py-1.5 bg-mist text-[12.5px]">
+            <span className="text-ink font-medium">
+              {selectedContact.firstName} {selectedContact.lastName}
+            </span>
+            <button type="button" onClick={() => setSelectedContact(null)} className="ml-auto text-[11.5px] text-slate hover:text-ink underline">
+              Changer
+            </button>
+          </div>
+        ) : (
+          <ContactSearchInput onSelect={setSelectedContact} placeholder="Rechercher le client…" />
+        )}
         <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
           <option value="">Sans dossier lié</option>
           {dossiers.map((d) => (

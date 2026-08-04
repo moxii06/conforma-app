@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 
+// Audit P1 : secteur/urgence sortent de l'écran (champs conservés en base,
+// non exposés — « pas pertinent pour le moment » dixit le client). Le
+// consentement reste : c'est ici qu'on le renseigne, et il vaut preuve
+// RGPD que le prospect a accepté d'être démarché.
 type Contact = {
   id: string;
   firstName: string;
@@ -11,14 +15,10 @@ type Contact = {
   email: string;
   phone: string | null;
   address: string | null;
-  industry?: string | null;
-  urgencyLevel?: string | null;
   emailConsent?: boolean | null;
   smsConsent?: boolean | null;
   notes?: string | null;
 };
-
-const URGENCY_LABELS: Record<string, string> = { low: "Faible", medium: "Moyenne", high: "Élevée" };
 
 // Tri-state: a consent field is null (jamais demandé) until explicitly set
 // true/false — a plain checkbox can't express "unknown," so it's a 3-way
@@ -56,8 +56,6 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
   const [email, setEmail] = useState(contact.email);
   const [phone, setPhone] = useState(contact.phone ?? "");
   const [address, setAddress] = useState(contact.address ?? "");
-  const [industry, setIndustry] = useState(contact.industry ?? "");
-  const [urgencyLevel, setUrgencyLevel] = useState(contact.urgencyLevel ?? "");
   const [emailConsent, setEmailConsent] = useState<boolean | null>(contact.emailConsent ?? null);
   const [smsConsent, setSmsConsent] = useState<boolean | null>(contact.smsConsent ?? null);
   const [notes, setNotes] = useState(contact.notes ?? "");
@@ -77,8 +75,6 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
         email: email.trim(),
         phone: phone.trim() || null,
         address: address.trim() || null,
-        industry: industry.trim() || null,
-        urgencyLevel: urgencyLevel || null,
         emailConsent,
         smsConsent,
         notes: notes.trim() || null,
@@ -136,14 +132,6 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
           <div>
             <div className="text-[11px] text-slate uppercase tracking-wide">Adresse</div>
             <div className="text-[13px] text-ink">{contact.address || "—"}</div>
-          </div>
-          <div>
-            <div className="text-[11px] text-slate uppercase tracking-wide">Secteur d'activité</div>
-            <div className="text-[13px] text-ink">{contact.industry || "—"}</div>
-          </div>
-          <div>
-            <div className="text-[11px] text-slate uppercase tracking-wide">Niveau d'urgence</div>
-            <div className="text-[13px] text-ink">{contact.urgencyLevel ? URGENCY_LABELS[contact.urgencyLevel] : "—"}</div>
           </div>
           <div>
             <div className="text-[11px] text-slate uppercase tracking-wide">Consentement email</div>
@@ -211,25 +199,6 @@ export function EditContactForm({ contact, title }: { contact: Contact; title: s
         placeholder="Adresse (optionnel)"
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
       />
-      <input
-        value={industry}
-        onChange={(e) => setIndustry(e.target.value)}
-        placeholder="Secteur d'activité (optionnel)"
-        className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
-      />
-      <label className="flex items-center gap-2 text-[12.5px] text-ink">
-        <span className="w-24 shrink-0 text-slate">Urgence</span>
-        <select
-          value={urgencyLevel}
-          onChange={(e) => setUrgencyLevel(e.target.value)}
-          className="flex-1 bg-white border border-line rounded-md px-2 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft"
-        >
-          <option value="">Non définie</option>
-          <option value="low">Faible</option>
-          <option value="medium">Moyenne</option>
-          <option value="high">Élevée</option>
-        </select>
-      </label>
       <ConsentSelect label="Email" value={emailConsent} onChange={setEmailConsent} />
       <ConsentSelect label="SMS" value={smsConsent} onChange={setSmsConsent} />
       <textarea
