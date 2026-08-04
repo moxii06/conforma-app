@@ -624,6 +624,15 @@ model User {
   // signature, and Gmail's lives behind a broader OAuth scope than this
   // app currently requests — this is the practical always-works version.
   emailSignature              String?
+  // Personal order/width for the dashboard's draggable banner widgets
+  // (Prise en main, À faire, Réclamations, Signalements confidentiels —
+  // see DashboardWidgetGrid): [{ id: string, span: 1 | 2 }]. Null until the
+  // user first drags or resizes something, at which point every widget's
+  // id and span is written, not just the one that changed, so a partial
+  // write can never leave a stale id pointing at a widget that no longer
+  // renders. An id absent from this array (a widget added after the user
+  // last customized their layout) falls back to appearing last, full width.
+  dashboardLayout              Json?
 
   trainerSessions                  Session[]               @relation("SessionTrainer")
   learnerDossiers                  Dossier[]               @relation("DossierLearnerUser")

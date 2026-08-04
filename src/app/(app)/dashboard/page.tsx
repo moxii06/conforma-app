@@ -15,6 +15,7 @@ import { CheckCircle2, Circle } from "lucide-react";
 import { DismissTaskButton } from "@/components/DismissTaskButton";
 import { DashboardTaskAction } from "@/components/DashboardTaskAction";
 import { ShowMoreToggle } from "@/components/ShowMoreToggle";
+import { DashboardWidgetGrid } from "@/components/DashboardWidgetGrid";
 
 const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "Test de positionnement",
@@ -62,6 +63,23 @@ function themeOf(kind: DashboardTask["kind"]): string {
   return TASK_THEMES.find((t) => (t.kinds as readonly string[]).includes(kind))?.key ?? "admin";
 }
 
+// Defensive re-parse of User.dashboardLayout (Json?) — validated by the
+// route that wrote it, but a Json column proves nothing at read time. A
+// malformed entry drops silently — DashboardWidgetGrid's own merge falls
+// back to "append full width" for anything it can't place, so this only
+// ever costs the user their saved arrangement, never a missing widget.
+function parseDashboardLayout(raw: unknown): { id: string; span: 1 | 2 }[] | null {
+  if (!Array.isArray(raw)) return null;
+  const entries = raw.filter(
+    (e): e is { id: string; span: 1 | 2 } =>
+      e != null &&
+      typeof e === "object" &&
+      typeof (e as Record<string, unknown>).id === "string" &&
+      ((e as Record<string, unknown>).span === 1 || (e as Record<string, unknown>).span === 2),
+  );
+  return entries.length > 0 ? entries : null;
+}
+
 const STAGE_LABELS: Record<PipelineStage, string> = {
   PROSPECT: "Prospect",
   QUOTE_SENT: "Devis",
@@ -93,6 +111,8 @@ export default async function DashboardPage() {
       : null;
 
   const tasks = await getDashboardTasks(organizationId, role, userId);
+  const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { dashboardLayout: true } });
+  const savedLayout = parseDashboardLayout(currentUser.dashboardLayout);
 
   // Same visibility rules as /support — a complaint/report otherwise only
   // surfaced there, easy to miss unless someone thinks to go check. Split
@@ -192,6 +212,26 @@ export default async function DashboardPage() {
     if (bucket) bucket.value += p.amountCents / 100;
   }
 
+  // The four "banner" widgets (self-contained cards a user might want to
+  // reorder or shrink to half-width) go through DashboardWidgetGrid below —
+  // unlike the Argent/Activité/Pilotage sections further down, which are
+  // metric-grid/chart rows, not standalone cards, and stay in their fixed
+  // order. Built as a list rather than left inline so the grid can place
+  // them by the user's saved order without this component knowing that
+  // order itself.
+  const bannerWidgets = [
+    onboardingRemaining > 0
+      ? { id: "onboarding", node: <OnboardingWidget steps={onboarding} remaining={onboardingRemaining} /> }
+      : null,
+    tasks.length > 0 ? { id: "tasks", node: <TasksWidget tasks={tasks} /> } : null,
+    canManageComplaints && openComplaints.length > 0
+      ? { id: "complaints", node: <ComplaintsWidget complaints={openComplaints} /> }
+      : null,
+    canViewSecureReports && openSecureReports.length > 0
+      ? { id: "secure-reports", node: <SecureReportsWidget reports={openSecureReports} /> }
+      : null,
+  ].filter((w): w is { id: string; node: JSX.Element } => w !== null);
+
   return (
     <>
       <PageHeader title="Tableau de bord" subtitle={`Vue d'ensemble · ${format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}`} />
@@ -200,17 +240,14 @@ export default async function DashboardPage() {
           <TrialBanner plan={subscription.plan} trialEndsAt={subscription.trialEndsAt} />
         )}
 
-        {/* Avant les tâches : tant que la plateforme est vide, la liste des
-            relances l'est aussi, et c'est le démarrage qui est la seule
-            chose à faire. Disparaît définitivement une fois les six étapes
-            franchies — pas de bouton « masquer », l'écran se nettoie tout
-            seul quand il n'a plus rien à dire. */}
-        {onboardingRemaining > 0 && <OnboardingWidget steps={onboarding} remaining={onboardingRemaining} />}
-
-        {tasks.length > 0 && <TasksWidget tasks={tasks} />}
-
-        {canManageComplaints && openComplaints.length > 0 && <ComplaintsWidget complaints={openComplaints} />}
-        {canViewSecureReports && openSecureReports.length > 0 && <SecureReportsWidget reports={openSecureReports} />}
+        {/* Prise en main, À faire, Réclamations, Signalements confidentiels —
+            reorderable/resizable by the user (see DashboardWidgetGrid). Which
+            of these even appear is still decided entirely above, server-side
+            (role, permissions, whether there's anything to show) — the grid
+            only ever arranges what this specific request already resolved
+            to render for this user; it never learns about a widget the
+            server chose to leave out. */}
+        {bannerWidgets.length > 0 && <DashboardWidgetGrid items={bannerWidgets} initialLayout={savedLayout} />}
 
         {canSeeMoney && (
           <div className="flex flex-col gap-2">
