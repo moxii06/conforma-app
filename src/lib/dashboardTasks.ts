@@ -55,7 +55,8 @@ export type DashboardTask = {
     | "qualiopi_audit_upcoming"
     | "qualiopi_finding_open"
     | "intervenant_evaluation_due"
-    | "session_uninvoiced";
+    | "session_uninvoiced"
+    | "email_assigned";
   label: string;
   contactName: string;
   /** La date de référence de la tâche, quel qu'en soit le sens. */
@@ -119,6 +120,29 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   const canSeeSales = canSeeGeneral || role === Role.SALES;
   const canSeeTrainer = canSeeGeneral || role === Role.TRAINER;
   const canSeeRgpd = canWriteRgpd(role);
+
+  // Audit P1 : « quand j'assigne à quelqu'un, ça fait quoi ? » — rien, avant.
+  // L'assignation est maintenant une vraie tâche pour la personne visée, et
+  // seulement pour elle : contrairement à tout le reste de cette fonction,
+  // le filtre porte sur l'utilisateur et non sur son rôle. Un email traité
+  // (rattaché à un contact) ou écarté sort de la liste tout seul.
+  const assignedEmails = await prisma.emailMessage.findMany({
+    where: { organizationId, assignedToUserId: userId, contactId: null, ignoredAt: null },
+    select: { id: true, subject: true, fromName: true, fromAddress: true, receivedAt: true },
+    orderBy: { receivedAt: "asc" },
+    take: 50,
+  });
+  for (const m of assignedEmails) {
+    results.push({
+      id: m.id,
+      kind: "email_assigned",
+      label: `Email à traiter — ${m.subject || "(sans objet)"}`,
+      contactName: m.fromName || m.fromAddress,
+      since: m.receivedAt,
+      href: "/inbox",
+      overdue: false,
+    });
+  }
 
   // Client feedback: staff should be able to set a per-course "relance" rule
   // instead of only relying on the fixed thresholds below — when a course

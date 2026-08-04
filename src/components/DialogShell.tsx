@@ -3,19 +3,23 @@
 import { useEffect, type ReactNode } from "react";
 import { X } from "lucide-react";
 
-// Coquille de boîte de dialogue partagée par les formulaires devis et
-// facture (retour client : ces deux formulaires s'ouvraient en place dans
-// la page, il les veut en vraie boîte de dialogue éditable). Même forme que
-// les dialogues d'envoi de document existants : voile sombre, carte
-// centrée, défilement interne quand le contenu dépasse.
+// Coquille de boîte de dialogue partagée par les formulaires de saisie
+// (devis, facture, nouveau prospect depuis la boîte mail). Née du retour
+// client sur devis/facture — « il faut que cela fasse une nouvelle boite de
+// dialogue dans laquelle je peux éditer » — puis reprise telle quelle
+// partout où un formulaire s'ouvrait en place au milieu d'une liste. Même
+// forme que les dialogues d'envoi de document existants : voile sombre,
+// carte centrée, défilement interne quand le contenu dépasse.
 export function DialogShell({
   title,
   onClose,
   children,
+  maxWidth = "max-w-lg",
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  maxWidth?: string;
 }) {
   // Échap ferme, comme dans n'importe quelle boîte de dialogue — sinon la
   // seule sortie est la croix, qu'on ne trouve pas toujours du regard.
@@ -36,7 +40,7 @@ export function DialogShell({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
+      <div className={`bg-white rounded-card border border-line w-full ${maxWidth} max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5`}>
         <div className="flex items-center justify-between">
           <div className="text-[13.5px] font-semibold text-ink">{title}</div>
           <button type="button" onClick={onClose} className="text-slate hover:text-ink" aria-label="Fermer">

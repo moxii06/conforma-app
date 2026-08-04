@@ -10,7 +10,13 @@ import { syncImapMailbox } from "@/lib/imapSync";
 // daily cron — see /api/cron/bank-sync). One failed connection (expired
 // token, unreachable IMAP host) doesn't stop the others.
 export async function syncAllMailboxConnections(): Promise<{ connectionsSynced: number; imported: number; errors: string[] }> {
+  // Les boîtes décochées sont écartées ici plutôt que dans chaque moteur :
+  // inutile d'ouvrir une connexion IMAP ou de rafraîchir un jeton OAuth
+  // pour une boîte que l'utilisateur a mise en pause. (Les moteurs
+  // revérifient quand même — le bouton « Synchroniser maintenant » passe
+  // directement par eux.)
   const connections = await prisma.mailboxConnection.findMany({
+    where: { syncEnabled: true },
     select: { id: true, organizationId: true, provider: true, accountEmail: true },
   });
 

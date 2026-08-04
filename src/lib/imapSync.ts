@@ -6,6 +6,7 @@ import { decrypt } from "@/lib/crypto";
 import {
   getAlreadyImportedIds,
   createContactDossierMatcher,
+  linkOrphanEmailsToKnownContacts,
   htmlToPlainText,
   decodeHtmlEntities,
   persistEmailAttachments,
@@ -15,6 +16,14 @@ import type { OutgoingAttachment } from "@/lib/emailMime";
 import type { MailboxConnection } from "@prisma/client";
 
 const MAX_MESSAGES_PER_SYNC = 25;
+// Rattrapage initial — mêmes valeurs que gmailSync.ts, voir le commentaire
+// détaillé là-bas.
+const BACKFILL_DAYS = 90;
+const MAX_MESSAGES_PER_BACKFILL = 40;
+
+async function markBackfilled(connectionId: string) {
+  await prisma.mailboxConnection.update({ where: { id: connectionId }, data: { backfilledAt: new Date() } });
+}
 
 function requireImapFields(connection: MailboxConnection) {
   if (!connection.passwordEncrypted || !connection.imapHost || !connection.imapPort) {
@@ -45,6 +54,11 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
     where: { id: connectionId, organizationId, provider: "imap" },
   });
   if (!connection) throw new Error("Boîte IMAP introuvable pour cette organisation.");
+  // Boîte décochée : rien n'est récupéré, les messages déjà importés restent.
+  if (!connection.syncEnabled) return { imported: 0 };
+
+  // Même rattrapage initial que pour Gmail — voir gmailSync.ts.
+  const backfilling = connection.backfilledAt === null;
 
   const client = await openClient(connection);
   let imported = 0;
@@ -53,18 +67,52 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
     try {
       const uidValidity = client.mailbox && "uidValidity" in client.mailbox ? client.mailbox.uidValidity : 0n;
       const total = client.mailbox && "exists" in client.mailbox ? client.mailbox.exists : 0;
-      if (total === 0) return { imported: 0 };
-
-      const from = Math.max(1, total - MAX_MESSAGES_PER_SYNC + 1);
-      const candidateUids: number[] = [];
-      for await (const msg of client.fetch(`${from}:${total}`, { uid: true })) {
-        candidateUids.push(msg.uid);
+      if (total === 0) {
+        if (backfilling) await markBackfilled(connection.id);
+        return { imported: 0 };
       }
-      if (candidateUids.length === 0) return { imported: 0 };
+
+      let candidateUids: number[] = [];
+      // Un SEARCH refusé par le serveur renvoie `false` (pas un tableau
+      // vide) : on ne peut pas le confondre avec « rien depuis 90 jours »,
+      // sinon on marquerait le rattrapage terminé sans avoir rien lu.
+      let searchRefused = false;
+      if (backfilling) {
+        // SEARCH SINCE côté serveur : c'est lui qui filtre, on ne rapatrie
+        // pas toute la boîte pour trier ensuite.
+        const since = new Date(Date.now() - BACKFILL_DAYS * 86_400_000);
+        const found = await client.search({ since }, { uid: true });
+        if (found === false) searchRefused = true;
+        else candidateUids = found;
+      }
+      if (!backfilling || searchRefused) {
+        // Fenêtre récente : le fonctionnement normal, et le repli si le
+        // serveur n'a pas honoré la recherche par date.
+        const from = Math.max(1, total - MAX_MESSAGES_PER_SYNC + 1);
+        for await (const msg of client.fetch(`${from}:${total}`, { uid: true })) {
+          candidateUids.push(msg.uid);
+        }
+      }
+      if (candidateUids.length === 0) {
+        // Rattrapage marqué fait seulement si la recherche a réellement
+        // répondu « rien » — un refus laisse backfilledAt à NULL pour
+        // retenter au prochain passage.
+        if (backfilling && !searchRefused) await markBackfilled(connection.id);
+        return { imported: 0 };
+      }
 
       const candidateExternalIds = candidateUids.map((uid) => `imap-${uidValidity}-${uid}`);
       const alreadyImportedIds = await getAlreadyImportedIds(organizationId, candidateExternalIds);
-      const newUids = candidateUids.filter((uid) => !alreadyImportedIds.has(`imap-${uidValidity}-${uid}`));
+      const allNewUids = candidateUids.filter((uid) => !alreadyImportedIds.has(`imap-${uidValidity}-${uid}`));
+      // Les plus récents d'abord pendant le rattrapage, le reste au passage
+      // suivant — même logique par lots que Gmail.
+      const newUids =
+        backfilling && !searchRefused
+          ? [...allNewUids].sort((a, b) => b - a).slice(0, MAX_MESSAGES_PER_BACKFILL)
+          : allNewUids;
+      if (backfilling && !searchRefused && allNewUids.length <= MAX_MESSAGES_PER_BACKFILL) {
+        await markBackfilled(connection.id);
+      }
       if (newUids.length === 0) return { imported: 0 };
 
       const matcher = await createContactDossierMatcher(organizationId);
@@ -140,6 +188,9 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
   }
 
   await prisma.mailboxConnection.update({ where: { id: connection.id }, data: { lastSyncedAt: new Date() } });
+
+  // Même rattrapage rétroactif que pour Gmail.
+  await linkOrphanEmailsToKnownContacts(organizationId);
 
   return { imported };
 }

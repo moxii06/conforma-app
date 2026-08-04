@@ -2428,6 +2428,16 @@ model MailboxConnection {
   smtpPort              Int?
   connectedAt           DateTime     @default(now())
   lastSyncedAt          DateTime?
+  // Audit P1 : cocher/décocher une boîte sans la déconnecter. Décochée,
+  // elle est ignorée par le cron ET par « Synchroniser maintenant », mais
+  // ses messages déjà importés restent — c'est toute la différence avec
+  // « Déconnecter », qui les efface.
+  syncEnabled           Boolean      @default(true)
+  // Fenêtre d'historique déjà rapatriée à la connexion (audit P1 : 90 jours).
+  // Null tant que le rattrapage initial n'a pas eu lieu — les connexions
+  // créées avant cette fonctionnalité le déclenchent donc à leur prochaine
+  // synchronisation, une seule fois.
+  backfilledAt          DateTime?
 
   emailMessages EmailMessage[]
 

@@ -26,10 +26,13 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   if (can(role, "inbox") === "none") redirect("/dashboard");
   const canWrite = can(role, "inbox") !== "none";
   const canHandleRgpd = canWriteRgpd(role);
-  const activeTab = searchParams.tab ?? "a-trier";
-  if (activeTab === "rgpd" && !canHandleRgpd) redirect("/inbox");
+  // L'onglet « RGPD » a été fusionné dans le triage (audit P1 : « est-ce que
+  // l'onglet RGPD est vraiment nécessaire ? »). Un lien ou un signet qui
+  // pointe encore dessus retombe sur le triage, où le bandeau se trouve
+  // désormais, plutôt que sur un onglet vide.
+  const activeTab = searchParams.tab === "rattachements" ? "rattachements" : "a-trier";
 
-  const [connections, contacts, members, sender] = await Promise.all([
+  const [connections, contacts, members, sender, courses] = await Promise.all([
     prisma.mailboxConnection.findMany({ where: { organizationId }, orderBy: { connectedAt: "asc" } }),
     prisma.contact.findMany({
       where: { organizationId },
@@ -42,6 +45,13 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
       orderBy: { name: "asc" },
     }),
     prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } }),
+    // Pour le champ « formation visée » du nouveau prospect, mêmes options
+    // que côté CRM.
+    prisma.course.findMany({
+      where: { organizationId, archivedAt: null },
+      select: { id: true, title: true },
+      orderBy: { title: "asc" },
+    }),
   ]);
   const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
 
@@ -86,7 +96,6 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
 
   const tabs = [
     { key: "a-trier", label: `À trier (${unsorted.length})` },
-    ...(canHandleRgpd ? [{ key: "rgpd", label: `RGPD (${rgpdSuggested.length})` }] : []),
     { key: "rattachements", label: `Rattachements (${suggested.length})` },
   ];
 
@@ -166,7 +175,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
                     {c.provider} — {c.accountEmail}
                   </span>
                   {(c.provider === "gmail" || c.provider === "imap") && canWrite && (
-                    <MailboxActions provider={c.provider} connectionId={c.id} />
+                    <MailboxActions provider={c.provider} connectionId={c.id} syncEnabled={c.syncEnabled} />
                   )}
                 </div>
               ))}
@@ -174,37 +183,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
           )}
         </div>
 
-        {activeTab === "rgpd" && canHandleRgpd ? (
-          <>
-            <div className="text-[11.5px] text-slate">
-              Détecté automatiquement par l&apos;IA à la synchronisation — vérifiez avant de confirmer, l&apos;échéance
-              légale est d&apos;un mois.
-            </div>
-            {rgpdSuggested.length > 0 ? (
-              <div className="bg-white border border-rust/30 rounded-card p-4">
-                {rgpdSuggested.map((m) => (
-                  <div key={m.id} className="py-3 border-t border-line first:border-t-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[12.5px] text-ink font-medium">
-                        {m.fromName ? `${m.fromName} — ${m.fromAddress}` : m.fromAddress}
-                      </div>
-                      <Pill tone="danger">{RGPD_REQUEST_TYPE_LABELS[m.rgpdSuggestedType!] ?? m.rgpdSuggestedType}</Pill>
-                    </div>
-                    <div className="text-[12.5px] text-ink mt-0.5">{m.subject}</div>
-                    {m.rgpdReasoning && <div className="text-[12px] text-slate mt-0.5">{m.rgpdReasoning}</div>}
-                    <RgpdSuggestionActions
-                      messageId={m.id}
-                      suggestedType={m.rgpdSuggestedType as "access" | "erasure" | "portability" | "rectification"}
-                      defaultPersonLabel={m.contact ? `${m.contact.firstName} ${m.contact.lastName}` : m.fromName || m.fromAddress}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-[12.5px] text-slate">Aucune suggestion en attente.</div>
-            )}
-          </>
-        ) : activeTab === "rattachements" ? (
+        {activeTab === "rattachements" ? (
           suggested.length > 0 ? (
             <div className="bg-white border border-line rounded-card p-4">
               {suggested.map((m) => (
@@ -232,11 +211,51 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
             <div className="flex justify-end">
               <MailboxFilterSelect connections={connections.map((c) => ({ id: c.id, provider: c.provider, accountEmail: c.accountEmail }))} />
             </div>
+
+            {/* Ex-onglet RGPD, désormais replié au-dessus du triage : un
+                organisme croise une demande de droits quelques fois par an,
+                un onglet permanent à zéro pour ça était disproportionné.
+                Replié, il ne coûte qu'une ligne ; il ne s'affiche pas du
+                tout quand il n'y a rien — mais le délai légal d'un mois
+                court dès la réception, donc il reste sur le chemin du
+                triage quotidien plutôt que dans un écran qu'on n'ouvre pas. */}
+            {canHandleRgpd && rgpdSuggested.length > 0 && (
+              <details className="bg-white border border-rust/30 rounded-card px-4 py-3">
+                <summary className="cursor-pointer text-[12.5px] text-ink marker:text-rust">
+                  <span className="font-medium">
+                    {rgpdSuggested.length} demande{rgpdSuggested.length > 1 ? "s" : ""} RGPD possible
+                    {rgpdSuggested.length > 1 ? "s" : ""}
+                  </span>
+                  <span className="text-slate"> — détectée{rgpdSuggested.length > 1 ? "s" : ""} à la synchronisation, à vérifier (délai légal : 1 mois à compter de la réception)</span>
+                </summary>
+                <div className="mt-2 border-t border-line">
+                  {rgpdSuggested.map((m) => (
+                    <div key={m.id} className="py-3 border-t border-line first:border-t-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-[12.5px] text-ink font-medium">
+                          {m.fromName ? `${m.fromName} — ${m.fromAddress}` : m.fromAddress}
+                        </div>
+                        <Pill tone="danger">{RGPD_REQUEST_TYPE_LABELS[m.rgpdSuggestedType!] ?? m.rgpdSuggestedType}</Pill>
+                      </div>
+                      <div className="text-[12.5px] text-ink mt-0.5">{m.subject}</div>
+                      {m.rgpdReasoning && <div className="text-[12px] text-slate mt-0.5">{m.rgpdReasoning}</div>}
+                      <RgpdSuggestionActions
+                        messageId={m.id}
+                        suggestedType={m.rgpdSuggestedType as "access" | "erasure" | "portability" | "rectification"}
+                        defaultPersonLabel={m.contact ? `${m.contact.firstName} ${m.contact.lastName}` : m.fromName || m.fromAddress}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+
             {unsorted.length > 0 ? (
               <InboxTriageSplitView
                 messages={unsorted}
                 contacts={contacts}
                 members={members}
+                courses={courses}
                 canWrite={canWrite}
                 signatureHtml={signatureHtml}
               />

@@ -44,6 +44,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   qualiopi_finding_open: "Non-conformité",
   intervenant_evaluation_due: "Évaluation intervenant",
   session_uninvoiced: "À facturer",
+  email_assigned: "Email assigné",
 };
 
 // Which pile a task belongs to. A flat list of 24 items sorted by date reads
@@ -58,7 +59,7 @@ const TASK_THEMES = [
   { key: "argent", label: "Argent", kinds: ["invoice_overdue", "session_uninvoiced", "bank_transaction_pending", "funding_no_reply", "funding_agreement_expiring"] },
   { key: "conformite", label: "Conformité", kinds: ["qualiopi_certificate_expiring", "qualiopi_audit_upcoming", "qualiopi_finding_open", "rgpd_suggestion", "rgpd_deadline", "subcontractor_expiry", "intervenant_evaluation_due"] },
   { key: "pedagogie", label: "Sessions et apprenants", kinds: ["session_draft", "convocation", "learner_inactive", "rolling_deadline_warning", "rolling_deadline_overdue", "satisfaction_not_collected"] },
-  { key: "admin", label: "Dossiers à compléter", kinds: ["needs_assessment", "contract", "platform_access", "platform_access_after_payment", "dossier_prep_needs_assessment", "dossier_prep_contract"] },
+  { key: "admin", label: "Dossiers à compléter", kinds: ["needs_assessment", "contract", "platform_access", "platform_access_after_payment", "dossier_prep_needs_assessment", "dossier_prep_contract", "email_assigned"] },
 ] as const satisfies readonly { key: string; label: string; kinds: readonly DashboardTask["kind"][] }[];
 
 function themeOf(kind: DashboardTask["kind"]): string {

@@ -3,6 +3,7 @@ import { encrypt, decrypt } from "@/lib/crypto";
 import {
   getAlreadyImportedIds,
   createContactDossierMatcher,
+  linkOrphanEmailsToKnownContacts,
   htmlToPlainText,
   decodeHtmlEntities,
   persistEmailAttachments,
@@ -12,6 +13,49 @@ import { buildRawMimeMessage, type OutgoingAttachment } from "@/lib/emailMime";
 import type { MailboxConnection } from "@prisma/client";
 
 const MAX_MESSAGES_PER_SYNC = 25;
+// Rattrapage initial (audit P1, décision Q8) : 90 jours d'historique, par
+// lots — tout l'historique d'une boîte de dix ans serait long, coûteux et
+// sans grande valeur pour un suivi commercial.
+const BACKFILL_DAYS = 90;
+const MAX_MESSAGES_PER_BACKFILL = 40;
+// Le listing est bon marché (un appel pour 100 identifiants) : on peut
+// balayer large pour trouver ce qui manque encore, seul le téléchargement
+// des messages complets est borné.
+const BACKFILL_LIST_PAGES = 5;
+
+async function listRecentCandidateIds(authHeader: Record<string, string>): Promise<string[]> {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=${MAX_MESSAGES_PER_SYNC}`,
+    { headers: authHeader }
+  );
+  if (!res.ok) throw new Error("Échec de la liste des messages Gmail.");
+  const list = (await res.json()) as { messages?: { id: string }[] };
+  return (list.messages ?? []).map((m) => m.id);
+}
+
+async function listBackfillCandidateIds(authHeader: Record<string, string>): Promise<string[]> {
+  const since = new Date(Date.now() - BACKFILL_DAYS * 86_400_000);
+  // Gmail attend YYYY/MM/DD dans son opérateur de recherche `after:`.
+  const afterQuery = `after:${since.getFullYear()}/${since.getMonth() + 1}/${since.getDate()}`;
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < BACKFILL_LIST_PAGES; page++) {
+    const url =
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=100` +
+      `&q=${encodeURIComponent(afterQuery)}${pageToken ? `&pageToken=${pageToken}` : ""}`;
+    const res = await fetch(url, { headers: authHeader });
+    if (!res.ok) throw new Error("Échec de la liste des messages Gmail.");
+    const list = (await res.json()) as { messages?: { id: string }[]; nextPageToken?: string };
+    ids.push(...(list.messages ?? []).map((m) => m.id));
+    if (!list.nextPageToken) break;
+    pageToken = list.nextPageToken;
+  }
+  return ids;
+}
+
+async function markBackfilled(connectionId: string) {
+  await prisma.mailboxConnection.update({ where: { id: connectionId }, data: { backfilledAt: new Date() } });
+}
 
 // Refreshes the access token via the stored refresh_token — called before
 // every Gmail API request rather than tracking expiry, since access tokens
@@ -129,21 +173,38 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
     where: { id: connectionId, organizationId, provider: "gmail" },
   });
   if (!connection) throw new Error("Boîte Gmail introuvable pour cette organisation.");
+  // Boîte décochée : on ne va rien chercher, mais ses messages déjà
+  // importés restent en place (contrairement à « Déconnecter »).
+  if (!connection.syncEnabled) return { imported: 0 };
 
   const accessToken = await getValidAccessToken(connection);
   const authHeader = { Authorization: `Bearer ${accessToken}` };
 
-  const listRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=${MAX_MESSAGES_PER_SYNC}`,
-    { headers: authHeader }
-  );
-  if (!listRes.ok) throw new Error("Échec de la liste des messages Gmail.");
-  const list = (await listRes.json()) as { messages?: { id: string }[] };
-  const candidateIds = (list.messages ?? []).map((m) => m.id);
-  if (candidateIds.length === 0) return { imported: 0 };
+  // Audit P1 : à la connexion d'une boîte, on rapatrie BACKFILL_DAYS jours
+  // d'historique au lieu des seuls messages récents. Par lots successifs
+  // plutôt qu'en une fois : une boîte chargée dépasserait le temps
+  // d'exécution autorisé. Chaque passage (cron quotidien ou bouton
+  // manuel) avance d'un lot, et `backfilledAt` n'est posé qu'une fois
+  // qu'un passage ne trouve plus rien de nouveau — après quoi on revient
+  // au régime normal, les 25 derniers messages.
+  const backfilling = connection.backfilledAt === null;
+  const candidateIds = backfilling
+    ? await listBackfillCandidateIds(authHeader)
+    : await listRecentCandidateIds(authHeader);
+
+  if (candidateIds.length === 0) {
+    if (backfilling) await markBackfilled(connection.id);
+    return { imported: 0 };
+  }
 
   const alreadyImportedIds = await getAlreadyImportedIds(organizationId, candidateIds);
-  const newIds = candidateIds.filter((id) => !alreadyImportedIds.has(id));
+  const allNewIds = candidateIds.filter((id) => !alreadyImportedIds.has(id));
+  // Le lot de rattrapage borne ce qu'on télécharge réellement ; le reste
+  // attend le passage suivant.
+  const newIds = backfilling ? allNewIds.slice(0, MAX_MESSAGES_PER_BACKFILL) : allNewIds;
+  if (backfilling && allNewIds.length <= MAX_MESSAGES_PER_BACKFILL) {
+    await markBackfilled(connection.id);
+  }
 
   const matcher = await createContactDossierMatcher(organizationId);
 
@@ -258,6 +319,10 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
   }
 
   await prisma.mailboxConnection.update({ where: { id: connection.id }, data: { lastSyncedAt: new Date() } });
+
+  // Rattrape les messages arrivés avant que leur expéditeur ne devienne un
+  // contact — voir le commentaire de la fonction.
+  await linkOrphanEmailsToKnownContacts(organizationId);
 
   return { imported };
 }

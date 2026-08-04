@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Paperclip, FileText } from "lucide-react";
 import { Avatar, initialsOf } from "@/components/ui";
-import { InboxMessageActions } from "@/components/InboxMessageActions";
+import { InboxMessageActions, type CourseOption } from "@/components/InboxMessageActions";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { InboxReplyDialog } from "@/components/InboxReplyDialog";
 
@@ -59,12 +59,14 @@ export function InboxTriageSplitView({
   messages,
   contacts,
   members,
+  courses,
   canWrite,
   signatureHtml,
 }: {
   messages: Message[];
   contacts: Contact[];
   members: Member[];
+  courses: CourseOption[];
   canWrite: boolean;
   signatureHtml: string;
 }) {
@@ -135,7 +137,15 @@ export function InboxTriageSplitView({
                   signatureHtml={signatureHtml}
                 />
               )}
-              {canWrite && <InboxMessageActions messageId={selected.id} contacts={contacts} fromName={selected.fromName} />}
+              {canWrite && (
+                <InboxMessageActions
+                  messageId={selected.id}
+                  contacts={contacts}
+                  fromName={selected.fromName}
+                  subject={selected.subject}
+                  courses={courses}
+                />
+              )}
               {canWrite && (
                 <AssignEmailSelect messageId={selected.id} members={members} assignedToUserId={selected.assignedToUserId} />
               )}

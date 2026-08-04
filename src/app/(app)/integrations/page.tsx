@@ -155,7 +155,7 @@ export default async function IntegrationsPage(props: {
                           `, dernière synchro le ${format(conn.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
                       </span>
                     </div>
-                    <MailboxActions provider="gmail" connectionId={conn.id} />
+                    <MailboxActions provider="gmail" connectionId={conn.id} syncEnabled={conn.syncEnabled} />
                   </div>
                 ))}
                 <Button href="/api/integrations/google/connect" size="sm" className="self-start">
@@ -186,7 +186,7 @@ export default async function IntegrationsPage(props: {
                           `, dernière synchro le ${format(conn.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
                       </span>
                     </div>
-                    <MailboxActions provider="imap" connectionId={conn.id} />
+                    <MailboxActions provider="imap" connectionId={conn.id} syncEnabled={conn.syncEnabled} />
                   </div>
                 ))}
                 <ImapMailboxForm />

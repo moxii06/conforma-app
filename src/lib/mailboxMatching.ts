@@ -176,3 +176,55 @@ export async function createContactDossierMatcher(organizationId: string): Promi
     },
   };
 }
+
+/**
+ * Rattache rétroactivement les emails orphelins à un contact connu.
+ *
+ * Audit P1, question du client : « si j'échange plusieurs fois avec un
+ * apprenant et que je le rattache après, est-ce que l'historique va se
+ * retrouver dans son dossier ? » — non, il ne le faisait pas. Le
+ * rattachement automatique n'a lieu qu'à l'import : tout message arrivé
+ * AVANT la création du contact restait orphelin pour toujours.
+ *
+ * Un balayage par organisation plutôt qu'un appel greffé sur chaque endroit
+ * où un contact peut naître (triage de la boîte, CRM, import de fichier,
+ * inscription à une formation, formulaire public…) : une seule requête
+ * couvre tous ces chemins, présents et à venir, sans que personne ait à
+ * penser à l'appeler.
+ *
+ * Ne touche que `contactId: null` : un rattachement corrigé à la main n'est
+ * jamais réécrit. Les messages écartés restent écartés.
+ *
+ * Retourne le nombre de messages rattachés.
+ */
+export async function linkOrphanEmailsToKnownContacts(organizationId: string): Promise<number> {
+  const orphans = await prisma.emailMessage.findMany({
+    where: { organizationId, contactId: null, ignoredAt: null },
+    select: { id: true, fromAddress: true },
+  });
+  if (orphans.length === 0) return 0;
+
+  const addresses = [...new Set(orphans.map((m) => m.fromAddress.toLowerCase()))];
+  const contacts = await prisma.contact.findMany({
+    where: { organizationId, email: { in: addresses } },
+    select: { id: true, email: true },
+  });
+  if (contacts.length === 0) return 0;
+
+  const contactByEmail = new Map(contacts.map((c) => [c.email.toLowerCase(), c.id]));
+
+  let linked = 0;
+  // Groupé par contact : une mise à jour par contact concerné plutôt qu'une
+  // par message — un historique de plusieurs dizaines d'échanges avec la
+  // même personne ne coûte qu'une requête.
+  for (const [email, contactId] of contactByEmail) {
+    const ids = orphans.filter((m) => m.fromAddress.toLowerCase() === email).map((m) => m.id);
+    if (ids.length === 0) continue;
+    const res = await prisma.emailMessage.updateMany({
+      where: { id: { in: ids } },
+      data: { contactId },
+    });
+    linked += res.count;
+  }
+  return linked;
+}

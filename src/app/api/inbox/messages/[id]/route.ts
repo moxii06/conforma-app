@@ -2,16 +2,28 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
+import { sendTransactionalEmail } from "@/lib/brevo";
+import { resolveAppOrigin } from "@/lib/appUrl";
+import { linkOrphanEmailsToKnownContacts } from "@/lib/mailboxMatching";
+import { applyCompanyInfo, enrollmentCategorySchema } from "@/lib/enrollment";
+import { PipelineStage } from "@prisma/client";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("link"), contactId: z.string().min(1) }),
-  z.object({
-    action: z.literal("link-new"),
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    phone: z.string().optional(),
-    companyName: z.string().optional(),
-  }),
+  // Audit P1 : mêmes champs que la création depuis le CRM
+  // (/api/crm/opportunities, mode "new"), au même schéma partagé près —
+  // seul l'email diffère, repris du message plutôt que saisi.
+  z
+    .object({
+      action: z.literal("link-new"),
+      firstName: z.string().min(1),
+      lastName: z.string().min(1),
+      phone: z.string().optional(),
+      label: z.string().optional(),
+      amountCents: z.number().int().positive().optional(),
+      courseOfInterestId: z.string().optional(),
+    })
+    .merge(enrollmentCategorySchema),
   z.object({ action: z.literal("discard") }),
   z.object({ action: z.literal("assign"), userId: z.string().min(1).nullable() }),
 ]);
@@ -60,6 +72,39 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       where: { id: message.id },
       data: { assignedToUserId: member.id, assignedToName: member.name },
     });
+
+    // Audit P1 : l'assignation ne faisait que poser une étiquette — la
+    // personne visée n'apprenait rien. Elle reçoit maintenant un email, et
+    // la tâche apparaît dans sa cloche et son « à faire » (voir le bloc
+    // email_assigned de dashboardTasks.ts). S'assigner à soi-même
+    // n'envoie rien : on sait déjà ce qu'on vient de faire.
+    if (member.id !== session.userId) {
+      const organization = await prisma.organization.findUniqueOrThrow({
+        where: { id: session.organizationId },
+        select: { name: true },
+      });
+      const assignedBy = session.name || session.email;
+      const sender = message.fromName || message.fromAddress;
+      try {
+        await sendTransactionalEmail({
+          to: member.email,
+          toName: member.name,
+          subject: `${organization.name} — un email vous a été assigné`,
+          text:
+            `Bonjour ${member.name},\n\n` +
+            `${assignedBy} vous a assigné un email à traiter dans Jalon.\n\n` +
+            `De : ${sender}\n` +
+            `Objet : ${message.subject || "(sans objet)"}\n\n` +
+            `Retrouvez-le dans votre boîte mail Jalon : ${resolveAppOrigin(request)}/inbox\n\n` +
+            `À bientôt,\nL'équipe ${organization.name}`,
+          senderName: organization.name,
+        });
+      } catch {
+        // Non bloquant : l'assignation est enregistrée, et la tâche
+        // apparaît de toute façon dans le « à faire » du destinataire.
+      }
+    }
+
     return NextResponse.json(updated);
   }
 
@@ -71,31 +116,61 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (!contact) return NextResponse.json({ error: "Contact introuvable." }, { status: 404 });
     contactId = contact.id;
   } else {
+    const data = parsed.data;
     const existing = await prisma.contact.findFirst({
       where: { organizationId: session.organizationId, email: message.fromAddress.toLowerCase() },
     });
     if (existing) {
       contactId = existing.id;
-    } else {
-      let companyId: string | undefined;
-      if (parsed.data.companyName?.trim()) {
-        const companyName = parsed.data.companyName.trim();
-        const company =
-          (await prisma.company.findFirst({ where: { organizationId: session.organizationId, name: companyName } })) ??
-          (await prisma.company.create({ data: { organizationId: session.organizationId, name: companyName } }));
-        companyId = company.id;
+      if (data.learnerCategory) {
+        await prisma.contact.update({ where: { id: contactId }, data: { defaultLearnerCategory: data.learnerCategory } });
       }
+    } else {
       const created = await prisma.contact.create({
         data: {
           organizationId: session.organizationId,
-          firstName: parsed.data.firstName,
-          lastName: parsed.data.lastName,
+          firstName: data.firstName,
+          lastName: data.lastName,
           email: message.fromAddress.toLowerCase(),
-          phone: parsed.data.phone?.trim() || undefined,
-          companyId,
+          phone: data.phone?.trim() || undefined,
+          defaultLearnerCategory: data.learnerCategory || null,
         },
       });
       contactId = created.id;
+    }
+
+    // Même traitement de l'entreprise que côté CRM : rapproché par nom dans
+    // l'organisation plutôt que dupliqué (voir applyCompanyInfo).
+    if (data.company) {
+      await applyCompanyInfo(session.organizationId, contactId, data.company);
+    }
+
+    let courseOfInterestId: string | undefined;
+    if (data.courseOfInterestId) {
+      const course = await prisma.course.findFirst({
+        where: { id: data.courseOfInterestId, organizationId: session.organizationId },
+      });
+      if (!course) return NextResponse.json({ error: "Formation introuvable." }, { status: 404 });
+      courseOfInterestId = course.id;
+    }
+
+    // L'opportunité est ce qui fait exister le prospect dans le pipeline :
+    // sans elle, « nouveau prospect » depuis la boîte mail ne créait qu'un
+    // contact invisible côté CRM, à ressaisir. Rôle sans accès CRM : on
+    // crée quand même le contact et on rattache l'email — le triage reste
+    // son travail —, simplement sans opportunité.
+    if (can(session.role, "crm") !== "none") {
+      await prisma.opportunity.create({
+        data: {
+          organizationId: session.organizationId,
+          contactId,
+          label: data.label?.trim() || message.subject || "Demande entrante",
+          amountCents: data.amountCents,
+          stage: PipelineStage.PROSPECT,
+          ownerId: session.userId,
+          courseOfInterestId,
+        },
+      });
     }
   }
 
@@ -104,5 +179,12 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     data: { contactId, matchBasis: null, suggestedDossierId: null },
   });
 
-  return NextResponse.json(updated);
+  // Audit P1 : rattacher un email rattache aussi tout l'historique déjà
+  // synchronisé de la même adresse — c'est la question du client (« si
+  // j'échange plusieurs fois avec un apprenant et que je le rattache
+  // après… »). Immédiat ici, plutôt que d'attendre la prochaine synchro
+  // qui fait le même balayage.
+  const linkedRetroactively = await linkOrphanEmailsToKnownContacts(session.organizationId);
+
+  return NextResponse.json({ ...updated, linkedRetroactively });
 }

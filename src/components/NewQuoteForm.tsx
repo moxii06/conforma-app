@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
-import { Field, DialogShell } from "@/components/FacturationDialog";
+import { Field, DialogShell } from "@/components/DialogShell";
 import { Button } from "@/components/ui";
 
 type Dossier = { id: string; label: string };
