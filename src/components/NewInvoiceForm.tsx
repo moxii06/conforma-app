@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
+import { Field, DialogShell } from "@/components/FacturationDialog";
 import { FUNDING_ORIGIN_LABELS } from "@/lib/bpfCategories";
 import { Button } from "@/components/ui";
 
@@ -23,8 +24,9 @@ function defaultDueDate(): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Le client de la facture se choisit par recherche serveur (audit P1),
-// plus par un <select> chargeant tout le CRM.
+// Même refonte que NewQuoteForm : boîte de dialogue éditable au lieu d'un
+// formulaire déplié dans la page, et champs étiquetés au lieu de simples
+// textes de substitution.
 export function NewInvoiceForm({ dossiers }: { dossiers: Dossier[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -38,6 +40,18 @@ export function NewInvoiceForm({ dossiers }: { dossiers: Dossier[] }) {
   const [dueDate, setDueDate] = useState(defaultDueDate);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  function reset() {
+    setSelectedContact(null);
+    setDossierId("");
+    setReference("");
+    setAmount("");
+    setDescription("");
+    setLignes([]);
+    setFundingOrigin("company");
+    setDueDate(defaultDueDate());
+    setError(null);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,8 +84,7 @@ export function NewInvoiceForm({ dossiers }: { dossiers: Dossier[] }) {
       return;
     }
 
-    setReference("");
-    setAmount("");
+    reset();
     setOpen(false);
     router.refresh();
   }
@@ -84,83 +97,123 @@ export function NewInvoiceForm({ dossiers }: { dossiers: Dossier[] }) {
     );
   }
 
+  function close() {
+    setOpen(false);
+    reset();
+  }
+
+  const inputClass =
+    "w-full min-w-0 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal";
+
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-line rounded-card p-4 flex flex-col gap-3 max-w-lg">
-      {/* Both rows share the same 2-column grid so "Montant" lines up under
-          "Sans dossier lié" instead of drifting — two independent flex rows
-          don't share column boundaries even with matching item counts. */}
-      <div className="grid grid-cols-[2fr_1fr] gap-2">
-        {selectedContact ? (
-          <div className="flex items-center gap-2 border border-line rounded-md px-2.5 py-1.5 bg-mist text-[12.5px]">
-            <span className="text-ink font-medium">
-              {selectedContact.firstName} {selectedContact.lastName}
-            </span>
-            <button type="button" onClick={() => setSelectedContact(null)} className="ml-auto text-[11.5px] text-slate hover:text-ink underline">
-              Changer
-            </button>
-          </div>
-        ) : (
-          <ContactSearchInput onSelect={setSelectedContact} placeholder="Rechercher le client…" />
-        )}
-        <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
-          <option value="">Sans dossier lié</option>
-          {dossiers.map((d) => (
-            <option key={d.id} value={d.id}>{d.label}</option>
-          ))}
-        </select>
-      </div>
-      <div className="grid grid-cols-[2fr_1fr] gap-2">
-        <input required placeholder="Référence (FAC-2026-001)" value={reference} onChange={(e) => setReference(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+    <DialogShell title="Nouvelle facture" onClose={close}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <Field label="Client">
+          {selectedContact ? (
+            <div className="flex items-center gap-2 border border-line rounded-md px-2.5 py-1.5 bg-mist text-[12.5px]">
+              <span className="text-ink font-medium">
+                {selectedContact.firstName} {selectedContact.lastName}
+              </span>
+              <span className="text-slate truncate">{selectedContact.email}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedContact(null)}
+                className="ml-auto shrink-0 text-[11.5px] text-slate hover:text-ink underline"
+              >
+                Changer
+              </button>
+            </div>
+          ) : (
+            <ContactSearchInput onSelect={setSelectedContact} placeholder="Rechercher le client…" />
+          )}
+        </Field>
+
+        <Field label="Dossier de formation" hint="facultatif">
+          {/* min-w-0 : sans ça un <select> se dimensionne sur son option la
+              plus longue et déborde de la boîte au lieu de s'y adapter. */}
+          <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className={inputClass}>
+            <option value="">Sans dossier lié</option>
+            {dossiers.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <Field label="Référence">
+            <input
+              required
+              placeholder="FAC-2026-001"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Montant (€)">
+            <input
+              required
+              placeholder="1 500"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+
         {/* Désignation de la prestation : mention obligatoire de l'article
             242 nonies A. À défaut, le PDF reprend la formation du dossier. */}
-        <input placeholder="Objet (à défaut : la formation du dossier)" value={description} onChange={(e) => setDescription(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
-        <input required placeholder="Montant (€)" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
-      </div>
-      <div className="grid grid-cols-[2fr_1fr] gap-2">
-        <select value={fundingOrigin} onChange={(e) => setFundingOrigin(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
-          {Object.entries(FUNDING_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-        <div className="flex flex-col gap-0.5">
-          <label className="text-[10.5px] text-slate uppercase tracking-wide">Échéance</label>
+        <Field label="Objet" hint="à défaut : la formation du dossier">
           <input
-            type="date"
-            required
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+            placeholder="Formation Excel — niveau 2"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className={inputClass}
           />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <Field label="Origine du financement">
+            <select value={fundingOrigin} onChange={(e) => setFundingOrigin(e.target.value)} className={inputClass}>
+              {Object.entries(FUNDING_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Échéance">
+            <input type="date" required value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
+          </Field>
         </div>
-      </div>
-      {/* Ce que Jalon fait vraiment, et ce qu'il ne fait pas. La version
-          précédente annonçait « transmission via le portail public (PPF) par
-          défaut » alors qu'aucun connecteur n'émet : un organisme pouvait
-          croire sa facture transmise. */}
-      <div className="text-[11px] text-slate leading-relaxed">
-        Jalon établit et archive la facture.{" "}
-        <span className="text-ink">
-          Sa transmission au format électronique réglementaire reste à faire depuis votre plateforme agréée
-        </span>
-        {/* Espace explicite : sans lui, JSX avale l'espace entre la balise
-            fermante et le tiret, et la phrase se lit « agréée— Jalon ». */}
-        {" — "}
-        Jalon n&apos;est pas une plateforme de dématérialisation.
-      </div>
-      <InvoiceLinesEditor
-        lignes={lignes}
-        onChange={setLignes}
-        amountCents={Math.round(parseFloat(amount || "0") * 100)}
-      />
-      <div className="flex items-center gap-2.5">
-        <Button type="submit" size="sm" disabled={loading}>
-          {loading ? "…" : "Créer"}
-        </Button>
-        <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
-          Annuler
-        </Button>
-      </div>
-      {error && <div className="text-[12px] text-rust">{error}</div>}
-    </form>
+
+        {/* Ce que Jalon fait vraiment, et ce qu'il ne fait pas. La version
+            précédente annonçait « transmission via le portail public (PPF) par
+            défaut » alors qu'aucun connecteur n'émet : un organisme pouvait
+            croire sa facture transmise. */}
+        <div className="text-[11px] text-slate leading-relaxed border-t border-line pt-2.5">
+          Jalon établit et archive la facture.{" "}
+          <span className="text-ink">
+            Sa transmission au format électronique réglementaire reste à faire depuis votre plateforme agréée
+          </span>
+          {" — "}
+          Jalon n&apos;est pas une plateforme de dématérialisation.
+        </div>
+
+        <InvoiceLinesEditor lignes={lignes} onChange={setLignes} amountCents={Math.round(parseFloat(amount || "0") * 100)} />
+
+        <div className="flex items-center gap-2.5 pt-1">
+          <Button type="submit" size="sm" disabled={loading}>
+            {loading ? "…" : "Créer la facture"}
+          </Button>
+          <Button type="button" variant="tertiary" size="sm" onClick={close}>
+            Annuler
+          </Button>
+        </div>
+        {error && <div className="text-[12px] text-rust">{error}</div>}
+      </form>
+    </DialogShell>
   );
 }

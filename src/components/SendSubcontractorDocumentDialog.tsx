@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
 
@@ -54,7 +55,7 @@ export function SendSubcontractorDocumentDialog({
   const [category, setCategory] = useState<string>("other");
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ message: string; link?: string } | null>(null);
+  const [result, setResult] = useState<{ message: string; link?: string; emailFailed?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Set when the chosen template has conditional blocks the answers below
   // haven't resolved yet — mirrors GenerateDocumentButton's own flow.
@@ -144,7 +145,11 @@ export function SendSubcontractorDocumentDialog({
       setError(body.error ?? "Erreur lors de l'envoi.");
       return;
     }
-    setResult({ message: body.emailSent ? "Document envoyé par email, en pièce jointe." : "Document créé — email non envoyé, lien à transmettre :", link: body.documentUrl });
+    setResult({
+      message: body.emailSent ? "Document envoyé par email, en pièce jointe." : "Document créé — email non envoyé, lien à transmettre :",
+      link: body.documentUrl,
+      emailFailed: !body.emailSent,
+    });
     router.refresh();
   }
 
@@ -183,11 +188,7 @@ export function SendSubcontractorDocumentDialog({
         {result ? (
           <div className="flex flex-col gap-2">
             <div className="text-[12.5px] text-sage">{result.message}</div>
-            {result.link && (
-              <a href={result.link} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline break-all">
-                {result.link}
-              </a>
-            )}
+            {result.link && <ResultLink url={result.link} showCopy={result.emailFailed === true} />}
             <button
               type="button"
               onClick={() => {

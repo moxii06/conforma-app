@@ -9,6 +9,46 @@ import { PipelineStage } from "@prisma/client";
 const NOT_CONFIGURED_ERROR =
   "Stockage de fichiers momentanément indisponible — BLOB_PRIVATE_READ_WRITE_TOKEN n'est pas configuré côté serveur (voir README).";
 
+/**
+ * Nom de fichier sûr, accents compris.
+ *
+ * L'ancienne version filtrait sur `\w`, qui ne couvre que [A-Za-z0-9_] : tout
+ * caractère accentué disparaissait purement et simplement, et « Bilan
+ * intermédiaire » arrivait chez le destinataire en « Bilan intermdiaire ».
+ * On garde donc les lettres de n'importe quel alphabet (\p{L}) et les
+ * chiffres (\p{N}), et on remplace tout le reste — séparateurs de chemin,
+ * caractères de contrôle, ponctuation réservée — par une espace.
+ */
+export function safeFileStem(title: string): string {
+  const cleaned = title
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{N} _.\-']/gu, " ")
+    .replace(/\s+/g, " ")
+    // Un nom commençant par un point donne un fichier caché ; une suite de
+    // points ouvrirait un « .. » de remontée de répertoire.
+    .replace(/\.{2,}/g, ".")
+    .replace(/^[.\s]+/, "")
+    .trim();
+  return cleaned.slice(0, 80).trim() || "document";
+}
+
+/**
+ * Idem pour un fichier téléversé, extension conservée. Son nom venait du
+ * poste du client et partait tel quel dans le chemin de stockage : un nom
+ * contenant « / » ou « .. » n'avait rien à y faire.
+ */
+export function safeUploadName(original: string): string {
+  const lastDot = original.lastIndexOf(".");
+  const hasExtension = lastDot > 0 && lastDot < original.length - 1;
+  const stem = safeFileStem(hasExtension ? original.slice(0, lastDot) : original);
+  if (!hasExtension) return stem;
+  const extension = original
+    .slice(lastDot + 1)
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .slice(0, 10);
+  return extension ? `${stem}.${extension}` : stem;
+}
+
 // Shared by the dossier and CRM-prospect "envoyer un document" send routes:
 // turns either a rich-text template (→ a real generated PDF) or an
 // uploaded file into (a) a persisted Blob so it shows up in the existing
@@ -31,13 +71,13 @@ export async function buildDocumentAttachment(params: {
 
   if (params.mode === "template") {
     buffer = await generatePdfFromRichText(params.title, params.bodyHtml ?? "");
-    fileName = `${params.title.replace(/[^\w\- ]/g, "").slice(0, 80) || "document"}.pdf`;
+    fileName = `${safeFileStem(params.title)}.pdf`;
     mimeType = "application/pdf";
   } else {
     if (!params.file) throw new Error("Fichier requis.");
     const arrayBuffer = await params.file.arrayBuffer();
     buffer = Buffer.from(arrayBuffer);
-    fileName = params.file.name;
+    fileName = safeUploadName(params.file.name);
     mimeType = params.file.type || "application/octet-stream";
   }
 

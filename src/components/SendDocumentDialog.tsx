@@ -12,6 +12,7 @@ import { LibraryPanel } from "@/components/LibraryPanel";
 import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
 import type { Instalment } from "@/lib/paymentSchedule";
 import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
 
 type Template = { id: string; title: string; category: string };
@@ -418,9 +419,7 @@ export function SendDocumentDialog({
             <div className="text-[12.5px] text-sage">
               {result.emailSent ? "Document envoyé par email, en pièce jointe." : "Document créé — email non envoyé, lien à transmettre :"}
             </div>
-            <a href={result.documentUrl} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline break-all">
-              {result.documentUrl}
-            </a>
+            <ResultLink url={result.documentUrl} showCopy={!result.emailSent} />
             {requiresSignature && (
               <div className="border border-line rounded-md p-3 mt-1 flex flex-col gap-2 max-w-xs">
                 <div className="text-[11px] text-slate uppercase tracking-wide">Suivi de signature</div>

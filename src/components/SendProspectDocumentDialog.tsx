@@ -8,6 +8,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
 import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
 
 type Template = { id: string; title: string; category: string };
@@ -93,7 +94,7 @@ export function SendProspectDocumentDialog({
   const [includeSignature, setIncludeSignature] = useState(true);
   const [requiresESignature, setRequiresESignature] = useState(false);
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ message: string; link?: string } | null>(null);
+  const [result, setResult] = useState<{ message: string; link?: string; emailFailed?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selectedTemplate = templates.find((t) => t.id === templateId);
@@ -173,7 +174,11 @@ export function SendProspectDocumentDialog({
         return;
       }
       const body = await res.json();
-      setResult({ message: body.emailSent ? "Recueil envoyé par email." : "Recueil créé — email non envoyé, lien à transmettre :", link: body.formUrl });
+      setResult({
+        message: body.emailSent ? "Recueil envoyé par email." : "Recueil créé — email non envoyé, lien à transmettre :",
+        link: body.formUrl,
+        emailFailed: !body.emailSent,
+      });
       router.refresh();
       return;
     }
@@ -218,7 +223,11 @@ export function SendProspectDocumentDialog({
       setError(body.error ?? "Erreur lors de l'envoi.");
       return;
     }
-    setResult({ message: body.emailSent ? "Document envoyé par email, en pièce jointe." : "Document créé — email non envoyé, lien à transmettre :", link: body.documentUrl });
+    setResult({
+      message: body.emailSent ? "Document envoyé par email, en pièce jointe." : "Document créé — email non envoyé, lien à transmettre :",
+      link: body.documentUrl,
+      emailFailed: !body.emailSent,
+    });
     router.refresh();
   }
 
@@ -267,11 +276,11 @@ export function SendProspectDocumentDialog({
         {result ? (
           <div className="flex flex-col gap-2">
             <div className="text-[12.5px] text-sage">{result.message}</div>
-            {result.link && (
-              <a href={result.link} target="_blank" rel="noreferrer" className="text-[12px] text-ink underline break-all">
-                {result.link}
-              </a>
-            )}
+            {/* L'adresse de stockage brute (200 caractères illisibles) était
+                affichée telle quelle — un lien nommé suffit. Le bouton de
+                copie n'apparaît que si l'email n'est pas parti : c'est le
+                seul cas où il faut réellement transmettre le lien à la main. */}
+            {result.link && <ResultLink url={result.link} showCopy={result.emailFailed === true} />}
             <button
               type="button"
               onClick={() => {

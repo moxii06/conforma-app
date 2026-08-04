@@ -4,12 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
+import { Field, DialogShell } from "@/components/FacturationDialog";
 import { Button } from "@/components/ui";
 
 type Dossier = { id: string; label: string };
 
-// Le client du devis se choisit par recherche serveur (audit P1), plus par
-// un <select> chargeant tout le CRM.
+// Retour client : « quand je clique sur nouveau devis, il faut que cela
+// fasse une nouvelle boîte de dialogue dans laquelle je peux éditer et
+// modifier ». Le formulaire s'ouvrait en place dans la page, avec ses trois
+// champs répartis dans une grille à deux colonnes — d'où le décalage
+// visible et le débordement de la liste des dossiers.
 export function NewQuoteForm({ dossiers }: { dossiers: Dossier[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -21,6 +25,16 @@ export function NewQuoteForm({ dossiers }: { dossiers: Dossier[] }) {
   const [lignes, setLignes] = useState<EditableLine[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  function reset() {
+    setSelectedContact(null);
+    setDossierId("");
+    setReference("");
+    setAmount("");
+    setDescription("");
+    setLignes([]);
+    setError(null);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,8 +65,7 @@ export function NewQuoteForm({ dossiers }: { dossiers: Dossier[] }) {
       return;
     }
 
-    setReference("");
-    setAmount("");
+    reset();
     setOpen(false);
     router.refresh();
   }
@@ -65,52 +78,97 @@ export function NewQuoteForm({ dossiers }: { dossiers: Dossier[] }) {
     );
   }
 
+  function close() {
+    setOpen(false);
+    reset();
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-line rounded-card p-4 flex flex-col gap-3 max-w-lg">
-      {/* Both rows share the same 2-column grid so "Montant" lines up under
-          "Sans dossier lié" instead of drifting — two independent flex rows
-          don't share column boundaries even with matching item counts. */}
-      <div className="grid grid-cols-[2fr_1fr] gap-2">
-        {selectedContact ? (
-          <div className="flex items-center gap-2 border border-line rounded-md px-2.5 py-1.5 bg-mist text-[12.5px]">
-            <span className="text-ink font-medium">
-              {selectedContact.firstName} {selectedContact.lastName}
-            </span>
-            <button type="button" onClick={() => setSelectedContact(null)} className="ml-auto text-[11.5px] text-slate hover:text-ink underline">
-              Changer
-            </button>
-          </div>
-        ) : (
-          <ContactSearchInput onSelect={setSelectedContact} placeholder="Rechercher le client…" />
-        )}
-        <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
-          <option value="">Sans dossier lié</option>
-          {dossiers.map((d) => (
-            <option key={d.id} value={d.id}>{d.label}</option>
-          ))}
-        </select>
-      </div>
-      <div className="grid grid-cols-[2fr_1fr] gap-2">
-        <input required placeholder="Référence (DEV-2026-001)" value={reference} onChange={(e) => setReference(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
+    <DialogShell title="Nouveau devis" onClose={close}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <Field label="Client">
+          {selectedContact ? (
+            <div className="flex items-center gap-2 border border-line rounded-md px-2.5 py-1.5 bg-mist text-[12.5px]">
+              <span className="text-ink font-medium">
+                {selectedContact.firstName} {selectedContact.lastName}
+              </span>
+              <span className="text-slate truncate">{selectedContact.email}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedContact(null)}
+                className="ml-auto shrink-0 text-[11.5px] text-slate hover:text-ink underline"
+              >
+                Changer
+              </button>
+            </div>
+          ) : (
+            <ContactSearchInput onSelect={setSelectedContact} placeholder="Rechercher le client…" />
+          )}
+        </Field>
+
+        <Field label="Dossier de formation" hint="facultatif">
+          {/* min-w-0 : sans ça un <select> se dimensionne sur son option la
+              plus longue (« Prénom Nom — Intitulé de la formation ») et
+              déborde de la boîte au lieu de s'y adapter. */}
+          <select
+            value={dossierId}
+            onChange={(e) => setDossierId(e.target.value)}
+            className="w-full min-w-0 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          >
+            <option value="">Sans dossier lié</option>
+            {dossiers.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <Field label="Référence">
+            <input
+              required
+              placeholder="DEV-2026-001"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              className="w-full min-w-0 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+            />
+          </Field>
+          <Field label="Montant (€)">
+            <input
+              required
+              placeholder="1 500"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              inputMode="decimal"
+              className="w-full min-w-0 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+            />
+          </Field>
+        </div>
+
         {/* Désignation de la prestation : obligatoire sur le document émis,
             et à défaut le PDF reprend le titre de la formation du dossier. */}
-        <input placeholder="Objet (à défaut : la formation du dossier)" value={description} onChange={(e) => setDescription(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
-        <input required placeholder="Montant (€)" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
-      </div>
-      <InvoiceLinesEditor
-        lignes={lignes}
-        onChange={setLignes}
-        amountCents={Math.round(parseFloat(amount || "0") * 100)}
-      />
-      <div className="flex items-center gap-2.5">
-        <Button type="submit" size="sm" disabled={loading}>
-          {loading ? "…" : "Créer"}
-        </Button>
-        <Button type="button" variant="tertiary" size="sm" onClick={() => setOpen(false)}>
-          Annuler
-        </Button>
-      </div>
-      {error && <div className="text-[12px] text-rust">{error}</div>}
-    </form>
+        <Field label="Objet" hint="à défaut : la formation du dossier">
+          <input
+            placeholder="Formation Excel — niveau 2"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full min-w-0 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
+          />
+        </Field>
+
+        <InvoiceLinesEditor lignes={lignes} onChange={setLignes} amountCents={Math.round(parseFloat(amount || "0") * 100)} />
+
+        <div className="flex items-center gap-2.5 pt-1">
+          <Button type="submit" size="sm" disabled={loading}>
+            {loading ? "…" : "Créer le devis"}
+          </Button>
+          <Button type="button" variant="tertiary" size="sm" onClick={close}>
+            Annuler
+          </Button>
+        </div>
+        {error && <div className="text-[12px] text-rust">{error}</div>}
+      </form>
+    </DialogShell>
   );
 }
