@@ -3,6 +3,7 @@ import { MetricCard, PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can, canAccessSecureReports } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
+import { AreaChart } from "@/components/charts/AreaChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
 import { PipelineStage, Role } from "@prisma/client";
 import { addWeeks, addMonths, startOfWeek, startOfMonth, subMonths, format, differenceInCalendarDays } from "date-fns";
@@ -11,7 +12,7 @@ import Link from "next/link";
 import { RefreshButton } from "@/components/RefreshButton";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { getOnboardingSteps, nextStep, type OnboardingStep } from "@/lib/onboarding";
-import { CheckCircle2, Circle } from "lucide-react";
+import { CheckCircle2, Circle, HelpCircle } from "lucide-react";
 import { DismissTaskButton } from "@/components/DismissTaskButton";
 import { DashboardTaskAction } from "@/components/DashboardTaskAction";
 import { ShowMoreToggle } from "@/components/ShowMoreToggle";
@@ -303,7 +304,8 @@ export default async function DashboardPage() {
             )}
             <div className="bg-white border border-line rounded-card p-4 flex-1">
               <div className="text-[12.5px] text-slate mb-3">Sessions programmées (6 prochaines semaines)</div>
-              <BarChart data={weekBuckets.map((w) => ({ label: w.label, value: w.value }))} color="#4B6358" />
+              {/* Courbe (pas barres) : série temporelle — style validé à l'audit P1. */}
+              <AreaChart data={weekBuckets.map((w) => ({ label: w.label, value: w.value }))} color="#4B6358" />
             </div>
           </div>
         </div>
@@ -311,7 +313,7 @@ export default async function DashboardPage() {
         {canSeeMoney && (
           <div className="bg-white border border-line rounded-card p-4 max-w-md">
             <div className="text-[12.5px] text-slate mb-3">Paiements encaissés par mois (6 derniers mois)</div>
-            <BarChart
+            <AreaChart
               data={monthBuckets.map((m) => ({ label: m.label, value: m.value }))}
               color="#8C6B2E"
               formatValue={(v) => v.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
@@ -537,6 +539,24 @@ function ComplaintsWidget({
   );
 }
 
+// Icône ⓘ + info-bulle CSS pure (group-hover, pas de JS — fonctionne en
+// composant serveur). Demandé à l'audit P1 pour expliquer qui voit les
+// signalements ; garde la forme d'un hint léger plutôt qu'un paragraphe
+// permanent, le bandeau reste compact.
+function InfoHint({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="relative group inline-flex shrink-0">
+      <HelpCircle size={13} className="text-slate cursor-help" />
+      {/* Ancrée au bord droit de l'icône (s'étend vers la gauche) : centrée,
+          elle débordait de l'écran quand l'icône est proche du bord droit
+          (mobile, pane étroit). */}
+      <span className="absolute right-0 top-5 z-20 hidden group-hover:block w-72 bg-ink text-white text-[11.5px] leading-snug rounded-md px-3 py-2 shadow-lg">
+        {children}
+      </span>
+    </span>
+  );
+}
+
 // ADMIN_OF-only (canAccessSecureReports) — kept as its own widget rather
 // than merged with ComplaintsWidget so the confidential-reporting channel
 // never ends up on a screen a broader audience (SALES/TRAINER, who can see
@@ -547,7 +567,20 @@ function SecureReportsWidget({
   reports: { id: string; description: string; reporterName: string | null; createdAt: Date; status: string }[];
 }) {
   return (
-    <CollapsibleSection title={`Signalements confidentiels (${reports.length})`} badge={<Pill tone="danger">Accès restreint</Pill>}>
+    <CollapsibleSection
+      title={`Signalements confidentiels (${reports.length})`}
+      badge={
+        <span className="flex items-center gap-1.5">
+          <Pill tone="danger">Accès restreint</Pill>
+          <InfoHint>
+            Canal de signalement confidentiel (harcèlement, discrimination, dysfonctionnement grave). Seul
+            l&apos;administrateur de l&apos;organisme peut lire ces signalements — ni les commerciaux, ni les
+            formateurs, ni le DPO externe. Tout le monde peut en déposer un depuis Aide &amp; demandes, y compris
+            les apprenants, et de façon anonyme.
+          </InfoHint>
+        </span>
+      }
+    >
       <div className="flex flex-col">
         {reports.slice(0, 5).map((r) => (
           <Link
