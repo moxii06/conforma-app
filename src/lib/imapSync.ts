@@ -7,6 +7,7 @@ import {
   getAlreadyImportedIds,
   createContactDossierMatcher,
   htmlToPlainText,
+  decodeHtmlEntities,
   persistEmailAttachments,
 } from "@/lib/mailboxMatching";
 import { classifyEmailForRgpd } from "@/lib/ai";
@@ -76,7 +77,11 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
         if (!fromAddress) continue;
         const fromName = parsed.from?.value[0]?.name ?? "";
         const subject = parsed.subject || "(sans objet)";
-        const body = parsed.text || (parsed.html ? htmlToPlainText(parsed.html) : "");
+        // Same precedence flip as gmailSync.ts's extractBody: prefer the
+        // HTML part (converted) over the sender's own auto-generated
+        // text/plain fallback, which for template-based senders is often
+        // worse (raw "Label (https://...)" links, undecoded entities).
+        const body = parsed.html ? htmlToPlainText(parsed.html) : decodeHtmlEntities(parsed.text || "");
         const receivedAt = parsed.date ?? new Date();
         const threadId = parsed.references?.[0] ?? parsed.inReplyTo ?? parsed.messageId ?? null;
 

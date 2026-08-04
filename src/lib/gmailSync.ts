@@ -4,6 +4,7 @@ import {
   getAlreadyImportedIds,
   createContactDossierMatcher,
   htmlToPlainText,
+  decodeHtmlEntities,
   persistEmailAttachments,
 } from "@/lib/mailboxMatching";
 import { classifyEmailForRgpd } from "@/lib/ai";
@@ -80,24 +81,33 @@ function headerValue(headers: GmailHeader[], name: string): string {
   return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
 }
 
-// Gmail messages are either a flat body or a MIME tree — walk it looking
-// for a text/plain part first, falling back to text/html (stripped of
-// tags) so something always renders rather than an empty body.
-function extractBody(part: GmailPart): string {
-  if (part.mimeType === "text/plain" && part.body?.data) {
+function findMimePart(part: GmailPart, mimeType: string): string | null {
+  if (part.mimeType === mimeType && part.body?.data) {
     return Buffer.from(part.body.data, "base64url").toString("utf8");
   }
   if (part.parts) {
     for (const child of part.parts) {
-      const text = extractBody(child);
-      if (text) return text;
+      const found = findMimePart(child, mimeType);
+      if (found) return found;
     }
   }
-  if (part.mimeType === "text/html" && part.body?.data) {
-    const html = Buffer.from(part.body.data, "base64url").toString("utf8");
-    return htmlToPlainText(html);
-  }
-  return "";
+  return null;
+}
+
+// Gmail messages are either a flat body or a MIME tree — walk it for both
+// text/html and text/plain, and prefer the HTML one (converted via
+// htmlToPlainText) when present. The auto-generated text/plain fallback
+// most ESP templates ship (Mailchimp, Braze, Sendgrid...) is meant as a
+// last resort for clients that can't render HTML at all, not for reading —
+// it commonly renders every link as "Label (https://tracking-url...)",
+// which is exactly the "email banner (https://...)" junk real inbound
+// marketing mail showed up with. A genuine plain-text-only personal email
+// (no HTML part at all) still falls back to its own text, decoded.
+function extractBody(part: GmailPart): string {
+  const html = findMimePart(part, "text/html");
+  if (html) return htmlToPlainText(html);
+  const plain = findMimePart(part, "text/plain");
+  return plain ? decodeHtmlEntities(plain) : "";
 }
 
 function extractFromAddress(fromHeader: string): string {

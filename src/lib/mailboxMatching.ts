@@ -41,6 +41,54 @@ export async function persistEmailAttachments(params: {
   }
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: " ",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  rsquo: "’",
+  lsquo: "‘",
+  rdquo: "”",
+  ldquo: "“",
+  mdash: "—",
+  ndash: "–",
+  hellip: "…",
+  copy: "©",
+  reg: "®",
+  trade: "™",
+  euro: "€",
+  bull: "•",
+  middot: "·",
+  // French correspondence is full of these — HTML4/Latin-1 accented
+  // letters, lower and upper case.
+  eacute: "é", egrave: "è", ecirc: "ê", euml: "ë",
+  agrave: "à", acirc: "â", auml: "ä",
+  igrave: "ì", icirc: "î", iuml: "ï",
+  ograve: "ò", ocirc: "ô", ouml: "ö", oelig: "œ",
+  ugrave: "ù", ucirc: "û", uuml: "ü",
+  ccedil: "ç", ntilde: "ñ", aelig: "æ",
+  Eacute: "É", Egrave: "È", Ecirc: "Ê", Euml: "Ë",
+  Agrave: "À", Acirc: "Â", Auml: "Ä",
+  Ccedil: "Ç", Ntilde: "Ñ", Aelig: "Æ", Oelig: "Œ",
+  Ugrave: "Ù", Ucirc: "Û", Uuml: "Ü",
+  Ograve: "Ò", Ocirc: "Ô", Ouml: "Ö",
+};
+
+// Both the raw text/plain MIME part (per RFC that's ISO-8859-1/ASCII text —
+// no entities SHOULD appear, but plenty of ESP-generated fallback parts
+// carry them anyway, literal &nbsp;/&#39; and all — see the Qonto example)
+// and htmlToPlainText's tag-stripped output (real HTML entities, meant to
+// render as the character they encode) need this same decode pass. Covers
+// the common named entities plus any numeric one (decimal or hex).
+export function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-zA-Z]+);/g, (match, name) => NAMED_ENTITIES[name] ?? match);
+}
+
 // Both syncs fall back to this when a message has no text/plain part —
 // common for marketing/automated senders. A blind `<[^>]+>` strip leaves
 // <style>/<script> block *contents* behind as visible text (the raw CSS
@@ -49,13 +97,15 @@ export async function persistEmailAttachments(params: {
 // mso-conditional blocks (`<!--[if mso]>...<![endif]-->`) are HTML comments
 // wrapping more markup, not real message content.
 export function htmlToPlainText(html: string): string {
-  return html
+  const stripped = html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/<[^>]+>/g, " ");
+  // Decode BEFORE collapsing whitespace — &nbsp; decodes to a literal
+  // space, and collapsing first would leave it as a second space next to
+  // whatever real whitespace already sat beside it in the source.
+  return decodeHtmlEntities(stripped).replace(/\s+/g, " ").trim();
 }
 
 export async function getAlreadyImportedIds(organizationId: string, candidateIds: string[]): Promise<Set<string>> {
