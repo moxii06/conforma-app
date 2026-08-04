@@ -91,6 +91,17 @@ export async function uploadUserDocument(params: {
   return uploadPrivate(`team-members/${params.organizationId}/${params.userId}/${params.file.name}`, params.file);
 }
 
+// An attachment pulled off a synced inbound email (see mailboxMatching.ts's
+// persistEmailAttachments) — namespaced by message rather than by contact
+// since at sync time the message is often still unmatched (contactId null).
+export async function uploadEmailAttachment(params: {
+  organizationId: string;
+  messageId: string;
+  file: File;
+}): Promise<{ url: string; fileName: string; sizeBytes: number }> {
+  return uploadPrivate(`emails/${params.organizationId}/${params.messageId}/${params.file.name}`, params.file);
+}
+
 // Deletion has to cover both stores: a blob uploaded today lives in the
 // private one, an older one in the public one, and the caller has no reason
 // to know which.

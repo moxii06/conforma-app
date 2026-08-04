@@ -2485,8 +2485,30 @@ model EmailMessage {
   // for that dedupe check while dropping the row out of the "à trier" list.
   ignoredAt DateTime?
 
+  attachments EmailAttachment[]
+
   @@index([organizationId])
   @@index([contactId])
+}
+
+// One row per attachment on a synced message — same shape as
+// ElearningModuleAttachment (fileUrl/fileName/fileSizeBytes on Vercel Blob,
+// private store, served through an authenticated route, never a bare blob
+// URL). Populated at sync time: gmailSync.ts fetches each part's bytes via
+// Gmail's attachments API; imapSync.ts already has them from mailparser's
+// parsed.attachments and just persists them — see persistEmailAttachments()
+// in mailboxMatching.ts, shared so the two syncs can't drift.
+model EmailAttachment {
+  id             String       @id @default(cuid())
+  emailMessage   EmailMessage @relation(fields: [emailMessageId], references: [id], onDelete: Cascade)
+  emailMessageId String
+  fileName       String
+  fileUrl        String
+  fileSizeBytes  Int
+  mimeType       String?
+  createdAt      DateTime     @default(now())
+
+  @@index([emailMessageId])
 }
 
 // Tracks a client-record-initiated send of a document/step that isn't

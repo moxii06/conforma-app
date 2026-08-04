@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Contact = { id: string; firstName: string; lastName: string; email: string };
@@ -29,7 +29,6 @@ export function InboxMessageActions({
   const suggested = splitName(fromName ?? null);
   const [mode, setMode] = useState<"idle" | "existing" | "new">("idle");
   const [contactId, setContactId] = useState(contacts[0]?.id ?? "");
-  const [contactSearch, setContactSearch] = useState("");
   const [firstName, setFirstName] = useState(suggested.firstName);
   const [lastName, setLastName] = useState(suggested.lastName);
   const [phone, setPhone] = useState("");
@@ -69,16 +68,11 @@ export function InboxMessageActions({
   }
 
   if (mode === "existing") {
-    const filteredContacts = contacts.filter((c) =>
-      `${c.firstName} ${c.lastName}`.toLowerCase().includes(contactSearch.trim().toLowerCase())
-    );
     return (
       <ExistingContactPicker
-        contacts={filteredContacts}
+        contacts={contacts}
         contactId={contactId}
         setContactId={setContactId}
-        search={contactSearch}
-        setSearch={setContactSearch}
         loading={loading}
         onLink={() => send({ action: "link", contactId })}
         onCancel={() => setMode("idle")}
@@ -133,17 +127,14 @@ export function InboxMessageActions({
   );
 }
 
-// Separate component so the "keep contactId in sync with the filtered list"
-// effect only ever runs against the current search results, not the full
-// contact list — typing a search that filters out the selected contact
-// should fall back to the first visible match rather than silently submit
-// a contact the user can no longer see.
+// Typeahead combobox, same shape as SearchableDossierSelect.tsx: the input
+// doubles as the search box and the closed-state display, with matches in a
+// floating panel right under it instead of a separate field above a native
+// <select> — so the search lives inside the list itself, not above it.
 function ExistingContactPicker({
   contacts,
   contactId,
   setContactId,
-  search,
-  setSearch,
   loading,
   onLink,
   onCancel,
@@ -151,53 +142,82 @@ function ExistingContactPicker({
   contacts: Contact[];
   contactId: string;
   setContactId: (id: string) => void;
-  search: string;
-  setSearch: (value: string) => void;
   loading: boolean;
   onLink: () => void;
   onCancel: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selected = contacts.find((c) => c.id === contactId);
+  const normalizedQuery = query.trim().toLowerCase();
+  const matches = normalizedQuery
+    ? contacts.filter((c) => `${c.firstName} ${c.lastName}`.toLowerCase().includes(normalizedQuery))
+    : contacts;
+
   useEffect(() => {
-    if (!contacts.some((c) => c.id === contactId)) {
-      setContactId(contacts[0]?.id ?? "");
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contacts]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function pick(c: Contact) {
+    setContactId(c.id);
+    setOpen(false);
+    setQuery("");
+  }
 
   return (
-    <div className="flex flex-col gap-1">
-      <input
-        type="text"
-        autoFocus
-        placeholder="Rechercher un apprenant…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal w-44"
-      />
-      <div className="flex items-center gap-1.5">
-        <select
-          value={contactId}
-          onChange={(e) => setContactId(e.target.value)}
-          disabled={contacts.length === 0}
-          className="border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal disabled:opacity-60"
-        >
-          {contacts.length === 0 ? (
-            <option value="">Aucun résultat</option>
-          ) : (
-            contacts.map((c) => (
-              <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-            ))
-          )}
-        </select>
-        <button
-          onClick={onLink}
-          disabled={loading || !contactId}
-          className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60"
-        >
-          Rattacher
-        </button>
-        <button onClick={onCancel} className="text-[12px] text-slate">Annuler</button>
+    <div className="flex items-center gap-1.5">
+      <div ref={containerRef} className="relative w-44">
+        <input
+          type="text"
+          autoFocus
+          value={open ? query : (selected ? `${selected.firstName} ${selected.lastName}` : "")}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            setQuery("");
+          }}
+          placeholder="Rechercher un apprenant…"
+          className="w-full border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal"
+        />
+        {open && (
+          <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-line rounded-md shadow-md py-1">
+            {matches.length === 0 ? (
+              <div className="px-2.5 py-1.5 text-[11.5px] text-slate">Aucun résultat.</div>
+            ) : (
+              matches.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => pick(c)}
+                  className={`block w-full text-left px-2.5 py-1.5 text-[12px] hover:bg-linen ${c.id === contactId ? "text-ink font-medium bg-linen" : "text-ink"}`}
+                >
+                  {c.firstName} {c.lastName}
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
+      <button
+        onClick={onLink}
+        disabled={loading || !contactId}
+        className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60"
+      >
+        Rattacher
+      </button>
+      <button onClick={onCancel} className="text-[12px] text-slate">Annuler</button>
     </div>
   );
 }

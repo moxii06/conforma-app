@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar, initialsOf, Button } from "@/components/ui";
+import { PageHeader, Pill, Button } from "@/components/ui";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can, canWriteRgpd } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { InboxMessageActions } from "@/components/InboxMessageActions";
+import { InboxTriageSplitView } from "@/components/InboxTriageSplitView";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { MailboxActions } from "@/components/MailboxActions";
 import { MailboxFilterSelect } from "@/components/MailboxFilterSelect";
@@ -54,6 +54,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
         ignoredAt: null,
         ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
       },
+      include: { attachments: { orderBy: { createdAt: "asc" } } },
       orderBy: { receivedAt: "desc" },
     }),
     prisma.emailMessage.findMany({
@@ -224,32 +225,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
               <MailboxFilterSelect connections={connections.map((c) => ({ id: c.id, provider: c.provider, accountEmail: c.accountEmail }))} />
             </div>
             {unsorted.length > 0 ? (
-              <div className="bg-white border border-line rounded-card p-4">
-                {unsorted.map((m) => {
-                  const initials = initialsOf(m.fromName ?? m.fromAddress);
-                  return (
-                    <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex gap-3">
-                      <Avatar initials={initials} />
-                      <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-[12.5px] text-ink font-medium truncate">
-                            {m.fromName ? `${m.fromName} — ${m.fromAddress}` : m.fromAddress}
-                          </div>
-                          <div className="text-[11px] text-slate shrink-0">{format(m.receivedAt, "d MMM yyyy HH:mm", { locale: fr })}</div>
-                        </div>
-                        <div className="text-[12.5px] text-ink">{m.subject}</div>
-                        <div className="text-[12px] text-slate">{m.snippet}</div>
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          {canWrite && <InboxMessageActions messageId={m.id} contacts={contacts} fromName={m.fromName} />}
-                          {canWrite && (
-                            <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <InboxTriageSplitView messages={unsorted} contacts={contacts} members={members} canWrite={canWrite} />
             ) : (
               <div className="text-[12.5px] text-slate">Rien à trier.</div>
             )}

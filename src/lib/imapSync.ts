@@ -3,7 +3,12 @@ import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/crypto";
-import { getAlreadyImportedIds, createContactDossierMatcher } from "@/lib/mailboxMatching";
+import {
+  getAlreadyImportedIds,
+  createContactDossierMatcher,
+  htmlToPlainText,
+  persistEmailAttachments,
+} from "@/lib/mailboxMatching";
 import { classifyEmailForRgpd } from "@/lib/ai";
 import type { MailboxConnection } from "@prisma/client";
 
@@ -70,7 +75,7 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
         if (!fromAddress) continue;
         const fromName = parsed.from?.value[0]?.name ?? "";
         const subject = parsed.subject || "(sans objet)";
-        const body = parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : "");
+        const body = parsed.text || (parsed.html ? htmlToPlainText(parsed.html) : "");
         const receivedAt = parsed.date ?? new Date();
         const threadId = parsed.references?.[0] ?? parsed.inReplyTo ?? parsed.messageId ?? null;
 
@@ -81,7 +86,7 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
         // never blocks the message from being imported.
         const classification = await classifyEmailForRgpd({ subject, body }).catch(() => null);
 
-        await prisma.emailMessage.create({
+        const created = await prisma.emailMessage.create({
           data: {
             organizationId,
             mailboxConnectionId: connection.id,
@@ -102,6 +107,23 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
             direction: "in",
           },
         });
+
+        // mailparser already decoded these — real attachments only, not
+        // inline signature logos/tracking pixels (contentDisposition
+        // distinguishes the two).
+        const realAttachments = (parsed.attachments ?? []).filter((a) => a.contentDisposition === "attachment" && a.filename);
+        if (realAttachments.length > 0) {
+          await persistEmailAttachments({
+            organizationId,
+            messageId: created.id,
+            attachments: realAttachments.map((a) => ({
+              filename: a.filename as string,
+              mimeType: a.contentType,
+              content: a.content,
+            })),
+          });
+        }
+
         imported += 1;
       }
     } finally {

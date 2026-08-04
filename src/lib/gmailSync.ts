@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { getAlreadyImportedIds, createContactDossierMatcher } from "@/lib/mailboxMatching";
+import {
+  getAlreadyImportedIds,
+  createContactDossierMatcher,
+  htmlToPlainText,
+  persistEmailAttachments,
+} from "@/lib/mailboxMatching";
 import { classifyEmailForRgpd } from "@/lib/ai";
 import type { MailboxConnection } from "@prisma/client";
 
@@ -43,7 +48,8 @@ async function getValidAccessToken(connection: MailboxConnection): Promise<strin
 type GmailHeader = { name: string; value: string };
 type GmailPart = {
   mimeType: string;
-  body?: { data?: string };
+  filename?: string;
+  body?: { data?: string; attachmentId?: string };
   parts?: GmailPart[];
 };
 type GmailMessage = {
@@ -51,6 +57,23 @@ type GmailMessage = {
   threadId: string;
   payload: { headers: GmailHeader[] } & GmailPart;
 };
+type GmailAttachmentPart = { filename: string; mimeType: string; attachmentId: string };
+
+// A real attachment part carries both a filename and an attachmentId (its
+// bytes are too large to inline as body.data, unlike the text/plain or
+// text/html parts extractBody walks) — inline body parts have neither, so
+// this can share the same MIME-tree walk shape without extractBody's
+// text/plain-first preference mattering here.
+function extractAttachmentParts(part: GmailPart): GmailAttachmentPart[] {
+  const found: GmailAttachmentPart[] = [];
+  if (part.filename && part.body?.attachmentId) {
+    found.push({ filename: part.filename, mimeType: part.mimeType, attachmentId: part.body.attachmentId });
+  }
+  if (part.parts) {
+    for (const child of part.parts) found.push(...extractAttachmentParts(child));
+  }
+  return found;
+}
 
 function headerValue(headers: GmailHeader[], name: string): string {
   return headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? "";
@@ -71,7 +94,7 @@ function extractBody(part: GmailPart): string {
   }
   if (part.mimeType === "text/html" && part.body?.data) {
     const html = Buffer.from(part.body.data, "base64url").toString("utf8");
-    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return htmlToPlainText(html);
   }
   return "";
 }
@@ -143,7 +166,8 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
     const fromName = extractFromName(fromHeader);
     const body = extractBody(message.payload);
     const receivedAt = dateHeader ? new Date(dateHeader) : new Date();
-    return { message, subject, fromAddress, fromName, body, receivedAt };
+    const attachmentParts = extractAttachmentParts(message.payload);
+    return { message, subject, fromAddress, fromName, body, receivedAt, attachmentParts };
   });
 
   // Best-effort, never blocks a sync from completing — a classification
@@ -164,13 +188,13 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
   for (let i = 0; i < parsedMessages.length; i++) {
     const parsed = parsedMessages[i];
     if (!parsed) continue;
-    const { message, subject, fromAddress, fromName, body, receivedAt } = parsed;
+    const { message, subject, fromAddress, fromName, body, receivedAt, attachmentParts } = parsed;
     const classification = classifications[i];
 
     const contactId = matcher.matchContact(fromAddress);
     const { suggestedDossierId, matchBasis } = matcher.matchDossier(contactId, message.threadId);
 
-    await prisma.emailMessage.create({
+    const created = await prisma.emailMessage.create({
       data: {
         organizationId,
         mailboxConnectionId: connection.id,
@@ -191,6 +215,34 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
         direction: "in",
       },
     });
+
+    // Each attachment part only carries an id here — Gmail requires a
+    // separate call per attachment to get its bytes (unlike IMAP, where
+    // mailparser already handed them over). Best-effort: a failure here
+    // never rolls back the message import above.
+    if (attachmentParts.length > 0) {
+      try {
+        const fetched = await Promise.all(
+          attachmentParts.map(async (part) => {
+            const res = await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}/attachments/${part.attachmentId}`,
+              { headers: authHeader }
+            );
+            if (!res.ok) return null;
+            const attachmentBody = (await res.json()) as { data: string };
+            return { filename: part.filename, mimeType: part.mimeType, content: Buffer.from(attachmentBody.data, "base64url") };
+          })
+        );
+        await persistEmailAttachments({
+          organizationId,
+          messageId: created.id,
+          attachments: fetched.filter((a): a is NonNullable<typeof a> => a !== null),
+        });
+      } catch (err) {
+        console.error(`Pièces jointes non récupérées pour le message ${message.id} :`, err);
+      }
+    }
+
     imported += 1;
   }
 
