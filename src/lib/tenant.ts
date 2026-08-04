@@ -91,7 +91,14 @@ export const FEATURE_LABELS: Record<string, string> = {
   profile: "Mon profil",
 };
 
-export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
+// `satisfies` plutôt qu'une annotation `Record<string, …>` : l'annotation
+// élargissait les clés à `string`, donc `can(role, "facturation")` — la
+// clé s'appelle `invoicing` — compilait et renvoyait « none » en silence.
+// Une route entière renvoyait 403 sans que rien ne le signale. Avec
+// `satisfies`, la forme reste vérifiée (chaque entrée doit couvrir tous
+// les rôles) mais les clés restent littérales, et une faute de frappe
+// devient une erreur de compilation.
+export const PERMISSIONS = {
   dashboard: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "limited", LEARNER: "none", DPO_EXTERNAL: "none" },
   crm: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "limited", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   invoicing: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
@@ -150,7 +157,7 @@ export const PERMISSIONS: Record<string, Record<Role, AccessLevel>> = {
   // alimentent TOUTES les conventions générées. La première étape du
   // démarrage était la plus cachée de l'application.
   profile: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "full", TRAINER: "full", LEARNER: "full", DPO_EXTERNAL: "full" },
-};
+} satisfies Record<string, Record<Role, AccessLevel>>;
 
 export function can(role: Role, feature: keyof typeof PERMISSIONS): AccessLevel {
   return PERMISSIONS[feature]?.[role] ?? "none";

@@ -8,6 +8,7 @@ import {
   canManageOpportunity,
   canManageSessionInvitations,
   canWriteRgpd,
+  type PERMISSIONS,
 } from "./tenant";
 
 // This is the one place a bug becomes a real cross-tenant/cross-role data
@@ -50,10 +51,12 @@ describe("can", () => {
   });
 
   it("falls back to 'none' for an unknown feature key rather than throwing", () => {
-    // PERMISSIONS is typed as Record<string, ...>, not a literal union of
-    // its actual keys, so this compiles — the runtime fallback (`?? "none"`
-    // in can()) is the only thing actually guarding against a typo here.
-    expect(can(Role.ADMIN_OF, "not_a_real_feature")).toBe("none");
+    // Une clé inconnue est maintenant une erreur de compilation (PERMISSIONS
+    // est déclaré avec `satisfies`, donc ses clés restent littérales) — d'où
+    // le cast, qui simule ce qui peut encore arriver à l'exécution : une
+    // valeur venue d'une URL, d'un JSON, ou d'un `any` non contrôlé. Le
+    // repli reste la dernière ligne de défense, et il ferme l'accès.
+    expect(can(Role.ADMIN_OF, "not_a_real_feature" as keyof typeof PERMISSIONS)).toBe("none");
   });
 });
 

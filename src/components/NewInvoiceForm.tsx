@@ -142,10 +142,13 @@ export function NewInvoiceForm({ dossiers }: { dossiers: Dossier[] }) {
         </Field>
 
         <div className="grid grid-cols-2 gap-2.5">
-          <Field label="Référence">
+          {/* Audit P1 : laissée vide, Jalon attribue le numéro suivant de la
+              séquence de l'organisme — c'est ce qui garantit une suite sans
+              trou. Reste saisissable pour les cas particuliers (avoir,
+              reprise d'une numérotation externe sur une facture précise). */}
+          <Field label="Référence" hint="vide = numéro suivant">
             <input
-              required
-              placeholder="FAC-2026-001"
+              placeholder="Automatique"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               className={inputClass}

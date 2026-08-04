@@ -4,6 +4,7 @@ import { requireSessionContext, ROLE_LABELS } from "@/lib/tenant";
 import { SignatureEditor } from "@/components/SignatureEditor";
 import { OrganizationLegalForm } from "@/components/OrganizationLegalForm";
 import { OrganizationBrandingForm } from "@/components/OrganizationBrandingForm";
+import { InvoiceNumberingForm } from "@/components/InvoiceNumberingForm";
 import { Role } from "@prisma/client";
 
 // Every role gets one — no permission gate beyond being logged in, unlike
@@ -100,6 +101,20 @@ export default async function ProfilePage() {
                   vatRatePercent: organization.vatRatePercent?.toString() ?? "20",
                   vatNumber: organization.vatNumber ?? "",
                 }}
+              />
+            </div>
+
+            <div className="bg-white border border-line rounded-card p-5" id="numerotation">
+              <div className="text-[13.5px] font-semibold text-ink mb-1">Numérotation des factures</div>
+              <div className="text-[11.5px] text-slate mb-3">
+                Vos factures doivent porter des numéros qui se suivent, sans trou et sans doublon, toutes sources
+                confondues. Si vous en émettez déjà depuis un autre outil, reprenez ici votre propre séquence pour
+                qu&apos;elle reste continue.
+              </div>
+              <InvoiceNumberingForm
+                initialPrefix={organization.invoicePrefix}
+                initialNextNumber={organization.invoiceNextNumber}
+                exempleAutomatique={`FAC-${new Date().getFullYear()}-001`}
               />
             </div>
           </div>

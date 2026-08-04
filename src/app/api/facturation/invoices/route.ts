@@ -5,13 +5,18 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { checkLines } from "@/lib/invoiceLines";
 import { recordActivationEvent } from "@/lib/activation";
+import { nextInvoiceReference } from "@/lib/invoiceReference";
 
 const DEFAULT_PAYMENT_TERM_DAYS = 30;
 
 const schema = z.object({
   contactId: z.string().min(1),
   dossierId: z.string().optional(),
-  reference: z.string().min(1),
+  // Laissée vide = Jalon alloue le numéro suivant de la séquence de
+  // l'organisme (atomique, donc pas de doublon entre deux créations
+  // simultanées). Renseignée = utilisée telle quelle, l'organisme garde
+  // la main facture par facture.
+  reference: z.string().optional(),
   // Désignation de la prestation — mention obligatoire (art. 242 nonies A).
   description: z.string().min(1).optional(),
   amountCents: z.number().int().positive(),
@@ -82,7 +87,7 @@ export async function POST(request: Request) {
       organizationId: session.organizationId,
       contactId: contact.id,
       dossierId: parsed.data.dossierId,
-      reference: parsed.data.reference,
+      reference: parsed.data.reference?.trim() || (await nextInvoiceReference(session.organizationId)),
       amountCents: parsed.data.amountCents,
       fundingOrigin: parsed.data.fundingOrigin,
       einvoicingProvider: DEFAULT_EINVOICING_PROVIDER,

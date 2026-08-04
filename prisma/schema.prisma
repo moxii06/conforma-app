@@ -105,6 +105,22 @@ model Organization {
   // N° de TVA intracommunautaire, obligatoire dès qu'on facture avec TVA.
   vatNumber String?
 
+  // Numérotation des factures — audit P1 : « comment cela se passe si le
+  // client fait d'autres factures via son outil en dehors de la
+  // plateforme ? ». Le code des impôts impose une séquence chronologique
+  // continue par organisme, pas par outil : un OF qui a déjà émis 46
+  // factures ailleurs doit pouvoir dire à Jalon de démarrer à 47.
+  //
+  // NULL des deux côtés = comportement historique (FAC-<année>-<rang dans
+  // l'année>), conservé pour ne pas renuméroter sous les pieds d'un
+  // organisme déjà en route. Dès que ces deux champs sont renseignés,
+  // c'est la séquence de l'organisme qui fait foi : invoiceNextNumber est
+  // incrémenté de façon atomique à chaque émission, donc deux factures
+  // créées en même temps ne peuvent pas recevoir le même numéro — ce que
+  // l'ancien comptage de lignes ne garantissait pas.
+  invoicePrefix     String?
+  invoiceNextNumber Int?
+
   // Marque blanche — what an OFP's own learners see never needs to say
   // "Jalon": the public token pages (recueil des besoins, satisfaction,
   // activation) already show organization.name instead of the platform

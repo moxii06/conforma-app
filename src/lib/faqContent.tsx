@@ -14,6 +14,7 @@ import {
   BarChart3,
   type LucideIcon,
 } from "lucide-react";
+import type { PERMISSIONS } from "@/lib/tenant";
 
 export type FaqGuide = { question: string; steps: string[] };
 
@@ -24,8 +25,10 @@ export type FaqCategory = {
   icon: LucideIcon;
   // Permission key from src/lib/tenant.ts — the category is hidden unless the
   // reader's role can actually reach the screens it describes. Help for a
-  // page you'll only ever get redirected away from is noise.
-  feature: string;
+  // page you'll only ever get redirected away from is noise. Typé sur les
+  // clés réelles de PERMISSIONS : une catégorie visant une clé inexistante
+  // serait invisible pour tout le monde, en silence.
+  feature: keyof typeof PERMISSIONS;
   // Excludes LEARNER even when the permission matrix would let them through.
   // Needed for the "courses" key, which is `limited` for a learner so they
   // can reach their own course list — that must not also hand them the
