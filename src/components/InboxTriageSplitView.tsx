@@ -7,6 +7,7 @@ import { Paperclip, FileText } from "lucide-react";
 import { Avatar, initialsOf } from "@/components/ui";
 import { InboxMessageActions } from "@/components/InboxMessageActions";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
+import { InboxReplyDialog } from "@/components/InboxReplyDialog";
 
 type Attachment = { id: string; fileName: string; fileSizeBytes: number };
 type Contact = { id: string; firstName: string; lastName: string; email: string };
@@ -21,6 +22,7 @@ type Message = {
   receivedAt: Date;
   externalThreadId: string | null;
   assignedToUserId: string | null;
+  contactId: string | null;
   attachments: Attachment[];
 };
 
@@ -58,11 +60,13 @@ export function InboxTriageSplitView({
   contacts,
   members,
   canWrite,
+  signatureHtml,
 }: {
   messages: Message[];
   contacts: Contact[];
   members: Member[];
   canWrite: boolean;
+  signatureHtml: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(messages[0]?.id ?? null);
 
@@ -121,6 +125,22 @@ export function InboxTriageSplitView({
               <div className="text-[11px] text-slate shrink-0">{format(selected.receivedAt, "d MMM yyyy HH:mm", { locale: fr })}</div>
             </div>
 
+            <div className="flex items-center gap-3 flex-wrap border-b border-line pb-3.5">
+              {canWrite && (
+                <InboxReplyDialog
+                  messageId={selected.id}
+                  fromName={selected.fromName}
+                  contactFirstName={contacts.find((c) => c.id === selected.contactId)?.firstName ?? null}
+                  hasContact={Boolean(selected.contactId)}
+                  signatureHtml={signatureHtml}
+                />
+              )}
+              {canWrite && <InboxMessageActions messageId={selected.id} contacts={contacts} fromName={selected.fromName} />}
+              {canWrite && (
+                <AssignEmailSelect messageId={selected.id} members={members} assignedToUserId={selected.assignedToUserId} />
+              )}
+            </div>
+
             <div className="font-display text-[16px] text-ink">{selected.subject}</div>
 
             <div className="text-[12.5px] text-ink leading-relaxed whitespace-pre-wrap">{selected.body || selected.snippet}</div>
@@ -143,13 +163,6 @@ export function InboxTriageSplitView({
                 ))}
               </div>
             )}
-
-            <div className="flex items-center gap-3 flex-wrap border-t border-line pt-3">
-              {canWrite && <InboxMessageActions messageId={selected.id} contacts={contacts} fromName={selected.fromName} />}
-              {canWrite && (
-                <AssignEmailSelect messageId={selected.id} members={members} assignedToUserId={selected.assignedToUserId} />
-              )}
-            </div>
           </div>
         )}
       </div>

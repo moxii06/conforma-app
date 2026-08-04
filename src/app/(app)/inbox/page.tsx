@@ -22,14 +22,14 @@ const RGPD_REQUEST_TYPE_LABELS: Record<string, string> = {
 
 export default async function InboxPage(props: { searchParams: Promise<{ mailbox?: string; tab?: string }> }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role } = await requireSessionContext();
+  const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "inbox") === "none") redirect("/dashboard");
   const canWrite = can(role, "inbox") !== "none";
   const canHandleRgpd = canWriteRgpd(role);
   const activeTab = searchParams.tab ?? "a-trier";
   if (activeTab === "rgpd" && !canHandleRgpd) redirect("/inbox");
 
-  const [connections, contacts, members] = await Promise.all([
+  const [connections, contacts, members, sender] = await Promise.all([
     prisma.mailboxConnection.findMany({ where: { organizationId }, orderBy: { connectedAt: "asc" } }),
     prisma.contact.findMany({
       where: { organizationId },
@@ -41,7 +41,9 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
+    prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } }),
   ]);
+  const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
 
   const mailboxFilter =
     searchParams.mailbox && connections.some((c) => c.id === searchParams.mailbox) ? searchParams.mailbox : undefined;
@@ -52,6 +54,12 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
         organizationId,
         contactId: null,
         ignoredAt: null,
+        // A reply sent from this screen before the message is linked to a
+        // contact (see InboxReplyDialog) creates its own "out" EmailMessage
+        // row with the same null contactId — without this it would show up
+        // here needing triage (Nouveau prospect/Rattacher/Ignorer) on
+        // staff's own sent message.
+        direction: { not: "out" },
         ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
       },
       include: { attachments: { orderBy: { createdAt: "asc" } } },
@@ -225,7 +233,13 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
               <MailboxFilterSelect connections={connections.map((c) => ({ id: c.id, provider: c.provider, accountEmail: c.accountEmail }))} />
             </div>
             {unsorted.length > 0 ? (
-              <InboxTriageSplitView messages={unsorted} contacts={contacts} members={members} canWrite={canWrite} />
+              <InboxTriageSplitView
+                messages={unsorted}
+                contacts={contacts}
+                members={members}
+                canWrite={canWrite}
+                signatureHtml={signatureHtml}
+              />
             ) : (
               <div className="text-[12.5px] text-slate">Rien à trier.</div>
             )}

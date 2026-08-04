@@ -51,6 +51,25 @@ export async function streamStoredFile(
   return new Response(upstream.body, { status: upstream.status, headers });
 }
 
+// Byte-level counterpart to streamStoredFile, for callers that need the
+// whole file in memory rather than piped into an HTTP Response — e.g.
+// re-attaching an already-generated Document to an outgoing reply email.
+// Same private-store-first, legacy-public-fallback logic.
+export async function fetchStoredFileBuffer(
+  fileUrl: string,
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const privateRead = await readPrivate(fileUrl, null);
+  if (privateRead) {
+    const buffer = Buffer.from(await new Response(privateRead.stream).arrayBuffer());
+    return { buffer, contentType: privateRead.contentType ?? "application/octet-stream" };
+  }
+
+  const upstream = await fetch(fileUrl);
+  if (!upstream.ok || !upstream.body) return null;
+  const buffer = Buffer.from(await upstream.arrayBuffer());
+  return { buffer, contentType: upstream.headers.get("content-type") ?? "application/octet-stream" };
+}
+
 async function readPrivate(
   fileUrl: string,
   range?: string | null,

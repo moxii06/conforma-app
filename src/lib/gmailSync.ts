@@ -7,6 +7,7 @@ import {
   persistEmailAttachments,
 } from "@/lib/mailboxMatching";
 import { classifyEmailForRgpd } from "@/lib/ai";
+import { buildRawMimeMessage, type OutgoingAttachment } from "@/lib/emailMime";
 import type { MailboxConnection } from "@prisma/client";
 
 const MAX_MESSAGES_PER_SYNC = 25;
@@ -251,10 +252,6 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
   return { imported };
 }
 
-function encodeMimeHeader(text: string): string {
-  return `=?UTF-8?B?${Buffer.from(text, "utf8").toString("base64")}?=`;
-}
-
 // Sends a real reply through the connected Gmail account — used by
 // /api/inbox/messages/[id]/reply when a mailbox is connected, falling back
 // to record-only behavior otherwise. threadId keeps the reply in the same
@@ -264,7 +261,14 @@ function encodeMimeHeader(text: string): string {
 // org can have several.
 export async function sendGmailReply(
   connectionId: string,
-  params: { to: string; subject: string; body: string; threadId?: string | null }
+  params: {
+    to: string;
+    subject: string;
+    body: string;
+    html?: string;
+    attachments?: OutgoingAttachment[];
+    threadId?: string | null;
+  }
 ): Promise<{ externalId: string; externalThreadId: string }> {
   const connection = await prisma.mailboxConnection.findFirst({
     where: { id: connectionId, provider: "gmail" },
@@ -273,17 +277,15 @@ export async function sendGmailReply(
 
   const accessToken = await getValidAccessToken(connection);
 
-  const raw = Buffer.from(
-    [
-      `From: ${connection.accountEmail}`,
-      `To: ${params.to}`,
-      `Subject: ${encodeMimeHeader(params.subject)}`,
-      `Content-Type: text/plain; charset="UTF-8"`,
-      "MIME-Version: 1.0",
-      "",
-      params.body,
-    ].join("\r\n"),
-    "utf8"
+  const raw = (
+    await buildRawMimeMessage({
+      from: connection.accountEmail,
+      to: params.to,
+      subject: params.subject,
+      text: params.body,
+      html: params.html,
+      attachments: params.attachments,
+    })
   ).toString("base64url");
 
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {

@@ -10,6 +10,7 @@ import {
   persistEmailAttachments,
 } from "@/lib/mailboxMatching";
 import { classifyEmailForRgpd } from "@/lib/ai";
+import type { OutgoingAttachment } from "@/lib/emailMime";
 import type { MailboxConnection } from "@prisma/client";
 
 const MAX_MESSAGES_PER_SYNC = 25;
@@ -146,7 +147,14 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
 // route), now that an org can have several.
 export async function sendImapReply(
   connectionId: string,
-  params: { to: string; subject: string; body: string; inReplyTo?: string | null }
+  params: {
+    to: string;
+    subject: string;
+    body: string;
+    html?: string;
+    attachments?: OutgoingAttachment[];
+    inReplyTo?: string | null;
+  }
 ): Promise<{ externalId: string; externalThreadId: string | null }> {
   const connection = await prisma.mailboxConnection.findFirst({
     where: { id: connectionId, provider: "imap" },
@@ -168,6 +176,8 @@ export async function sendImapReply(
     to: params.to,
     subject: params.subject,
     text: params.body,
+    html: params.html,
+    attachments: params.attachments,
     ...(params.inReplyTo ? { inReplyTo: params.inReplyTo, references: params.inReplyTo } : {}),
   });
 
