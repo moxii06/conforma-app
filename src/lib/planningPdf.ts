@@ -27,6 +27,9 @@ export type PlanningPdfData = {
   organizationName: string;
   trainerName: string;
   generatedAt: Date;
+  // Bornes choisies à l'export (« Période : du … au … ») — null quand
+  // l'export couvre tout le planning, comme avant l'audit P1.
+  periodLabel?: string | null;
   dated: PlanningPdfDatedSession[];
   rolling: PlanningPdfRollingSession[];
 };
@@ -87,6 +90,10 @@ export async function generatePlanningPdf(data: PlanningPdfData): Promise<Buffer
     y,
     { size: 8.5, color: slate },
   );
+  if (data.periodLabel) {
+    y -= 13;
+    texte(data.periodLabel, MARGIN, y, { size: 8.5, color: slate });
+  }
   y -= 28;
 
   const xDate = MARGIN;

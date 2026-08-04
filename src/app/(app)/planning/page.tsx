@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Tabs } from "@/components/Tabs";
 import { CreateSessionForm } from "@/components/CreateSessionForm";
 import { TrainerFilter } from "@/components/TrainerFilter";
+import { PlanningExportControls } from "@/components/PlanningExportControls";
 import { PlanningCalendar } from "@/components/PlanningCalendar";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
 import { Role } from "@prisma/client";
@@ -53,14 +54,7 @@ export default async function PlanningPage(props: { searchParams: Promise<{ tab?
         {canFilterByTrainer && trainers.length > 0 && (
           <div className="flex items-center gap-2.5">
             <TrainerFilter trainers={trainers} />
-            {searchParams.trainer && (
-              <a
-                href={`/api/planning/export?trainer=${searchParams.trainer}`}
-                className="text-[12.5px] text-slate hover:text-ink underline underline-offset-2"
-              >
-                Exporter ce planning (PDF)
-              </a>
-            )}
+            {searchParams.trainer && <PlanningExportControls trainerId={searchParams.trainer} />}
           </div>
         )}
         {canCreate && <CreateSessionForm courses={courses} trainers={trainers} />}

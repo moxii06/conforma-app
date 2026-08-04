@@ -29,6 +29,19 @@ export async function GET(req: NextRequest) {
   const trainerId = req.nextUrl.searchParams.get("trainer");
   if (!trainerId) return NextResponse.json({ error: "Choisissez un intervenant." }, { status: 400 });
 
+  // Bornes de période optionnelles (audit P1). Absentes = tout le planning,
+  // le comportement historique. Bornes inversées : on les remet dans l'ordre
+  // plutôt que d'échouer — l'intention est évidente.
+  const parseDay = (v: string | null): Date | null => {
+    if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+    const d = new Date(`${v}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  let from = parseDay(req.nextUrl.searchParams.get("from"));
+  let to = parseDay(req.nextUrl.searchParams.get("to"));
+  if (from && to && from > to) [from, to] = [to, from];
+  const toEnd = to ? new Date(to.getTime() + 24 * 60 * 60 * 1000 - 1) : null;
+
   const [organization, trainer] = await Promise.all([
     prisma.organization.findUnique({ where: { id: session.organizationId }, select: { name: true } }),
     prisma.user.findFirst({
@@ -40,7 +53,12 @@ export async function GET(req: NextRequest) {
 
   const [dated, rolling] = await Promise.all([
     prisma.session.findMany({
-      where: { organizationId: session.organizationId, trainerId: trainer.id, mode: "FIXED_DATE" },
+      where: {
+        organizationId: session.organizationId,
+        trainerId: trainer.id,
+        mode: "FIXED_DATE",
+        ...(from || toEnd ? { startsAt: { ...(from ? { gte: from } : {}), ...(toEnd ? { lte: toEnd } : {}) } } : {}),
+      },
       include: { course: { select: { title: true } } },
       orderBy: { startsAt: "asc" },
       take: 300,
@@ -53,10 +71,21 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
+  const fmtDay = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+  const periodLabel =
+    from && to
+      ? `Période : du ${fmtDay(from)} au ${fmtDay(to)}`
+      : from
+        ? `Période : à partir du ${fmtDay(from)}`
+        : to
+          ? `Période : jusqu'au ${fmtDay(to)}`
+          : null;
+
   const pdf = await generatePlanningPdf({
     organizationName: organization?.name ?? "",
     trainerName: trainer.name,
     generatedAt: new Date(),
+    periodLabel,
     dated: dated.map((s) => ({
       startsAt: s.startsAt,
       endsAt: s.endsAt,
