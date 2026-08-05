@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, Avatar, InfoRow, ContextBanner, Button, initialsOf } from "@/components/ui";
 import { requireSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
+import { templateCourseFilter, sortTemplatesForCourse } from "@/lib/templateScope";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PenLine, Activity } from "lucide-react";
@@ -163,12 +164,23 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
     : [];
 
   const organization = canManage ? await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } }) : null;
+  // Les modèles propres à la formation de cette session passent devant, et
+  // ceux d'une autre formation ne sont pas proposés du tout — voir
+  // lib/templateScope.ts.
   const documentTemplates = canManage
-    ? await prisma.documentTemplate.findMany({
-        where: { OR: [{ organizationId: auth.organizationId }, { organizationId: null }] },
-        select: { id: true, title: true, category: true },
-        orderBy: { title: "asc" },
-      })
+    ? sortTemplatesForCourse(
+        await prisma.documentTemplate.findMany({
+          where: {
+            AND: [
+              { OR: [{ organizationId: auth.organizationId }, { organizationId: null }] },
+              templateCourseFilter(session.courseId),
+            ],
+          },
+          select: { id: true, title: true, category: true, courseId: true },
+          orderBy: { title: "asc" },
+        }),
+        session.courseId,
+      )
     : [];
   // Résolue côté serveur depuis le profil de l'expéditeur — voir
   // SignatureCheckbox et emailSignature.ts.

@@ -6,6 +6,7 @@ import { mergeTemplate, findEmptyMergeFields, describeMissingFields } from "@/li
 import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
+import { templateAppliesToCourse, TEMPLATE_WRONG_COURSE } from "@/lib/templateScope";
 
 const schema = z.object({
   templateId: z.string().min(1),
@@ -50,6 +51,16 @@ export async function POST(request: Request) {
 
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+
+  // Le garde-fou qui rend la règle réelle. Les écrans ne proposent plus les
+  // modèles d'une autre formation, mais un identifiant de modèle arrive ici
+  // dans le corps d'une requête : rien n'oblige un appelant à l'avoir pris
+  // dans la liste qu'on lui a montrée. Une convention générée sur la mauvaise
+  // formation porterait un titre, une durée et un prix faux — et le document
+  // ne dirait nulle part qu'il s'est trompé.
+  if (!templateAppliesToCourse(template, dossier.session.courseId)) {
+    return NextResponse.json({ error: TEMPLATE_WRONG_COURSE }, { status: 400 });
+  }
 
   // A conditional template (blocks.length > 0) replaces bodyText entirely —
   // see the DocumentTemplate.blocks schema comment. Unresolved-and-needed

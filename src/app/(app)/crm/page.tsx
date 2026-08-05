@@ -16,6 +16,7 @@ import { MAX_CONTACTS_PAR_LOT } from "@/lib/bulkLimits";
 import { FirstVisitBanner } from "@/components/FirstVisitBanner";
 import { isYousignConfigured } from "@/lib/yousign";
 import { STAGE_LABELS, STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
+import { templateCourseFilter } from "@/lib/templateScope";
 
 function formatAmount(cents: number | null) {
   if (cents === null) return "—";
@@ -187,7 +188,10 @@ export default async function CrmPage(
     prisma.course.findMany({ where: { organizationId }, select: { id: true, title: true }, orderBy: { title: "asc" } }),
     canWrite
       ? prisma.documentTemplate.findMany({
-          where: { OR: [{ organizationId }, { organizationId: null }] },
+          // Aucune formation en jeu ici : on ne devine pas celle d'un
+          // prospect, donc pas de modèle rattaché à une formation — voir
+          // lib/templateScope.ts.
+          where: { OR: [{ organizationId }, { organizationId: null }], ...templateCourseFilter(null) },
           select: { id: true, title: true, category: true },
           orderBy: { title: "asc" },
         })

@@ -6,6 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can, canAccessContact } from "@/lib/tenant";
+import { templateCourseFilter } from "@/lib/templateScope";
 import { IntentEmailComposer } from "@/components/IntentEmailComposer";
 import { EmailReplyComposer } from "@/components/EmailReplyComposer";
 import { NewEmailComposer } from "@/components/NewEmailComposer";
@@ -97,7 +98,9 @@ export default async function ContactRecordPage(
     ? await Promise.all([
         prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } }),
         prisma.documentTemplate.findMany({
-          where: { OR: [{ organizationId }, { organizationId: null }] },
+          // Fiche prospect : aucune formation en jeu, donc pas de modèle
+          // rattaché à une formation — voir lib/templateScope.ts.
+          where: { OR: [{ organizationId }, { organizationId: null }], ...templateCourseFilter(null) },
           select: { id: true, title: true, category: true },
           orderBy: { title: "asc" },
         }),

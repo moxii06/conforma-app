@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, PhoneLink } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
+import { templateCourseFilter } from "@/lib/templateScope";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -40,7 +41,12 @@ export default async function SubcontractorRecordPage(props: { params: Promise<{
   const [sender, templates, eSignatureAvailable] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { id: session.userId }, select: { emailSignature: true } }),
     prisma.documentTemplate.findMany({
-      where: { OR: [{ organizationId: session.organizationId }, { organizationId: null }] },
+      // Un sous-traitant n'est rattaché à aucune formation : pas de modèle
+      // de formation ici — voir lib/templateScope.ts.
+      where: {
+        OR: [{ organizationId: session.organizationId }, { organizationId: null }],
+        ...templateCourseFilter(null),
+      },
       select: { id: true, title: true, category: true },
       orderBy: { title: "asc" },
     }),

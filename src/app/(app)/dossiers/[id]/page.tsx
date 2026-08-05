@@ -26,6 +26,7 @@ import { DossierSwitcher } from "@/components/DossierSwitcher";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
+import { templateCourseFilter, sortTemplatesForCourse } from "@/lib/templateScope";
 import { DossierFundingPanel } from "@/components/DossierFundingPanel";
 import { resolveDossierPriceCents, computeFundingReadiness, computeFundingSummary, formatCents } from "@/lib/funding";
 import { LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCategories";
@@ -413,8 +414,12 @@ async function FormationsTab({
   });
   const dossierIds = dossiers.map((d) => d.id);
   const now = new Date();
+  // La formation en jeu, c'est celle du dossier ouvert — un même contact
+  // peut en suivre plusieurs, et les modèles proposés doivent suivre
+  // l'onglet, pas le contact.
+  const courseEnJeu = dossiers.find((d) => d.id === currentDossierId)?.session.courseId ?? null;
 
-  const [contact, allDocuments, allSurveyResponses, allOutreaches, templates] = await Promise.all([
+  const [contact, allDocuments, allSurveyResponses, allOutreaches, templatesBruts] = await Promise.all([
     prisma.contact.findUniqueOrThrow({
       where: { id: contactId },
       select: { firstName: true, lastName: true, email: true, company: { select: { name: true } } },
@@ -427,12 +432,17 @@ async function FormationsTab({
     prisma.clientOutreach.findMany({ where: { dossierId: { in: dossierIds } }, orderBy: { sentAt: "desc" } }),
     canManageOutreach
       ? prisma.documentTemplate.findMany({
-          where: { OR: [{ organizationId }, { organizationId: null }] },
-          select: { id: true, title: true, category: true },
+          // Deux conditions en OR : les juxtaposer à la racine ferait que la
+          // seconde écrase la première. D'où le AND explicite.
+          where: {
+            AND: [{ OR: [{ organizationId }, { organizationId: null }] }, templateCourseFilter(courseEnJeu)],
+          },
+          select: { id: true, title: true, category: true, courseId: true },
           orderBy: { title: "asc" },
         })
       : Promise.resolve([]),
   ]);
+  const templates = sortTemplatesForCourse(templatesBruts, courseEnJeu);
 
   const current = dossiers.find((d) => d.id === currentDossierId);
   const initials = `${contact.firstName[0] ?? ""}${contact.lastName[0] ?? ""}`.toUpperCase();
@@ -727,16 +737,25 @@ async function DocumentsTab({
   scheduleContext?: ScheduleContext;
   sessionInfo?: SessionInfo;
 }) {
-  const [documents, templates] = await Promise.all([
+  const dossier = await prisma.dossier.findUnique({
+    where: { id: dossierId },
+    select: { session: { select: { courseId: true } } },
+  });
+  const courseEnJeu = dossier?.session.courseId ?? null;
+
+  const [documents, templatesBruts] = await Promise.all([
     prisma.document.findMany({ where: { dossierId }, orderBy: { createdAt: "desc" } }),
     canWrite
       ? prisma.documentTemplate.findMany({
-          where: { OR: [{ organizationId }, { organizationId: null }] },
-          select: { id: true, title: true, category: true },
+          where: {
+            AND: [{ OR: [{ organizationId }, { organizationId: null }] }, templateCourseFilter(courseEnJeu)],
+          },
+          select: { id: true, title: true, category: true, courseId: true },
           orderBy: { title: "asc" },
         })
       : Promise.resolve([]),
   ]);
+  const templates = sortTemplatesForCourse(templatesBruts, courseEnJeu);
 
   return (
     <div className="bg-white border border-line rounded-card p-5">
