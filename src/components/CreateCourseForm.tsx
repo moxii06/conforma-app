@@ -8,6 +8,9 @@ import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
 import { COURSE_TEMPLATES, COURSE_TEMPLATE_SECTORS } from "@/lib/courseTemplates";
 import { X, FileUp, LayoutTemplate, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui";
+// Partagé avec la fiche formation : ce qu'on règle en créant doit se
+// retrouver à l'identique en modifiant.
+import { ParcoursRuleRow } from "@/components/ParcoursRuleRow";
 
 const ETAPES = [
   { n: 1, titre: "L'essentiel" },
@@ -15,53 +18,6 @@ const ETAPES = [
   { n: 3, titre: "Les règles" },
   { n: 4, titre: "La session" },
 ] as const;
-
-/**
- * Une règle du parcours : un interrupteur, son libellé, et surtout sa
- * CONSÉQUENCE en clair.
- *
- * Un interrupteur nommé « déblocage séquentiel » n'apprend rien à qui ne
- * connaît pas déjà la réponse. La phrase de conséquence est ce qui permet de
- * trancher sans aller lire une documentation — c'est elle qu'on lit, pas le
- * libellé.
- */
-function RegleRow({
-  actif,
-  onToggle,
-  titre,
-  sous,
-  consequence,
-}: {
-  actif: boolean;
-  onToggle: () => void;
-  titre: string;
-  sous: string;
-  consequence?: string;
-}) {
-  return (
-    <div className="flex gap-3 items-start py-3 border-b border-line last:border-b-0">
-      <button
-        type="button"
-        role="switch"
-        aria-checked={actif}
-        aria-label={titre}
-        onClick={onToggle}
-        className={`w-[34px] h-5 rounded-full shrink-0 mt-0.5 relative transition-colors ${actif ? "bg-sage" : "bg-pebble"}`}
-      >
-        <span
-          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${actif ? "left-4" : "left-0.5"}`}
-        />
-      </button>
-      <div className="min-w-0">
-        <div className="text-[13px] font-semibold text-ink">{titre}</div>
-        <div className="text-[12px] text-slate mt-0.5">{sous}</div>
-        {consequence && (
-          <div className="text-[11.5px] text-slate mt-1.5 border-l-2 border-seal pl-2.5 py-0.5">{consequence}</div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 type Member = { id: string; name: string };
 type PendingLearner = { key: string; label: string; input: LearnerInput & { accessDurationDays?: number } };
@@ -634,21 +590,21 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
 
           {/* ── ÉTAPE 3 — Les règles du parcours ──────────────────────── */}
           <div className={etape === 3 ? "flex flex-col" : "hidden"}>
-            <RegleRow
+            <ParcoursRuleRow
               actif={sequentialUnlock}
               onToggle={() => setSequentialUnlock((v) => !v)}
               titre="Terminer un module pour ouvrir le suivant"
               sous="Décochez pour une bibliothèque de ressources consultable dans le désordre."
               consequence="Décoché, tous les modules s'ouvrent dès que l'accès est donné. Un parcours certifiant, dont l'ordre porte la progression pédagogique, veut l'inverse."
             />
-            <RegleRow
+            <ParcoursRuleRow
               actif={withdrawalPolicy !== "partial"}
               onToggle={() => setWithdrawalPolicy((v) => (v === "partial" ? "closed" : "partial"))}
               titre="Bloquer l'accès pendant le délai de rétractation"
               sous="14 jours après la signature — article L.221-18 du code de la consommation."
               consequence="Ce n'est pas un délai pédagogique : c'est le droit de l'apprenant à se rétracter. Ouvrir un module pendant ce délai, c'est commencer à exécuter le contrat alors qu'il peut encore être remboursé intégralement. Décoché, seuls les modules que vous marquez « disponibles pendant la rétractation » s'ouvrent — livret d'accueil, programme, règlement intérieur."
             />
-            <RegleRow
+            <ParcoursRuleRow
               actif={allowVideoSkip}
               onToggle={() => setAllowVideoSkip((v) => !v)}
               titre="Autoriser « Passer cette vidéo »"

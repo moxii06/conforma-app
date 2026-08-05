@@ -15,6 +15,13 @@ const FORMAT_LABELS: Record<SessionFormat, string> = {
   HYBRID: "Mixte",
 };
 
+// Un champ ne doit jamais dépasser sa colonne : `w-full` + `min-w-0`, et
+// aucune largeur fixe. C'est ce qui manquait, et ce qui faisait déborder
+// le formulaire sur la carte voisine.
+const fieldClass =
+  "w-full min-w-0 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink bg-white outline-none focus:border-seal";
+const labelClass = "text-[10.5px] font-semibold text-slate uppercase tracking-wide";
+
 const LOCATION_PLACEHOLDER: Record<SessionFormat, string> = {
   IN_PERSON: "Lieu / adresse",
   REMOTE: "Lien de visio (facultatif — généré automatiquement sinon)",
@@ -89,7 +96,11 @@ export function EditSessionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2.5 bg-linen border border-line rounded-md p-3.5">
+    // `w-full min-w-0` : le formulaire est posé dans une rangée flex, où un
+    // élément refuse par défaut de se rétrécir sous la taille de son contenu
+    // (min-width: auto). Sans ces deux classes il pousse hors de la carte,
+    // quelle que soit la mise en forme interne — c'est la moitié du débordement.
+    <form onSubmit={handleSubmit} className="w-full min-w-0 flex flex-col gap-2.5 bg-linen border border-line rounded-md p-3.5">
       {/* Client feedback: the only way out of edit mode was a small text
           link at the very bottom, easy to miss once the form fills the
           space where the session summary used to be. This arrow gives an
@@ -105,27 +116,58 @@ export function EditSessionForm({
         </button>
         <div className="text-[12.5px] font-semibold text-ink">Modifier la session</div>
       </div>
-      <div className="flex gap-2">
-        <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">
-          <option value="">Formateur à assigner</option>
+      {/* Ce formulaire vit dans la colonne de résumé, large de 300 px. Les
+          champs étaient posés sur trois rangées horizontales à largeur fixe
+          (w-28 + w-28 + un champ date) : à eux seuls ils dépassaient la
+          colonne, et débordaient sur la carte voisine. Tout est désormais
+          en pleine largeur, sauf début/fin qui tiennent à deux — et chaque
+          champ porte son libellé : un « 8 » seul dans une case ne dit pas
+          s'il s'agit de places, d'heures ou de jours. */}
+      <div className="flex flex-col gap-1">
+        <label className={labelClass} htmlFor="es-trainer">Formateur</label>
+        <select id="es-trainer" value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className={fieldClass}>
+          <option value="">À assigner</option>
           {trainers.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
-        <select value={sessFormat} onChange={(e) => setSessFormat(e.target.value as SessionFormat)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className={labelClass} htmlFor="es-format">Format</label>
+        <select id="es-format" value={sessFormat} onChange={(e) => setSessFormat(e.target.value as SessionFormat)} className={fieldClass}>
           {Object.entries(FORMAT_LABELS).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
       </div>
-      <div className="flex gap-2">
-        <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal" />
-        <input required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28" />
-        <input required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-28" />
+
+      <div className="flex flex-col gap-1">
+        <label className={labelClass} htmlFor="es-date">Date</label>
+        <input id="es-date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} />
       </div>
-      <div className="flex gap-2">
-        <input placeholder={LOCATION_PLACEHOLDER[sessFormat]} value={location} onChange={(e) => setLocation(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1" />
-        <input required type="number" min={1} placeholder="Places" value={capacity} onChange={(e) => setCapacity(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal w-24" />
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1 min-w-0">
+          <label className={labelClass} htmlFor="es-start">Début</label>
+          <input id="es-start" required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={fieldClass} />
+        </div>
+        <div className="flex flex-col gap-1 min-w-0">
+          <label className={labelClass} htmlFor="es-end">Fin</label>
+          <input id="es-end" required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={fieldClass} />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className={labelClass} htmlFor="es-location">
+          {sessFormat === "REMOTE" ? "Lien de visio" : "Lieu"}
+        </label>
+        <input id="es-location" placeholder={LOCATION_PLACEHOLDER[sessFormat]} value={location} onChange={(e) => setLocation(e.target.value)} className={fieldClass} />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className={labelClass} htmlFor="es-capacity">Places</label>
+        <input id="es-capacity" required type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} className={`${fieldClass} max-w-[110px]`} />
       </div>
       <div className="flex items-center gap-2.5">
         <Button type="submit" size="sm" disabled={loading}>
