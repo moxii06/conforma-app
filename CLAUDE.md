@@ -99,9 +99,13 @@ model exists.
 Some triggers (e.g. `satisfaction_not_collected`, the rolling-access-deadline warnings)
 are instead computed live in `src/lib/dashboardTasks.ts` rather than sent by the cron —
 that file is the dashboard's single "what needs doing" list, recomputed on every page
-load from dossier/invoice/etc. state rather than stored as rows. `DashboardTaskDismissal`
-is the only persisted state (keyed by `kind` + `entityId`), since there's otherwise
-nothing to mark done.
+load from dossier/invoice/etc. state rather than stored as rows. Two things persist,
+since there's otherwise nothing to mark done: `DashboardTaskDismissal` (keyed by `kind`
++ `entityId`) for dismissing one task, and `Organization.tasksHiddenBefore` for hiding
+everything older than a date. The second is deliberately *not* a bulk write of the
+first — the per-family caps mean a row-per-task rejection both under-covers (it only
+sees the capped page) and permanently poisons the cap; a single date applied as the
+query floor is exact at any volume. Read that field's schema comment before touching it.
 
 ### LMS completion — one function, several consumers
 
