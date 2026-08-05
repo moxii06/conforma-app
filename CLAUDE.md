@@ -91,10 +91,19 @@ Three pieces work together: `src/lib/automationRules.ts` (trigger names/labels v
 every course automatically). Adding a new kind of automated relance never needs a new
 UI component: add the trigger to the two exports in `automationRules.ts`, add its
 phrasing to `AFTER_DAYS_PHRASING`/`AFTER_DAYS_SUFFIX` in `AutomationRulesPanel.tsx`, and
-add a handler + dispatch branch in the cron route. Every automated send also writes a
+add a handler + dispatch branch in `executerReglesRelance` in the cron route. Every automated send also writes a
 `ClientOutreach` row with `sentByUserId: "system"`, which is what powers both the
 `/automatisations` activity log and the CRM contact timeline — no separate audit-log
 model exists.
+
+That route is not a straight-line script: Vercel Hobby allows **2 cron jobs**, so all
+the daily work lives in one route as an ordered list of named stages run by
+`src/lib/cronRunner.ts`. Each run starts where the previous one stopped
+(`CronCheckpoint.nextStage`, written *before* each stage so a killed process still
+resumes correctly) and rotates, so no stage can be starved by the ones ahead of it —
+which is exactly what used to happen to the mailbox sync and the daily digests. A full
+pass resets to the nominal order. Adding daily work means adding a stage there, not a
+`vercel.json` entry; every stage must be idempotent, since a killed one is replayed.
 
 Some triggers (e.g. `satisfaction_not_collected`, the rolling-access-deadline warnings)
 are instead computed live in `src/lib/dashboardTasks.ts` rather than sent by the cron —
