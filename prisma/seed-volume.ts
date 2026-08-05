@@ -48,13 +48,49 @@ function pioche<T>(liste: T[], i: number): T {
 }
 
 async function purge(organizationId: string) {
-  // Ordre imposé par les clés étrangères : les enfants d'abord.
-  const emails = await prisma.emailMessage.deleteMany({ where: { organizationId, fromAddress: { endsWith: `@${DOMAINE}` } } });
-  const factures = await prisma.invoice.deleteMany({ where: { organizationId, reference: { startsWith: MARQUEUR } } });
-  const opportunites = await prisma.opportunity.deleteMany({ where: { organizationId, label: { startsWith: MARQUEUR } } });
-  const dossiers = await prisma.dossier.deleteMany({ where: { organizationId, contact: { email: { endsWith: `@${DOMAINE}` } } } });
-  const contacts = await prisma.contact.deleteMany({ where: { organizationId, email: { endsWith: `@${DOMAINE}` } } });
-  console.log("Purge :", { emails: emails.count, factures: factures.count, opportunites: opportunites.count, dossiers: dossiers.count, contacts: contacts.count });
+  // Le nettoyage part des contacts, pas des marqueurs. Une première version
+  // supprimait chaque table par son préfixe VOL- : elle laissait derrière
+  // elle tout ce que l'APPLICATION avait créé sur ces contacts depuis —
+  // une relance envoyée pendant un test, un document généré — et la
+  // suppression des contacts partait alors en violation de clé étrangère.
+  // Ce que le script a écrit n'est pas ce qui existe.
+  const contactsCibles = await prisma.contact.findMany({
+    where: { organizationId, email: { endsWith: `@${DOMAINE}` } },
+    select: { id: true },
+  });
+  const contactIds = contactsCibles.map((c) => c.id);
+  if (contactIds.length === 0) {
+    console.log("Purge : rien à retirer.");
+    return;
+  }
+  const lien = { contactId: { in: contactIds } };
+
+  // Ordre imposé par les clés étrangères : les enfants d'abord. Les enfants
+  // de Dossier (progression LMS, émargements…) partent en cascade avec lui.
+  const relances = await prisma.clientOutreach.deleteMany({ where: lien });
+  // Les emails se rattrapent aussi par l'expéditeur : un message non
+  // rattaché a un contactId nul et échapperait au lien.
+  const emails = await prisma.emailMessage.deleteMany({
+    where: { organizationId, OR: [lien, { fromAddress: { endsWith: `@${DOMAINE}` } }] },
+  });
+  const recueils = await prisma.needsAssessmentRequest.deleteMany({ where: lien });
+  const documents = await prisma.document.deleteMany({ where: lien });
+  const factures = await prisma.invoice.deleteMany({ where: lien });
+  const devis = await prisma.quote.deleteMany({ where: lien });
+  const opportunites = await prisma.opportunity.deleteMany({ where: lien });
+  const dossiers = await prisma.dossier.deleteMany({ where: lien });
+  const contacts = await prisma.contact.deleteMany({ where: { id: { in: contactIds } } });
+  console.log("Purge :", {
+    relances: relances.count,
+    emails: emails.count,
+    recueils: recueils.count,
+    documents: documents.count,
+    factures: factures.count,
+    devis: devis.count,
+    opportunites: opportunites.count,
+    dossiers: dossiers.count,
+    contacts: contacts.count,
+  });
 }
 
 async function main() {
