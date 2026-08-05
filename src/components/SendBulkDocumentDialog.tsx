@@ -51,7 +51,17 @@ export function SendBulkDocumentDialog({
   const [selected, setSelected] = useState<Set<string>>(new Set(recipients.map((r) => r.id)));
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ sentCount: number; emailFailedCount: number; recipientCount: number } | null>(null);
+  const [result, setResult] = useState<{
+    sentCount: number;
+    emailFailedCount: number;
+    recipientCount: number;
+    // Reprise d'un lot interrompu par le plafond par passage — voir la
+    // route (audit S7 P1 n°7).
+    batchId?: string;
+    reste?: number;
+    dejaEnvoyes?: number;
+    echecs?: { nom: string; message: string }[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function toggle(id: string) {
@@ -101,21 +111,23 @@ export function SendBulkDocumentDialog({
     setError(null);
   }
 
-  async function handleSend(e: React.FormEvent) {
-    e.preventDefault();
-    if (selected.size === 0) {
-      setError("Sélectionnez au moins un apprenant.");
-      return;
-    }
+  /**
+   * Un passage d'envoi. `lot` porte la clé du lot en cours : absente au
+   * premier clic (le serveur en pose une), rejouée telle quelle pour
+   * poursuivre un envoi que le plafond par passage a interrompu. C'est
+   * cette clé qui garantit qu'on ne renvoie rien à quelqu'un de déjà servi
+   * — voir la route, audit S7 P1 n°7.
+   */
+  async function envoyer(lot?: string) {
     setSending(true);
     setError(null);
-    setResult(null);
 
     const formData = new FormData();
     formData.set("mode", mode);
     formData.set("title", title);
     formData.set("category", category);
     formData.set("message", includeSignature ? message + signatureHtml : message);
+    if (lot) formData.set("batchId", lot);
     for (const id of selected) formData.append("dossierIds", id);
     if (mode === "template") {
       formData.set("templateId", templateId);
@@ -131,8 +143,29 @@ export function SendBulkDocumentDialog({
       setError(body.error ?? "Erreur lors de l'envoi.");
       return;
     }
-    setResult(body);
+    // Les compteurs s'additionnent d'un passage à l'autre : ce que voit
+    // l'utilisateur est le cumul du lot, pas le dernier passage seul.
+    setResult((precedent) =>
+      precedent
+        ? {
+            ...body,
+            sentCount: precedent.sentCount + body.sentCount,
+            emailFailedCount: precedent.emailFailedCount + body.emailFailedCount,
+            echecs: [...(precedent.echecs ?? []), ...(body.echecs ?? [])],
+          }
+        : body
+    );
     router.refresh();
+  }
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (selected.size === 0) {
+      setError("Sélectionnez au moins un apprenant.");
+      return;
+    }
+    setResult(null);
+    await envoyer();
   }
 
   if (recipients.length === 0) return null;
@@ -165,9 +198,46 @@ export function SendBulkDocumentDialog({
         {result ? (
           <div className="flex flex-col gap-2">
             <div className="text-[12.5px] text-sage">
-              {result.sentCount}/{result.recipientCount} email(s) envoyé(s)
-              {result.emailFailedCount > 0 && ` — ${result.emailFailedCount} échec(s) d'envoi (document quand même créé, à transmettre manuellement).`}
+              {`${result.sentCount}/${result.recipientCount} email(s) envoyé(s)`}
+              {(result.dejaEnvoyes ?? 0) > 0 && ` — ${result.dejaEnvoyes} déjà servi(s) lors d'un passage précédent, non renvoyé(s)`}
+              .
             </div>
+
+            {/* Le lot ne tient pas en un passage : on le dit et on propose de
+                poursuivre, plutôt que de laisser croire que tout est parti.
+                Poursuivre rejoue la MÊME clé de lot, donc reprend exactement
+                là où le passage précédent s'est arrêté. */}
+            {(result.reste ?? 0) > 0 && (
+              <div className="border border-line rounded-md p-3 flex flex-col gap-2">
+                <div className="text-[12px] text-ink">
+                  {`Il reste ${result.reste} destinataire(s) — l'envoi est découpé pour ne jamais être interrompu en cours de route.`}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => envoyer(result.batchId)}
+                  disabled={sending}
+                  className="self-start text-[12px] font-medium text-seal hover:underline disabled:opacity-50"
+                >
+                  {sending ? "Envoi…" : `Poursuivre pour les ${result.reste} suivants →`}
+                </button>
+              </div>
+            )}
+
+            {/* Échecs nommés, jamais résumés en « quelques erreurs » : sans le
+                nom, impossible de savoir à qui transmettre le document. */}
+            {result.emailFailedCount > 0 && (
+              <div className="border border-rust/30 rounded-md p-3 max-h-40 overflow-y-auto flex flex-col gap-1">
+                <div className="text-[12px] text-ink">
+                  {`${result.emailFailedCount} email(s) non partis — le document est créé et rattaché au dossier, il reste à le transmettre à la main :`}
+                </div>
+                {(result.echecs ?? []).map((e, i) => (
+                  <div key={i} className="text-[12px] text-ink">
+                    <span className="font-medium">{e.nom}</span>
+                    <span className="text-slate"> — {e.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => {
