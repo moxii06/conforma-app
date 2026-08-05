@@ -12,12 +12,19 @@ import { sendDailyDigests } from "@/lib/dailyDigest";
 import { getCourseCompletion } from "@/lib/lms";
 import type { Contact, Course, Session, Organization } from "@prisma/client";
 import { resolveAppOrigin } from "@/lib/appUrl";
+import {
+  fenetreRelance,
+  plancherAnciennete,
+  plancherPremierAcces,
+  MAX_ENQUETES_PAR_PASSAGE,
+} from "@/lib/relanceWindow";
 
 // Headroom for the extra work now bundled into this same daily run
 // (mailbox sync + digest emails across every org/user, see below) — Vercel
 // Hobby plans cap cron jobs at 2, so new scheduled work is added to this
 // existing route/schedule instead of a new vercel.json entry.
 export const maxDuration = 60;
+
 
 function mergeContext(contact: Contact, course: Course, session: Session, organization: Organization): MergeTagContext {
   return {
@@ -185,7 +192,11 @@ async function sendInvoiceOverdueReminders(rule: Rule) {
     where: {
       organizationId: rule.organizationId,
       status: { in: ["SENT", "OVERDUE"] },
-      dueDate: { lte: threshold },
+      // Même garde-fou que les autres relances : une facture importée d'un
+      // ancien outil et restée « envoyée » faute d'avoir été rapprochée ne
+      // doit pas déclencher une relance de paiement à un client d'il y a
+      // trois ans. Le retard reste visible dans le « à faire ».
+      dueDate: fenetreRelance(rule.afterDays),
       overdueReminderSentAt: null,
       dossier: { session: { courseId: rule.courseId } },
     },
@@ -246,9 +257,15 @@ async function sendGenericReminder(
     fallbackBody: (ctx: { contact: Contact }) => string;
   }
 ) {
-  const threshold = addDays(new Date(), -rule.afterDays);
   const dossiers = await prisma.dossier.findMany({
-    where: { organizationId: rule.organizationId, ...opts.where, createdAt: { lte: threshold }, session: { courseId: rule.courseId } },
+    where: {
+      organizationId: rule.organizationId,
+      ...opts.where,
+      // Fenêtre fermée aux deux bouts : assez ancien pour mériter une
+      // relance, pas assez pour qu'elle soit absurde (voir relanceWindow.ts).
+      createdAt: fenetreRelance(rule.afterDays),
+      session: { courseId: rule.courseId },
+    },
     include: { contact: true, session: true },
   });
 
@@ -446,7 +463,17 @@ async function sendRollingDurationReminders(rule: Rule) {
     where: {
       organizationId: rule.organizationId,
       accessDurationDays: { not: null },
-      firstAccessedAt: { not: null },
+      // L'échéance vaut firstAccessedAt + accessDurationDays, et Prisma ne
+      // sait pas filtrer sur une somme de colonnes — la sélection se
+      // faisait donc en mémoire, après avoir chargé TOUS les dossiers en
+      // continu avec leur arbre e-learning complet.
+      //
+      // On borne ce qu'on peut borner en base : au-delà de la plus longue
+      // durée d'accès plausible, l'échéance est forcément dépassée depuis
+      // longtemps et aucune relance « votre accès expire bientôt » n'a de
+      // sens. Le filtre exact reste en JS juste après, sur un lot devenu
+      // raisonnable.
+      firstAccessedAt: { not: null, gte: plancherPremierAcces(rule.afterDays) },
       rollingDurationAutoReminderSentAt: null,
       session: { courseId: rule.courseId, mode: "ROLLING" },
     },
@@ -509,7 +536,10 @@ async function sendSatisfactionReminders(rule: Rule, origin: string) {
       organizationId: rule.organizationId,
       evaluationColdDone: false,
       satisfactionAutoReminderSentAt: null,
-      session: { courseId: rule.courseId, mode: "FIXED_DATE", endsAt: { lt: now } },
+      // Borne basse : on ne demande pas son avis à quelqu'un sur une
+      // formation terminée il y a deux ans (voir
+      // RELANCE_ANCIENNETE_MAX_JOURS).
+      session: { courseId: rule.courseId, mode: "FIXED_DATE", endsAt: { lt: now, gte: plancherAnciennete() } },
     },
     include: { contact: true, session: { include: { course: true } } },
   });
@@ -592,15 +622,37 @@ async function sendHotSatisfactionSurveys(origin: string) {
       where: {
         organizationId: survey.organizationId,
         evaluationHotDone: false,
-        session: { courseId: survey.courseId, mode: "FIXED_DATE", endsAt: { lt: now } },
+        // Deux bornes ajoutées par l'audit S7, pour deux raisons
+        // différentes. La borne de date : `evaluationHotDone` ne passe à
+        // vrai que si l'apprenant RÉPOND — un dossier dont l'enquête est
+        // partie mais restée sans réponse revenait donc dans le lot à
+        // chaque passage, à vie, et le lot ne faisait que grossir. Le
+        // plafond : même avec la borne, un premier passage après import
+        // peut viser des centaines de dossiers ; on en traite un lot par
+        // jour plutôt que de dépasser les 60 s et de ne rien envoyer du
+        // tout — les suivants partiront demain.
+        session: { courseId: survey.courseId, mode: "FIXED_DATE", endsAt: { lt: now, gte: plancherAnciennete() } },
       },
       include: { contact: true },
+      orderBy: { createdAt: "asc" },
+      take: MAX_ENQUETES_PAR_PASSAGE,
     });
+    if (dossiers.length === 0) continue;
+
+    // Une seule requête pour savoir qui a déjà répondu, au lieu d'un
+    // findUnique par dossier : c'était le N+1 le plus coûteux du cron, et
+    // la première chose qui faisait déborder les 60 s.
+    const dejaRepondu = new Set(
+      (
+        await prisma.satisfactionSurveyResponse.findMany({
+          where: { surveyId: survey.id, dossierId: { in: dossiers.map((d) => d.id) } },
+          select: { dossierId: true },
+        })
+      ).map((r) => r.dossierId)
+    );
+
     for (const d of dossiers) {
-      const existing = await prisma.satisfactionSurveyResponse.findUnique({
-        where: { surveyId_dossierId: { surveyId: survey.id, dossierId: d.id } },
-      });
-      if (existing) continue;
+      if (dejaRepondu.has(d.id)) continue;
       await sendSatisfactionSurvey({
         organization: survey.organization,
         dossier: d,
