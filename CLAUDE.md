@@ -89,9 +89,20 @@ Three pieces work together: `src/lib/automationRules.ts` (trigger names/labels v
 `src/app/api/cron/automation-rules/route.ts` (one function per trigger, dispatched by
 `rule.trigger`), and `AutomationRulesPanel.tsx` (the per-course UI, already shared by
 every course automatically). Adding a new kind of automated relance never needs a new
-UI component: add the trigger to the two exports in `automationRules.ts`, add its
-phrasing to `AFTER_DAYS_PHRASING`/`AFTER_DAYS_SUFFIX` in `AutomationRulesPanel.tsx`, and
-add a handler + dispatch branch in `executerReglesRelance` in the cron route. Every automated send also writes a
+UI component: add the trigger to the three exports in `automationRules.ts` — values,
+labels, and `AUTOMATION_DELAY_PHRASING` — then add a handler + dispatch branch in
+`executerReglesRelance` in the cron route.
+
+`AUTOMATION_DELAY_PHRASING` sits beside the labels on purpose: a delay means nothing
+without the point it counts *from*, and that point differs per trigger (enrollment,
+session end, or counted backwards from a deadline). The panel used to hold two
+separate maps and only five of the eight triggers had a suffix, so three rendered
+"Relancer après 7 jours" — after what? Each entry now brackets the number
+(`avant`/`apres`) so the control reads as a sentence, and `resumerDelaiRegle` gives the
+one-line form used in the list of existing rules. What is written there must stay a
+faithful translation of the clock in the cron, never an approximation.
+
+Every automated send also writes a
 `ClientOutreach` row with `sentByUserId: "system"`, which is what powers both the
 `/automatisations` activity log and the CRM contact timeline — no separate audit-log
 model exists.

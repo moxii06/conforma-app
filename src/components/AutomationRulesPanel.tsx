@@ -2,7 +2,12 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AUTOMATION_TRIGGER_LABELS, AUTOMATION_TRIGGER_VALUES } from "@/lib/automationRules";
+import {
+  AUTOMATION_TRIGGER_LABELS,
+  AUTOMATION_TRIGGER_VALUES,
+  AUTOMATION_DELAY_PHRASING,
+  resumerDelaiRegle,
+} from "@/lib/automationRules";
 import { SEUILS_PAR_DEFAUT_RESUME } from "@/lib/relanceDefaults";
 import { insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
@@ -18,26 +23,11 @@ type Rule = {
   active: boolean;
 };
 
-// "Before" triggers count days back from a deadline (session date, access
-// duration end); "after" triggers count forward from enrollment/session end.
-// Just phrasing — the actual clock per trigger lives in dashboardTasks.ts.
-const AFTER_DAYS_PHRASING: Record<string, string> = {
-  needs_assessment_incomplete: "Relancer après",
-  contract_not_signed: "Relancer après",
-  convocation_missing: "Relancer si toujours pas envoyée, à partir de",
-  rolling_duration_expiring: "Prévenir",
-  satisfaction_not_collected: "Relancer après",
-  session_reminder: "Envoyer le rappel",
-  certificate_expiring: "Envoyer le rappel de renouvellement",
-  invoice_overdue: "Relancer après",
-};
-const AFTER_DAYS_SUFFIX: Record<string, string> = {
-  convocation_missing: "jours avant la session",
-  rolling_duration_expiring: "jours avant la fin de la durée d'accès",
-  session_reminder: "jours avant la session",
-  invoice_overdue: "jours de retard",
-  certificate_expiring: "jours avant l'expiration de l'attestation",
-};
+// Les formulations vivent désormais dans lib/automationRules.ts, à côté des
+// déclencheurs qu'elles décrivent : trois d'entre eux n'avaient aucun
+// suffixe et retombaient sur un « jours » nu, qui ne disait pas à partir de
+// quoi le délai courait. Séparer le libellé de son repère, c'est se garantir
+// qu'un déclencheur ajouté plus tard n'aura ni l'un ni l'autre.
 
 // Client feedback: staff should be able to set a rule per formation instead
 // of relying only on the app's fixed global relance thresholds — "after N
@@ -159,7 +149,7 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
         {rules.map((rule) => (
           <div key={rule.id} className="flex items-center justify-between gap-3 py-1.5 border-t border-line first:border-t-0 text-[12px]">
             <div className={rule.active ? "text-ink" : "text-slate line-through"}>
-              {AUTOMATION_TRIGGER_LABELS[rule.trigger] ?? rule.trigger} — {rule.afterDays} j
+              {AUTOMATION_TRIGGER_LABELS[rule.trigger] ?? rule.trigger} — {resumerDelaiRegle(rule.trigger, rule.afterDays)}
               {rule.sendEmail && " · email automatique"}
             </div>
             <div className="flex items-center gap-2.5 shrink-0">
@@ -187,8 +177,12 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
               </option>
             ))}
           </select>
-          <label className="flex items-center gap-2 text-[11.5px] text-slate">
-            {AFTER_DAYS_PHRASING[trigger]}
+          {/* Le nombre est encadré : ce qui se passe avant lui, le repère
+              d'où il compte après. « Relancer 7 jours après l'inscription »
+              se comprend seul ; « Relancer après 7 jours » posait la
+              question qu'il prétendait résoudre. */}
+          <label className="flex items-center gap-2 text-[11.5px] text-slate flex-wrap">
+            {AUTOMATION_DELAY_PHRASING[trigger]?.avant ?? "Déclencher après"}
             <input
               type="number"
               min={1}
@@ -196,7 +190,7 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
               onChange={(e) => setAfterDays(e.target.value)}
               className="w-16 bg-white border border-line rounded-md px-2 py-1 text-[12px] text-ink focus:outline-none focus:border-ink-soft"
             />
-            {AFTER_DAYS_SUFFIX[trigger] ?? "jours"}
+            {AUTOMATION_DELAY_PHRASING[trigger]?.apres ?? "jours"}
           </label>
           <label className="flex items-center gap-1.5 text-[11.5px] text-ink">
             <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="accent-sage" />
