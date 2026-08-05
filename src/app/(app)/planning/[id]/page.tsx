@@ -11,7 +11,7 @@ import { InviteComposer } from "@/components/InviteComposer";
 import { EditSessionForm } from "@/components/EditSessionForm";
 import { SessionDaysForm } from "@/components/SessionDaysForm";
 import { ValidateSessionButton } from "@/components/ValidateSessionButton";
-import { EnrollProspectForm } from "@/components/EnrollProspectForm";
+import { EnrollIntoSessionPanel } from "@/components/EnrollIntoSessionPanel";
 import { GenerateCertificateButton } from "@/components/GenerateCertificateButton";
 import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
@@ -305,12 +305,15 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         {canEdit && !isReadOnly && (
           <div className="bg-white border border-line rounded-card p-5">
             <div className="text-[13.5px] font-semibold text-ink mb-3.5">Ajouter un apprenant</div>
-            <EnrollProspectForm
+            <EnrollIntoSessionPanel
               sessionId={session.id}
-              suggestions={matchingOpportunities.map((o) => ({
+              courseId={session.courseId}
+              signedProspects={matchingOpportunities.map((o) => ({
                 opportunityId: o.id,
                 contactName: `${o.contact.firstName} ${o.contact.lastName}`,
               }))}
+              enrolledContactIds={session.dossiers.map((d) => d.contactId)}
+              isFull={isFull}
             />
           </div>
         )}
