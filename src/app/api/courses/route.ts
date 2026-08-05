@@ -41,6 +41,11 @@ const schema = z.object({
   durationHours: z.number().int().positive().optional(),
   priceCents: z.number().int().positive().optional(),
   maxLearners: z.number().int().positive().optional(),
+  // Règles du parcours (étape 3 de l'assistant). Toutes deux facultatives :
+  // omises, la formation prend le défaut du schéma — déblocage séquentiel
+  // actif, rétractation héritée de l'organisme.
+  sequentialUnlock: z.boolean().optional(),
+  withdrawalAccessPolicy: z.enum(["closed", "partial"]).nullable().optional(),
   initialLearners: z.array(learnerSchema).optional(),
   // Phase 4 §B1 — an AI-drafted chapter/module title outline the staff
   // reviewed and kept (see generateCourseOutline). Titles only: every
@@ -86,6 +91,12 @@ export async function POST(request: Request) {
       durationHours: parsed.data.durationHours ?? null,
       priceCents: parsed.data.priceCents ?? null,
       maxLearners: parsed.data.maxLearners ?? null,
+      // `?? undefined` et non `?? null` : on laisse le défaut du schéma
+      // s'appliquer quand le client n'a rien dit, au lieu d'écrire un null
+      // qui vaudrait « accès libre » pour le premier et « pas d'avis » pour
+      // le second — deux sens opposés sous la même valeur.
+      sequentialUnlock: parsed.data.sequentialUnlock ?? undefined,
+      withdrawalAccessPolicy: parsed.data.withdrawalAccessPolicy ?? undefined,
       responsibleUsers: parsed.data.responsibleUserIds?.length
         ? { connect: parsed.data.responsibleUserIds.map((id) => ({ id })) }
         : undefined,

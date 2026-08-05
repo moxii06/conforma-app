@@ -14,7 +14,8 @@ import { prisma } from "@/lib/prisma";
 // whose e-learning was never started must stay fully locked until the
 // explicit assignment flow runs.
 export async function unlockNextModuleIfNeeded(params: { dossierId: string; courseId: string }) {
-  const [modules, progressList, quizAttempts] = await Promise.all([
+  const [course, modules, progressList, quizAttempts] = await Promise.all([
+    prisma.course.findUnique({ where: { id: params.courseId }, select: { sequentialUnlock: true } }),
     prisma.elearningModule.findMany({
       where: { courseId: params.courseId },
       include: { quiz: { select: { id: true } } },
@@ -26,6 +27,27 @@ export async function unlockNextModuleIfNeeded(params: { dossierId: string; cour
   if (progressList.length === 0) return false;
 
   const progressByModule = new Map(progressList.map((p) => [p.moduleId, p]));
+
+  // Formation en accès libre (Course.sequentialUnlock à false) : il n'y a
+  // pas de « suivant », tout s'ouvre. On crée d'un coup les lignes de
+  // progression manquantes plutôt que de traiter le déverrouillage comme un
+  // cas particulier partout en aval — getModuleState, le calcul
+  // d'avancement et l'attestation continuent de lire exactement la même
+  // chose. Le garde-fou du dessus reste : sans aucune ligne, le dossier
+  // n'a jamais eu d'accès, et l'assignation explicite doit passer d'abord.
+  if (course && !course.sequentialUnlock) {
+    const àOuvrir = modules.filter((m) => !progressByModule.has(m.id));
+    if (àOuvrir.length === 0) return false;
+    await prisma.elearningProgress.createMany({
+      data: àOuvrir.map((m) => ({
+        dossierId: params.dossierId,
+        moduleId: m.id,
+        assignedByName: "Accès libre",
+      })),
+    });
+    return true;
+  }
+
   const frontier = modules.find((m) => !isModuleComplete(m, progressByModule.get(m.id), quizAttempts));
   if (!frontier || progressByModule.has(frontier.id)) return false;
 

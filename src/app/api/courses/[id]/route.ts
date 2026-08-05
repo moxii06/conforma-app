@@ -22,6 +22,11 @@ const schema = z.object({
   isPublic: z.boolean().optional(),
   allowVideoSkip: z.boolean().optional(),
   publicEnrollment: z.enum(["none", "request", "direct"]).optional(),
+  // Règles du parcours, modifiables après coup comme le reste. `null` sur la
+  // politique de rétractation remet la formation en héritage de l'organisme
+  // — c'est une valeur qu'on veut pouvoir REPOSER, d'où le `nullable`.
+  sequentialUnlock: z.boolean().optional(),
+  withdrawalAccessPolicy: z.enum(["closed", "partial"]).nullable().optional(),
 });
 
 // Single PATCH for both "edit the course's details" and "archive/unarchive
@@ -80,6 +85,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(data.accessModalities !== undefined ? { accessModalities: data.accessModalities || null } : {}),
       ...(data.teachingMethods !== undefined ? { teachingMethods: data.teachingMethods || null } : {}),
       ...(data.evaluationModalities !== undefined ? { evaluationModalities: data.evaluationModalities || null } : {}),
+      ...(data.sequentialUnlock !== undefined ? { sequentialUnlock: data.sequentialUnlock } : {}),
+      ...(data.withdrawalAccessPolicy !== undefined ? { withdrawalAccessPolicy: data.withdrawalAccessPolicy } : {}),
       ...(data.isPublic !== undefined ? { isPublic: data.isPublic } : {}),
       ...(data.allowVideoSkip !== undefined ? { allowVideoSkip: data.allowVideoSkip } : {}),
       ...(data.publicEnrollment !== undefined ? { publicEnrollment: data.publicEnrollment } : {}),

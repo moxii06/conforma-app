@@ -9,6 +9,60 @@ import { COURSE_TEMPLATES, COURSE_TEMPLATE_SECTORS } from "@/lib/courseTemplates
 import { X, FileUp, LayoutTemplate, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui";
 
+const ETAPES = [
+  { n: 1, titre: "L'essentiel" },
+  { n: 2, titre: "Le programme" },
+  { n: 3, titre: "Les règles" },
+  { n: 4, titre: "La session" },
+] as const;
+
+/**
+ * Une règle du parcours : un interrupteur, son libellé, et surtout sa
+ * CONSÉQUENCE en clair.
+ *
+ * Un interrupteur nommé « déblocage séquentiel » n'apprend rien à qui ne
+ * connaît pas déjà la réponse. La phrase de conséquence est ce qui permet de
+ * trancher sans aller lire une documentation — c'est elle qu'on lit, pas le
+ * libellé.
+ */
+function RegleRow({
+  actif,
+  onToggle,
+  titre,
+  sous,
+  consequence,
+}: {
+  actif: boolean;
+  onToggle: () => void;
+  titre: string;
+  sous: string;
+  consequence?: string;
+}) {
+  return (
+    <div className="flex gap-3 items-start py-3 border-b border-line last:border-b-0">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={actif}
+        aria-label={titre}
+        onClick={onToggle}
+        className={`w-[34px] h-5 rounded-full shrink-0 mt-0.5 relative transition-colors ${actif ? "bg-sage" : "bg-pebble"}`}
+      >
+        <span
+          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${actif ? "left-4" : "left-0.5"}`}
+        />
+      </button>
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold text-ink">{titre}</div>
+        <div className="text-[12px] text-slate mt-0.5">{sous}</div>
+        {consequence && (
+          <div className="text-[11.5px] text-slate mt-1.5 border-l-2 border-seal pl-2.5 py-0.5">{consequence}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 type Member = { id: string; name: string };
 type PendingLearner = { key: string; label: string; input: LearnerInput & { accessDurationDays?: number } };
 type OutlineChapter = { title: string; modules: string[] };
@@ -35,6 +89,38 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [maxLearners, setMaxLearners] = useState("");
   const [learners, setLearners] = useState<PendingLearner[]>([]);
   const [accessDurationDays, setAccessDurationDays] = useState("");
+
+  // ── L'assistant ──────────────────────────────────────────────────────
+  // Quatre étapes, et un principe qui les rend plus simples et non plus
+  // lourdes : on peut créer dès la première. Chaque étape a un défaut
+  // acceptable, donc « continuer » et « créer maintenant » cohabitent en bas
+  // de chacune. Sans cette porte de sortie, rassembler six écrans en un
+  // formulaire ne fait que transformer une dispersion en mur.
+  const [etape, setEtape] = useState(1);
+
+  // Étape 1 — ce que devient la première session. Ces deux réglages
+  // appartiennent à la Session et non à la Course, mais c'est ici qu'on se
+  // les demande : « comment se déroule ma formation » précède « quand ».
+  const [format, setFormat] = useState<"IN_PERSON" | "REMOTE" | "HYBRID">("IN_PERSON");
+  const [rythme, setRythme] = useState<"FIXED_DATE" | "ROLLING">("FIXED_DATE");
+
+  // Étape 2
+  const [prerequisites, setPrerequisites] = useState("");
+
+  // Étape 3 — les règles du parcours. Les valeurs initiales SONT les
+  // comportements actuels : ouvrir l'assistant sans rien toucher produit
+  // exactement la formation qu'on obtenait avant.
+  const [sequentialUnlock, setSequentialUnlock] = useState(true);
+  const [withdrawalPolicy, setWithdrawalPolicy] = useState<"" | "closed" | "partial">("");
+  const [allowVideoSkip, setAllowVideoSkip] = useState(false);
+  const [certificateValidityMonths, setCertificateValidityMonths] = useState("");
+
+  // Étape 4 — la première session
+  const [trainerId, setTrainerId] = useState("");
+  const [sessionDate, setSessionDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -157,6 +243,21 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     setGenerateError(null);
     setOutline([]);
     setShowTemplatePicker(false);
+    setEtape(1);
+    setPriceEuros("");
+    setMaxLearners("");
+    setFormat("IN_PERSON");
+    setRythme("FIXED_DATE");
+    setPrerequisites("");
+    setSequentialUnlock(true);
+    setWithdrawalPolicy("");
+    setAllowVideoSkip(false);
+    setCertificateValidityMonths("");
+    setTrainerId("");
+    setSessionDate("");
+    setStartTime("09:00");
+    setEndTime("17:00");
+    setLocation("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -177,14 +278,74 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
         // un demi-centime, que la route refuserait sans rien expliquer.
         priceCents: priceEuros ? Math.round(parseFloat(priceEuros.replace(",", ".")) * 100) : undefined,
         maxLearners: maxLearners ? parseInt(maxLearners, 10) : undefined,
+        sequentialUnlock,
+        // Chaîne vide = « hérite de l'organisme ». On envoie null pour le
+        // dire, plutôt que d'omettre le champ : la formation peut avoir eu
+        // un avis qu'on repose.
+        withdrawalAccessPolicy: withdrawalPolicy === "" ? null : withdrawalPolicy,
         initialLearners: learners.map((l) => l.input),
         outline: outline.length > 0 ? outline : undefined,
       }),
     });
-    setLoading(false);
     if (!res.ok) {
+      setLoading(false);
       const b = await res.json().catch(() => ({}));
       setError(b.error ?? "Erreur lors de la création.");
+      return;
+    }
+    const course = await res.json().catch(() => null);
+
+    // Deux champs que la route de création ne prend pas — elle n'a jamais eu
+    // à les connaître. Un PATCH derrière plutôt que d'élargir son contrat
+    // pour deux réglages secondaires. S'il échoue, la formation existe
+    // quand même : on ne le signale pas comme un échec de création.
+    if (course?.id && (allowVideoSkip || certificateValidityMonths || prerequisites.trim())) {
+      await fetch(`/api/courses/${course.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(allowVideoSkip ? { allowVideoSkip: true } : {}),
+          ...(certificateValidityMonths ? { certificateValidityMonths: parseInt(certificateValidityMonths, 10) } : {}),
+          ...(prerequisites.trim() ? { prerequisites: prerequisites.trim() } : {}),
+        }),
+      }).catch(() => {});
+    }
+
+    // La première session, quand une date a été posée. Aujourd'hui une
+    // session est créée automatiquement et silencieusement à la première
+    // inscription : capacité par défaut, aucun formateur, dates arbitraires.
+    // Personne ne l'a décidée, et elle apparaît telle quelle dans le
+    // planning. La créer ici la rend explicite.
+    let sessionEchouee = false;
+    if (course?.id && rythme === "FIXED_DATE" && sessionDate) {
+      const r = await fetch("/api/planning/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // La route distingue « rattacher à une formation existante » de
+          // « en créer une au passage ». Ici la formation vient d'être
+          // créée juste au-dessus : c'est le premier cas.
+          courseMode: "existing",
+          courseId: course.id,
+          trainerId: trainerId || undefined,
+          mode: "FIXED_DATE",
+          startsAt: `${sessionDate}T${startTime}:00`,
+          endsAt: `${sessionDate}T${endTime}:00`,
+          format,
+          location: location || undefined,
+          capacity: maxLearners ? parseInt(maxLearners, 10) : 8,
+        }),
+      });
+      sessionEchouee = !r.ok;
+    }
+
+    setLoading(false);
+    if (sessionEchouee) {
+      // La formation est créée : on ne peut pas la « défaire » en affichant
+      // une erreur de création. On dit exactement ce qui a marché et ce qui
+      // n'a pas marché, et on laisse la fiche ouverte pour rattraper.
+      setError("Formation créée, mais la session n'a pas pu l'être — planifiez-la depuis le Planning.");
+      router.refresh();
       return;
     }
     reset();
@@ -224,7 +385,97 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
           </button>
         </div>
 
+        {/* Le fil des étapes. Cliquable : on revient en arrière sans perdre
+            la saisie, et on saute en avant si on sait déjà où l'on va. */}
+        <div className="flex border-b border-line shrink-0 overflow-x-auto">
+          {ETAPES.map((e) => (
+            <button
+              key={e.n}
+              type="button"
+              onClick={() => setEtape(e.n)}
+              className={`flex items-center gap-2 px-3.5 py-2.5 shrink-0 border-b-2 -mb-px transition-colors ${
+                etape === e.n ? "border-ink" : "border-transparent"
+              }`}
+            >
+              <span
+                className={`w-[22px] h-[22px] rounded-full grid place-items-center text-[11px] font-mono font-semibold ${
+                  etape === e.n ? "bg-ink text-white" : "border border-line text-slate"
+                }`}
+              >
+                {e.n}
+              </span>
+              <span className={`text-[12.5px] font-medium ${etape === e.n ? "text-ink" : "text-slate"}`}>{e.titre}</span>
+            </button>
+          ))}
+        </div>
+
         <form id="create-course-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+          {/* ── ÉTAPE 1 — L'essentiel ─────────────────────────────────── */}
+          <div className={etape === 1 ? "flex flex-col gap-3" : "hidden"}>
+            <div>
+              <label className={fieldLabelClass}>Intitulé de la formation</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="ex. Sécurité incendie et évacuation"
+                required
+                className={fieldClass}
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className={fieldLabelClass}>Durée (heures)</label>
+                <input value={durationHours} onChange={(e) => setDurationHours(e.target.value)} type="number" min={1} placeholder="ex. 7" className={fieldClass} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>Prix (€)</label>
+                <input value={priceEuros} onChange={(e) => setPriceEuros(e.target.value)} type="number" min={0} step="0.01" placeholder="ex. 1400" className={fieldClass} />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>Places</label>
+                <input value={maxLearners} onChange={(e) => setMaxLearners(e.target.value)} type="number" min={1} placeholder="ex. 12" className={fieldClass} />
+              </div>
+            </div>
+            <div className="text-[11px] text-slate -mt-1">
+              Le prix est reporté sur la convention et le contrat. Places vides = illimité.
+            </div>
+
+            <div>
+              <label className={fieldLabelClass}>Comment se déroule-t-elle ?</label>
+              <div className="flex border border-line rounded-md overflow-hidden w-fit max-w-full flex-wrap">
+                {([["IN_PERSON", "Présentiel"], ["REMOTE", "Distanciel"], ["HYBRID", "Mixte"]] as const).map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setFormat(v)}
+                    className={`px-3.5 py-1.5 text-[12.5px] border-r border-line last:border-r-0 ${format === v ? "bg-ink text-white font-medium" : "text-slate hover:text-ink"}`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className={fieldLabelClass}>Rythme</label>
+              <div className="flex border border-line rounded-md overflow-hidden w-fit max-w-full flex-wrap">
+                {([["FIXED_DATE", "Session à date fixe"], ["ROLLING", "En continu — chacun son calendrier"]] as const).map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setRythme(v)}
+                    className={`px-3.5 py-1.5 text-[12.5px] border-r border-line last:border-r-0 ${rythme === v ? "bg-ink text-white font-medium" : "text-slate hover:text-ink"}`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── ÉTAPE 2 — Le programme ────────────────────────────────── */}
+          <div className={etape === 2 ? "flex flex-col gap-4" : "hidden"}>
           {/* Démarrage rapide */}
           <div className="flex flex-col gap-2">
             <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">Démarrage rapide (optionnel)</div>
@@ -284,7 +535,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                   <Button variant="tertiary" size="sm" type="button" onClick={() => setShowAiPrompt(false)}>
                     Annuler
                   </Button>
-                  {!title.trim() && <span className="text-[11px] text-slate">Renseignez d&apos;abord le titre ci-dessous.</span>}
+                  {!title.trim() && <span className="text-[11px] text-slate">Renseignez d&apos;abord l&apos;intitulé, à l&apos;étape 1.</span>}
                 </div>
               </div>
             )}
@@ -318,17 +569,6 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
           {/* Informations */}
           <div className="flex flex-col gap-3">
             <div>
-              <label className={fieldLabelClass}>Titre de la formation</label>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="ex. Sécurité incendie et évacuation"
-                required
-                autoFocus
-                className={fieldClass}
-              />
-            </div>
-            <div>
               <label className={fieldLabelClass}>Description (optionnel)</label>
               <textarea
                 value={description}
@@ -347,6 +587,20 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                 rows={2}
                 className={`${fieldClass} resize-none`}
               />
+            </div>
+            <div>
+              <label className={fieldLabelClass}>Prérequis</label>
+              <textarea
+                value={prerequisites}
+                onChange={(e) => setPrerequisites(e.target.value)}
+                placeholder="Laisser vide affichera « Sans prérequis » sur la fiche publique"
+                rows={2}
+                className={`${fieldClass} resize-none`}
+              />
+              {/* Ce champ est celui dont l'absence a valu au pilote sa
+                  non-conformité 2022. Le laisser vide n'est pas une
+                  omission tant que la fiche publique l'écrit noir sur
+                  blanc — d'où le libellé, qui dit ce que le vide produit. */}
             </div>
 
             {outline.length > 0 && (
@@ -375,49 +629,101 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className={fieldLabelClass}>Durée (heures)</label>
+          </div>
+          </div>
+
+          {/* ── ÉTAPE 3 — Les règles du parcours ──────────────────────── */}
+          <div className={etape === 3 ? "flex flex-col" : "hidden"}>
+            <RegleRow
+              actif={sequentialUnlock}
+              onToggle={() => setSequentialUnlock((v) => !v)}
+              titre="Terminer un module pour ouvrir le suivant"
+              sous="Décochez pour une bibliothèque de ressources consultable dans le désordre."
+              consequence="Décoché, tous les modules s'ouvrent dès que l'accès est donné. Un parcours certifiant, dont l'ordre porte la progression pédagogique, veut l'inverse."
+            />
+            <RegleRow
+              actif={withdrawalPolicy !== "partial"}
+              onToggle={() => setWithdrawalPolicy((v) => (v === "partial" ? "closed" : "partial"))}
+              titre="Bloquer l'accès pendant le délai de rétractation"
+              sous="14 jours après la signature — article L.221-18 du code de la consommation."
+              consequence="Ce n'est pas un délai pédagogique : c'est le droit de l'apprenant à se rétracter. Ouvrir un module pendant ce délai, c'est commencer à exécuter le contrat alors qu'il peut encore être remboursé intégralement. Décoché, seuls les modules que vous marquez « disponibles pendant la rétractation » s'ouvrent — livret d'accueil, programme, règlement intérieur."
+            />
+            <RegleRow
+              actif={allowVideoSkip}
+              onToggle={() => setAllowVideoSkip((v) => !v)}
+              titre="Autoriser « Passer cette vidéo »"
+              sous="Désactivé par défaut. Chaque saut reste tracé."
+            />
+            <div className="flex gap-3 items-start py-3">
+              <span className="w-[34px] shrink-0" />
+              <div className="min-w-0">
+                <label className="text-[13px] font-semibold text-ink block">L&apos;attestation expire</label>
+                <span className="text-[12px] text-slate block mt-0.5">
+                  Pour les habilitations à renouveler (SST, incendie…). Vide = sans expiration.
+                </span>
                 <input
-                  value={durationHours}
-                  onChange={(e) => setDurationHours(e.target.value)}
+                  value={certificateValidityMonths}
+                  onChange={(e) => setCertificateValidityMonths(e.target.value)}
                   type="number"
                   min={1}
-                  placeholder="ex. 7"
-                  className={fieldClass}
+                  placeholder="ex. 24"
+                  className="mt-1.5 w-28 bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-seal placeholder:text-ash"
                 />
-              </div>
-              <div>
-                <label className={fieldLabelClass}>Prix (€)</label>
-                <input
-                  value={priceEuros}
-                  onChange={(e) => setPriceEuros(e.target.value)}
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  placeholder="ex. 1400"
-                  className={fieldClass}
-                />
-                <div className="text-[11px] text-slate mt-1">Reporté sur la convention et le contrat</div>
-              </div>
-              <div>
-                <label className={fieldLabelClass}>Places</label>
-                <input
-                  value={maxLearners}
-                  onChange={(e) => setMaxLearners(e.target.value)}
-                  type="number"
-                  min={1}
-                  placeholder="ex. 12"
-                  className={fieldClass}
-                />
-                {/* The field is a number input, so "illimité" can't be typed —
-                    an empty value IS the unlimited case (Course.maxLearners is
-                    nullable). Say so explicitly rather than leaving it to a
-                    placeholder that reads like an instruction to type it. */}
-                <div className="text-[11px] text-slate mt-1">Laisser vide = places illimitées</div>
+                <span className="text-[12px] text-slate ml-2">mois</span>
               </div>
             </div>
+            {withdrawalPolicy === "" && (
+              <div className="text-[11.5px] text-slate border-t border-line pt-3">
+                Ces réglages valent pour cette formation seule. Tant que vous n&apos;y touchez pas, la rétractation
+                suit le choix fait pour tout l&apos;organisme.
+              </div>
+            )}
           </div>
+
+          {/* ── ÉTAPE 4 — La première session ─────────────────────────── */}
+          <div className={etape === 4 ? "flex flex-col gap-4" : "hidden"}>
+            {rythme === "FIXED_DATE" ? (
+              <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className={fieldLabelClass}>Date</label>
+                    <input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className={fieldClass} />
+                  </div>
+                  <div>
+                    <label className={fieldLabelClass}>Début</label>
+                    <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={fieldClass} />
+                  </div>
+                  <div>
+                    <label className={fieldLabelClass}>Fin</label>
+                    <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={fieldClass} />
+                  </div>
+                </div>
+                <div>
+                  <label className={fieldLabelClass}>{format === "REMOTE" ? "Lien visio (optionnel)" : "Lieu"}</label>
+                  <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder={format === "REMOTE" ? "Laisser vide : un lien est généré à la convocation" : "Salle, adresse"} className={fieldClass} />
+                </div>
+                {members.length > 0 && (
+                  <div>
+                    <label className={fieldLabelClass}>Formateur</label>
+                    <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className={fieldClass}>
+                      <option value="">À désigner plus tard</option>
+                      {members.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="text-[11.5px] text-slate">
+                  Sans date, aucune session n&apos;est créée maintenant — la formation existe et vous la planifiez
+                  depuis le Planning.
+                </div>
+              </div>
+            ) : (
+              <div className="text-[12.5px] text-slate bg-linen border border-line rounded-md p-3">
+                Formation en continu : il n&apos;y a pas de date à fixer. Une session « toujours ouverte » est créée
+                à la première inscription, et chaque apprenant suit son propre calendrier.
+              </div>
+            )}
 
           {(members.length > 0 || subcontractors.length > 0) && (
             <>
@@ -492,11 +798,38 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
             />
             <PersonPicker onSelect={addLearner} />
           </div>
+          </div>
         </form>
 
-        <div className="flex items-center gap-2.5 px-5 py-4 border-t border-line shrink-0">
-          <Button type="submit" form="create-course-form" disabled={loading || !title.trim()} size="sm">
-            {loading ? "…" : "Créer la formation"}
+        {/* Le pied de page qui fait tout l'écart avec un formulaire de 25
+            champs : « Créer maintenant » est présent à CHAQUE étape, pas
+            seulement à la dernière. On n'est jamais retenu par une
+            information qu'on n'a pas encore tranchée. */}
+        <div className="flex items-center gap-2.5 px-5 py-4 border-t border-line shrink-0 flex-wrap">
+          {etape > 1 && (
+            <Button variant="tertiary" size="sm" type="button" onClick={() => setEtape((n) => n - 1)}>
+              Retour
+            </Button>
+          )}
+          {etape < 4 && (
+            <Button size="sm" type="button" onClick={() => setEtape((n) => n + 1)} disabled={!title.trim()}>
+              Continuer
+            </Button>
+          )}
+          <Button
+            type="submit"
+            form="create-course-form"
+            disabled={loading || !title.trim()}
+            size="sm"
+            variant={etape === 4 ? "primary" : "secondary"}
+          >
+            {loading
+              ? "…"
+              : etape === 4 && rythme === "FIXED_DATE" && sessionDate
+                ? "Créer la formation et la session"
+                : etape === 4
+                  ? "Créer la formation"
+                  : "Créer maintenant, compléter plus tard"}
           </Button>
           {error && <div className="text-[11.5px] text-rust">{error}</div>}
         </div>

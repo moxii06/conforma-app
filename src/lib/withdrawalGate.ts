@@ -51,6 +51,23 @@ export type WithdrawalGate = {
 const OPEN: WithdrawalGate = { active: false, endsAt: null, policy: "closed", waived: false };
 
 /**
+ * Quelle politique s'applique : celle de la formation si elle a tranché,
+ * celle de l'organisme sinon.
+ *
+ * Extrait en fonction pure parce que c'est une règle d'héritage, et qu'une
+ * règle d'héritage se lit mal au milieu d'une requête. `null` côté formation
+ * signifie « je n'ai pas d'avis » et non « ouvert » — l'inverse ouvrirait
+ * l'accès pendant la rétractation sur toutes les formations existantes, qui
+ * ont toutes ce champ à null.
+ */
+export function resolveWithdrawalPolicy(
+  coursePolicy: string | null | undefined,
+  organizationPolicy: string,
+): string {
+  return coursePolicy ?? organizationPolicy;
+}
+
+/**
  * One query bundle, callable from the learner page and from the API routes
  * that must enforce the same decision server-side (stream). Fails open on
  * missing pieces: no signed contract with a date, no gate — restricting
@@ -67,14 +84,20 @@ export async function loadWithdrawalGate(dossierId: string): Promise<WithdrawalG
     prisma.withdrawalWaiver.findUnique({ where: { dossierId }, select: { id: true } }),
     prisma.dossier.findUnique({
       where: { id: dossierId },
-      select: { organization: { select: { withdrawalAccessPolicy: true } } },
+      select: {
+        organization: { select: { withdrawalAccessPolicy: true } },
+        session: { select: { course: { select: { withdrawalAccessPolicy: true } } } },
+      },
     }),
   ]);
 
   if (!contract?.signedAt || !dossier) return OPEN;
 
   const endsAt = addDays(contract.signedAt, WITHDRAWAL_DAYS);
-  const policy = dossier.organization.withdrawalAccessPolicy;
+  const policy = resolveWithdrawalPolicy(
+    dossier.session.course.withdrawalAccessPolicy,
+    dossier.organization.withdrawalAccessPolicy,
+  );
   const waived = waiver != null;
 
   return {

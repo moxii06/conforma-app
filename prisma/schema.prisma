@@ -1016,6 +1016,28 @@ model Course {
   // skip is tracked once used.
   allowVideoSkip        Boolean @default(false)
 
+  // Faut-il terminer un module pour ouvrir le suivant ?
+  //
+  // `true` par défaut, et c'est exactement le comportement qui existait
+  // avant ce champ : le déblocage séquentiel était câblé en dur, sans
+  // interrupteur. Aucune formation existante ne change de comportement.
+  //
+  // À `false`, tous les modules s'ouvrent d'un coup dès que l'accès est
+  // donné (voir unlockNextModuleIfNeeded) — ce que veut une bibliothèque de
+  // ressources qu'on consulte dans le désordre, et sûrement pas un parcours
+  // certifiant dont l'ordre porte la progression pédagogique.
+  sequentialUnlock Boolean @default(true)
+
+  // Surcharge, pour CETTE formation, de la politique d'accès pendant le
+  // délai de rétractation de 14 jours (voir lib/withdrawalGate.ts).
+  //
+  // `null` = hérite du réglage de l'organisme, ce que fait tout l'existant.
+  // Une valeur ici prime. La raison d'être de la surcharge : une formation
+  // à 3 000 € en distanciel et un module de 30 minutes ne font pas courir
+  // le même risque à l'organisme, et un réglage unique pour tout le
+  // catalogue oblige à choisir le plus prudent partout.
+  withdrawalAccessPolicy String?
+
   // Cap on total enrolled learners across ALL of this course's sessions,
   // on top of the per-session Session.capacity (a rolling course's
   // auto-created session gets a generous default capacity, so without
