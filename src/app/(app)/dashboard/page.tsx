@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
+import { groupTasksByKind, type TaskGroup } from "@/lib/dashboardTaskGroups";
 import { Role } from "@prisma/client";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/pipelineStages";
 import { addWeeks, addMonths, startOfWeek, startOfMonth, subMonths, format, differenceInCalendarDays } from "date-fns";
@@ -350,6 +351,49 @@ function TaskRow({ task }: { task: DashboardTask }) {
   );
 }
 
+/**
+ * Une famille entière en une ligne, quand l'énumérer n'apprendrait rien.
+ *
+ * Le contraste avec TaskRow est volontaire : pas de nom, pas de date, pas
+ * de bouton d'action individuel — ces informations ne veulent rien dire
+ * pour quarante dossiers à la fois. Ce qui reste, c'est le nombre, le
+ * retard éventuel, et l'endroit où traiter le lot.
+ */
+function TaskSummaryRow({ famille }: { famille: TaskGroup }) {
+  const n = famille.items.length;
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded">
+      <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
+        <span className="text-[12.5px] text-ink font-medium">
+          {n.toLocaleString("fr-FR")} {famille.libelle}
+        </span>
+        {famille.overdue > 0 && <Pill tone="danger">{famille.overdue.toLocaleString("fr-FR")} en retard</Pill>}
+      </div>
+      {famille.href ? (
+        <Link
+          href={famille.href}
+          className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink shrink-0"
+        >
+          Voir la liste →
+        </Link>
+      ) : (
+        // Aucun écran filtré ne couvre cette famille : on déplie sur place
+        // plutôt que d'envoyer vers une page non filtrée où il faudrait
+        // retrouver les lignes à la main.
+        <div className="shrink-0">
+          <ShowMoreToggle count={n}>
+            <div className="flex flex-col">
+              {famille.items.map((t) => (
+                <TaskRow key={`${t.kind}-${t.id}`} task={t} />
+              ))}
+            </div>
+          </ShowMoreToggle>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** « aujourd'hui », « demain », « dans 5 j », puis la date au-delà d'une semaine. */
 function echeanceLabel(dueAt: Date): string {
   const jours = Math.ceil((dueAt.getTime() - Date.now()) / 86_400_000);
@@ -455,11 +499,6 @@ function TasksWidget({ tasks, tronquee }: { tasks: DashboardTask[]; tronquee: bo
         <div className="flex flex-col gap-3.5">
           {grouped.map((group) => {
             const groupOverdue = group.items.filter((t) => t.overdue).length;
-            // Each theme shows its 4 most pressing and hides the rest, so a
-            // single noisy pile can't push the other three off the screen —
-            // the failure mode of the previous flat "first 8 overall".
-            const visible = group.items.slice(0, 4);
-            const hidden = group.items.slice(4);
             return (
               <div key={group.key}>
                 <div className="flex items-center gap-2 pb-1">
@@ -468,19 +507,19 @@ function TasksWidget({ tasks, tronquee }: { tasks: DashboardTask[]; tronquee: bo
                   {groupOverdue > 0 && <Pill tone="danger">{groupOverdue} en retard</Pill>}
                 </div>
                 <div className="flex flex-col">
-                  {visible.map((t) => (
-                    <TaskRow key={`${t.kind}-${t.id}`} task={t} />
-                  ))}
+                  {/* Dans un thème, chaque FAMILLE de tâches est soit
+                      résumée en une ligne (quand elles se comptent par
+                      dizaines et disent toutes la même chose), soit listée
+                      nominativement (quand il y en a peu, et que le nom de
+                      l'apprenant est justement l'information utile). */}
+                  {groupTasksByKind(group.items).map((famille) =>
+                    famille.resume ? (
+                      <TaskSummaryRow key={famille.kind} famille={famille} />
+                    ) : (
+                      famille.items.map((t) => <TaskRow key={`${t.kind}-${t.id}`} task={t} />)
+                    ),
+                  )}
                 </div>
-                {hidden.length > 0 && (
-                  <ShowMoreToggle count={hidden.length}>
-                    <div className="flex flex-col">
-                      {hidden.map((t) => (
-                        <TaskRow key={`${t.kind}-${t.id}`} task={t} />
-                      ))}
-                    </div>
-                  </ShowMoreToggle>
-                )}
               </div>
             );
           })}
