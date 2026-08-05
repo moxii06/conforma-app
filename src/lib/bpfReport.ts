@@ -13,7 +13,7 @@ export type BpfReport = {
   dossiersWithoutHours: number;
 };
 
-export type HoursSource = "days" | "course" | "unknown";
+export type HoursSource = "days" | "declared" | "course" | "unknown";
 
 /**
  * How many training hours a session represents, for the BPF return.
@@ -22,15 +22,23 @@ export type HoursSource = "days" | "course" | "unknown";
  * running Monday 9am to Wednesday 5pm declared 56 hours instead of 21, on a
  * legally binding annual declaration to the administration. There is no
  * amount of "close enough" that makes that acceptable, so there is
- * deliberately NO calendar fallback here: when neither real source is
- * available the answer is "unknown", and the caller surfaces it.
+ * deliberately NO calendar fallback here: when no real source is available
+ * the answer is "unknown", and the caller surfaces it.
  *
- * Order matters. SessionDay hours are what the OF actually planned per
- * half-day (lunch already excluded), so they beat the course's nominal
- * duration whenever they exist — a session that ran short is declared short.
+ * Order matters, and it goes from the most specific fact to the most
+ * general:
+ *
+ *  1. SessionDay hours — what the OF actually planned per half-day (lunch
+ *     already excluded). A session that ran short is declared short.
+ *  2. Session.declaredHours — the total for THIS session when no half-day
+ *     detail exists. That is the case of every session brought in from a
+ *     previous tool: the OF knows the total it declared, not the split.
+ *  3. Course.durationHours — the nominal duration of the training. Shared by
+ *     every session of that course, so it comes last: it says what the
+ *     course is supposed to last, not what this session did.
  */
 export function resolveSessionHours(
-  session: { days: { morningHours: number | null; afternoonHours: number | null }[] },
+  session: { days: { morningHours: number | null; afternoonHours: number | null }[]; declaredHours?: number | null },
   course: { durationHours: number | null },
 ): { hours: number; source: HoursSource } {
   if (session.days.length > 0) {
@@ -38,6 +46,9 @@ export function resolveSessionHours(
     // Days exist but every half-day is blank — treat as not filled in rather
     // than as a genuine zero-hour session.
     if (hours > 0) return { hours, source: "days" };
+  }
+  if (session.declaredHours != null && session.declaredHours > 0) {
+    return { hours: session.declaredHours, source: "declared" };
   }
   if (course.durationHours != null && course.durationHours > 0) {
     return { hours: course.durationHours, source: "course" };

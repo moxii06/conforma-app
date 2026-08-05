@@ -5,6 +5,8 @@ import {
   detectDelimiter,
   suggestMapping,
   parseLearnerCategory,
+  parseFundingOrigin,
+  parseFrenchDate,
   parseHours,
   parsePriceCents,
   splitFullName,
@@ -110,6 +112,66 @@ describe("value parsers", () => {
     expect(isValidEmail("prenom.nom+tag@sous.domaine.org")).toBe(true);
     expect(isValidEmail("pas-un-email")).toBe(false);
     expect(isValidEmail("a@b")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reprise d'historique. Ces deux parseurs décident sur quelle ligne du Cerfa
+// et dans quelle année une inscription reprise sera déclarée — d'où les
+// tests, sur des valeurs telles que les organismes les écrivent vraiment.
+
+describe("parseFundingOrigin", () => {
+  it("reconnaît un OPCO à son nom, pas seulement au mot « OPCO »", () => {
+    // C'est « AKTO » ou « Constructys » qu'on lit dans un tableur, jamais
+    // « OPCO » en toutes lettres.
+    for (const raw of ["AKTO", "OPCO EP", "Constructys", "AFDAS", "Uniformation", "OPCO 2i", "Atlas"]) {
+      expect(parseFundingOrigin(raw)).toBe("opco");
+    }
+  });
+
+  it("classe les financements publics", () => {
+    for (const raw of ["Pôle emploi", "France Travail", "Région Occitanie", "CPF", "AGEFIPH", "État"]) {
+      expect(parseFundingOrigin(raw)).toBe("public");
+    }
+  });
+
+  it("classe le particulier et l'entreprise", () => {
+    expect(parseFundingOrigin("Fonds propres")).toBe("individual");
+    expect(parseFundingOrigin("Particulier")).toBe("individual");
+    expect(parseFundingOrigin("Entreprise")).toBe("company");
+    expect(parseFundingOrigin("Employeur")).toBe("company");
+  });
+
+  it("préfère l'OPCO quand les deux mots sont là", () => {
+    // « Entreprise via OPCO Atlas » : c'est l'OPCO qui paie.
+    expect(parseFundingOrigin("Entreprise via OPCO Atlas")).toBe("opco");
+  });
+
+  it("rend null plutôt que de deviner", () => {
+    // Le BPF affichera « Non renseigné », ce qui se corrige. Une mauvaise
+    // catégorie sur une déclaration légale, elle, ne se voit pas.
+    expect(parseFundingOrigin("Convention 2019 n°4471")).toBeNull();
+    expect(parseFundingOrigin("")).toBeNull();
+  });
+});
+
+describe("parseFrenchDate", () => {
+  it("lit le format français et l'ISO", () => {
+    expect(parseFrenchDate("12/03/2023")?.toISOString()).toBe("2023-03-12T00:00:00.000Z");
+    expect(parseFrenchDate("12-03-2023")?.toISOString()).toBe("2023-03-12T00:00:00.000Z");
+    expect(parseFrenchDate("2023-03-12")?.toISOString()).toBe("2023-03-12T00:00:00.000Z");
+  });
+
+  it("ne confond pas jour et mois", () => {
+    // 03/12 est le 3 décembre en France, le 12 mars aux États-Unis. Sur un
+    // export d'organisme français, c'est décembre — et l'année BPF change.
+    expect(parseFrenchDate("03/12/2023")?.getUTCMonth()).toBe(11);
+  });
+
+  it("refuse ce qu'elle ne sait pas lire au lieu d'inventer un jour", () => {
+    expect(parseFrenchDate("mars 2023")).toBeNull();
+    expect(parseFrenchDate("32/01/2023")).toBeNull();
+    expect(parseFrenchDate("12/13/2023")).toBeNull();
   });
 });
 
@@ -224,7 +286,7 @@ describe("parseXlsx", () => {
     // duration without cross-referencing xl/styles.xml's numFmtId for that
     // cell's style (s="..."). This is what a real bank-statement .xlsx
     // export produces for its date column (Excel writers store dates as
-    // typed cells, not text) — see bankStatementImport.ts's parseBankDate,
+    // typed cells, not text) — see bankStatementImport.ts's parseFrenchDate,
     // which needs a real date string and previously got a bare serial
     // number like "45823" instead.
     const serial = Math.round(Date.UTC(2025, 5, 15) / 86400000) + 25569; // 2025-06-15

@@ -262,8 +262,17 @@ async function ArchivesTab({
               <div className="text-[12.5px] font-semibold text-ink">
                 {format(s.startsAt, "EEE d MMM yyyy", { locale: fr })}
               </div>
+              {/* Une session reprise d'un ancien outil n'a que des dates :
+                  le fichier ne porte pas d'horaires. Afficher « 01:00–01:00 »
+                  la ferait passer pour une session de durée nulle, à côté
+                  des 21 heures qu'elle déclare au BPF. On montre la période
+                  réelle, ou rien quand elle tient sur un jour. */}
               <div className="text-[11.5px] text-slate">
-                {format(s.startsAt, "HH:mm")}–{format(s.endsAt, "HH:mm")}
+                {s.importedAt
+                  ? format(s.startsAt, "yyyy-MM-dd") === format(s.endsAt, "yyyy-MM-dd")
+                    ? "Reprise"
+                    : `→ ${format(s.endsAt, "d MMM", { locale: fr })}`
+                  : `${format(s.startsAt, "HH:mm")}–${format(s.endsAt, "HH:mm")}`}
               </div>
             </div>
             <div className="flex-1 min-w-0">

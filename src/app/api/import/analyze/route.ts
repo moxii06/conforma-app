@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   const formData = await request.formData().catch(() => null);
   if (!formData) return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
   const kind = formData.get("kind");
-  if (kind !== "contacts" && kind !== "courses" && kind !== "bank_transactions") {
+  if (kind !== "contacts" && kind !== "courses" && kind !== "bank_transactions" && kind !== "history") {
     return NextResponse.json({ error: "Type d'import inconnu." }, { status: 400 });
   }
   const denied = importPermissionError(session.role, kind);

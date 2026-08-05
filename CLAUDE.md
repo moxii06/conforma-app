@@ -175,9 +175,35 @@ integration). Unlike most platform-level credentials here, Bridge has no self-se
 production tier — the sandbox used to build this is free, but going live needs a
 commercial agreement with Bridge. (An earlier version of tier 2 targeted GoCardless Bank
 Account Data instead; dropped when GoCardless closed new signups for that product.)
-`src/lib/payments.ts`'s `recordInvoicePayment()` is the one place a `Payment` row actually
-gets created — manual entry, Stripe's webhook, and a confirmed bank match all call it, so
-the auto-PAID-once-covered logic can't drift between the three.
+`src/lib/payments.ts`'s `recordInvoicePayment()` is where every *live* payment channel
+converges — manual entry, Stripe's webhook, and a confirmed bank match all call it, so the
+auto-PAID-once-covered logic can't drift between the three. It also fires the
+`invoice.paid` webhook and advances the CRM opportunity, which is exactly why the history
+import (`/api/import/history`) is the one deliberate exception: it writes its `Payment`
+rows directly. Money collected in another tool two years ago is a ledger fact, not an
+event — emitting a thousand `invoice.paid` webhooks for it would be false. The rows are
+written all the same, because the invoicing screens derive "remaining due" from the sum of
+payments, so a PAID invoice with none would read as entirely unpaid.
+
+### The BPF and the history import — where "close enough" is not allowed
+
+`src/lib/bpfReport.ts` computes a legally binding annual declaration (Cerfa n°10443) from
+data already in the system: learners and hours from dossiers whose **session starts** in
+the year, revenue from **PAID invoices created** in it. Two consequences run through the
+code and should survive any refactor. First, `resolveSessionHours` has no calendar
+fallback: real half-days, then the session's own `declaredHours`, then the course's
+nominal duration, then `"unknown"` — which the page *names* rather than silently rounding
+(it used to return wall-clock elapsed time and over-declared a 3-day session as 56 hours
+instead of 21). Second, every parser feeding it returns `null` rather than a guess; an
+unrecognised funding origin shows as "Non renseigné", which is correctable, where a wrong
+Cerfa line is not.
+
+`/api/import/history` is what lets a migrating OF have a true BPF for past years — one row
+per past enrolment, reconstituting contact → course → shared session → dossier → paid
+invoice, all backdated. Backdating is not cosmetic: `Dossier.createdAt` in the past is
+what keeps the imported history out of the dashboard's task horizon, and the invoice's
+`createdAt` is what files its revenue in the right year. Imported sessions carry
+`importedAt` and land archived, so they never appear in the active planning.
 
 ### Public vs. authenticated routes
 

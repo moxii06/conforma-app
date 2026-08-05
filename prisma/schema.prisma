@@ -1179,6 +1179,24 @@ model Session {
   // can be tidied away too, and so "Archives" is an explicit place to look
   // rather than sessions silently vanishing.
   archivedAt     DateTime?
+  // Heures d'enseignement de CETTE session, quand le détail par demi-journée
+  // n'existe pas. C'est le cas de tout l'historique repris d'un ancien outil :
+  // l'organisme connaît le total (c'est ce qu'il a déclaré au BPF), pas le
+  // découpage matin/après-midi.
+  //
+  // Ce champ existe pour ne pas avoir à mentir dans SessionDay. Y inscrire un
+  // total en le faisant passer pour une matinée aurait produit des créneaux
+  // d'émargement inventés sur une session de 2022, et faussé l'écran de
+  // signature. Voir resolveSessionHours pour l'ordre de priorité : les
+  // demi-journées réelles priment toujours sur cette déclaration, qui prime
+  // elle-même sur la durée nominale de la formation.
+  declaredHours  Int?
+  // Posé par l'import d'historique (/api/import/history). Deux usages :
+  // distinguer ce qui vient d'un ancien outil de ce qui a été fait dans
+  // Jalon, et empêcher les tâches « session terminée non facturée » de se
+  // déclencher dessus — une session reprise a déjà été facturée ailleurs,
+  // c'est la prémisse même de sa reprise.
+  importedAt     DateTime?
 
   dossiers    Dossier[]
   invitations SessionInvitation[]

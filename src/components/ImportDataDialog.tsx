@@ -15,13 +15,23 @@ type Analysis = {
 
 type Report = {
   totalRows: number;
-  created: number;
-  updated: number;
-  skipped: number;
+  created?: number;
+  updated?: number;
+  skipped?: number;
   enrolled?: number;
   alreadyEnrolled?: number;
   errors: { line: number; message: string }[];
   missingCourseTitles?: string[];
+  // Reprise d'historique : ce qui a été reconstitué (voir
+  // /api/import/history). Compteurs distincts parce qu'une ligne y produit
+  // plusieurs objets — un contact, une session partagée, un dossier, une
+  // facture — là où les autres imports créent une fiche par ligne.
+  contactsCrees?: number;
+  sessionsCreees?: number;
+  dossiersCrees?: number;
+  dossiersDejaPresents?: number;
+  facturesCreees?: number;
+  facturesDejaPresentes?: number;
 };
 
 function csvFromTitles(titles: string[]): File {
@@ -177,7 +187,11 @@ export function ImportDataDialog({
       <div className="bg-white rounded-card border border-line w-full max-w-xl max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
         <div className="flex items-center justify-between">
           <div className="text-[13.5px] font-semibold text-ink">
-            {kind === "contacts" ? "Importer des contacts" : "Importer des formations"}
+            {kind === "contacts"
+              ? "Importer des contacts"
+              : kind === "history"
+                ? "Reprendre l'historique d'un ancien outil"
+                : "Importer des formations"}
           </div>
           <button type="button" onClick={closeAndReset} className="text-slate hover:text-ink">
             <X size={16} />
@@ -187,15 +201,36 @@ export function ImportDataDialog({
         {report ? (
           <div className="flex flex-col gap-2.5">
             <div className="text-[12.5px] text-sage font-medium">Import terminé — {report.totalRows} ligne(s) lue(s).</div>
-            <ul className="text-[12.5px] text-ink flex flex-col gap-1">
-              <li>{report.created} créé(s)</li>
-              <li>{report.updated} mis à jour</li>
-              <li>{report.skipped} doublon(s) ignoré(s)</li>
-              {report.enrolled !== undefined && <li>{report.enrolled} inscription(s) à une formation</li>}
-              {report.alreadyEnrolled !== undefined && report.alreadyEnrolled > 0 && (
-                <li>{report.alreadyEnrolled} déjà inscrit(s) (inchangé)</li>
-              )}
-            </ul>
+            {kind === "history" ? (
+              <ul className="text-[12.5px] text-ink flex flex-col gap-1">
+                <li>{report.contactsCrees ?? 0} apprenant(s) créé(s)</li>
+                <li>{report.sessionsCreees ?? 0} session(s) passée(s) reconstituée(s)</li>
+                <li>{report.dossiersCrees ?? 0} inscription(s) reprise(s)</li>
+                {(report.dossiersDejaPresents ?? 0) > 0 && (
+                  <li className="text-slate">{report.dossiersDejaPresents} déjà présente(s) — inchangée(s)</li>
+                )}
+                <li>{report.facturesCreees ?? 0} facture(s) payée(s) reprise(s)</li>
+                {(report.facturesDejaPresentes ?? 0) > 0 && (
+                  <li className="text-slate">{report.facturesDejaPresentes} référence(s) de facture déjà connue(s) — inchangée(s)</li>
+                )}
+              </ul>
+            ) : (
+              <ul className="text-[12.5px] text-ink flex flex-col gap-1">
+                <li>{report.created ?? 0} créé(s)</li>
+                <li>{report.updated ?? 0} mis à jour</li>
+                <li>{report.skipped ?? 0} doublon(s) ignoré(s)</li>
+                {report.enrolled !== undefined && <li>{report.enrolled} inscription(s) à une formation</li>}
+                {report.alreadyEnrolled !== undefined && report.alreadyEnrolled > 0 && (
+                  <li>{report.alreadyEnrolled} déjà inscrit(s) (inchangé)</li>
+                )}
+              </ul>
+            )}
+            {kind === "history" && (
+              <div className="text-[12px] text-slate border border-line rounded-md p-2.5">
+                Les sessions reprises sont rangées dans les archives du planning, pas dans la liste active. Le bilan
+                pédagogique et financier des années concernées est à jour dès maintenant.
+              </div>
+            )}
             {report.errors.length > 0 && (
               <div className="border border-line rounded-md p-3 max-h-44 overflow-y-auto">
                 <div className="text-[12px] font-medium text-rust mb-1.5">{report.errors.length} ligne(s) signalée(s) :</div>
@@ -236,9 +271,20 @@ export function ImportDataDialog({
         ) : !analysis ? (
           <div className="flex flex-col gap-3">
             <div className="text-[12.5px] text-slate leading-relaxed">
-              Déposez un export de votre CRM ou de votre tableur (<span className="font-medium text-ink">.csv</span> ou{" "}
-              <span className="font-medium text-ink">.xlsx</span>). La première ligne doit contenir les noms de colonnes —
-              Jalon propose ensuite la correspondance, que vous validez avant tout import.
+              {kind === "history" ? (
+                <>
+                  Déposez l&apos;export de votre ancien outil — <span className="font-medium text-ink">une ligne par
+                  inscription passée</span> : qui, quelle formation, à quelles dates, combien d&apos;heures, facturé
+                  combien et financé par qui. C&apos;est ce qui permet à votre bilan pédagogique et financier des années
+                  antérieures d&apos;être exact.
+                </>
+              ) : (
+                <>
+                  Déposez un export de votre CRM ou de votre tableur (<span className="font-medium text-ink">.csv</span>{" "}
+                  ou <span className="font-medium text-ink">.xlsx</span>). La première ligne doit contenir les noms de
+                  colonnes — Jalon propose ensuite la correspondance, que vous validez avant tout import.
+                </>
+              )}
             </div>
             <label className="border border-dashed border-line rounded-md px-4 py-8 text-center text-[12.5px] text-slate cursor-pointer hover:border-ink-soft hover:text-ink">
               {analyzing ? "Analyse du fichier…" : file ? file.name : "Choisir un fichier .csv ou .xlsx"}
@@ -289,7 +335,12 @@ export function ImportDataDialog({
             </div>
 
             <div className="border-t border-line pt-3 flex flex-col gap-2.5">
-              <div className="flex items-center gap-4 text-[12.5px] text-ink">
+              {/* Pas de choix « ignorer / mettre à jour » pour une reprise
+                  d'historique : elle est idempotente par construction (une
+                  inscription déjà présente est laissée telle quelle, une
+                  référence de facture déjà connue aussi), donc la question
+                  n'a pas de réponse à proposer. */}
+              <div className={`flex items-center gap-4 text-[12.5px] text-ink ${kind === "history" ? "hidden" : ""}`}>
                 <span className="text-slate">Si {kind === "contacts" ? "l'email" : "le titre"} existe déjà :</span>
                 <label className="inline-flex items-center gap-1.5 cursor-pointer">
                   <input type="radio" checked={duplicates === "skip"} onChange={() => setDuplicates("skip")} />

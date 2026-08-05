@@ -148,7 +148,7 @@ function parseCellDateFormats(xml: string | null): boolean[] {
 // epoch) — the standard conversion (also used by SheetJS/openpyxl). Not
 // worth special-casing Excel's 1900 leap-year bug (serials 0-60): no real
 // client record predates March 1900. Returns just the date part (ISO,
-// YYYY-MM-DD) — every current date-consuming field (parseBankDate) only
+// YYYY-MM-DD) — every current date-consuming field (parseFrenchDate) only
 // needs the day, and its regex only anchors the start of the string so a
 // longer ISO value here would still match if that ever changes.
 function excelSerialToIso(serial: number): string {

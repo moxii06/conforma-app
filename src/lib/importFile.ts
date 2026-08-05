@@ -12,13 +12,16 @@ export const MAX_IMPORT_FILE_BYTES = 4 * 1024 * 1024;
 
 // Same permission story as the rest of the app: contacts import is a CRM
 // write, courses import is a catalog write, bank statement import is a
-// facturation write.
+// facturation write. La reprise d'historique écrit des sessions, des
+// dossiers ET des factures payées : elle exige les deux droits, pas un
+// seul — voir /api/import/history, qui refait la vérification côté écriture.
 export function importPermissionError(role: Role, kind: ImportKind): NextResponse | null {
-  const feature = kind === "contacts" ? "crm" : kind === "courses" ? "courses" : "invoicing";
-  if (can(role, feature) !== "full") {
-    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  const refus = NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  if (kind === "history") {
+    return can(role, "invoicing") === "full" && can(role, "courses") === "full" ? null : refus;
   }
-  return null;
+  const feature = kind === "contacts" ? "crm" : kind === "courses" ? "courses" : "invoicing";
+  return can(role, feature) === "full" ? null : refus;
 }
 
 // French CRM/Excel exports are frequently Windows-1252, not UTF-8. Try

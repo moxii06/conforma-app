@@ -6,7 +6,7 @@
 // lives in xlsxRead.ts.
 
 export type ParsedTable = { headers: string[]; rows: string[][] };
-export type ImportKind = "contacts" | "courses" | "bank_transactions";
+export type ImportKind = "contacts" | "courses" | "bank_transactions" | "history";
 
 export type ImportFieldDef = {
   key: string;
@@ -117,9 +117,93 @@ export const BANK_TRANSACTION_IMPORT_FIELDS: ImportFieldDef[] = [
   },
 ];
 
+/**
+ * Reprise d'historique : une ligne = une inscription passée.
+ *
+ * C'est la forme qu'a réellement l'export d'un ancien outil (une ligne par
+ * stagiaire et par session), et c'est aussi exactement ce que lit le bilan
+ * pédagogique et financier : qui, sur quelle formation, quand, combien
+ * d'heures, dans quelle catégorie, facturé combien et financé par qui.
+ *
+ * Sans ce type d'import, un organisme qui migre voit son BPF des années
+ * antérieures à vide et l'année courante surchargée — les inscriptions
+ * reprises étant datées du jour. C'est une déclaration légale.
+ */
+export const HISTORY_IMPORT_FIELDS: ImportFieldDef[] = [
+  {
+    key: "email",
+    label: "Email de l'apprenant",
+    required: true,
+    synonyms: ["email", "mail", "courriel", "adresseemail", "adressemail", "emailstagiaire", "mailstagiaire", "emailapprenant"],
+  },
+  {
+    key: "lastName",
+    label: "Nom",
+    synonyms: ["nom", "lastname", "nomdefamille", "nomstagiaire", "nomapprenant"],
+  },
+  {
+    key: "firstName",
+    label: "Prénom",
+    synonyms: ["prenom", "firstname", "prenomstagiaire", "prenomapprenant"],
+  },
+  {
+    key: "fullName",
+    label: "Nom complet (sera découpé)",
+    synonyms: ["nomcomplet", "fullname", "nomprenom", "prenomnom", "stagiaire", "apprenant"],
+  },
+  {
+    key: "courseTitle",
+    label: "Formation suivie",
+    required: true,
+    synonyms: ["formation", "intitule", "intituleformation", "stage", "cours", "action", "actiondeformation", "nomformation", "libelleformation", "programme"],
+  },
+  {
+    key: "startDate",
+    label: "Date de début",
+    required: true,
+    synonyms: ["datedebut", "debut", "date", "datedebutformation", "datedebutsession", "datedesession", "datedeformation", "datestage", "datedentree"],
+  },
+  {
+    key: "endDate",
+    label: "Date de fin",
+    synonyms: ["datefin", "fin", "datefinformation", "datefinsession", "datedesortie", "datesortie"],
+  },
+  {
+    key: "hours",
+    label: "Heures réalisées",
+    synonyms: ["heures", "duree", "nbheures", "nombredheures", "volumehoraire", "dureeheures", "heuresrealisees", "heuresdeformation", "dureeenheures"],
+  },
+  {
+    key: "category",
+    label: "Catégorie de l'apprenant (BPF)",
+    synonyms: ["categorie", "statut", "categorieapprenant", "statutstagiaire", "categoriebpf", "typedepublic", "public"],
+  },
+  {
+    key: "invoiceReference",
+    label: "N° de facture",
+    synonyms: ["numerodefacture", "numerofacture", "nfacture", "nodefacture", "facture", "referencefacture", "reference", "numero"],
+  },
+  {
+    key: "amount",
+    label: "Montant facturé (€)",
+    synonyms: ["montant", "montantfacture", "montantht", "prix", "tarif", "cout", "chiffredaffaires", "ca", "produit"],
+  },
+  {
+    key: "fundingOrigin",
+    label: "Financeur",
+    synonyms: ["financeur", "financement", "originefinancement", "typefinancement", "prisencharge", "payeur", "modedefinancement", "sourcefinancement"],
+  },
+  {
+    key: "paidDate",
+    label: "Date de paiement",
+    synonyms: ["datepaiement", "datedereglement", "datereglement", "reglement", "payele", "datedencaissement", "encaissement"],
+  },
+];
+
 export function importFieldsFor(kind: ImportKind): ImportFieldDef[] {
   if (kind === "contacts") return CONTACT_IMPORT_FIELDS;
   if (kind === "courses") return COURSE_IMPORT_FIELDS;
+  if (kind === "history") return HISTORY_IMPORT_FIELDS;
   return BANK_TRANSACTION_IMPORT_FIELDS;
 }
 
@@ -260,6 +344,35 @@ export function parseLearnerCategory(raw: string): string | null {
   return null;
 }
 
+/**
+ * Origine du financement, pour la ventilation du chiffre d'affaires au BPF.
+ *
+ * L'ordre des motifs va du plus spécifique au plus général : un nom d'OPCO
+ * est reconnaissable, « entreprise » ne l'est qu'une fois les autres pistes
+ * écartées. Les noms d'OPCO sont listés en clair parce que c'est ce que les
+ * organismes écrivent réellement dans leurs tableurs — « AKTO », pas
+ * « OPCO ».
+ *
+ * Une valeur non reconnue rend `null`, jamais « entreprise » par défaut :
+ * le BPF affichera « Non renseigné », ce qui se corrige, alors qu'une
+ * mauvaise catégorie sur une déclaration légale ne se voit pas.
+ */
+const FUNDING_ORIGIN_PATTERNS: [RegExp, string][] = [
+  [/opco|opca|akto|afdas|atlas|constructys|ocapiat|uniformation|opcommerce|opcoep|opcomobilites|opcosante|opco2i/, "opco"],
+  [/poleemploi|francetravail|region|conseilregional|etat|public|cpf|caissedesdepots|agefiph|fne|departement/, "public"],
+  [/particulier|individuel|individu|fondspropres|autofinance|personnel|apprenant|stagiaire|prive/, "individual"],
+  [/entreprise|employeur|societe|client|direct|cse|collectivite/, "company"],
+];
+
+export function parseFundingOrigin(raw: string): string | null {
+  const n = normalizeHeader(raw);
+  if (!n) return null;
+  for (const [pattern, value] of FUNDING_ORIGIN_PATTERNS) {
+    if (pattern.test(n)) return value;
+  }
+  return null;
+}
+
 // "14", "14h", "14,5 heures" -> 15 (Course.durationHours is an Int).
 export function parseHours(raw: string): number | null {
   const match = raw.replace(",", ".").match(/\d+(?:\.\d+)?/);
@@ -287,11 +400,12 @@ export function parseSignedAmountCents(raw: string): number | null {
   return Math.round(parseFloat(match[0]) * 100);
 }
 
-// Handles the two formats real French bank exports actually use: DD/MM/YYYY
-// (or DD-MM-YYYY) and ISO YYYY-MM-DD. Returns null rather than a garbage
-// Date for anything else — an unparseable date drops the row instead of
-// silently landing it on the wrong day.
-export function parseBankDate(raw: string): Date | null {
+// Handles the two formats real French exports actually use: DD/MM/YYYY (or
+// DD-MM-YYYY) and ISO YYYY-MM-DD. Returns null rather than a garbage Date
+// for anything else — an unparseable date drops the row instead of silently
+// landing it on the wrong day. That guarantee matters twice over for the
+// history import, where the date decides which BPF year a session counts in.
+export function parseFrenchDate(raw: string): Date | null {
   const trimmed = raw.trim();
   const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) {

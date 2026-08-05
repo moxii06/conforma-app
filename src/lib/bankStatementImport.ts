@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { cellFor, parseBankDate, parseSignedAmountCents, type ImportMapping, type ParsedTable } from "@/lib/dataImport";
+import { cellFor, parseFrenchDate, parseSignedAmountCents, type ImportMapping, type ParsedTable } from "@/lib/dataImport";
 
 // Server-only half of the CSV bank-statement import (tier 1 of
 // "rapprochement bancaire" — see bankReconciliation.ts for the matching
@@ -46,7 +46,7 @@ export function parseBankStatementRows(
     const label = cellFor(table, row, mapping, "label");
     const amountRaw = cellFor(table, row, mapping, "credit");
 
-    const bookedAt = parseBankDate(dateRaw);
+    const bookedAt = parseFrenchDate(dateRaw);
     if (!bookedAt) {
       errors.push({ line, message: `Date illisible (« ${dateRaw} ») — ligne ignorée.` });
       return;

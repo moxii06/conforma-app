@@ -3,11 +3,16 @@ import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { computeBpfReport } from "@/lib/bpfReport";
 import { LEARNER_CATEGORY_LABELS, FUNDING_ORIGIN_LABELS } from "@/lib/bpfCategories";
+import { ImportDataDialog } from "@/components/ImportDataDialog";
 import Link from "next/link";
 
 function formatAmount(cents: number) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
+
+// Même allure que « Exporter » juste à côté : deux actions de même rang.
+const LIEN_DISCRET =
+  "text-[12.5px] font-medium text-ink underline decoration-line hover:decoration-ink whitespace-nowrap";
 
 export default async function BpfPage(props: { searchParams: Promise<{ year?: string }> }) {
   const searchParams = await props.searchParams;
@@ -17,6 +22,10 @@ export default async function BpfPage(props: { searchParams: Promise<{ year?: st
   const currentYear = new Date().getFullYear();
   const year = searchParams.year ? parseInt(searchParams.year, 10) : currentYear;
   const report = await computeBpfReport(organizationId, Number.isFinite(year) ? year : currentYear);
+  // La reprise écrit des sessions, des dossiers ET des factures payées —
+  // mêmes droits que la route qui la reçoit (/api/import/history), pour ne
+  // pas proposer un bouton qui répondra 403.
+  const peutReprendre = can(role, "invoicing") === "full" && can(role, "courses") === "full";
 
   return (
     <>
@@ -32,10 +41,29 @@ export default async function BpfPage(props: { searchParams: Promise<{ year?: st
             <span className="text-ink font-medium">{report.year}</span>
             <Link href={`/bpf?year=${report.year + 1}`} className="text-slate hover:text-ink px-2 py-1">{report.year + 1} →</Link>
           </div>
-          <a href={`/api/bpf/export?year=${report.year}`} className="text-[12.5px] font-medium text-ink underline decoration-line hover:decoration-ink">
-            Exporter
-          </a>
+          <div className="flex items-center gap-3.5">
+            {/* La reprise d'historique se lance depuis l'écran qu'elle
+                corrige. C'est ici qu'un organisme fraîchement migré
+                constate que ses années antérieures sont à zéro, donc ici
+                que le remède doit se trouver — pas dans un menu
+                d'administration où il faudrait savoir qu'il existe. */}
+            {peutReprendre && <ImportDataDialog kind="history" triggerClassName={LIEN_DISCRET} />}
+            <a href={`/api/bpf/export?year=${report.year}`} className="text-[12.5px] font-medium text-ink underline decoration-line hover:decoration-ink">
+              Exporter
+            </a>
+          </div>
         </div>
+
+        {/* Une année vide sur un exercice révolu, c'est presque toujours une
+            migration incomplète — pas un organisme qui n'a rien fait. On le
+            dit là où la question se pose, plutôt que de laisser lire un
+            zéro comme un résultat. */}
+        {peutReprendre && report.totalLearners === 0 && report.year < currentYear && (
+          <div className="border border-line rounded-card px-4 py-3 text-[12.5px] text-slate">
+            Aucune inscription enregistrée sur {report.year}. Si votre activité de cette année-là vivait dans un autre
+            outil, reprenez-la : le bilan se recalcule aussitôt.
+          </div>
+        )}
 
         <div className="flex gap-3.5">
           <MetricCard label="Apprenants" value={String(report.totalLearners)} />
