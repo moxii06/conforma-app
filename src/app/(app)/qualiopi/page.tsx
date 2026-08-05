@@ -542,7 +542,7 @@ async function ReformeTab({ organizationId }: { organizationId: string }) {
           tone={daysLeft != null && daysLeft <= 90 ? "danger" : "ink"}
         />
         <MetricCard label="Indicateurs" value="32 → 33" hint="un nouvel indicateur, apprentissage" />
-        <MetricCard label="Indicateurs touchés" value={String(changed.length)} hint="à préparer" />
+        <MetricCard label="Indicateurs touchés" value={changed.length} hint="à préparer" />
       </div>
 
       <div className="bg-white border border-line rounded-card p-5">

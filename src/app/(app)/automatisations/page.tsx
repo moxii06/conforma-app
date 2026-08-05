@@ -28,11 +28,19 @@ const AUTO_OUTREACH_LABELS: Record<string, string> = {
   invoice_overdue_reminder: "Relance d'échéance en retard",
 };
 
+// Le journal montre les cinquante envois les plus récents. C'est un journal,
+// pas un registre : ce qu'on y cherche est « qu'est-ce qui est parti hier en
+// mon nom ». Il le dit quand il en cache.
+const ACTIVITE_APERCU = 50;
+
 export default async function AutomationsPage() {
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "automations") === "none") redirect("/dashboard");
 
-  const [courses, recentActivity] = await Promise.all([
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const [courses, recentActivity, sentLast30Days] = await Promise.all([
     prisma.course.findMany({
       where: { organizationId, archivedAt: null },
       include: { automationRules: { orderBy: { createdAt: "asc" } } },
@@ -42,17 +50,21 @@ export default async function AutomationsPage() {
       where: { organizationId, sentByUserId: "system" },
       include: { contact: true, dossier: { include: { session: { include: { course: true } } } } },
       orderBy: { sentAt: "desc" },
-      take: 50,
+      take: ACTIVITE_APERCU,
+    }),
+    // Le compteur se compte en base. Il se calculait auparavant sur la liste
+    // ci-dessus, déjà tronquée aux cinquante plus récents : au-delà de
+    // cinquante envois en trente jours, il affichait « 50 » quelle que soit
+    // la réalité — et un organisme qui automatise sérieusement dépasse ce
+    // seuil dès la première semaine (audit S7, P2).
+    prisma.clientOutreach.count({
+      where: { organizationId, sentByUserId: "system", sentAt: { gte: thirtyDaysAgo } },
     }),
   ]);
 
   const withRules = courses.filter((c) => c.automationRules.length > 0);
   const withoutRules = courses.filter((c) => c.automationRules.length === 0);
   const totalActive = courses.reduce((n, c) => n + c.automationRules.filter((r) => r.active).length, 0);
-
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const sentLast30Days = recentActivity.filter((a) => a.sentAt >= thirtyDaysAgo).length;
 
   return (
     <>
@@ -109,7 +121,14 @@ export default async function AutomationsPage() {
         </div>
 
         <div>
-          <div className="text-[13.5px] font-semibold text-ink mb-3">Activité récente</div>
+          <div className="flex items-baseline justify-between gap-3 mb-3">
+            <div className="text-[13.5px] font-semibold text-ink">Activité récente</div>
+            {/* Dire ce qu'on ne montre pas. Le compteur ci-dessus, lui,
+                porte sur la totalité des trente derniers jours. */}
+            {recentActivity.length === ACTIVITE_APERCU && (
+              <div className="text-[11.5px] text-slate">Les {ACTIVITE_APERCU} envois les plus récents</div>
+            )}
+          </div>
           <div className="bg-white border border-line rounded-card">
             {recentActivity.length === 0 && (
               <div className="px-4 py-6 text-[12.5px] text-slate text-center">

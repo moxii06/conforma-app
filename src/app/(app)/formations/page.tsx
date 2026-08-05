@@ -78,7 +78,11 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
         organizationId,
         archivedAt: activeTab === "archivees" ? { not: null } : null,
         ...ownerFilter,
-        ...(activeTab === "archivees" && q
+        // La recherche vaut pour les deux onglets. Elle n'existait que sur
+        // les archives — donc un organisme au catalogue fourni pouvait
+        // retrouver une formation qu'il avait rangée, mais pas une qu'il
+        // proposait encore (audit S7, P2).
+        ...(q
           ? { AND: [{ OR: [{ title: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] }] }
           : {}),
       },
@@ -140,8 +144,14 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
               ouvrez-en une pour gérer les deux.
             </FirstVisitBanner>
             <div className="flex gap-3.5">
-              <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} />
-              <MetricCard label="Apprenants actifs" value={String(activeLearnerCount.length)} />
+              <MetricCard label="Sessions en cours" value={sessionsInProgress} />
+              <MetricCard label="Apprenants actifs" value={activeLearnerCount.length} />
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <SearchInput placeholder="Rechercher une formation…" />
+              <div className="text-[12px] text-slate">
+                {courses.length} formation{courses.length > 1 ? "s" : ""}
+              </div>
             </div>
             <div className="flex flex-col gap-2.5">
               {courses.map((course) => {
@@ -167,7 +177,11 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
                   </Link>
                 );
               })}
-              {courses.length === 0 && <div className="text-[12.5px] text-slate">Aucun cours — créez-en un avec le bouton en haut à droite.</div>}
+              {courses.length === 0 && (
+                <div className="text-[12.5px] text-slate">
+                  {q ? "Aucune formation ne correspond à cette recherche." : "Aucun cours — créez-en un avec le bouton en haut à droite."}
+                </div>
+              )}
             </div>
           </>
         ) : (

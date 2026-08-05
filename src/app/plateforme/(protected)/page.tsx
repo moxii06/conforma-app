@@ -154,11 +154,11 @@ export default async function PlatformAdminOrganizationsPage(props: {
       </div>
       <div className="px-8 flex items-start justify-between gap-4 mb-4">
         <div className="flex gap-3.5">
-          <MetricCard label="Organismes" value={String(organizations.length)} />
-          <MetricCard label="Actifs" value={String(activeCount)} tone="good" />
-          <MetricCard label="En essai" value={String(trialingCount)} />
-          <MetricCard label="Impayés" value={String(pastDueCount)} tone={pastDueCount > 0 ? "danger" : "ink"} />
-          <MetricCard label="Suspendus" value={String(suspendedCount)} tone={suspendedCount > 0 ? "danger" : "ink"} />
+          <MetricCard label="Organismes" value={organizations.length} />
+          <MetricCard label="Actifs" value={activeCount} tone="good" />
+          <MetricCard label="En essai" value={trialingCount} />
+          <MetricCard label="Impayés" value={pastDueCount} tone={pastDueCount > 0 ? "danger" : "ink"} />
+          <MetricCard label="Suspendus" value={suspendedCount} tone={suspendedCount > 0 ? "danger" : "ink"} />
         </div>
         <AddOrganizationForm />
       </div>

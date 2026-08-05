@@ -172,7 +172,7 @@ export default async function FacturationPage(
             <MetricCard label="Encaissé" value={formatAmount(paidAgg._sum.amountCents ?? 0)} tone="good" href="/facturation?tab=factures&status=PAID" />
             <MetricCard
               label="Rapprochements à valider"
-              value={String(pendingBankCount)}
+              value={pendingBankCount}
               tone={pendingBankCount > 0 ? "danger" : "ink"}
               href="/facturation?tab=a-valider"
             />

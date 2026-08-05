@@ -8,20 +8,26 @@ export function Pagination({
   searchParams,
   page,
   totalPages,
+  // Le nom du paramètre d'URL. Il n'est à changer que sur un écran qui
+  // pagine DEUX listes distinctes (le planning : sessions datées d'un côté,
+  // formations en continu de l'autre) — sinon les deux se déplaceraient
+  // ensemble, ce qui n'a de sens ni pour l'une ni pour l'autre.
+  pageKey = "page",
 }: {
   basePath: string;
   searchParams: Record<string, string | undefined>;
   page: number;
   totalPages: number;
+  pageKey?: string;
 }) {
   if (totalPages <= 1) return null;
 
   function hrefFor(targetPage: number) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(searchParams)) {
-      if (value && key !== "page") params.set(key, value);
+      if (value && key !== pageKey) params.set(key, value);
     }
-    if (targetPage > 1) params.set("page", String(targetPage));
+    if (targetPage > 1) params.set(pageKey, String(targetPage));
     const qs = params.toString();
     return qs ? `${basePath}?${qs}` : basePath;
   }

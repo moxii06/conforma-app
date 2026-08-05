@@ -283,14 +283,14 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-2">
           <div className="text-[12px] font-semibold text-slate uppercase tracking-wide px-0.5">Activité</div>
           <div className="flex gap-3.5">
-            <MetricCard label="Sessions en cours" value={String(sessionsInProgress)} href="/planning" />
+            <MetricCard label="Sessions en cours" value={sessionsInProgress} href="/planning" />
             {/* Le compteur de non-conformités pointait vers /qualiopi et
                 s'affichait pour tout le monde — dont les formateurs externes,
                 à qui l'état de conformité de l'organisme ne regarde pas. */}
             {canSeeQualiopi && (
               <MetricCard
                 label="Non-conformités ouvertes"
-                value={String(openNonConformities)}
+                value={openNonConformities}
                 tone={openNonConformities > 0 ? "danger" : "ink"}
                 href="/qualiopi"
               />

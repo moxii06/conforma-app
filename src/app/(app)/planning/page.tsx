@@ -11,6 +11,7 @@ import { TrainerFilter } from "@/components/TrainerFilter";
 import { PlanningExportControls } from "@/components/PlanningExportControls";
 import { PlanningCalendar } from "@/components/PlanningCalendar";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
+import { Pagination } from "@/components/Pagination";
 import { Role } from "@prisma/client";
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -25,7 +26,16 @@ const TABS = [
   { key: "archives", label: "Archives" },
 ];
 
-export default async function PlanningPage(props: { searchParams: Promise<{ tab?: string; month?: string; trainer?: string }> }) {
+// Les listes du planning étaient coupées en silence — 20 sessions à venir,
+// 20 en continu, 50 en archives (audit S7, P2). Un organisme qui planifie
+// deux mois à l'avance dépasse vingt sessions sans y penser, et rien ne le
+// lui disait.
+const PAGE_SIZE = 20;
+const PAGE_SIZE_ARCHIVES = 30;
+
+export default async function PlanningPage(props: {
+  searchParams: Promise<{ tab?: string; month?: string; trainer?: string; page?: string; continu?: string }>;
+}) {
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "planning") === "none") redirect("/dashboard");
@@ -61,9 +71,9 @@ export default async function PlanningPage(props: { searchParams: Promise<{ tab?
         {activeTab === "calendrier" ? (
           <CalendarTab organizationId={organizationId} monthParam={searchParams.month} ownerFilter={ownerFilter} />
         ) : activeTab === "archives" ? (
-          <ArchivesTab organizationId={organizationId} ownerFilter={ownerFilter} canEdit={canCreate} />
+          <ArchivesTab organizationId={organizationId} ownerFilter={ownerFilter} canEdit={canCreate} searchParams={searchParams} />
         ) : (
-          <ListTab organizationId={organizationId} ownerFilter={ownerFilter} canCreate={canCreate} />
+          <ListTab organizationId={organizationId} ownerFilter={ownerFilter} canCreate={canCreate} searchParams={searchParams} />
         )}
       </div>
     </>
@@ -74,10 +84,12 @@ async function ListTab({
   organizationId,
   ownerFilter,
   canCreate,
+  searchParams,
 }: {
   organizationId: string;
   ownerFilter: { trainerId?: string };
   canCreate: boolean;
+  searchParams: Record<string, string | undefined>;
 }) {
   // Une session en bande passante n'a pas de date de cohorte : elle n'a
   // donc rien à faire dans le calendrier, et le raisonnement d'origine
@@ -87,25 +99,44 @@ async function ListTab({
   // ça disparaissait — sans message, sans trace. Un formulaire qui crée ce
   // que sa propre page est incapable de montrer n'est pas défendable :
   // elles ont désormais leur section, sous les sessions datées.
-  const [sessions, rolling] = await Promise.all([
+  // Deux listes indépendantes sur le même écran, donc deux paramètres de
+  // page : feuilleter les sessions datées ne doit pas déplacer les
+  // formations en continu affichées en dessous.
+  const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
+  const pageContinu = Math.max(1, parseInt(searchParams.continu ?? "1", 10) || 1);
+  const whereDatees = { organizationId, mode: "FIXED_DATE" as const, startsAt: { gte: new Date() }, archivedAt: null, ...ownerFilter };
+  const whereContinu = { organizationId, mode: "ROLLING" as const, archivedAt: null, ...ownerFilter };
+
+  const [sessions, total, rolling, totalContinu] = await Promise.all([
     prisma.session.findMany({
-      where: { organizationId, mode: "FIXED_DATE", startsAt: { gte: new Date() }, archivedAt: null, ...ownerFilter },
+      where: whereDatees,
       include: { course: true, trainer: true, dossiers: true },
       orderBy: { startsAt: "asc" },
-      take: 20,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    prisma.session.count({ where: whereDatees }),
     prisma.session.findMany({
-      where: { organizationId, mode: "ROLLING", archivedAt: null, ...ownerFilter },
+      where: whereContinu,
       include: { course: true, trainer: true, dossiers: true },
       // Session n'a pas de createdAt. En bande passante, startsAt porte la
       // date de création — c'est ce que pose la route faute de cohorte.
       orderBy: { startsAt: "desc" },
-      take: 20,
+      skip: (pageContinu - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    prisma.session.count({ where: whereContinu }),
   ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPagesContinu = Math.max(1, Math.ceil(totalContinu / PAGE_SIZE));
 
   return (
     <div className="flex flex-col gap-2.5">
+      {total > 0 && (
+        <div className="text-[12px] text-slate">
+          {total} session{total > 1 ? "s" : ""} à venir
+        </div>
+      )}
       {sessions.map((s) => {
         const isFull = s.dossiers.length >= s.capacity;
         const isCancelled = s.status === "CANCELLED";
@@ -155,10 +186,17 @@ async function ListTab({
         />
       )}
 
+      <Pagination basePath="/planning" searchParams={searchParams} page={page} totalPages={totalPages} />
+
       {rolling.length > 0 && (
         <div className="mt-4">
-          <div className="text-[11px] font-semibold text-slate uppercase tracking-wide mb-2">
-            En continu (bande passante)
+          <div className="flex items-baseline justify-between gap-3 mb-2">
+            <div className="text-[11px] font-semibold text-slate uppercase tracking-wide">
+              En continu (bande passante)
+            </div>
+            <div className="text-[11.5px] text-slate">
+              {totalContinu} formation{totalContinu > 1 ? "s" : ""}
+            </div>
           </div>
           <div className="text-[11.5px] text-slate mb-2.5">
             Sans date de cohorte : chaque apprenant démarre quand il s&apos;inscrit, avec son propre délai d&apos;accès.
@@ -192,6 +230,13 @@ async function ListTab({
               </Link>
             ))}
           </div>
+          <Pagination
+            basePath="/planning"
+            searchParams={searchParams}
+            page={pageContinu}
+            totalPages={totalPagesContinu}
+            pageKey="continu"
+          />
         </div>
       )}
     </div>
@@ -236,25 +281,39 @@ async function ArchivesTab({
   organizationId,
   ownerFilter,
   canEdit,
+  searchParams,
 }: {
   organizationId: string;
   ownerFilter: { trainerId?: string };
   canEdit: boolean;
+  searchParams: Record<string, string | undefined>;
 }) {
-  const sessions = await prisma.session.findMany({
-    where: {
-      organizationId,
-      mode: "FIXED_DATE",
-      OR: [{ archivedAt: { not: null } }, { endsAt: { lt: new Date() } }],
-      ...ownerFilter,
-    },
-    include: { course: true, trainer: true, dossiers: true },
-    orderBy: { startsAt: "desc" },
-    take: 50,
-  });
+  const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
+  const where = {
+    organizationId,
+    mode: "FIXED_DATE" as const,
+    OR: [{ archivedAt: { not: null } }, { endsAt: { lt: new Date() } }],
+    ...ownerFilter,
+  };
+  const [sessions, total] = await Promise.all([
+    prisma.session.findMany({
+      where,
+      include: { course: true, trainer: true, dossiers: true },
+      orderBy: { startsAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE_ARCHIVES,
+      take: PAGE_SIZE_ARCHIVES,
+    }),
+    prisma.session.count({ where }),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE_ARCHIVES));
 
   return (
     <div className="flex flex-col gap-2.5">
+      {total > 0 && (
+        <div className="text-[12px] text-slate">
+          {total} session{total > 1 ? "s" : ""} terminée{total > 1 ? "s" : ""} ou archivée{total > 1 ? "s" : ""}
+        </div>
+      )}
       {sessions.map((s) => (
         <div key={s.id} className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6">
           <Link href={`/planning/${s.id}`} className="flex items-center gap-6 flex-1 min-w-0 hover:opacity-80">
@@ -295,6 +354,7 @@ async function ArchivesTab({
         </div>
       ))}
       {sessions.length === 0 && <div className="text-[12.5px] text-slate">Aucune session archivée.</div>}
+      <Pagination basePath="/planning" searchParams={searchParams} page={page} totalPages={totalPages} />
     </div>
   );
 }

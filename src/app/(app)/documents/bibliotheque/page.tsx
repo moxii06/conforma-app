@@ -153,9 +153,9 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
   return (
     <div className="p-8 flex flex-col gap-6 max-w-4xl">
       <div className="flex gap-3.5">
-        <MetricCard label="Modèles fournis par Jalon" value={String(globalTemplates.length)} hint="prêts à l'emploi, adaptables" />
-        <MetricCard label="Modèles de votre organisme" value={String(orgTemplates.length)} hint="adaptés ou créés par vous" />
-        <MetricCard label="Modèles conditionnels" value={String(conditionalCount)} hint="paragraphes ajustés selon le dossier" />
+        <MetricCard label="Modèles fournis par Jalon" value={globalTemplates.length} hint="prêts à l'emploi, adaptables" />
+        <MetricCard label="Modèles de votre organisme" value={orgTemplates.length} hint="adaptés ou créés par vous" />
+        <MetricCard label="Modèles conditionnels" value={conditionalCount} hint="paragraphes ajustés selon le dossier" />
       </div>
 
       <div className="flex items-center gap-2.5 flex-wrap">

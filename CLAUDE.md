@@ -228,6 +228,12 @@ columns needed to group and situate *every* matching document, then the full row
 current page's batches only. That is also what makes the four tab counts exact — they used
 to be computed over a silent `take: 600`.
 
+**A capped list must say so, and a counter must never be computed on one.** `/automatisations`
+read "50 envois ces 30 derniers jours" straight off a `take: 50` list — permanently 50 for any
+org that automates seriously. Counters come from `count()`; the list beside them says "les 50
+plus récents" when it is truncated. Same rule for the RGPD panel on `/inbox`. `MetricCard`
+takes a `number` and formats it (`12 483`, not `12483`) — the one place that rule lives.
+
 Measure before deciding, with `npx tsx prisma/seed-volume.ts` (4 000 learners, 8 000
 dossiers/invoices, 4 000 documents, 20 000 emails; `--purge` removes it, by relation from
 the marked contacts and not by marker, so rows the app created meanwhile go too).

@@ -15,7 +15,10 @@ export function MetricCard({
   href,
 }: {
   label: string;
-  value: string;
+  // Un nombre est mis en forme ici, une fois : « 12 483 » et non « 12483 »
+  // (audit S7, P2). Les montants arrivent déjà formatés en chaîne par leurs
+  // appelants, qui savent seuls s'il s'agit d'euros, d'heures ou de rien.
+  value: string | number;
   hint?: string;
   tone?: keyof typeof METRIC_VALUE_TONES;
   // Client feedback: a metric like "Factures en retard" was a dead end —
@@ -27,7 +30,9 @@ export function MetricCard({
   const content = (
     <>
       <div className="text-[12.5px] text-slate mb-2">{label}</div>
-      <div className={`text-2xl font-mono font-semibold tabular-nums ${METRIC_VALUE_TONES[tone]}`}>{value}</div>
+      <div className={`text-2xl font-mono font-semibold tabular-nums ${METRIC_VALUE_TONES[tone]}`}>
+        {typeof value === "number" ? value.toLocaleString("fr-FR") : value}
+      </div>
       {hint && <div className="text-[12.5px] text-slate mt-1.5">{hint}</div>}
     </>
   );

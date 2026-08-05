@@ -66,7 +66,7 @@ export default async function BpfPage(props: { searchParams: Promise<{ year?: st
         )}
 
         <div className="flex gap-3.5">
-          <MetricCard label="Apprenants" value={String(report.totalLearners)} />
+          <MetricCard label="Apprenants" value={report.totalLearners} />
           <MetricCard label="Heures stagiaires" value={report.totalHours.toFixed(1)} />
           <MetricCard label="Chiffre d'affaires encaissé" value={formatAmount(report.totalRevenueCents)} />
         </div>

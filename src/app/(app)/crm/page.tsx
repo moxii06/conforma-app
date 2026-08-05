@@ -196,7 +196,7 @@ export default async function CrmPage(
         )}
         {view === "table" && (
           <div className="flex gap-3.5">
-            <MetricCard label="Prospects actifs" value={String(activeCount)} />
+            <MetricCard label="Prospects actifs" value={activeCount} />
             <MetricCard label="En cours" value={formatAmount(inProgressCents)} hint="du premier contact à la formation en cours" />
             <MetricCard label="Conclu" value={formatAmount(completedCents)} tone="good" href="/crm?stage=COMPLETED" />
             <MetricCard label="Suivi des règlements" value="Facturation" hint="factures émises, payées, en retard" href="/facturation?tab=factures" />

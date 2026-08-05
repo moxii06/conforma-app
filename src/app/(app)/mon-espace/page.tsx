@@ -174,9 +174,9 @@ async function LearnerPortal({ userId, organizationId }: { userId: string; organ
     <div className="flex flex-col gap-5">
       {dossiers.length > 1 && (
         <div className="flex gap-3.5">
-          <MetricCard label="Formations" value={String(dossiers.length)} />
-          <MetricCard label="Terminées" value={String(doneCount)} tone="sage" />
-          <MetricCard label="En cours" value={String(dossiers.length - doneCount)} />
+          <MetricCard label="Formations" value={dossiers.length} />
+          <MetricCard label="Terminées" value={doneCount} tone="sage" />
+          <MetricCard label="En cours" value={dossiers.length - doneCount} />
         </div>
       )}
       {ordered.map(({ dossier: d, done }, i) => {

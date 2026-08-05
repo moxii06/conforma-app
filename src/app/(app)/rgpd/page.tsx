@@ -73,18 +73,18 @@ export default async function RgpdPage(props: { searchParams: Promise<{ tab?: st
         <div className="flex gap-3.5">
           <MetricCard
             label="Demandes de droits ouvertes"
-            value={String(openRequests)}
+            value={openRequests}
             hint={overdueRequests > 0 ? `${overdueRequests} au-delà du délai légal d'un mois` : undefined}
             tone={overdueRequests > 0 ? "danger" : "ink"}
             href="/rgpd?tab=droits"
           />
           <MetricCard
             label="Violations en cours"
-            value={String(openBreaches)}
+            value={openBreaches}
             tone={openBreaches > 0 ? "danger" : "ink"}
             href="/rgpd?tab=violations"
           />
-          <MetricCard label="Traitements au registre" value={String(activityCount)} href="/rgpd?tab=registre" />
+          <MetricCard label="Traitements au registre" value={activityCount} href="/rgpd?tab=registre" />
         </div>
         {activeTab === "dpia" ? (
           <DpiaTab organizationId={session.organizationId} canWrite={canWrite} />
