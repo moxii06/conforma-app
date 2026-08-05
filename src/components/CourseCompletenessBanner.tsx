@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { coursMisses, compterManques, BLOCAGE_LABELS, type CourseCompletenessInput } from "@/lib/courseCompleteness";
 
 /**
@@ -47,12 +46,19 @@ export function CourseCompletenessBanner({
               {g.champs.map((c, i) => (
                 <span key={c.libelle}>
                   {i > 0 && ", "}
-                  <Link
+                  {/* Un <a> ordinaire, et non <Link> : c'est ce qui fait
+                      marcher l'ancre. Quand seule l'ancre change, le
+                      navigateur émet hashchange — que EditCourseForm écoute
+                      pour s'ouvrir et venir sur le champ. La navigation
+                      client de <Link> passe par history.pushState, qui
+                      n'émet rien : le lien menait au bon onglet et
+                      s'arrêtait là, formulaire replié. */}
+                  <a
                     href={`/formations/${courseId}${c.ancre}`}
                     className="text-ink underline decoration-line hover:decoration-ink"
                   >
                     {c.libelle}
-                  </Link>
+                  </a>
                 </span>
               ))}
             </span>

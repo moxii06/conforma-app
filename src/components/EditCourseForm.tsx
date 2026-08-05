@@ -1,10 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 
 type Member = { id: string; name: string };
+
+// Les champs que le bandeau « informations manquantes » sait viser.
+//
+// Le nom de l'ancre EST le nom du champ Prisma : lib/courseCompleteness.ts
+// fabrique l'ancre à partir de là. Le bandeau promettait « chaque ligne
+// ouvre le champ concerné » et n'y arrivait pas — aucun champ ne portait
+// d'id, et le formulaire est replié derrière « Modifier », donc la cible
+// n'existait même pas dans le DOM au moment où le navigateur la cherchait.
+const CHAMPS_CIBLABLES = [
+  "durationHours",
+  "priceCents",
+  "prerequisites",
+  "objectives",
+  "accessDelay",
+  "accessModalities",
+  "teachingMethods",
+  "evaluationModalities",
+] as const;
 
 export function EditCourseForm({
   courseId,
@@ -52,6 +70,35 @@ export function EditCourseForm({
   const [evaluationModalities, setEvaluationModalities] = useState(initial.evaluationModalities ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cible, setCible] = useState<string | null>(null);
+
+  // Deux temps, et il en faut deux : le premier ouvre le formulaire, le
+  // second va au champ — qui n'est dans le DOM qu'après le rendu déclenché
+  // par le premier. Chercher l'élément dans la foulée du setOpen ne trouve
+  // rien.
+  useEffect(() => {
+    function lireAncre() {
+      const ancre = window.location.hash.slice(1);
+      if (!(CHAMPS_CIBLABLES as readonly string[]).includes(ancre)) return;
+      setOpen(true);
+      setCible(ancre);
+    }
+    lireAncre();
+    // Le bandeau pointe des liens ordinaires : quand seule l'ancre change,
+    // le navigateur émet hashchange sans recharger, et le composant reste
+    // monté — l'effet de montage seul manquerait tous les clics suivants.
+    window.addEventListener("hashchange", lireAncre);
+    return () => window.removeEventListener("hashchange", lireAncre);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !cible) return;
+    const el = document.getElementById(cible);
+    setCible(null);
+    if (!(el instanceof HTMLElement)) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.focus({ preventScroll: true });
+  }, [open, cible]);
 
   function toggleResponsible(id: string) {
     setResponsibleIds((prev) => {
@@ -131,6 +178,7 @@ export function EditCourseForm({
       />
       <div className="flex gap-2">
         <input
+          id="durationHours"
           value={durationHours}
           onChange={(e) => setDurationHours(e.target.value)}
           type="number"
@@ -139,6 +187,7 @@ export function EditCourseForm({
           className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft flex-1"
         />
         <input
+          id="priceCents"
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           type="number"
@@ -154,30 +203,30 @@ export function EditCourseForm({
         </div>
         <label className="flex flex-col gap-1">
           <span className="text-[11px] text-slate">Prérequis — laisser vide affichera « Sans prérequis »</span>
-          <input value={prerequisites} onChange={(e) => setPrerequisites(e.target.value)} placeholder="ex. Maîtriser les bases d'Excel" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+          <input id="prerequisites" value={prerequisites} onChange={(e) => setPrerequisites(e.target.value)} placeholder="ex. Maîtriser les bases d'Excel" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-[11px] text-slate">Objectifs opérationnels et évaluables</span>
-          <textarea value={objectives} onChange={(e) => setObjectives(e.target.value)} rows={3} placeholder={"ex.\n- Identifier les emails de phishing\n- Appliquer la politique de mots de passe"} className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none" />
+          <textarea id="objectives" value={objectives} onChange={(e) => setObjectives(e.target.value)} rows={3} placeholder={"ex.\n- Identifier les emails de phishing\n- Appliquer la politique de mots de passe"} className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink focus:outline-none focus:border-ink-soft resize-none" />
         </label>
         <div className="flex gap-2">
           <label className="flex flex-col gap-1 flex-1">
             <span className="text-[11px] text-slate">Délai d&apos;accès</span>
-            <input value={accessDelay} onChange={(e) => setAccessDelay(e.target.value)} placeholder="ex. Sous 15 jours" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+            <input id="accessDelay" value={accessDelay} onChange={(e) => setAccessDelay(e.target.value)} placeholder="ex. Sous 15 jours" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
           </label>
           <label className="flex flex-col gap-1 flex-1">
             <span className="text-[11px] text-slate">Modalités d&apos;accès</span>
-            <input value={accessModalities} onChange={(e) => setAccessModalities(e.target.value)} placeholder="ex. Inscription en ligne ou par email" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+            <input id="accessModalities" value={accessModalities} onChange={(e) => setAccessModalities(e.target.value)} placeholder="ex. Inscription en ligne ou par email" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
           </label>
         </div>
         <div className="flex gap-2">
           <label className="flex flex-col gap-1 flex-1">
             <span className="text-[11px] text-slate">Méthodes mobilisées</span>
-            <input value={teachingMethods} onChange={(e) => setTeachingMethods(e.target.value)} placeholder="ex. E-learning : vidéos, supports, quiz" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+            <input id="teachingMethods" value={teachingMethods} onChange={(e) => setTeachingMethods(e.target.value)} placeholder="ex. E-learning : vidéos, supports, quiz" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
           </label>
           <label className="flex flex-col gap-1 flex-1">
             <span className="text-[11px] text-slate">Modalités d&apos;évaluation</span>
-            <input value={evaluationModalities} onChange={(e) => setEvaluationModalities(e.target.value)} placeholder="ex. Quiz par module, score minimal 70 %" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
+            <input id="evaluationModalities" value={evaluationModalities} onChange={(e) => setEvaluationModalities(e.target.value)} placeholder="ex. Quiz par module, score minimal 70 %" className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink focus:outline-none focus:border-ink-soft" />
           </label>
         </div>
       </div>

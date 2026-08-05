@@ -10,12 +10,6 @@ import { SegmentedControl, FORMAT_OPTIONS } from "@/components/Controls";
 
 type Trainer = { id: string; name: string };
 
-const FORMAT_LABELS: Record<SessionFormat, string> = {
-  IN_PERSON: "Présentiel",
-  REMOTE: "Distanciel",
-  HYBRID: "Mixte",
-};
-
 // Un champ ne doit jamais dépasser sa colonne : `w-full` + `min-w-0`, et
 // aucune largeur fixe. C'est ce qui manquait, et ce qui faisait déborder
 // le formulaire sur la carte voisine.

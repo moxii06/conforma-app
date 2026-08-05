@@ -4,16 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SessionFormat, SessionMode } from "@prisma/client";
 import { Button } from "@/components/ui";
-import { SegmentedControl, FORMAT_OPTIONS } from "@/components/Controls";
+import { SegmentedControl, FORMAT_OPTIONS, RYTHME_OPTIONS } from "@/components/Controls";
 
 type Course = { id: string; title: string };
 type Trainer = { id: string; name: string };
-
-const FORMAT_LABELS: Record<SessionFormat, string> = {
-  IN_PERSON: "Présentiel",
-  REMOTE: "Distanciel",
-  HYBRID: "Mixte",
-};
 
 // location is one physical field doing double duty depending on format —
 // see the Prisma comment on Session.location. Client feedback: the field
@@ -125,14 +119,20 @@ export function CreateSessionForm({
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2 text-[12.5px]">
-            <button type="button" onClick={() => setCourseMode("existing")} disabled={courses.length === 0} className={`px-2.5 py-1 rounded-md ${courseMode === "existing" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
-              Cours existant
-            </button>
-            <button type="button" onClick={() => setCourseMode("new")} className={`px-2.5 py-1 rounded-md ${courseMode === "new" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
-              Nouveau cours
-            </button>
-          </div>
+          {/* Sans aucune formation au catalogue il n'y a rien à choisir :
+              le sélecteur proposerait une option qui ouvre une liste vide.
+              courseMode vaut déjà « new » dans ce cas. */}
+          {courses.length > 0 && (
+            <SegmentedControl
+              value={courseMode}
+              onChange={(v) => setCourseMode(v)}
+              label="Formation"
+              options={[
+                { value: "existing" as const, label: "Formation existante" },
+                { value: "new" as const, label: "Nouvelle formation" },
+              ]}
+            />
+          )}
 
           {courseMode === "existing" ? (
             <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
@@ -146,14 +146,18 @@ export function CreateSessionForm({
         </>
       )}
 
-      <div className="flex items-center gap-2 text-[12.5px]">
-        <button type="button" onClick={() => setMode("FIXED_DATE")} className={`px-2.5 py-1 rounded-md ${mode === "FIXED_DATE" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
-          Date fixe
-        </button>
-        <button type="button" onClick={() => setMode("ROLLING")} className={`px-2.5 py-1 rounded-md ${mode === "ROLLING" ? "bg-ink text-white" : "bg-pebble text-slate"}`}>
-          En continu (bande passante)
-        </button>
-      </div>
+      {/* Le rythme, avec les MÊMES libellés qu'à l'étape 1 de la création
+          d'une formation. Il y avait ici « Date fixe » / « En continu (bande
+          passante) » et là-bas « Session à date fixe » / « En continu —
+          chacun son calendrier » : un même choix, deux vocabulaires, à deux
+          clics d'écart. Les options viennent maintenant de la seule
+          définition qui existe. */}
+      <SegmentedControl
+        value={mode}
+        onChange={(v) => setMode(v as SessionMode)}
+        options={RYTHME_OPTIONS}
+        label="Rythme"
+      />
 
       <div className="flex gap-2">
         <select value={trainerId} onChange={(e) => setTrainerId(e.target.value)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal flex-1">

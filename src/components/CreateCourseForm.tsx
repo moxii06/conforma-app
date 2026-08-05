@@ -88,6 +88,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [outline, setOutline] = useState<OutlineChapter[]>([]);
+  const [nouveauModule, setNouveauModule] = useState("");
 
   async function handleImport(file: File) {
     setImporting(true);
@@ -125,7 +126,15 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     }
     if (data.description) setDescription(data.description);
     if (data.objectives) setObjectives(data.objectives);
-    setOutline(Array.isArray(data.chapters) ? data.chapters : []);
+    // On normalise plutôt que de faire confiance : un chapitre rendu sans
+    // `modules` casserait le rendu de la liste, et la sortie vient d'un
+    // modèle, pas d'un schéma.
+    setOutline(
+      (Array.isArray(data.chapters) ? data.chapters : []).map((c: Partial<OutlineChapter>) => ({
+        title: String(c?.title ?? ""),
+        modules: Array.isArray(c?.modules) ? c.modules : [],
+      }))
+    );
     setShowAiPrompt(false);
     setImported(false);
     setImportError(null);
@@ -141,6 +150,29 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     );
   }
 
+  function renameOutlineChapter(index: number, titre: string) {
+    setOutline((prev) => prev.map((c, i) => (i === index ? { ...c, title: titre } : c)));
+  }
+
+  function addOutlineChapter() {
+    setOutline((prev) => [...prev, { title: `Chapitre ${prev.length + 1}`, modules: [] }]);
+  }
+
+  // Le module rejoint le DERNIER chapitre : c'est là qu'on écrit quand on
+  // déroule un programme de haut en bas. Sans chapitre, on en crée un — la
+  // route crée chaque module sous un chapitre porteur, un module orphelin
+  // n'existerait nulle part.
+  function addOutlineModule() {
+    const titre = nouveauModule.trim();
+    if (!titre) return;
+    setOutline((prev) =>
+      prev.length === 0
+        ? [{ title: "Programme", modules: [titre] }]
+        : prev.map((c, i) => (i === prev.length - 1 ? { ...c, modules: [...c.modules, titre] } : c))
+    );
+    setNouveauModule("");
+  }
+
   function addLearner(input: LearnerInput, label: string) {
     const key = "contactId" in input ? input.contactId : input.email;
     if (learners.some((l) => l.key === key)) return;
@@ -153,12 +185,22 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   }
 
   function toggleResponsible(id: string) {
+    const etaitCoche = responsibleIds.has(id);
     setResponsibleIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
+      if (etaitCoche) next.delete(id);
       else next.add(id);
       return next;
     });
+    // Étape 4 : le formateur de la première session, repris du responsable.
+    // Dans un petit organisme c'est la même personne, et le sélecteur
+    // restait sur « À désigner plus tard » alors que la réponse venait
+    // d'être cochée juste au-dessus. On ne touche à rien dès qu'un
+    // formateur a été choisi explicitement, et on relâche si le responsable
+    // repris est décoché — laisser un formateur que plus rien ne justifie
+    // serait pire que ne rien pré-remplir.
+    if (!etaitCoche && trainerId === "") setTrainerId(id);
+    if (etaitCoche && trainerId === id) setTrainerId("");
   }
 
   function toggleSubcontractor(id: string) {
@@ -198,6 +240,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     setAiIntention("");
     setGenerateError(null);
     setOutline([]);
+    setNouveauModule("");
     setShowTemplatePicker(false);
     setEtape(1);
     setPriceEuros("");
@@ -537,31 +580,83 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                   blanc — d'où le libellé, qui dit ce que le vide produit. */}
             </div>
 
-            {outline.length > 0 && (
-              <div className="border border-line rounded-md p-2.5 flex flex-col gap-2">
-                <div className="text-[11px] text-slate uppercase tracking-wide">
-                  Plan de chapitres proposé — créé avec la formation, à compléter ensuite
+            {/* Les modules, saisissables à la main.
+                Ce bloc n'apparaissait que si l'IA avait produit un plan :
+                sans elle, l'étape « Le programme » ne permettait aucun
+                module, alors que c'est ce que son nom promet. La saisie
+                manuelle et la sortie de l'IA remplissent maintenant la
+                même liste, éditable dans les deux cas. */}
+            <div className="border border-line rounded-md p-2.5 flex flex-col gap-2">
+              <div className={fieldLabelClass}>Modules</div>
+              {outline.length === 0 && (
+                <div className="text-[11.5px] text-slate">
+                  Aucun module pour l&apos;instant. Ceux que vous ajoutez ici sont créés avec la formation ; le contenu
+                  (vidéo, page, quiz) se dépose ensuite dans l&apos;onglet Contenu.
                 </div>
-                {outline.map((chapter, ci) => (
-                  <div key={ci} className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[12.5px] font-medium text-ink">{chapter.title}</div>
-                      <button type="button" onClick={() => removeOutlineChapter(ci)} className="text-slate hover:text-rust">
-                        <X size={12} />
+              )}
+              {outline.map((chapter, ci) => (
+                <div key={ci} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={chapter.title}
+                      onChange={(e) => renameOutlineChapter(ci, e.target.value)}
+                      aria-label={`Titre du chapitre ${ci + 1}`}
+                      className="flex-1 min-w-0 bg-linen border border-line rounded-md px-2 py-1 text-[12.5px] font-medium text-ink focus:outline-none focus:border-seal"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeOutlineChapter(ci)}
+                      aria-label={`Retirer le chapitre ${chapter.title}`}
+                      className="text-slate hover:text-rust shrink-0"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                  {chapter.modules.map((moduleTitle, mi) => (
+                    <div key={mi} className="flex items-center justify-between gap-2 pl-3 text-[12px] text-slate">
+                      <span>· {moduleTitle}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeOutlineModule(ci, mi)}
+                        aria-label={`Retirer le module ${moduleTitle}`}
+                        className="text-slate hover:text-rust shrink-0"
+                      >
+                        <X size={11} />
                       </button>
                     </div>
-                    {chapter.modules.map((moduleTitle, mi) => (
-                      <div key={mi} className="flex items-center justify-between gap-2 pl-3 text-[12px] text-slate">
-                        <span>· {moduleTitle}</span>
-                        <button type="button" onClick={() => removeOutlineModule(ci, mi)} className="text-slate hover:text-rust shrink-0">
-                          <X size={11} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ))}
+                  ))}
+                </div>
+              ))}
+              <div className="flex items-center gap-2">
+                <input
+                  value={nouveauModule}
+                  onChange={(e) => setNouveauModule(e.target.value)}
+                  // Entrée ajoute le module au lieu de soumettre : dans un
+                  // formulaire, la touche Entrée sur un champ texte déclenche
+                  // l'envoi — ici elle créerait la formation au milieu de la
+                  // saisie du programme.
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addOutlineModule();
+                    }
+                  }}
+                  placeholder="Titre du module — ex. Se présenter en réunion"
+                  aria-label="Titre du nouveau module"
+                  className={fieldClass}
+                />
+                <Button type="button" size="sm" variant="secondary" onClick={addOutlineModule} disabled={!nouveauModule.trim()}>
+                  Ajouter
+                </Button>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={addOutlineChapter}
+                className="self-start text-[11.5px] text-slate hover:text-ink underline decoration-line hover:decoration-ink"
+              >
+                + Ajouter un chapitre
+              </button>
+            </div>
 
           </div>
           </div>
@@ -645,6 +740,11 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                         <option key={m.id} value={m.id}>{m.name}</option>
                       ))}
                     </select>
+                    {trainerId !== "" && responsibleIds.has(trainerId) && (
+                      <div className="text-[11px] text-slate mt-1">
+                        Repris du responsable de la formation — modifiable.
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="text-[11.5px] text-slate">
