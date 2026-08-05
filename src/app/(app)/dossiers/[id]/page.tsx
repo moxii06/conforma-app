@@ -35,6 +35,8 @@ import { fr } from "date-fns/locale";
 const OUTREACH_LABELS: Record<string, string> = {
   contract: "Contrat",
   platform_access: "Accès plateforme",
+  certificate: "Attestation",
+  learner_nudge: "Relance apprenant",
 };
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };

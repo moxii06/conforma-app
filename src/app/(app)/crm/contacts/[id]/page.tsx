@@ -24,6 +24,8 @@ import { fr } from "date-fns/locale";
 const OUTREACH_LABELS: Record<string, string> = {
   contract: "Contrat",
   platform_access: "Accès plateforme",
+  certificate: "Attestation",
+  learner_nudge: "Relance apprenant",
   message: "Email",
   needs_assessment_reminder: "Rappel recueil des besoins (auto)",
   contract_reminder: "Rappel convention (auto)",

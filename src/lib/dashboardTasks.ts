@@ -90,6 +90,7 @@ export type DashboardTask = {
     | "rolling_deadline_overdue"
     | "satisfaction_not_collected"
     | "learner_inactive"
+    | "certificate_to_send"
     | "bank_transaction_pending"
     | "funding_no_reply"
     | "funding_agreement_expiring"
@@ -524,6 +525,66 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         since: lastActivity,
         href: `/dossiers/${d.id}`,
         overdue: true,
+      });
+    }
+  }
+
+  // Attestation à envoyer : l'apprenant a tout validé, et personne ne le
+  // sait. Rien, jusqu'ici, ne signalait qu'une formation était arrivée à son
+  // terme — l'attestation existait mais il fallait penser à aller la
+  // chercher dossier par dossier. C'est l'exact symétrique du décrochage
+  // ci-dessus : même population, condition inverse.
+  //
+  // Volontairement limité à l'e-learning arrivé à 100 %. Le présentiel a
+  // aussi droit à son attestation (article L.6353-1), mais « la session est
+  // finie et tout le monde a signé » est une autre requête, avec d'autres
+  // faux positifs : ne pas la traiter est un choix, pas un oubli.
+  if (canSeeTrainer) {
+    const finis = await prisma.dossier.findMany({
+      where: {
+        organizationId,
+        ...DOSSIERS_ACTIFS,
+        firstAccessedAt: { not: null, gte: plancher },
+        session: role === Role.TRAINER ? { trainerId: userId } : undefined,
+        // Ce qui n'a pas encore été envoyé, et rien d'autre : une fois
+        // l'attestation partie, la tâche disparaît d'elle-même.
+        clientOutreaches: { none: { type: "certificate" } },
+      },
+      include: {
+        contact: true,
+        session: { include: { course: { include: { elearningModules: { include: { quiz: true } } } } } },
+        elearningProgress: true,
+        quizAttempts: true,
+      },
+      orderBy: { firstAccessedAt: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
+    });
+    noterSiPlafond("certificate_to_send", finis);
+    for (const d of finis) {
+      const modules = d.session.course.elearningModules;
+      if (modules.length === 0) continue;
+      const { allCompleted } = getCourseCompletion(modules, d.elearningProgress, d.quizAttempts);
+      if (!allCompleted) continue;
+
+      // La date de référence est celle du dernier acte de l'apprenant : ce
+      // qu'on veut lire, c'est « il a fini il y a trois semaines et il
+      // attend toujours », pas la date d'inscription.
+      const fini = d.elearningProgress.reduce<Date>((latest, p) => {
+        const candidate = p.lastEventAt ?? p.assignedAt;
+        return candidate > latest ? candidate : latest;
+      }, d.firstAccessedAt!);
+
+      results.push({
+        id: d.id,
+        kind: "certificate_to_send",
+        label: "Formation terminée — attestation à envoyer",
+        contactName: `${d.contact.firstName} ${d.contact.lastName}`,
+        since: fini,
+        href: `/dossiers/${d.id}`,
+        // Pas de retard : l'apprenant a fini, c'est une bonne nouvelle à
+        // traiter, pas une alerte. La marquer en rouge la mettrait au même
+        // niveau qu'une facture impayée.
+        overdue: false,
       });
     }
   }

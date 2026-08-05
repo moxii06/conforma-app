@@ -45,6 +45,7 @@ const LIBELLES_COLLECTIFS: Record<DashboardTask["kind"], string> = {
   rolling_deadline_overdue: "accès e-learning expirés",
   satisfaction_not_collected: "avis de satisfaction non recueillis",
   learner_inactive: "apprenants sans activité",
+  certificate_to_send: "attestations à envoyer",
   bank_transaction_pending: "transactions bancaires à valider",
   funding_no_reply: "financeurs sans réponse",
   funding_agreement_expiring: "accords de prise en charge à échéance",
@@ -100,6 +101,7 @@ const DESTINATIONS_COLLECTIVES: Record<DashboardTask["kind"], string | null> = {
   rolling_deadline_overdue: null,
   satisfaction_not_collected: null,
   learner_inactive: null,
+  certificate_to_send: null,
   qualiopi_certificate_expiring: null,
   session_uninvoiced: null,
 };

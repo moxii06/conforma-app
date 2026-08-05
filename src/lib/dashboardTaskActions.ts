@@ -62,6 +62,43 @@ export const TASK_ACTIONS: Record<string, TaskActionDef> = {
     endpoint: (id) => `/api/dossiers/${id}/satisfaction-surveys/cold/send`,
     confirmer: (nom) => `Envoyer le questionnaire de satisfaction à ${nom} maintenant ?`,
   },
+  certificate_to_send: {
+    label: "Envoyer l'attestation",
+    labelLot: "Envoyer les attestations",
+    actionLot: "envoyer leur attestation de formation",
+    endpoint: (id) => `/api/dossiers/${id}/outreach`,
+    body: { type: "certificate" },
+    confirmer: (nom) => `Délivrer et envoyer son attestation à ${nom} maintenant ?`,
+  },
+  // Les trois familles ci-dessous partagent la même relance : l'apprenant a
+  // décroché, ou son échéance approche, ou elle est passée. Le message est
+  // le même — « reprenez votre parcours » — et il n'y a aucune raison d'en
+  // écrire trois. Ce qui les distingue, c'est le moment où Jalon les
+  // remonte, pas ce qu'on leur dit.
+  learner_inactive: {
+    label: "Relancer l'apprenant",
+    labelLot: "Relancer les apprenants",
+    actionLot: "les relancer",
+    endpoint: (id) => `/api/dossiers/${id}/outreach`,
+    body: { type: "learner_nudge" },
+    confirmer: (nom) => `Envoyer une relance à ${nom} maintenant ?`,
+  },
+  rolling_deadline_warning: {
+    label: "Relancer l'apprenant",
+    labelLot: "Relancer les apprenants",
+    actionLot: "les relancer avant l'échéance",
+    endpoint: (id) => `/api/dossiers/${id}/outreach`,
+    body: { type: "learner_nudge" },
+    confirmer: (nom) => `Envoyer une relance à ${nom} maintenant ?`,
+  },
+  rolling_deadline_overdue: {
+    label: "Relancer l'apprenant",
+    labelLot: "Relancer les apprenants",
+    actionLot: "les relancer",
+    endpoint: (id) => `/api/dossiers/${id}/outreach`,
+    body: { type: "learner_nudge" },
+    confirmer: (nom) => `Envoyer une relance à ${nom} maintenant ?`,
+  },
 };
 
 /**

@@ -40,6 +40,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   rolling_deadline_overdue: "Formation en continu",
   satisfaction_not_collected: "Satisfaction",
   learner_inactive: "Décrochage",
+  certificate_to_send: "Attestation",
   bank_transaction_pending: "Rapprochement bancaire",
   funding_no_reply: "Financeur",
   funding_agreement_expiring: "Financeur",
@@ -62,7 +63,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
 const TASK_THEMES = [
   { key: "argent", label: "Argent", kinds: ["invoice_overdue", "session_uninvoiced", "bank_transaction_pending", "funding_no_reply", "funding_agreement_expiring"] },
   { key: "conformite", label: "Conformité", kinds: ["qualiopi_certificate_expiring", "qualiopi_audit_upcoming", "qualiopi_finding_open", "rgpd_suggestion", "rgpd_deadline", "subcontractor_expiry", "intervenant_evaluation_due"] },
-  { key: "pedagogie", label: "Sessions et apprenants", kinds: ["session_draft", "convocation", "learner_inactive", "rolling_deadline_warning", "rolling_deadline_overdue", "satisfaction_not_collected"] },
+  { key: "pedagogie", label: "Sessions et apprenants", kinds: ["session_draft", "convocation", "learner_inactive", "rolling_deadline_warning", "rolling_deadline_overdue", "certificate_to_send", "satisfaction_not_collected"] },
   { key: "admin", label: "Dossiers à compléter", kinds: ["needs_assessment", "contract", "platform_access", "platform_access_after_payment", "dossier_prep_needs_assessment", "dossier_prep_contract", "email_assigned"] },
 ] as const satisfies readonly { key: string; label: string; kinds: readonly DashboardTask["kind"][] }[];
 

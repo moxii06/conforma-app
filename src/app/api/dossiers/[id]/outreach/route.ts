@@ -8,16 +8,29 @@ import { mergeTemplate } from "@/lib/mergeTemplate";
 import { createSessionInvitation } from "@/lib/sessionInvitations";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { resolveAppOrigin } from "@/lib/appUrl";
+import { issueCertificate } from "@/lib/certificateIssue";
 
-const schema = z.object({ type: z.enum(["contract", "convocation", "platform_access"]) });
+const schema = z.object({
+  type: z.enum(["contract", "convocation", "platform_access", "certificate", "learner_nudge"]),
+});
 
-// Single entry point for the three "send from the client record" actions
-// the dossier's Info tab exposes (spec request: contract, convocation,
-// platform access — the positioning test already has its own dedicated
-// flow via NeedsAssessmentRequest/send-needs-assessment). Convocation goes
-// through createSessionInvitation, which sends its own real email;
-// contract and platform_access send here directly (best-effort — a failed
-// send doesn't block the record/link from being created).
+// Single entry point for the "send from the client record" actions the
+// dossier's Info tab exposes (spec request: contract, convocation, platform
+// access — the positioning test already has its own dedicated flow via
+// NeedsAssessmentRequest/send-needs-assessment). Convocation goes through
+// createSessionInvitation, which sends its own real email; the others send
+// here directly (best-effort — a failed send doesn't block the record/link
+// from being created).
+//
+// Deux types ajoutés pour les tâches « À faire » du tableau de bord, qui
+// atterrissent ici plutôt que dans une route à part : c'est le même geste
+// (écrire à l'apprenant d'un dossier, et le tracer dans ClientOutreach), et
+// une seconde route aurait fini par tracer autrement.
+//
+//   certificate   — l'attestation, une fois la formation terminée.
+//   learner_nudge — la relance d'un apprenant décroché ou dont la durée
+//                   d'accès s'épuise. Elle n'envoie aucun document : elle
+//                   ramène vers l'espace apprenant, rien de plus.
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await getSessionContext();
@@ -58,6 +71,101 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   if (can(auth.role, "dossiers") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+
+  if (parsed.data.type === "certificate") {
+    const issued = await issueCertificate(dossier.id, auth.organizationId);
+    if (!issued.ok) return NextResponse.json({ error: issued.reason }, { status: issued.status });
+
+    const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
+    const outreach = await prisma.clientOutreach.create({
+      data: {
+        organizationId: auth.organizationId,
+        contactId: dossier.contactId,
+        dossierId: dossier.id,
+        type: "certificate",
+        sentByUserId: auth.userId,
+        sentByName,
+      },
+    });
+
+    const documentUrl = `${origin}/api/documents/generated/${issued.document.id}`;
+    let emailSent = false;
+    try {
+      await sendTransactionalEmail({
+        to: dossier.contact.email,
+        toName: `${dossier.contact.firstName} ${dossier.contact.lastName}`,
+        subject: `${organization.name} — votre attestation de formation`,
+        text:
+          `Bonjour ${dossier.contact.firstName},\n\n` +
+          `Votre attestation pour la formation « ${dossier.session.course.title} » est disponible ici :\n${documentUrl}\n\n` +
+          `Conservez-la : elle peut vous être demandée par votre employeur ou votre financeur.\n\n` +
+          `À bientôt,\nL'équipe ${organization.name}`,
+        senderName: organization.name,
+        replyTo: auth.email,
+      });
+      emailSent = true;
+    } catch {
+      // Non fatal — l'attestation existe, elle reste téléchargeable depuis
+      // le dossier même si l'email n'est pas parti.
+    }
+
+    return NextResponse.json({ outreach, document: issued.document, emailSent }, { status: 201 });
+  }
+
+  if (parsed.data.type === "learner_nudge") {
+    const organization = await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } });
+
+    // La date de dernière activité, calculée comme le tableau de bord la
+    // calcule : le plus récent des événements enregistrés, à défaut le
+    // premier accès. On ne l'annonce que si on la connaît — une relance qui
+    // se tromperait de date perdrait toute crédibilité auprès de
+    // l'apprenant, et il n'y a rien à gagner à meubler.
+    const progress = await prisma.elearningProgress.findMany({
+      where: { dossierId: dossier.id },
+      select: { lastEventAt: true, assignedAt: true },
+    });
+    const derniereActivite = progress.reduce<Date | null>((latest, p) => {
+      const candidate = p.lastEventAt ?? p.assignedAt;
+      return !latest || candidate > latest ? candidate : latest;
+    }, dossier.firstAccessedAt);
+    const rappelActivite = derniereActivite
+      ? `Votre dernière activité enregistrée remonte au ${derniereActivite.toLocaleDateString("fr-FR")}.\n\n`
+      : "";
+
+    const outreach = await prisma.clientOutreach.create({
+      data: {
+        organizationId: auth.organizationId,
+        contactId: dossier.contactId,
+        dossierId: dossier.id,
+        type: "learner_nudge",
+        sentByUserId: auth.userId,
+        sentByName,
+      },
+    });
+
+    let emailSent = false;
+    try {
+      await sendTransactionalEmail({
+        to: dossier.contact.email,
+        toName: `${dossier.contact.firstName} ${dossier.contact.lastName}`,
+        subject: `${organization.name} — reprenons votre formation « ${dossier.session.course.title} »`,
+        text:
+          `Bonjour ${dossier.contact.firstName},\n\n` +
+          `Vous êtes inscrit à la formation « ${dossier.session.course.title} » et votre parcours est en cours.\n\n` +
+          rappelActivite +
+          `Vous pouvez le reprendre où vous l'aviez laissé depuis votre espace :\n${origin}/mon-espace\n\n` +
+          `Si vous rencontrez une difficulté, répondez simplement à ce message.\n\n` +
+          `À bientôt,\nL'équipe ${organization.name}`,
+        senderName: organization.name,
+        replyTo: auth.email,
+      });
+      emailSent = true;
+    } catch {
+      // Non fatal — la relance reste tracée dans l'historique du dossier.
+    }
+
+    return NextResponse.json({ outreach, emailSent }, { status: 201 });
   }
 
   if (parsed.data.type === "contract") {
