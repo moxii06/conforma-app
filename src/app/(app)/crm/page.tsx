@@ -11,6 +11,8 @@ import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 import { OpportunityTable } from "@/components/OpportunityTable";
 import { SearchInput } from "@/components/SearchInput";
 import { Pagination } from "@/components/Pagination";
+import { BulkArchiveContactsButton } from "@/components/BulkArchiveContactsButton";
+import { MAX_CONTACTS_PAR_LOT } from "@/lib/bulkLimits";
 import { FirstVisitBanner } from "@/components/FirstVisitBanner";
 import { isYousignConfigured } from "@/lib/yousign";
 import { STAGE_LABELS, STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
@@ -108,7 +110,7 @@ export default async function CrmPage(
       : {}),
   };
 
-  const [opportunities, total, contacts, courses, templates, pipelineTotals] = await Promise.all([
+  const [opportunities, total, candidatsLot, contacts, courses, templates, pipelineTotals] = await Promise.all([
     prisma.opportunity.findMany({
       where,
       include: {
@@ -128,6 +130,19 @@ export default async function CrmPage(
       take: PAGE_SIZE,
     }),
     prisma.opportunity.count({ where }),
+    // Les candidats de l'action de masse : l'ensemble FILTRÉ, plafonné à ce
+    // que la route accepte. `distinct` sur le contact parce qu'un même
+    // prospect peut avoir plusieurs affaires — l'archiver deux fois n'a pas
+    // de sens, et le dialogue afficherait son nom en double.
+    canWrite
+      ? prisma.opportunity.findMany({
+          where,
+          select: { contactId: true, contact: { select: { firstName: true, lastName: true } } },
+          distinct: ["contactId"],
+          orderBy: { createdAt: "desc" },
+          take: MAX_CONTACTS_PAR_LOT,
+        })
+      : Promise.resolve([]),
     // Le choix d'un contact existant passe désormais par la recherche
     // serveur (ContactSearchInput) — il ne reste à charger qu'UN contact,
     // juste pour savoir si l'onglet « Contact existant » a un sens.
@@ -219,6 +234,18 @@ export default async function CrmPage(
             par son nom est exactement ce qu'on vient faire dans « Archives ». */}
         <div className="flex items-center gap-2.5 flex-wrap">
           <SearchInput placeholder="Rechercher un prospect (nom, email, intitulé)…" />
+          {/* Action de masse (audit S7, P2) : elle porte sur l'ensemble
+              filtré et nomme chaque prospect avant d'agir. */}
+          {canWrite && (
+            <BulkArchiveContactsButton
+              cibles={candidatsLot.map((o) => ({
+                id: o.contactId,
+                libelle: `${o.contact.firstName} ${o.contact.lastName}`,
+              }))}
+              total={total}
+              archiver={view !== "archives"}
+            />
+          )}
           <div className="text-[12px] text-slate">
             {total} {view === "archives" ? "archivé" : "prospect"}
             {total > 1 ? "s" : ""}

@@ -228,6 +228,18 @@ columns needed to group and situate *every* matching document, then the full row
 current page's batches only. That is also what makes the four tab counts exact — they used
 to be computed over a silent `take: 600`.
 
+**Bulk actions name what they touch.** `BulkTaskActionDialog` (dashboard sends) and
+`BulkListActionDialog` (invoice status, contact archive) share one rule: you never confirm an
+action on forty rows without having read the forty labels, each uncheckable, with the count in
+the button. The candidate list comes from the *filtered set*, not the visible page — the filter
+you just applied is what defines the batch. Caps live in `lib/bulkLimits.ts` because the page
+needs the same number as the route: it decides how many candidates to fetch, and a page
+proposing rows the route would reject would fail *after* the click. A batch route reports what
+it did and names what it skipped; "c'est fait" without a breakdown is worse than the one-by-one
+it replaces. Anything that changes a record goes through the same helper as the single-item
+control (`lib/invoiceStatus.ts`), or the two drift on side effects — marking an invoice paid
+also advances its CRM deal, and it does *not* record a payment.
+
 **A capped list must say so, and a counter must never be computed on one.** `/automatisations`
 read "50 envois ces 30 derniers jours" straight off a `take: 50` list — permanently 50 for any
 org that automates seriously. Counters come from `count()`; the list beside them says "les 50

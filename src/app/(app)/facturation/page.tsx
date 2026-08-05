@@ -21,6 +21,8 @@ import { rankInvoiceMatches, CONFIDENT_MATCH_THRESHOLD } from "@/lib/bankReconci
 import { FundersPanel } from "@/components/FundersPanel";
 import { FundingPipelinePanel } from "@/components/FundingPipelinePanel";
 import { SendFacturationButton } from "@/components/SendFacturationButton";
+import { BulkInvoiceStatusButton } from "@/components/BulkInvoiceStatusButton";
+import { MAX_FACTURES_PAR_LOT } from "@/lib/bulkLimits";
 import { AWAITING_FUNDER, FUNDER_SILENCE_DAYS, AGREEMENT_EXPIRY_WARNING_DAYS } from "@/lib/funding";
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
@@ -540,7 +542,7 @@ async function InvoicesTab({
     ...(refFilter ? { reference: { contains: refFilter, mode: "insensitive" } } : {}),
     ...(conditions.length > 0 ? { AND: conditions } : {}),
   };
-  const [invoices, total, stripeConfigured] = await Promise.all([
+  const [invoices, total, candidatesLot, stripeConfigured] = await Promise.all([
     prisma.invoice.findMany({
       where,
       include: { contact: true, payments: true },
@@ -549,15 +551,42 @@ async function InvoicesTab({
       take: PAGE_SIZE,
     }),
     prisma.invoice.count({ where }),
+    // Le lot suit le FILTRE, pas la page affichée : on isole des factures
+    // avec la recherche ou le statut, puis on applique. Requête à part et
+    // volontairement légère — quatre colonnes, plafonnée au maximum que la
+    // route accepte.
+    canWrite
+      ? prisma.invoice.findMany({
+          where,
+          select: { id: true, reference: true, amountCents: true, contact: { select: { firstName: true, lastName: true } } },
+          orderBy,
+          take: MAX_FACTURES_PAR_LOT,
+        })
+      : Promise.resolve([]),
     isStripeConfigured(organizationId),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const cibles = candidatesLot.map((i) => ({
+    id: i.id,
+    libelle: `${i.reference} — ${i.contact.firstName} ${i.contact.lastName}`,
+    detail: formatAmount(i.amountCents),
+  }));
   const now = new Date();
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        {canWrite ? <NewInvoiceForm /> : <span />}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {canWrite && <NewInvoiceForm />}
+          {/* Actions de masse (audit S7, P2). Elles portent sur l'ensemble
+              filtré et nomment chaque facture avant d'agir. */}
+          {canWrite && candidatesLot.length > 0 && (
+            <>
+              <BulkInvoiceStatusButton cibles={cibles} total={total} statut={DocStatus.PAID} />
+              <BulkInvoiceStatusButton cibles={cibles} total={total} statut={DocStatus.SENT} />
+            </>
+          )}
+        </div>
         <div className="text-[12px] text-slate">
           {total} facture{total > 1 ? "s" : ""}
         </div>
