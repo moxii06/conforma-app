@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui";
 import { DialogShell, Field } from "@/components/DialogShell";
@@ -30,13 +30,11 @@ function splitName(fromName: string | null): { firstName: string; lastName: stri
 
 export function InboxMessageActions({
   messageId,
-  contacts,
   fromName,
   subject,
   courses = [],
 }: {
   messageId: string;
-  contacts: Contact[];
   fromName?: string | null;
   subject?: string;
   courses?: CourseOption[];
@@ -44,7 +42,7 @@ export function InboxMessageActions({
   const router = useRouter();
   const suggested = splitName(fromName ?? null);
   const [mode, setMode] = useState<"idle" | "existing" | "new">("idle");
-  const [contactId, setContactId] = useState(contacts[0]?.id ?? "");
+  const [contactId, setContactId] = useState("");
   const [firstName, setFirstName] = useState(suggested.firstName);
   const [lastName, setLastName] = useState(suggested.lastName);
   const [phone, setPhone] = useState("");
@@ -124,7 +122,6 @@ export function InboxMessageActions({
   if (mode === "existing") {
     return (
       <ExistingContactPicker
-        contacts={contacts}
         contactId={contactId}
         setContactId={setContactId}
         loading={loading}
@@ -227,11 +224,13 @@ export function InboxMessageActions({
       <button onClick={() => setMode("new")} disabled={loading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
         Nouveau prospect
       </button>
-      {contacts.length > 0 && (
-        <button onClick={() => setMode("existing")} disabled={loading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
-          Rattacher
-        </button>
-      )}
+      {/* Le bouton était masqué tant qu'aucun contact n'était chargé. La
+          liste n'existe plus : c'est la recherche qui répond « aucun
+          résultat », ce qui est aussi clair et ne fait plus dépendre un
+          bouton d'un chargement préalable. */}
+      <button onClick={() => setMode("existing")} disabled={loading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
+        Rattacher
+      </button>
       <button onClick={() => send({ action: "discard" })} disabled={loading} className="text-[12px] text-rust hover:underline">
         Ignorer
       </button>
@@ -239,86 +238,77 @@ export function InboxMessageActions({
   );
 }
 
-// Typeahead combobox, same shape as SearchableDossierSelect.tsx: the input
-// doubles as the search box and the closed-state display, with matches in a
-// floating panel right under it instead of a separate field above a native
-// <select> — so the search lives inside the list itself, not above it.
+// Recherche serveur débouncée (/api/contacts/search), et non plus filtrage
+// d'une liste déjà chargée : la page de triage versait ses 4 000 contacts
+// dans le navigateur pour alimenter ce seul champ (audit S7, P1 n°5).
 function ExistingContactPicker({
-  contacts,
   contactId,
   setContactId,
   loading,
   onLink,
   onCancel,
 }: {
-  contacts: Contact[];
   contactId: string;
   setContactId: (id: string) => void;
   loading: boolean;
   onLink: () => void;
   onCancel: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const selected = contacts.find((c) => c.id === contactId);
-  const normalizedQuery = query.trim().toLowerCase();
-  const matches = normalizedQuery
-    ? contacts.filter((c) => `${c.firstName} ${c.lastName}`.toLowerCase().includes(normalizedQuery))
-    : contacts;
+  const [results, setResults] = useState<Contact[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<Contact | null>(null);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setQuery("");
-      }
+    if (query.trim().length < 2) {
+      setResults([]);
+      return;
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  function pick(c: Contact) {
-    setContactId(c.id);
-    setOpen(false);
-    setQuery("");
-  }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      const res = await fetch(`/api/contacts/search?q=${encodeURIComponent(query.trim())}`);
+      const data = await res.json().catch(() => []);
+      setSearching(false);
+      setResults(Array.isArray(data) ? data : []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   return (
     <div className="flex items-center gap-1.5">
-      <div ref={containerRef} className="relative w-44">
+      <div className="relative w-44">
         <input
           type="text"
           autoFocus
-          value={open ? query : (selected ? `${selected.firstName} ${selected.lastName}` : "")}
+          value={selected ? `${selected.firstName} ${selected.lastName}` : query}
           onChange={(e) => {
+            setSelected(null);
+            setContactId("");
             setQuery(e.target.value);
-            if (!open) setOpen(true);
-          }}
-          onFocus={() => {
-            setOpen(true);
-            setQuery("");
           }}
           placeholder="Rechercher un apprenant…"
           className="w-full border border-line rounded-md px-2 py-1 text-[12px] text-ink outline-none focus:border-seal"
         />
-        {open && (
+        {!selected && query.trim().length >= 2 && (
           <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-line rounded-md shadow-md py-1">
-            {matches.length === 0 ? (
+            {searching && <div className="px-2.5 py-1.5 text-[11.5px] text-slate">Recherche…</div>}
+            {!searching && results.length === 0 && (
               <div className="px-2.5 py-1.5 text-[11.5px] text-slate">Aucun résultat.</div>
-            ) : (
-              matches.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => pick(c)}
-                  className={`block w-full text-left px-2.5 py-1.5 text-[12px] hover:bg-linen ${c.id === contactId ? "text-ink font-medium bg-linen" : "text-ink"}`}
-                >
-                  {c.firstName} {c.lastName}
-                </button>
-              ))
             )}
+            {results.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setSelected(c);
+                  setContactId(c.id);
+                  setResults([]);
+                }}
+                className={`block w-full text-left px-2.5 py-1.5 text-[12px] hover:bg-linen ${c.id === contactId ? "text-ink font-medium bg-linen" : "text-ink"}`}
+              >
+                {c.firstName} {c.lastName} <span className="text-slate">{c.email}</span>
+              </button>
+            ))}
           </div>
         )}
       </div>

@@ -199,6 +199,39 @@ would just have been thirty clicks. Note `/dossiers` groups by learner and queri
 (which learners match, then their dossiers): the closure filter must be on **both** passes,
 or a learner retained by a closed file also shows their open ones.
 
+### Lists and pickers at 4 000 learners — two different fixes
+
+A screen that lists and a field that picks are both "too much data", but they are not the
+same problem and must not get the same answer.
+
+**A list gets paginated and searchable.** `SearchInput` (URL-driven `?q=`, debounced,
+clears `page`) + `Pagination` + a real `count()` next to the page. `/dossiers` is the
+reference; `/facturation` (both tabs), `/crm` (both views) and `/inbox` follow it. The
+count comes from `count()`, never from `rows.length` — a tab reading "À trier (30)" when
+there are 4 025 is worse than no number. Two traps met here: a status filter and a search
+that both need `OR` must be combined with `AND: [...]`, or the second silently replaces
+the first (see `InvoicesTab`); and a `contact: {…}` clause carrying both the archive
+filter and the search makes them a conjunction, so searching in the CRM would have
+required the *name* to match as well as the label.
+
+**A picker searches server-side and never preloads.** `/api/contacts/search` and
+`/api/dossiers/search` return ~10 rows for a query; `ContactSearchInput` and
+`DossierSearchSelect` consume them. Better still, scope the question: the "dossier lié"
+of an invoice belongs to the client already chosen, so `DossierSearchSelect` takes a
+`contactId` and lists that person's one-to-three files rather than searching 8 000.
+`/facturation` alone was sending 22 Mo per page view to fill such a menu.
+
+**`/documents` paginates by batch, not by document**, because a batch is the unit of both
+display and action ("relancer les 3 qui n'ont pas signé") and cutting one across two pages
+would show "3/6 signés" over four members. Two passes, like `/dossiers`: the seven scalar
+columns needed to group and situate *every* matching document, then the full rows for the
+current page's batches only. That is also what makes the four tab counts exact — they used
+to be computed over a silent `take: 600`.
+
+Measure before deciding, with `npx tsx prisma/seed-volume.ts` (4 000 learners, 8 000
+dossiers/invoices, 4 000 documents, 20 000 emails; `--purge` removes it, by relation from
+the marked contacts and not by marker, so rows the app created meanwhile go too).
+
 ### The BPF and the history import — where "close enough" is not allowed
 
 `src/lib/bpfReport.ts` computes a legally binding annual declaration (Cerfa n°10443) from

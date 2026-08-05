@@ -4,17 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
+import { DossierSearchSelect } from "@/components/DossierSearchSelect";
 import { Field, DialogShell } from "@/components/DialogShell";
 import { Button } from "@/components/ui";
-
-type Dossier = { id: string; label: string };
 
 // Retour client : « quand je clique sur nouveau devis, il faut que cela
 // fasse une nouvelle boîte de dialogue dans laquelle je peux éditer et
 // modifier ». Le formulaire s'ouvrait en place dans la page, avec ses trois
 // champs répartis dans une grille à deux colonnes — d'où le décalage
 // visible et le débordement de la liste des dossiers.
-export function NewQuoteForm({ dossiers }: { dossiers: Dossier[] }) {
+export function NewQuoteForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<ContactHit | null>(null);
@@ -106,22 +105,14 @@ export function NewQuoteForm({ dossiers }: { dossiers: Dossier[] }) {
           )}
         </Field>
 
+        {/* Les dossiers proposés sont ceux DU CLIENT choisi, chargés à la
+            demande — voir DossierSearchSelect. */}
         <Field label="Dossier de formation" hint="facultatif">
-          {/* min-w-0 : sans ça un <select> se dimensionne sur son option la
-              plus longue (« Prénom Nom — Intitulé de la formation ») et
-              déborde de la boîte au lieu de s'y adapter. */}
-          <select
-            value={dossierId}
-            onChange={(e) => setDossierId(e.target.value)}
-            className="w-full min-w-0 border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal"
-          >
-            <option value="">Sans dossier lié</option>
-            {dossiers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+          {selectedContact ? (
+            <DossierSearchSelect contactId={selectedContact.id} value={dossierId} onChange={setDossierId} />
+          ) : (
+            <div className="text-[12px] text-slate py-1.5">Choisissez d&apos;abord le client.</div>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-2.5">

@@ -8,6 +8,8 @@ import { NewQuoteForm } from "@/components/NewQuoteForm";
 import { NewInvoiceForm } from "@/components/NewInvoiceForm";
 import { DocStatusSelect, statusLabels, DOC_STATUS_TONE } from "@/components/DocStatusSelect";
 import { DocFilterBar } from "@/components/DocFilterBar";
+import { SearchInput } from "@/components/SearchInput";
+import { Pagination } from "@/components/Pagination";
 import { RecordPaymentForm } from "@/components/RecordPaymentForm";
 import { CreatePaymentLinkButton } from "@/components/CreatePaymentLinkButton";
 import { BankStatementImportDialog } from "@/components/BankStatementImportDialog";
@@ -51,9 +53,14 @@ function parseDateParam(value: string | undefined, endOfDay: boolean): Date | un
   return isNaN(date.getTime()) ? undefined : date;
 }
 
+// Trente lignes par page, comme /dossiers. Le nombre importe moins que le
+// fait qu'il y en ait un : l'écran chargeait les 8 000 factures de
+// l'organisme d'un coup — 22 Mo et treize secondes (audit S7, P1 n°5).
+const PAGE_SIZE = 30;
+
 export default async function FacturationPage(
   props: {
-    searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string; ref?: string }>;
+    searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string; ref?: string; q?: string; page?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -70,6 +77,11 @@ export default async function FacturationPage(
   const orderBy = buildOrderBy(searchParams.sort);
   const dateFrom = parseDateParam(searchParams.from, false);
   const dateTo = parseDateParam(searchParams.to, true);
+  // La recherche libre, elle, part du nom du client ou de l'objet — le
+  // filtre `ref` ci-dessus vient de la recherche globale et vise une
+  // référence précise, ce n'est pas la même intention.
+  const q = searchParams.q?.trim() || undefined;
+  const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
 
   // Le compteur de l'onglet « Prises en charge » : les mêmes deux conditions
   // que commitmentAlert dans lib/funding.ts, mais en base plutôt qu'en
@@ -81,13 +93,11 @@ export default async function FacturationPage(
   const expiryThreshold = new Date(now.getTime() + AGREEMENT_EXPIRY_WARNING_DAYS * 86_400_000);
 
   // Plus de fetch de tous les contacts : le client d'un devis/d'une facture
-  // se choisit par recherche serveur dans les formulaires (audit P1).
-  const [dossiers, pendingBankCount, fundingAlertCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
-    prisma.dossier.findMany({
-      where: { organizationId },
-      include: { contact: true, session: { include: { course: true } } },
-      orderBy: { createdAt: "desc" },
-    }),
+  // se choisit par recherche serveur dans les formulaires (audit P1). Plus
+  // de fetch de tous les dossiers non plus : le dossier lié se cherche
+  // maintenant parmi ceux du client choisi (audit S7, P1 n°6) — c'était à
+  // lui seul l'essentiel des 22 Mo de cette page.
+  const [pendingBankCount, fundingAlertCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
     prisma.bankTransaction.count({ where: { organizationId, status: "pending" } }),
     prisma.fundingCommitment.count({
       where: {
@@ -114,10 +124,6 @@ export default async function FacturationPage(
     }),
     prisma.invoice.aggregate({ where: { organizationId, status: "PAID" }, _sum: { amountCents: true } }),
   ]);
-  const dossierOptions = dossiers.map((d) => ({
-    id: d.id,
-    label: `${d.contact.firstName} ${d.contact.lastName} — ${d.session.course.title}`,
-  }));
   const tabs = [
     { key: "devis", label: "Devis" },
     { key: "factures", label: "Factures" },
@@ -202,7 +208,10 @@ export default async function FacturationPage(
           ) : null
         ) : (
           <>
-            <DocFilterBar />
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <SearchInput placeholder={activeTab === "factures" ? "Rechercher une facture (client, référence, objet)…" : "Rechercher un devis (client, référence, objet)…"} />
+              <DocFilterBar />
+            </div>
             {refFilter && (
               // Sans ce bandeau, on arrive de la recherche sur une liste à une
               // ligne sans savoir pourquoi les autres ont disparu.
@@ -216,9 +225,9 @@ export default async function FacturationPage(
               </div>
             )}
             {activeTab === "factures" ? (
-              <InvoicesTab organizationId={organizationId} canWrite={canWrite} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
+              <InvoicesTab organizationId={organizationId} canWrite={canWrite} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} q={q} page={page} searchParams={searchParams} />
             ) : (
-              <QuotesTab organizationId={organizationId} canWrite={canWrite} dossierOptions={dossierOptions} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} />
+              <QuotesTab organizationId={organizationId} canWrite={canWrite} statusFilter={statusFilter} orderBy={orderBy} dateFrom={dateFrom} dateTo={dateTo} refFilter={refFilter} q={q} page={page} searchParams={searchParams} />
             )}
           </>
         )}
@@ -367,39 +376,78 @@ async function BankValidationTab({ organizationId }: { organizationId: string })
   );
 }
 
+/**
+ * La recherche libre d'un devis ou d'une facture.
+ *
+ * Trois entrées possibles, parce que ce sont les trois façons dont on
+ * retrouve un document de facturation : par le nom du client, par la
+ * référence qu'on a sous les yeux, ou par l'objet de la prestation.
+ *
+ * Volontairement non annoté d'un type Prisma : devis et factures ont les
+ * mêmes champs ici, et une clause écrite deux fois finit toujours par
+ * diverger sur l'un des deux écrans.
+ */
+function rechercheDocument(q: string | undefined) {
+  if (!q) return {};
+  const mode = "insensitive" as const;
+  return {
+    OR: [
+      { reference: { contains: q, mode } },
+      { description: { contains: q, mode } },
+      { contact: { firstName: { contains: q, mode } } },
+      { contact: { lastName: { contains: q, mode } } },
+    ],
+  };
+}
+
 async function QuotesTab({
   organizationId,
   canWrite,
-  dossierOptions,
   statusFilter,
   orderBy,
   dateFrom,
   dateTo,
   refFilter,
+  q,
+  page,
+  searchParams,
 }: {
   organizationId: string;
   canWrite: boolean;
-  dossierOptions: { id: string; label: string }[];
   statusFilter?: DocStatus;
   orderBy: Prisma.QuoteOrderByWithRelationInput;
   dateFrom?: Date;
   dateTo?: Date;
   refFilter?: string;
+  q?: string;
+  page: number;
+  searchParams: Record<string, string | undefined>;
 }) {
-  const quotes = await prisma.quote.findMany({
-    where: {
-      organizationId,
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
-      ...(refFilter ? { reference: { contains: refFilter, mode: "insensitive" } } : {}),
-    },
-    include: { contact: true },
-    orderBy,
-  });
+  const where: Prisma.QuoteWhereInput = {
+    organizationId,
+    ...(statusFilter ? { status: statusFilter } : {}),
+    ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
+    ...(refFilter ? { reference: { contains: refFilter, mode: "insensitive" } } : {}),
+    ...rechercheDocument(q),
+  };
+  const [quotes, total] = await Promise.all([
+    prisma.quote.findMany({
+      where,
+      include: { contact: true },
+      orderBy,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+    prisma.quote.count({ where }),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="flex flex-col gap-4">
-      {canWrite && <NewQuoteForm dossiers={dossierOptions} />}
+      <div className="flex items-center justify-between gap-3">
+        {canWrite ? <NewQuoteForm /> : <span />}
+        <div className="text-[12px] text-slate">{total} devis</div>
+      </div>
       <div className="flex flex-col gap-2">
         {quotes.map((q) => (
           <div key={q.id} className="bg-white border border-line rounded-card px-5 py-3.5">
@@ -428,17 +476,21 @@ async function QuotesTab({
             )}
           </div>
         ))}
-        {quotes.length === 0 && (
-          <EmptyState
-            title="Aucun devis enregistré"
-            description={
-              canWrite
-                ? "Un devis envoyé ici met automatiquement à jour l'étape du prospect dans le CRM — créez le premier avec le formulaire ci-dessus."
-                : "Aucun devis n'a encore été créé."
-            }
-          />
-        )}
+        {quotes.length === 0 &&
+          (q ? (
+            <div className="text-[12.5px] text-slate">Aucun devis ne correspond à cette recherche.</div>
+          ) : (
+            <EmptyState
+              title="Aucun devis enregistré"
+              description={
+                canWrite
+                  ? "Un devis envoyé ici met automatiquement à jour l'étape du prospect dans le CRM — créez le premier avec le formulaire ci-dessus."
+                  : "Aucun devis n'a encore été créé."
+              }
+            />
+          ))}
       </div>
+      <Pagination basePath="/facturation" searchParams={searchParams} page={page} totalPages={totalPages} />
     </div>
   );
 }
@@ -446,50 +498,70 @@ async function QuotesTab({
 async function InvoicesTab({
   organizationId,
   canWrite,
-  dossierOptions,
   statusFilter,
   orderBy,
   dateFrom,
   dateTo,
   refFilter,
+  q,
+  page,
+  searchParams,
 }: {
   organizationId: string;
   canWrite: boolean;
-  dossierOptions: { id: string; label: string }[];
   statusFilter?: DocStatus;
   orderBy: Prisma.InvoiceOrderByWithRelationInput;
   dateFrom?: Date;
   dateTo?: Date;
   refFilter?: string;
+  q?: string;
+  page: number;
+  searchParams: Record<string, string | undefined>;
 }) {
-  const [invoices, stripeConfigured] = await Promise.all([
+  // Le filtre « en retard » et la recherche libre posent tous deux un OR :
+  // les juxtaposer à la racine ferait que l'un écrase l'autre en silence.
+  // AND les garde indépendants — « en retard » ET « qui parle de Dupont ».
+  const conditions: Prisma.InvoiceWhereInput[] = [];
+  // "En retard" (from DocFilterBar or the dashboard's "Factures en retard"
+  // card) means the same auto-detected set as dashboardTasks.ts and the
+  // dashboard total, not a strict status match — otherwise an invoice
+  // overdue by dueDate but still status SENT would show in the dashboard
+  // count but vanish from this filtered list.
+  if (statusFilter === "OVERDUE") {
+    conditions.push({ status: { notIn: ["PAID", "DRAFT"] }, OR: [{ status: "OVERDUE" }, { dueDate: { lt: new Date() } }] });
+  } else if (statusFilter) {
+    conditions.push({ status: statusFilter });
+  }
+  if (q) conditions.push(rechercheDocument(q));
+
+  const where: Prisma.InvoiceWhereInput = {
+    organizationId,
+    ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
+    ...(refFilter ? { reference: { contains: refFilter, mode: "insensitive" } } : {}),
+    ...(conditions.length > 0 ? { AND: conditions } : {}),
+  };
+  const [invoices, total, stripeConfigured] = await Promise.all([
     prisma.invoice.findMany({
-      where: {
-        organizationId,
-        ...(dateFrom || dateTo ? { createdAt: { gte: dateFrom, lte: dateTo } } : {}),
-        ...(refFilter ? { reference: { contains: refFilter, mode: "insensitive" } } : {}),
-        // "En retard" (from DocFilterBar or the dashboard's "Factures en
-        // retard" card) means the same auto-detected set as
-        // dashboardTasks.ts and the dashboard total, not a strict status
-        // match — otherwise an invoice overdue by dueDate but still
-        // status SENT would show in the dashboard count but vanish from
-        // this filtered list.
-        ...(statusFilter === "OVERDUE"
-          ? { status: { notIn: ["PAID", "DRAFT"] }, OR: [{ status: "OVERDUE" }, { dueDate: { lt: new Date() } }] }
-          : statusFilter
-            ? { status: statusFilter }
-            : {}),
-      },
+      where,
       include: { contact: true, payments: true },
       orderBy,
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    prisma.invoice.count({ where }),
     isStripeConfigured(organizationId),
   ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const now = new Date();
 
   return (
     <div className="flex flex-col gap-4">
-      {canWrite && <NewInvoiceForm dossiers={dossierOptions} />}
+      <div className="flex items-center justify-between gap-3">
+        {canWrite ? <NewInvoiceForm /> : <span />}
+        <div className="text-[12px] text-slate">
+          {total} facture{total > 1 ? "s" : ""}
+        </div>
+      </div>
       <div className="flex flex-col gap-2">
         {invoices.map((inv) => {
           const totalPaidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
@@ -543,17 +615,21 @@ async function InvoicesTab({
             </div>
           );
         })}
-        {invoices.length === 0 && (
-          <EmptyState
-            title="Aucune facture enregistrée"
-            description={
-              canWrite
-                ? "Une facture réglée se rapproche automatiquement de votre relevé bancaire si vous l'avez connecté — créez la première avec le formulaire ci-dessus."
-                : "Aucune facture n'a encore été créée."
-            }
-          />
-        )}
+        {invoices.length === 0 &&
+          (q ? (
+            <div className="text-[12.5px] text-slate">Aucune facture ne correspond à cette recherche.</div>
+          ) : (
+            <EmptyState
+              title="Aucune facture enregistrée"
+              description={
+                canWrite
+                  ? "Une facture réglée se rapproche automatiquement de votre relevé bancaire si vous l'avez connecté — créez la première avec le formulaire ci-dessus."
+                  : "Aucune facture n'a encore été créée."
+              }
+            />
+          ))}
       </div>
+      <Pagination basePath="/facturation" searchParams={searchParams} page={page} totalPages={totalPages} />
     </div>
   );
 }

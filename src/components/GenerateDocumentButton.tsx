@@ -3,14 +3,23 @@
 import { useState } from "react";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
 import { SearchableDossierSelect } from "@/components/SearchableDossierSelect";
+import { DossierSearchSelect } from "@/components/DossierSearchSelect";
 import { Button } from "@/components/ui";
 
 type Dossier = { id: string; label: string };
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
 
-export function GenerateDocumentButton({ templateId, dossiers }: { templateId: string; dossiers: Dossier[] }) {
+/**
+ * `dossiers` est fourni quand l'écran connaît DÉJÀ la petite liste qui a du
+ * sens à cet endroit — la fiche d'une formation propose ses propres inscrits,
+ * et filtrer côté navigateur suffit. Il est omis là où la liste pertinente
+ * est celle de tout l'organisme : la bibliothèque de modèles chargeait alors
+ * les 8 000 dossiers pour remplir un menu (audit S7, P1 n°6), et bascule
+ * maintenant sur une recherche serveur.
+ */
+export function GenerateDocumentButton({ templateId, dossiers }: { templateId: string; dossiers?: Dossier[] }) {
   const [open, setOpen] = useState(false);
-  const [dossierId, setDossierId] = useState(dossiers[0]?.id ?? "");
+  const [dossierId, setDossierId] = useState(dossiers?.[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ id: string; title: string; missingFields: { key: string; label: string; fixHref: string }[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +66,10 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
     submit(answers);
   }
 
-  if (dossiers.length === 0) return null;
+  // Liste pré-calculée et vide : il n'y a personne pour qui générer, le
+  // bouton n'a rien à proposer. En recherche serveur, on ne peut pas le
+  // savoir sans requête — le bouton reste donc affiché.
+  if (dossiers && dossiers.length === 0) return null;
 
   if (!open) {
     return (
@@ -77,7 +89,11 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
     <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1.5">
         <div className="w-56">
-          <SearchableDossierSelect dossiers={dossiers} value={dossierId} onChange={setDossierId} />
+          {dossiers ? (
+            <SearchableDossierSelect dossiers={dossiers} value={dossierId} onChange={setDossierId} />
+          ) : (
+            <DossierSearchSelect value={dossierId} onChange={setDossierId} />
+          )}
         </div>
         <button onClick={handleGenerate} disabled={loading || !dossierId} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60 shrink-0">
           {loading ? "…" : "Générer"}

@@ -57,14 +57,12 @@ function groupByThread(messages: Message[]): Message[][] {
 
 export function InboxTriageSplitView({
   messages,
-  contacts,
   members,
   courses,
   canWrite,
   signatureHtml,
 }: {
   messages: Message[];
-  contacts: Contact[];
   members: Member[];
   courses: CourseOption[];
   canWrite: boolean;
@@ -129,18 +127,21 @@ export function InboxTriageSplitView({
 
             <div className="flex items-center gap-3 flex-wrap border-b border-line pb-3.5">
               {canWrite && (
+                // Cette liste EST celle des messages non rattachés
+                // (contactId nul, voir /inbox) : chercher le prénom dans le
+                // carnet d'adresses ne pouvait donc jamais aboutir. On
+                // chargeait 4 000 contacts pour rendre systématiquement null.
                 <InboxReplyDialog
                   messageId={selected.id}
                   fromName={selected.fromName}
-                  contactFirstName={contacts.find((c) => c.id === selected.contactId)?.firstName ?? null}
-                  hasContact={Boolean(selected.contactId)}
+                  contactFirstName={null}
+                  hasContact={false}
                   signatureHtml={signatureHtml}
                 />
               )}
               {canWrite && (
                 <InboxMessageActions
                   messageId={selected.id}
-                  contacts={contacts}
                   fromName={selected.fromName}
                   subject={selected.subject}
                   courses={courses}

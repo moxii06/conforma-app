@@ -11,6 +11,7 @@ import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { MailboxActions } from "@/components/MailboxActions";
 import { MailboxFilterSelect } from "@/components/MailboxFilterSelect";
 import { RgpdSuggestionActions } from "@/components/RgpdSuggestionActions";
+import { Pagination } from "@/components/Pagination";
 import { Role } from "@prisma/client";
 
 const RGPD_REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -20,7 +21,17 @@ const RGPD_REQUEST_TYPE_LABELS: Record<string, string> = {
   rectification: "Rectification",
 };
 
-export default async function InboxPage(props: { searchParams: Promise<{ mailbox?: string; tab?: string }> }) {
+// Trente messages par page. Le triage se fait de toute façon un message à
+// la fois : ce qui manquait, c'était de ne plus tous les charger — 20 000
+// emails en base, 5,7 Mo envoyés au navigateur (audit S7, P1 n°5).
+const PAGE_SIZE = 30;
+// La liste RGPD est repliée et se traite à l'unité. On en montre les vingt
+// plus récentes ET on affiche le total réel juste à côté : la demande la
+// plus ancienne est celle dont le délai d'un mois expire en premier, elle
+// ne doit pas disparaître sans qu'on le dise.
+const RGPD_APERCU = 20;
+
+export default async function InboxPage(props: { searchParams: Promise<{ mailbox?: string; tab?: string; page?: string }> }) {
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "inbox") === "none") redirect("/dashboard");
@@ -32,13 +43,14 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   // désormais, plutôt que sur un onglet vide.
   const activeTab = searchParams.tab === "rattachements" ? "rattachements" : "a-trier";
 
-  const [connections, contacts, members, sender, courses] = await Promise.all([
+  const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
+
+  // Plus de chargement de tous les contacts : « rattacher à un contact
+  // existant » passe par la recherche serveur (ContactSearchInput), comme
+  // partout ailleurs. À 4 000 apprenants, cette seule requête versait toute
+  // la base dans la page de triage.
+  const [connections, members, sender, courses] = await Promise.all([
     prisma.mailboxConnection.findMany({ where: { organizationId }, orderBy: { connectedAt: "asc" } }),
-    prisma.contact.findMany({
-      where: { organizationId },
-      select: { id: true, firstName: true, lastName: true, email: true },
-      orderBy: { lastName: "asc" },
-    }),
     prisma.user.findMany({
       where: { organizationId, status: "active", role: { not: Role.LEARNER } },
       select: { id: true, name: true },
@@ -58,46 +70,65 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   const mailboxFilter =
     searchParams.mailbox && connections.some((c) => c.id === searchParams.mailbox) ? searchParams.mailbox : undefined;
 
-  const [unsorted, suggested, rgpdSuggested] = await Promise.all([
+  const unsortedWhere = {
+    organizationId,
+    contactId: null,
+    ignoredAt: null,
+    // A reply sent from this screen before the message is linked to a
+    // contact (see InboxReplyDialog) creates its own "out" EmailMessage
+    // row with the same null contactId — without this it would show up
+    // here needing triage (Nouveau prospect/Rattacher/Ignorer) on
+    // staff's own sent message.
+    direction: { not: "out" },
+    ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
+  };
+  const suggestedWhere = {
+    organizationId,
+    contactId: { not: null },
+    suggestedDossierId: { not: null },
+    ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
+  };
+  const rgpdWhere = { organizationId, rgpdSuggestedType: { not: null } };
+
+  // Les compteurs d'onglets viennent d'un `count`, plus de la longueur de la
+  // liste chargée : depuis qu'elle est paginée, « À trier (30) » aurait été
+  // faux à chaque fois qu'il y en a plus de trente.
+  const [unsorted, unsortedCount, suggested, suggestedCount, rgpdSuggested, rgpdCount] = await Promise.all([
     prisma.emailMessage.findMany({
-      where: {
-        organizationId,
-        contactId: null,
-        ignoredAt: null,
-        // A reply sent from this screen before the message is linked to a
-        // contact (see InboxReplyDialog) creates its own "out" EmailMessage
-        // row with the same null contactId — without this it would show up
-        // here needing triage (Nouveau prospect/Rattacher/Ignorer) on
-        // staff's own sent message.
-        direction: { not: "out" },
-        ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
-      },
+      where: unsortedWhere,
       include: { attachments: { orderBy: { createdAt: "asc" } } },
       orderBy: { receivedAt: "desc" },
+      skip: activeTab === "a-trier" ? (page - 1) * PAGE_SIZE : 0,
+      take: PAGE_SIZE,
     }),
+    prisma.emailMessage.count({ where: unsortedWhere }),
     prisma.emailMessage.findMany({
-      where: {
-        organizationId,
-        contactId: { not: null },
-        suggestedDossierId: { not: null },
-        ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
-      },
+      where: suggestedWhere,
       include: { contact: true },
       orderBy: { receivedAt: "desc" },
+      skip: activeTab === "rattachements" ? (page - 1) * PAGE_SIZE : 0,
+      take: PAGE_SIZE,
     }),
+    prisma.emailMessage.count({ where: suggestedWhere }),
     canHandleRgpd
       ? prisma.emailMessage.findMany({
-          where: { organizationId, rgpdSuggestedType: { not: null } },
+          where: rgpdWhere,
           include: { contact: true },
           orderBy: { receivedAt: "desc" },
+          take: RGPD_APERCU,
         })
       : Promise.resolve([]),
+    canHandleRgpd ? prisma.emailMessage.count({ where: rgpdWhere }) : Promise.resolve(0),
   ]);
 
   const tabs = [
-    { key: "a-trier", label: `À trier (${unsorted.length})` },
-    { key: "rattachements", label: `Rattachements (${suggested.length})` },
+    { key: "a-trier", label: `À trier (${unsortedCount})` },
+    { key: "rattachements", label: `Rattachements (${suggestedCount})` },
   ];
+  const totalPages = Math.max(
+    1,
+    Math.ceil((activeTab === "rattachements" ? suggestedCount : unsortedCount) / PAGE_SIZE)
+  );
 
   // Sans boîte connectée ET sans le moindre email, l'écran de triage est une
   // pièce vide : trois onglets à zéro, un filtre par boîte qui n'a rien à
@@ -105,7 +136,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   // ci-dessous » qu'un organisme réel n'a jamais eus. On explique plutôt ce
   // que la connexion apporte, une fois. Le jeu de démo, lui, a des emails
   // sans connexion : il continue de montrer le triage, ce qui est le but.
-  if (connections.length === 0 && unsorted.length + suggested.length + rgpdSuggested.length === 0) {
+  if (connections.length === 0 && unsortedCount + suggestedCount + rgpdCount === 0) {
     const peutConnecter = can(role, "integrations") === "full";
     return (
       <>
@@ -223,12 +254,20 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
               <details className="bg-white border border-rust/30 rounded-card px-4 py-3">
                 <summary className="cursor-pointer text-[12.5px] text-ink marker:text-rust">
                   <span className="font-medium">
-                    {rgpdSuggested.length} demande{rgpdSuggested.length > 1 ? "s" : ""} RGPD possible
-                    {rgpdSuggested.length > 1 ? "s" : ""}
+                    {rgpdCount} demande{rgpdCount > 1 ? "s" : ""} RGPD possible
+                    {rgpdCount > 1 ? "s" : ""}
                   </span>
-                  <span className="text-slate"> — détectée{rgpdSuggested.length > 1 ? "s" : ""} à la synchronisation, à vérifier (délai légal : 1 mois à compter de la réception)</span>
+                  <span className="text-slate"> — détectée{rgpdCount > 1 ? "s" : ""} à la synchronisation, à vérifier (délai légal : 1 mois à compter de la réception)</span>
                 </summary>
                 <div className="mt-2 border-t border-line">
+                  {/* Dire ce qu'on ne montre pas : une liste tronquée en
+                      silence sur un sujet à délai légal serait pire que pas
+                      de liste du tout. */}
+                  {rgpdCount > rgpdSuggested.length && (
+                    <div className="py-2 text-[11.5px] text-slate">
+                      Les {rgpdSuggested.length} plus récentes sont affichées ci-dessous, sur {rgpdCount} au total.
+                    </div>
+                  )}
                   {rgpdSuggested.map((m) => (
                     <div key={m.id} className="py-3 border-t border-line first:border-t-0">
                       <div className="flex items-center justify-between gap-3">
@@ -253,7 +292,6 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
             {unsorted.length > 0 ? (
               <InboxTriageSplitView
                 messages={unsorted}
-                contacts={contacts}
                 members={members}
                 courses={courses}
                 canWrite={canWrite}
@@ -264,6 +302,12 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
             )}
           </>
         )}
+        <Pagination
+          basePath="/inbox"
+          searchParams={{ tab: searchParams.tab, mailbox: searchParams.mailbox, page: searchParams.page }}
+          page={page}
+          totalPages={totalPages}
+        />
       </div>
     </>
   );

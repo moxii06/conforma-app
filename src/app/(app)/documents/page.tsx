@@ -8,6 +8,7 @@ import { Tabs } from "@/components/Tabs";
 import { SearchInput } from "@/components/SearchInput";
 import { DocumentCategoryFilter } from "@/components/DocumentCategoryFilter";
 import { DocumentGroupList, type Group } from "@/components/DocumentGroupList";
+import { Pagination } from "@/components/Pagination";
 import { scopeOfCategory, scopeLabel } from "@/lib/documentScope";
 import {
   DOCUMENT_BUCKETS,
@@ -32,8 +33,13 @@ const VIDE: Record<DocumentBucket, string> = {
   signed: "Aucun document signé pour le moment. Les signatures Yousign arrivent ici automatiquement ; un document signé sur papier s'y ajoute via « Marquer signé ».",
 };
 
+// Vingt-cinq LOTS par page, pas vingt-cinq documents : c'est le lot qui est
+// l'unité d'action ici (« relancer les 3 qui n'ont pas signé »), et une
+// pagination par document couperait un lot en deux pages.
+const PAGE_SIZE = 25;
+
 export default async function DocumentsPage(props: {
-  searchParams: Promise<{ tab?: string; q?: string; category?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; category?: string; page?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
@@ -67,34 +73,71 @@ export default async function DocumentsPage(props: {
       : {}),
   };
 
-  // Chargé en une fois plutôt qu'en quatre requêtes paginées : le
-  // regroupement par lot doit voir TOUS les membres d'un lot pour dire
-  // « 5/8 signés », et un lot coupé par une pagination mentirait. Le
-  // volume reste celui d'un petit organisme ; si un jour il ne l'est plus,
-  // c'est la pagination qui devra se faire par lot, pas par document.
-  const rows = await prisma.document.findMany({
+  // Deux passes, comme /dossiers — et pour la même raison : l'unité
+  // affichée (le lot) n'est pas l'unité stockée (le document).
+  //
+  // La version précédente prenait les 600 documents les plus récents, sans
+  // le dire. Les conséquences dépassaient la liste : les compteurs
+  // d'onglets étaient calculés sur ces 600, donc « Mes documents envoyés
+  // (150) » était faux dès qu'un organisme dépassait ce seuil, et un
+  // document plus ancien devenait introuvable autrement que par la
+  // recherche.
+  //
+  // Première passe : les sept champs qui suffisent à regrouper et à situer
+  // chaque document, sur la TOTALITÉ de ce qui correspond au filtre. Sept
+  // colonnes scalaires se lisent vite, même à plusieurs milliers de lignes,
+  // et c'est ce qui permet des compteurs exacts.
+  const situation = await prisma.document.findMany({
     where,
-    select: {
-      id: true,
-      title: true,
-      category: true,
-      createdAt: true,
-      status: true,
-      batchId: true,
-      // Le modèle d'origine : c'est lui qui permet de rouvrir un brouillon
-      // dans l'écran de création plutôt que dans la visionneuse PDF.
-      templateOrigin: true,
-      sentByUserId: true,
-      signatureStatus: true,
-      signedAt: true,
-      bodyText: true,
-      dossier: { select: { contact: { select: { firstName: true, lastName: true } }, session: { select: { course: { select: { title: true } } } } } },
-      contact: { select: { firstName: true, lastName: true } },
-      subcontractor: { select: { name: true } },
-    },
+    select: { id: true, batchId: true, createdAt: true, status: true, sentByUserId: true, signatureStatus: true, signedAt: true },
     orderBy: { createdAt: "desc" },
-    take: 600,
   });
+
+  // On regroupe, on situe, on compte — puis on ne va chercher le détail que
+  // des lots de la page demandée.
+  const groupesLegers = groupDocuments(
+    situation.map((d) => ({ ...d, title: "", recipientName: null }))
+  );
+  const counts = DOCUMENT_BUCKETS.reduce<Record<string, number>>((acc, b) => {
+    acc[b.key] = groupesLegers.filter((g) => g.bucket === b.key).length;
+    return acc;
+  }, {});
+  const groupesOnglet = groupesLegers.filter((g) => g.bucket === activeTab);
+  const totalPages = Math.max(1, Math.ceil(groupesOnglet.length / PAGE_SIZE));
+  const page = Math.min(Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1), totalPages);
+  const clesPage = groupesOnglet.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((g) => g.key);
+  const idsPage = groupesLegers.filter((g) => clesPage.includes(g.key)).flatMap((g) => g.members.map((m) => m.id));
+
+  // Seconde passe : le détail, pour ces documents-là seulement.
+  const rows = idsPage.length
+    ? await prisma.document.findMany({
+        where: { id: { in: idsPage } },
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          createdAt: true,
+          status: true,
+          batchId: true,
+          // Le modèle d'origine : c'est lui qui permet de rouvrir un brouillon
+          // dans l'écran de création plutôt que dans la visionneuse PDF.
+          templateOrigin: true,
+          sentByUserId: true,
+          signatureStatus: true,
+          signedAt: true,
+          // fileUrl et non bodyText : le schéma garantit que l'un des deux
+          // est toujours posé, et un document généré porte le texte entier
+          // du contrat. On chargeait donc des mégaoctets de clauses pour
+          // tester une seule chose — le document a-t-il un fichier, ou
+          // faut-il le rendre depuis son texte.
+          fileUrl: true,
+          dossier: { select: { contact: { select: { firstName: true, lastName: true } }, session: { select: { course: { select: { title: true } } } } } },
+          contact: { select: { firstName: true, lastName: true } },
+          subcontractor: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   const canMarkSigned = can(role, "dossiers") !== "none";
   // La signature électronique n'est proposée que si elle est réellement
@@ -121,14 +164,13 @@ export default async function DocumentsPage(props: {
     row: r,
   })) as (BatchMember & { row: Ligne })[];
 
-  const groupes = groupDocuments(members);
-  const counts = DOCUMENT_BUCKETS.reduce<Record<string, number>>((acc, b) => {
-    acc[b.key] = groupes.filter((g) => g.bucket === b.key).length;
-    return acc;
-  }, {});
-
-  const affichés: Group[] = groupes
-    .filter((g) => g.bucket === activeTab)
+  // Les lots de la page, dans l'ordre décidé par la première passe : c'est
+  // elle qui a vu l'ensemble et qui sait donc quel lot vient avant quel
+  // autre.
+  const parCle = new Map(groupDocuments(members).map((g) => [g.key, g]));
+  const affichés: Group[] = clesPage
+    .map((cle) => parCle.get(cle))
+    .filter((g): g is NonNullable<typeof g> => Boolean(g))
     .map((g) => {
       const premier = (g.members[0] as BatchMember & { row: Ligne }).row;
       return {
@@ -195,15 +237,24 @@ export default async function DocumentsPage(props: {
         <div className="flex items-center gap-2.5 flex-wrap">
           <SearchInput placeholder="Rechercher un document ou un destinataire…" />
           <DocumentCategoryFilter />
+          <div className="text-[12px] text-slate">
+            {groupesOnglet.length} envoi{groupesOnglet.length > 1 ? "s" : ""}
+          </div>
         </div>
         <DocumentGroupList groups={affichés} emptyLabel={q || category ? "Aucun document ne correspond à cette recherche." : VIDE[activeTab]} />
+        <Pagination
+          basePath="/documents"
+          searchParams={{ tab: searchParams.tab, q, category, page: searchParams.page }}
+          page={page}
+          totalPages={totalPages}
+        />
       </div>
     </>
   );
 }
 
 /** Où mène un clic sur un document. */
-function hrefDe(m: BatchMember, r: { id: string; bodyText: string | null; templateOrigin: string | null }): string {
+function hrefDe(m: BatchMember, r: { id: string; fileUrl: string | null; templateOrigin: string | null }): string {
   // Le brouillon repart en édition. Sans modèle d'origine — cas qui ne
   // devrait pas exister, les brouillons étant tous créés par
   // /api/documents/draft — on retombe sur la consultation plutôt que de
@@ -211,7 +262,11 @@ function hrefDe(m: BatchMember, r: { id: string; bodyText: string | null; templa
   if (m.status === "draft" && r.templateOrigin) {
     return `/documents/nouveau/${r.templateOrigin}?doc=${r.id}`;
   }
-  return r.bodyText ? `/api/documents/generated/${r.id}` : `/api/documents/${r.id}/file`;
+  // Un document porte soit un fichier, soit son texte — jamais ni l'un ni
+  // l'autre (voir le commentaire de Document.fileUrl dans le schéma). Tester
+  // l'absence de fichier revient donc à tester la présence du texte, sans
+  // avoir à charger des pages de contrat pour le savoir.
+  return r.fileUrl ? `/api/documents/${r.id}/file` : `/api/documents/generated/${r.id}`;
 }
 
 type Row = {

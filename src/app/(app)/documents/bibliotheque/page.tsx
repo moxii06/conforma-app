@@ -13,7 +13,6 @@ import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
 import { Tabs } from "@/components/Tabs";
 import { SearchInput } from "@/components/SearchInput";
 import { DocumentCategoryFilter } from "@/components/DocumentCategoryFilter";
-import { Pagination } from "@/components/Pagination";
 import { AVAILABLE_MERGE_FIELDS } from "@/lib/mergeTemplate";
 import { parseConditions, collectQuestionKeys } from "@/lib/documentAssembly";
 import { QUESTION_BY_KEY } from "@/lib/documentQuestionnaire";
@@ -111,7 +110,11 @@ async function ContractSettingsTab({ organizationId }: { organizationId: string 
 }
 
 async function TemplatesTab({ organizationId, query }: { organizationId: string; query?: string }) {
-  const [globalTemplates, orgTemplates, dossiers, courses] = await Promise.all([
+  // Plus de chargement des dossiers ici : « Générer pour un dossier » les
+  // cherche à la frappe (voir GenerateDocumentButton / DossierSearchSelect).
+  // Cette page en chargeait 8 000 avec leurs contacts et leurs formations à
+  // chaque ouverture, pour remplir un menu qu'on n'ouvre presque jamais.
+  const [globalTemplates, orgTemplates, courses] = await Promise.all([
     prisma.documentTemplate.findMany({
       where: { organizationId: null },
       orderBy: [{ category: "asc" }, { title: "asc" }],
@@ -122,17 +125,8 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
       orderBy: [{ category: "asc" }, { title: "asc" }],
       include: { blocks: { orderBy: { order: "asc" } } },
     }),
-    prisma.dossier.findMany({
-      where: { organizationId },
-      include: { contact: true, session: { include: { course: true } } },
-      orderBy: { createdAt: "desc" },
-    }),
     prisma.course.findMany({ where: { organizationId, archivedAt: null }, orderBy: { title: "asc" } }),
   ]);
-  const dossierOptions = dossiers.map((d) => ({
-    id: d.id,
-    label: `${d.contact.firstName} ${d.contact.lastName} — ${d.session.course.title}`,
-  }));
 
   // Client feedback: "general" documents vs. a per-formation library — a
   // template scoped to a course (see DocumentTemplate.courseId) pulls that
@@ -209,7 +203,7 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
                 >
                   <TemplateRowSummary template={t} />
                   <div className="mt-2.5">
-                    <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
+                    <GenerateDocumentButton templateId={t.id} />
                   </div>
                 </TemplateRowDetails>
               );
@@ -241,7 +235,7 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
               >
                 <TemplateRowSummary template={t} />
                 <div className="mt-2.5">
-                  <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
+                  <GenerateDocumentButton templateId={t.id} />
                 </div>
               </TemplateRowDetails>
             ))}
@@ -286,7 +280,7 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
                 >
                   <TemplateRowSummary template={t} />
                   <div className="mt-2.5">
-                    <GenerateDocumentButton templateId={t.id} dossiers={dossierOptions} />
+                    <GenerateDocumentButton templateId={t.id} />
                   </div>
                 </TemplateRowDetails>
               ))}

@@ -74,7 +74,10 @@ async function purge(organizationId: string) {
     where: { organizationId, OR: [lien, { fromAddress: { endsWith: `@${DOMAINE}` } }] },
   });
   const recueils = await prisma.needsAssessmentRequest.deleteMany({ where: lien });
-  const documents = await prisma.document.deleteMany({ where: lien });
+  // Un document se rattache au dossier OU au contact : celui qui ne porte
+  // que dossierId échappait au lien et faisait échouer la suppression des
+  // dossiers en violation de clé étrangère.
+  const documents = await prisma.document.deleteMany({ where: { OR: [lien, { dossier: lien }] } });
   const factures = await prisma.invoice.deleteMany({ where: lien });
   const devis = await prisma.quote.deleteMany({ where: lien });
   const opportunites = await prisma.opportunity.deleteMany({ where: lien });
@@ -257,12 +260,70 @@ async function main() {
   }
   console.log();
 
+  console.log("Création des devis (1 pour 4 dossiers)…");
+  const devis = dossiersEnBase
+    .filter((_, i) => i % 4 === 0)
+    .map((d, i) => ({
+      organizationId: organization.id,
+      contactId: d.contactId,
+      dossierId: d.id,
+      reference: `${MARQUEUR}DEV-${String(i + 1).padStart(6, "0")}`,
+      description: "Proposition commerciale",
+      amountCents: 90_000 + (i % 30) * 5_000,
+      createdAt: d.createdAt,
+    }));
+  for (let debut = 0; debut < devis.length; debut += LOT) {
+    await prisma.quote.createMany({ data: devis.slice(debut, debut + LOT), skipDuplicates: true });
+  }
+  console.log(`  ${devis.length} devis.`);
+
+  // Les documents : c'est l'écran où le plafond silencieux se voyait (600
+  // lignes affichées sans le dire). Il en faut donc franchement plus que
+  // 600, avec du texte de la taille d'un vrai contrat — c'est le poids de
+  // `bodyText` qui rend la page lourde, pas le nombre de lignes.
+  console.log("Création des documents (1 par dossier, plafonné à 4000)…");
+  const CORPS = "Article 1 — Objet de la convention. ".repeat(120); // ~4 ko
+  const cibleDocs = Math.min(4000, dossiersEnBase.length);
+  for (let debut = 0; debut < cibleDocs; debut += LOT) {
+    const lot = dossiersEnBase.slice(debut, Math.min(debut + LOT, cibleDocs)).map((d, k) => {
+      const i = debut + k;
+      // Un document sur quatre est isolé ; les autres se regroupent par
+      // huit, comme un contrat généré pour toute une session. Les deux
+      // chemins de groupDocuments sont ainsi exercés.
+      const cleLot = Math.floor(i / 8);
+      const famille = cleLot % 4; // 0 brouillon · 1 finalisé · 2 envoyé · 3 signé
+      // Dans un lot « envoyé », une partie seulement a signé : c'est ce qui
+      // produit le « 5/8 signés » et maintient le lot dans « envoyés ».
+      const signe = famille === 3 || (famille === 2 && i % 8 < 5);
+      return {
+        organizationId: organization.id,
+        contactId: d.contactId,
+        dossierId: d.id,
+        title: `${MARQUEUR}Convention de formation ${i + 1}`,
+        bodyText: CORPS,
+        status: famille === 0 ? "draft" : "final",
+        batchId: i % 4 === 0 ? null : `${MARQUEUR}lot-${cleLot}`,
+        templateOrigin: famille === 0 ? "convention" : null,
+        category: pioche(["contract", "convocation", "attestation", "other"], i),
+        sentByUserId: famille >= 2 ? utilisateur.id : null,
+        signatureStatus: signe ? "signed" : famille >= 2 ? "pending" : "none",
+        signedAt: signe ? new Date(d.createdAt.getTime() + 15 * 86_400_000) : null,
+        createdAt: d.createdAt,
+      };
+    });
+    await prisma.document.createMany({ data: lot });
+    process.stdout.write(`\r  ${Math.min(debut + LOT, cibleDocs)}/${cibleDocs}`);
+  }
+  console.log();
+
   console.timeEnd("total");
   console.log("\nVolume en base :");
   for (const [nom, n] of [
     ["Contact", await prisma.contact.count({ where: { organizationId: organization.id } })],
     ["Dossier", await prisma.dossier.count({ where: { organizationId: organization.id } })],
     ["Invoice", await prisma.invoice.count({ where: { organizationId: organization.id } })],
+    ["Quote", await prisma.quote.count({ where: { organizationId: organization.id } })],
+    ["Document", await prisma.document.count({ where: { organizationId: organization.id } })],
     ["Opportunity", await prisma.opportunity.count({ where: { organizationId: organization.id } })],
     ["EmailMessage", await prisma.emailMessage.count({ where: { organizationId: organization.id } })],
   ] as const) {

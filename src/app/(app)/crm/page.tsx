@@ -9,6 +9,8 @@ import { OpportunityFilterBar } from "@/components/OpportunityFilterBar";
 import { ImportDataDialog } from "@/components/ImportDataDialog";
 import { ArchiveContactButton } from "@/components/ArchiveContactButton";
 import { OpportunityTable } from "@/components/OpportunityTable";
+import { SearchInput } from "@/components/SearchInput";
+import { Pagination } from "@/components/Pagination";
 import { FirstVisitBanner } from "@/components/FirstVisitBanner";
 import { isYousignConfigured } from "@/lib/yousign";
 import { STAGE_LABELS, STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
@@ -44,9 +46,14 @@ function buildOrderBy(sort?: string): Prisma.OpportunityOrderByWithRelationInput
   }
 }
 
+// Même pas que /dossiers et /facturation. L'écran chargeait la totalité du
+// pipeline — tenable à cinquante prospects, plus du tout à plusieurs
+// milliers (audit S7, P1 n°5).
+const PAGE_SIZE = 30;
+
 export default async function CrmPage(
   props: {
-    searchParams: Promise<{ view?: string; stage?: string; sort?: string }>;
+    searchParams: Promise<{ view?: string; stage?: string; sort?: string; q?: string; page?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -75,15 +82,35 @@ export default async function CrmPage(
   const view = searchParams.view === "archives" ? "archives" : "table";
   const stageFilter = searchParams.stage && searchParams.stage in PipelineStage ? (searchParams.stage as PipelineStage) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
+  const q = searchParams.q?.trim() || undefined;
+  const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
 
-  const [opportunities, contacts, courses, templates, pipelineTotals] = await Promise.all([
+  // `contact` porte SEULEMENT le filtre d'archive, et la recherche vit dans
+  // un OR séparé que Prisma combine en ET avec lui. Écrire les deux dans le
+  // même objet `contact` reviendrait à exiger que le nom corresponde ET que
+  // l'intitulé corresponde : chercher « Excel » ne trouverait plus rien.
+  const where: Prisma.OpportunityWhereInput = {
+    organizationId,
+    ...ownerFilter,
+    ...(view === "table" && stageFilter ? { stage: stageFilter } : {}),
+    contact: { archivedAt: view === "archives" ? { not: null } : null },
+    ...(q
+      ? {
+          OR: [
+            // L'intitulé de l'affaire compte autant que le nom : « formation
+            // Excel » s'écrit là, et pas dans la fiche du contact.
+            { label: { contains: q, mode: "insensitive" } },
+            { contact: { firstName: { contains: q, mode: "insensitive" } } },
+            { contact: { lastName: { contains: q, mode: "insensitive" } } },
+            { contact: { email: { contains: q, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [opportunities, total, contacts, courses, templates, pipelineTotals] = await Promise.all([
     prisma.opportunity.findMany({
-      where: {
-        organizationId,
-        ...ownerFilter,
-        ...(view === "table" && stageFilter ? { stage: stageFilter } : {}),
-        contact: { archivedAt: view === "archives" ? { not: null } : null },
-      },
+      where,
       include: {
         contact: {
           select: {
@@ -97,7 +124,10 @@ export default async function CrmPage(
         needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 },
       },
       orderBy: view === "archives" ? { contact: { archivedAt: "desc" } } : view === "table" ? orderBy : { createdAt: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
+    prisma.opportunity.count({ where }),
     // Le choix d'un contact existant passe désormais par la recherche
     // serveur (ContactSearchInput) — il ne reste à charger qu'UN contact,
     // juste pour savoir si l'onglet « Contact existant » a un sens.
@@ -126,6 +156,7 @@ export default async function CrmPage(
     }),
   ]);
   const eSignatureAvailable = canWrite ? await isYousignConfigured(organizationId) : false;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const stageSum = (stages: PipelineStage[]) =>
     pipelineTotals.filter((g) => stages.includes(g.stage)).reduce((sum, g) => sum + (g._sum.amountCents ?? 0), 0);
@@ -184,6 +215,16 @@ export default async function CrmPage(
           </div>
         )}
 
+        {/* La recherche vaut pour les deux vues : retrouver un client archivé
+            par son nom est exactement ce qu'on vient faire dans « Archives ». */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <SearchInput placeholder="Rechercher un prospect (nom, email, intitulé)…" />
+          <div className="text-[12px] text-slate">
+            {total} {view === "archives" ? "archivé" : "prospect"}
+            {total > 1 ? "s" : ""}
+          </div>
+        </div>
+
         {view === "archives" ? (
           <div className="bg-white border border-line rounded-card overflow-x-auto">
             <table className="w-full border-collapse text-[12.5px]">
@@ -225,7 +266,11 @@ export default async function CrmPage(
                 ))}
               </tbody>
             </table>
-            {opportunities.length === 0 && <div className="text-[12.5px] text-slate px-4 py-4">Aucun contact archivé.</div>}
+            {opportunities.length === 0 && (
+              <div className="text-[12.5px] text-slate px-4 py-4">
+                {q ? "Aucun contact archivé ne correspond à cette recherche." : "Aucun contact archivé."}
+              </div>
+            )}
           </div>
         ) : (
           <>
@@ -239,6 +284,12 @@ export default async function CrmPage(
             />
           </>
         )}
+        <Pagination
+          basePath="/crm"
+          searchParams={{ view: searchParams.view, stage: searchParams.stage, sort: searchParams.sort, q, page: searchParams.page }}
+          page={page}
+          totalPages={totalPages}
+        />
       </div>
     </>
   );

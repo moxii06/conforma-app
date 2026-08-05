@@ -4,11 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
+import { DossierSearchSelect } from "@/components/DossierSearchSelect";
 import { Field, DialogShell } from "@/components/DialogShell";
 import { FUNDING_ORIGIN_LABELS } from "@/lib/bpfCategories";
 import { Button } from "@/components/ui";
-
-type Dossier = { id: string; label: string };
 
 const FUNDING_LABELS = Object.fromEntries(
   Object.entries(FUNDING_ORIGIN_LABELS).filter(([key]) => key !== "unset")
@@ -27,7 +26,7 @@ function defaultDueDate(): string {
 // Même refonte que NewQuoteForm : boîte de dialogue éditable au lieu d'un
 // formulaire déplié dans la page, et champs étiquetés au lieu de simples
 // textes de substitution.
-export function NewInvoiceForm({ dossiers }: { dossiers: Dossier[] }) {
+export function NewInvoiceForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<ContactHit | null>(null);
@@ -128,17 +127,16 @@ export function NewInvoiceForm({ dossiers }: { dossiers: Dossier[] }) {
           )}
         </Field>
 
+        {/* Les dossiers proposés sont ceux DU CLIENT choisi, chargés à la
+            demande. La version précédente versait ici les 8 000 dossiers de
+            l'organisme — 22 Mo à chaque ouverture de la page, pour un champ
+            dont la bonne réponse tient en une à trois lignes. */}
         <Field label="Dossier de formation" hint="facultatif">
-          {/* min-w-0 : sans ça un <select> se dimensionne sur son option la
-              plus longue et déborde de la boîte au lieu de s'y adapter. */}
-          <select value={dossierId} onChange={(e) => setDossierId(e.target.value)} className={inputClass}>
-            <option value="">Sans dossier lié</option>
-            {dossiers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.label}
-              </option>
-            ))}
-          </select>
+          {selectedContact ? (
+            <DossierSearchSelect contactId={selectedContact.id} value={dossierId} onChange={setDossierId} />
+          ) : (
+            <div className="text-[12px] text-slate py-1.5">Choisissez d&apos;abord le client.</div>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-2.5">
