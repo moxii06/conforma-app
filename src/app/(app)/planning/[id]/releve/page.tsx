@@ -21,8 +21,17 @@ const TONS: Record<ActivityStatus, "good" | "warn" | "neutral"> = {
 const jour = (d: Date | null) =>
   d ? d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
 
-export default async function SessionActivityPage(props: { params: Promise<{ id: string }> }) {
+// L'ordre des statuts n'est pas alphabétique : c'est celui de l'attention.
+// Ce qu'on vient chercher sur cet écran, c'est d'abord qui n'a jamais
+// commencé, ensuite qui traîne, et enfin qui a fini — dans cet ordre.
+const RANG: Record<ActivityStatus, number> = { not_started: 0, in_progress: 1, completed: 2 };
+
+export default async function SessionActivityPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ statut?: string }>;
+}) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const auth = await requireSessionContext();
   if (can(auth.role, "planning") === "none") redirect("/dashboard");
 
@@ -38,6 +47,23 @@ export default async function SessionActivityPage(props: { params: Promise<{ id:
 
   const termines = activity.rows.filter((r) => r.status === "completed").length;
   const jamais = activity.rows.filter((r) => r.status === "not_started").length;
+  const enCours = activity.rows.length - termines - jamais;
+
+  // Filtrage et tri se font ici, en mémoire : le relevé d'une session tient
+  // en quelques dizaines de lignes (la capacité de la session), et le
+  // classement dépend d'un statut calculé, pas d'une colonne de la base.
+  const statutFiltre = (["not_started", "in_progress", "completed"] as const).find((s) => s === searchParams.statut);
+  const lignes = activity.rows
+    .filter((r) => !statutFiltre || r.status === statutFiltre)
+    .slice()
+    .sort((a, b) => RANG[a.status] - RANG[b.status] || a.contactName.localeCompare(b.contactName, "fr"));
+
+  const VUES: { cle: ActivityStatus | undefined; libelle: string; n: number }[] = [
+    { cle: undefined, libelle: "Tous", n: activity.rows.length },
+    { cle: "not_started", libelle: "Jamais commencé", n: jamais },
+    { cle: "in_progress", libelle: "En cours", n: enCours },
+    { cle: "completed", libelle: "Terminé", n: termines },
+  ];
 
   return (
     <>
@@ -66,10 +92,25 @@ export default async function SessionActivityPage(props: { params: Promise<{ id:
           />
         ) : (
           <>
-            <div className="text-[12px] text-slate">
-              {activity.rows.length} apprenant{activity.rows.length > 1 ? "s" : ""} · {termines} terminé
-              {termines > 1 ? "s" : ""}
-              {jamais > 0 && ` · ${jamais} jamais commencé${jamais > 1 ? "s" : ""}`}
+            {/* Des vues plutôt qu'un menu de tri : sur cet écran on ne
+                cherche pas « à trier », on cherche un groupe précis — ceux
+                qui n'ont jamais commencé, ceux qui ont fini. Le décompte est
+                sur l'onglet, donc lisible sans cliquer. Un groupe vide reste
+                affiché : « 0 jamais commencé » est une information. */}
+            <div className="flex items-center gap-1 flex-wrap">
+              {VUES.map((v) => {
+                const actif = (searchParams.statut ?? undefined) === v.cle;
+                const href = v.cle ? `/planning/${params.id}/releve?statut=${v.cle}` : `/planning/${params.id}/releve`;
+                return (
+                  <Link
+                    key={v.libelle}
+                    href={href}
+                    className={`text-[12px] px-2.5 py-1 rounded-full ${actif ? "bg-ink text-white" : "text-slate hover:text-ink"}`}
+                  >
+                    {v.libelle} <span className="tabular-nums">({v.n})</span>
+                  </Link>
+                );
+              })}
             </div>
 
             <div className="bg-white border border-line rounded-card overflow-x-auto">
@@ -87,7 +128,7 @@ export default async function SessionActivityPage(props: { params: Promise<{ id:
                   </tr>
                 </thead>
                 <tbody>
-                  {activity.rows.map((r) => (
+                  {lignes.map((r) => (
                     <tr key={r.contactName} className="border-b border-line last:border-b-0">
                       <td className="px-4 py-3">
                         <div className="font-semibold text-ink">{r.contactName}</div>
@@ -123,6 +164,9 @@ export default async function SessionActivityPage(props: { params: Promise<{ id:
                   ))}
                 </tbody>
               </table>
+              {lignes.length === 0 && (
+                <div className="px-4 py-4 text-[12.5px] text-slate">Aucun apprenant dans cet état.</div>
+              )}
             </div>
           </>
         )}
