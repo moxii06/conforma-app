@@ -8,30 +8,25 @@ import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } fro
 // mot « clôturer ». Voir dossierArchive.ts pour ce qui se tait et ce qui
 // ne se tait jamais.
 import { DOSSIERS_ACTIFS } from "@/lib/dossierArchive";
+import {
+  REMINDER_AFTER_DAYS,
+  CONVOCATION_WARNING_DAYS,
+  SUBCONTRACTOR_EXPIRY_WARNING_DAYS,
+  FIXED_SESSION_PREP_WARNING_DAYS,
+  ROLLING_PREP_DEADLINE_DAYS,
+  ROLLING_DURATION_WARNING_RATIO,
+  LEARNER_INACTIVITY_DAYS,
+} from "@/lib/relanceDefaults";
 
 // "Relances" thresholds — how long to wait before a pending step counts as
 // needing a follow-up. Not spec-mandated numbers, just sane defaults; make
 // these configurable per-org if that's ever asked for.
-const REMINDER_AFTER_DAYS = 5;
-const CONVOCATION_WARNING_DAYS = 7;
-const SUBCONTRACTOR_EXPIRY_WARNING_DAYS = 30;
-// A FIXED_DATE dossier's prep (recueil/convention) starts flagging this many
-// days before the session actually starts. A ROLLING dossier has no date to
-// count back from, so it gets a flat grace period from enrollment instead —
-// same two facts (recueil/convention), two different "before what" clocks.
-const FIXED_SESSION_PREP_WARNING_DAYS = 10;
-const ROLLING_PREP_DEADLINE_DAYS = 7;
-// How far into a rolling dossier's allotted access-duration window (see
-// Dossier.accessDurationDays) a warning nudge fires, as a fraction of the
-// whole window — 0.7 means "70% of the time is gone and it's still not
-// finished." At 1.0 (the whole window elapsed) it becomes overdue instead.
-const ROLLING_DURATION_WARNING_RATIO = 0.7;
-// Client feedback: staff had no way to spot a learner who started a
-// formation and then went quiet — nothing flagged it until the rolling
-// access window ran out (or never, for a FIXED_DATE session). Two weeks
-// with no tracked LMS event is a reasonable generic "probably dropped off"
-// signal, independent of session mode.
-const LEARNER_INACTIVITY_DAYS = 14;
+// Déplacés dans lib/relanceDefaults.ts — un module pur, donc lisible aussi
+// par l'écran qui les ANNONCE (AutomationRulesPanel est un composant
+// client, il ne peut pas importer ce fichier-ci qui tire Prisma). Le texte
+// affiché et le moteur lisent désormais le même nombre ; recopier une valeur
+// dans un libellé, c'est se garantir qu'il mentira au premier ajustement.
+// Les commentaires expliquant chaque seuil ont suivi les constantes.
 
 // Audit S7 (tenue en charge). Mesuré sur un organisme à 4 000 apprenants /
 // 8 000 dossiers : cette fonction produisait 14 000 tâches, dont 11 334

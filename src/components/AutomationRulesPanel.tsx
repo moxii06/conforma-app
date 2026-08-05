@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AUTOMATION_TRIGGER_LABELS, AUTOMATION_TRIGGER_VALUES } from "@/lib/automationRules";
+import { SEUILS_PAR_DEFAUT_RESUME } from "@/lib/relanceDefaults";
 import { insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
 import { Button } from "@/components/ui";
@@ -143,8 +144,15 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
         )}
       </div>
 
+      {/* Nommer les seuils, pas seulement leur existence. « Les seuils par
+          défaut s'appliquent » rassure sans permettre de décider : on ne
+          surcharge pas une valeur qu'on ne voit pas. Les nombres viennent du
+          module que le moteur lit lui-même, jamais d'une recopie. */}
       {rules.length === 0 && !adding && (
-        <div className="text-[11.5px] text-slate">Aucune règle — les seuils par défaut de l&apos;application s&apos;appliquent.</div>
+        <div className="text-[11.5px] text-slate leading-relaxed">
+          Aucune règle propre à cette formation — les seuils par défaut s&apos;appliquent :{" "}
+          {SEUILS_PAR_DEFAUT_RESUME}. Ajoutez une règle pour changer une cadence ou envoyer un email automatique.
+        </div>
       )}
 
       <div className="flex flex-col gap-1.5">
