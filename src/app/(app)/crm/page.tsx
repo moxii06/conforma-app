@@ -81,7 +81,20 @@ export default async function CrmPage(
   // lisible, et la vue d'ensemble par étape existe déjà sur le dashboard
   // ("Pipeline commercial par étape"). Un ?view=pipeline retombe ici sur
   // le tableau.
-  const view = searchParams.view === "archives" ? "archives" : "table";
+  // Troisième vue : « Contacts ». Retour client — « dans mon CRM, je ne
+  // devrais pas retrouver toutes les personnes des dossiers apprenants ? ».
+  // Si, et c'est bien la même table : Dossier pointe sur Contact. Mais
+  // l'écran listait des AFFAIRES (Opportunity), pas des personnes — quelqu'un
+  // inscrit directement depuis le catalogue ou importé par fichier n'a
+  // aucune affaire, donc aucune ligne, alors que sa fiche existe. Sur le jeu
+  // de démonstration : 13 contacts, 6 visibles, 4 apprenants introuvables.
+  //
+  // Le pipeline reste bâti sur les affaires — y verser des milliers
+  // d'apprenants noierait les quelques dizaines de vraies affaires en cours.
+  // D'où une vue séparée plutôt qu'un élargissement du tableau :
+  //   Tableau  = mes affaires    Contacts = tout le monde    Archives = clos
+  const view =
+    searchParams.view === "archives" ? "archives" : searchParams.view === "contacts" ? "contacts" : "table";
   const stageFilter = searchParams.stage && searchParams.stage in PipelineStage ? (searchParams.stage as PipelineStage) : undefined;
   const orderBy = buildOrderBy(searchParams.sort);
   const q = searchParams.q?.trim() || undefined;
@@ -105,6 +118,26 @@ export default async function CrmPage(
             { contact: { firstName: { contains: q, mode: "insensitive" } } },
             { contact: { lastName: { contains: q, mode: "insensitive" } } },
             { contact: { email: { contains: q, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
+  };
+
+  // La vue « Contacts » interroge une AUTRE table : des personnes, pas des
+  // affaires. Le périmètre commercial reste appliqué — un commercial n'a
+  // accès qu'à ses propres prospects, donc ici qu'aux contacts portant au
+  // moins une de ses affaires. Un apprenant sans affaire lui reste invisible,
+  // ce qui est cohérent avec son rôle.
+  const whereContacts: Prisma.ContactWhereInput = {
+    organizationId,
+    ...(role === "SALES" ? { opportunities: { some: { ownerId: userId } } } : {}),
+    ...(q
+      ? {
+          OR: [
+            { firstName: { contains: q, mode: "insensitive" } },
+            { lastName: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+            { company: { name: { contains: q, mode: "insensitive" } } },
           ],
         }
       : {}),
@@ -170,8 +203,36 @@ export default async function CrmPage(
       _sum: { amountCents: true },
     }),
   ]);
+  // Les archivés RESTENT dans cette liste, avec leur pastille. C'est
+  // précisément le cas qui a motivé l'onglet : passer une affaire à « Payé »
+  // archive automatiquement le contact, y compris quand la personne est en
+  // pleine formation. Un annuaire qui la masquerait raterait sa cible.
+  const [annuaire, totalContacts] =
+    view === "contacts"
+      ? await Promise.all([
+          prisma.contact.findMany({
+            where: whereContacts,
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              archivedAt: true,
+              company: { select: { name: true } },
+              dossiers: { select: { id: true }, orderBy: { session: { startsAt: "desc" } }, take: 1 },
+              _count: { select: { dossiers: true, opportunities: true } },
+            },
+            orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+            skip: (page - 1) * PAGE_SIZE,
+            take: PAGE_SIZE,
+          }),
+          prisma.contact.count({ where: whereContacts }),
+        ])
+      : [[], 0];
+
   const eSignatureAvailable = canWrite ? await isYousignConfigured(organizationId) : false;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalAffiche = view === "contacts" ? totalContacts : total;
+  const totalPages = Math.max(1, Math.ceil(totalAffiche / PAGE_SIZE));
 
   const stageSum = (stages: PipelineStage[]) =>
     pipelineTotals.filter((g) => stages.includes(g.stage)).reduce((sum, g) => sum + (g._sum.amountCents ?? 0), 0);
@@ -194,6 +255,14 @@ export default async function CrmPage(
           Tableau
         </Link>
         <Link
+          href="/crm?view=contacts"
+          className={`px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+            view === "contacts" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
+          }`}
+        >
+          Contacts
+        </Link>
+        <Link
           href="/crm?view=archives"
           className={`px-3.5 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
             view === "archives" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
@@ -203,10 +272,17 @@ export default async function CrmPage(
         </Link>
       </div>
       <div className="p-8 flex flex-col gap-4">
-        {view !== "archives" && (
+        {view === "table" && (
           <FirstVisitBanner id="crm">
             Chaque prospect avance ici du premier contact jusqu&apos;au paiement — changez son étape à mesure qu&apos;il
             progresse. Tout l&apos;historique (emails, documents envoyés) reste sur sa fiche.
+          </FirstVisitBanner>
+        )}
+        {view === "contacts" && (
+          <FirstVisitBanner id="crm-contacts">
+            Toutes les personnes que vous connaissez, prospects comme apprenants — y compris celles inscrites
+            directement depuis une formation, qui n&apos;ont donc aucune affaire commerciale et n&apos;apparaissent pas
+            dans l&apos;onglet Tableau.
           </FirstVisitBanner>
         )}
         {view === "table" && (
@@ -233,10 +309,19 @@ export default async function CrmPage(
         {/* La recherche vaut pour les deux vues : retrouver un client archivé
             par son nom est exactement ce qu'on vient faire dans « Archives ». */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <SearchInput placeholder="Rechercher un prospect (nom, email, intitulé)…" />
+          <SearchInput
+            placeholder={
+              view === "contacts"
+                ? "Rechercher une personne (nom, email, société)…"
+                : "Rechercher un prospect (nom, email, intitulé)…"
+            }
+          />
           {/* Action de masse (audit S7, P2) : elle porte sur l'ensemble
-              filtré et nomme chaque prospect avant d'agir. */}
-          {canWrite && (
+              filtré et nomme chaque prospect avant d'agir. Absente de
+              l'annuaire : ses candidats viennent d'une requête sur les
+              affaires, pas sur les personnes, et un bouton qui n'agirait
+              pas sur ce qu'on a sous les yeux serait un piège. */}
+          {canWrite && view !== "contacts" && (
             <BulkArchiveContactsButton
               cibles={candidatsLot.map((o) => ({
                 id: o.contactId,
@@ -247,12 +332,64 @@ export default async function CrmPage(
             />
           )}
           <div className="text-[12px] text-slate">
-            {total} {view === "archives" ? "archivé" : "prospect"}
-            {total > 1 ? "s" : ""}
+            {totalAffiche} {view === "archives" ? "archivé" : view === "contacts" ? "contact" : "prospect"}
+            {totalAffiche > 1 ? "s" : ""}
           </div>
         </div>
 
-        {view === "archives" ? (
+        {view === "contacts" ? (
+          <div className="bg-white border border-line rounded-card overflow-x-auto">
+            <table className="w-full border-collapse text-[12.5px]">
+              <thead>
+                <tr className="border-b border-line">
+                  {["Personne", "Société", "Ce qu'elle est", "Formations"].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left font-semibold text-slate text-[11px] uppercase tracking-wide px-4 py-2.5"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {annuaire.map((c) => (
+                  <tr key={c.id} className="border-b border-line last:border-b-0 hover:bg-mist">
+                    <td className="px-4 py-3">
+                      <Link href={contactHref(c)} className="font-semibold text-ink hover:underline">
+                        {c.firstName} {c.lastName}
+                      </Link>
+                      <div className="text-[11px] text-slate mt-0.5">{c.email}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate max-w-[200px] truncate">{c.company?.name ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      {/* Ce qu'une personne EST se lit à ce qu'elle a, pas à
+                          un champ à tenir à jour : une affaire en fait un
+                          prospect, un dossier un apprenant, les deux les
+                          deux. Rien à saisir, donc rien qui puisse mentir. */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {c._count.opportunities > 0 && <Pill tone="neutral">Prospect</Pill>}
+                        {c._count.dossiers > 0 && <Pill tone="good">Apprenant</Pill>}
+                        {c._count.opportunities === 0 && c._count.dossiers === 0 && (
+                          <span className="text-slate">Contact seul</span>
+                        )}
+                        {c.archivedAt && <Pill tone="warn">Archivé</Pill>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate tabular-nums">
+                      {c._count.dossiers > 0 ? c._count.dossiers : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {annuaire.length === 0 && (
+              <div className="text-[12.5px] text-slate px-4 py-4">
+                {q ? "Aucune personne ne correspond à cette recherche." : "Aucun contact enregistré."}
+              </div>
+            )}
+          </div>
+        ) : view === "archives" ? (
           <div className="bg-white border border-line rounded-card overflow-x-auto">
             <table className="w-full border-collapse text-[12.5px]">
               <thead>
