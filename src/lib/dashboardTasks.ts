@@ -57,8 +57,14 @@ const HORIZON_TACHES_JOURS = 365;
 // plus anciens qui survivent, c'est-à-dire les plus en retard.
 const MAX_TACHES_PAR_FAMILLE = 100;
 
-function horizonTaches(): Date {
-  return addDays(new Date(), -HORIZON_TACHES_JOURS);
+// Plancher effectif : l'horizon, ou la date de reprise choisie par
+// l'organisme si elle est plus récente. Appliqué DANS les requêtes, ce
+// qui le rend exact quel que soit le volume — contrairement à un masquage
+// ligne par ligne, qui ne pourrait porter que sur ce qui a déjà été
+// calculé, donc au plus le plafond par famille.
+function plancherTaches(reprise: Date | null): Date {
+  const horizon = addDays(new Date(), -HORIZON_TACHES_JOURS);
+  return reprise && reprise > horizon ? reprise : horizon;
 }
 
 export type DashboardTask = {
@@ -153,10 +159,19 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   // Tasks are recomputed live from dossier/invoice/etc. state on every load
   // — there's no row to mark done, so "ignorer" is tracked separately here
   // and filtered out just before returning.
-  const dismissals = await prisma.dashboardTaskDismissal.findMany({
-    where: { organizationId },
-    select: { kind: true, entityId: true },
-  });
+  const [dismissals, organisation] = await Promise.all([
+    prisma.dashboardTaskDismissal.findMany({
+      where: { organizationId },
+      select: { kind: true, entityId: true },
+    }),
+    prisma.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      select: { tasksHiddenBefore: true },
+    }),
+  ]);
+  // Plancher commun à toutes les familles : horizon, ou date de reprise si
+  // l'organisme en a choisi une (voir Organization.tasksHiddenBefore).
+  const plancher = plancherTaches(organisation.tasksHiddenBefore);
   const dismissedKeys = new Set(dismissals.map((d) => `${d.kind}:${d.entityId}`));
 
   const canSeeGeneral = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
@@ -262,7 +277,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         clientOutreaches: { none: { type: "platform_access" } },
         // Aucun événement ne fait sortir un dossier de ce lot : sans
         // horizon, tout l'historique payé y reste définitivement.
-        createdAt: { gte: horizonTaches() },
+        createdAt: { gte: plancher },
       },
       include: { contact: true },
       orderBy: { createdAt: "asc" },
@@ -337,7 +352,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         OR: [{ needsAssessmentDone: false }, { contractSigned: false }],
         session: role === Role.TRAINER ? { trainerId: userId } : undefined,
-        createdAt: { gte: horizonTaches() },
+        createdAt: { gte: plancher },
       },
       include: { contact: true, session: true },
       orderBy: { createdAt: "asc" },
@@ -404,7 +419,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
       where: {
         organizationId,
         accessDurationDays: { not: null },
-        firstAccessedAt: { not: null, gte: horizonTaches() },
+        firstAccessedAt: { not: null, gte: plancher },
         session: {
           mode: "ROLLING",
           ...(role === Role.TRAINER ? { trainerId: userId } : {}),
@@ -466,7 +481,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const startedDossiers = await prisma.dossier.findMany({
       where: {
         organizationId,
-        firstAccessedAt: { not: null, gte: horizonTaches() },
+        firstAccessedAt: { not: null, gte: plancher },
         session: role === Role.TRAINER ? { trainerId: userId } : undefined,
       },
       include: {
@@ -560,7 +575,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         // Une facture importée d'un ancien outil et restée « envoyée »
         // faute d'avoir été rapprochée n'est pas une relance à faire
         // aujourd'hui — c'est une reprise de comptabilité.
-        createdAt: { gte: horizonTaches() },
+        createdAt: { gte: plancher },
       },
       include: { contact: true },
       orderBy: { createdAt: "asc" },
@@ -589,7 +604,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const uninvoicedSessions = await prisma.session.findMany({
       where: {
         organizationId,
-        endsAt: { lt: now, gte: horizonTaches() },
+        endsAt: { lt: now, gte: plancher },
         status: { not: "CANCELLED" },
         archivedAt: null,
         dossiers: {
@@ -881,7 +896,15 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     }
   }
 
-  const tasks = results.filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`)).sort(compareDashboardTasks);
+  // La date de reprise s'applique aussi aux familles dont la requête n'est
+  // pas bornée dans le temps (Qualiopi, RGPD, sous-traitants, sessions en
+  // brouillon…) : là, le volume ne vient pas des apprenants, donc le filtre
+  // en mémoire suffit et évite d'alourdir sept requêtes de plus.
+  const reprise = organisation.tasksHiddenBefore;
+  const tasks = results
+    .filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`))
+    .filter((t) => !reprise || t.since >= reprise)
+    .sort(compareDashboardTasks);
 
   // Une famille au plafond signifie qu'il en reste au-delà. On le dit :
   // un compteur plafonné qui se lit comme un total est un mensonge, et

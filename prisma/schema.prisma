@@ -121,6 +121,21 @@ model Organization {
   invoicePrefix     String?
   invoiceNextNumber Int?
 
+  // Date de reprise du « à faire » : rien d'antérieur ne remonte comme
+  // tâche. Pensée pour la migration — un organisme qui verse trois ans
+  // d'historique dans Jalon n'y a coché aucune case, et tout son passé
+  // apparaîtrait comme du travail en retard.
+  //
+  // Une DATE et non des lignes de rejet, et c'est le point important : la
+  // première version de cette fonction créait un DashboardTaskDismissal par
+  // tâche. Or les tâches sont plafonnées par famille avant d'être filtrées,
+  // si bien que masquer les 100 tâches calculées laissait les 3 800 autres
+  // hors de portée — et pire, les 100 lignes masquées continuaient à
+  // consommer le plafond, rendant la famille vide pour toujours. Un seuil
+  // appliqué DANS la requête n'a aucun de ces défauts : il est exact quel
+  // que soit le volume, tient en un champ, et s'annule en le vidant.
+  tasksHiddenBefore DateTime?
+
   // Marque blanche — what an OFP's own learners see never needs to say
   // "Jalon": the public token pages (recueil des besoins, satisfaction,
   // activation) already show organization.name instead of the platform

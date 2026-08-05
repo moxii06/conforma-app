@@ -6,6 +6,9 @@ import { BarChart } from "@/components/charts/BarChart";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
 import { groupTasksByKind, type TaskGroup } from "@/lib/dashboardTaskGroups";
+import { TASK_ACTIONS } from "@/lib/dashboardTaskActions";
+import { BulkTaskActionDialog } from "@/components/BulkTaskActionDialog";
+import { DismissBeforeDialog } from "@/components/DismissBeforeDialog";
 import { Role } from "@prisma/client";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/pipelineStages";
 import { addWeeks, addMonths, startOfWeek, startOfMonth, subMonths, format, differenceInCalendarDays } from "date-fns";
@@ -106,6 +109,12 @@ export default async function DashboardPage() {
 
   const { tasks, tronquee: tachesTronquees } = await getDashboardTasks(organizationId, role, userId);
   const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { dashboardLayout: true } });
+  // Date de reprise du « à faire », si l'organisme en a choisi une.
+  const orgReprise = await prisma.organization.findUniqueOrThrow({
+    where: { id: organizationId },
+    select: { tasksHiddenBefore: true },
+  });
+  const repriseActuelleIso = orgReprise.tasksHiddenBefore?.toISOString() ?? null;
   const savedLayout = parseDashboardLayout(currentUser.dashboardLayout);
 
   // Same visibility rules as /support — a complaint/report otherwise only
@@ -224,7 +233,7 @@ export default async function DashboardPage() {
     onboardingRemaining > 0
       ? { id: "onboarding", node: <OnboardingWidget steps={onboarding} remaining={onboardingRemaining} /> }
       : null,
-    tasks.length > 0 ? { id: "tasks", node: <TasksWidget tasks={tasks} tronquee={tachesTronquees} /> } : null,
+    tasks.length > 0 ? { id: "tasks", node: <TasksWidget tasks={tasks} tronquee={tachesTronquees} repriseActuelleIso={repriseActuelleIso} /> } : null,
     canManageComplaints && openComplaints.length > 0
       ? { id: "complaints", node: <ComplaintsWidget complaints={openComplaints} /> }
       : null,
@@ -369,6 +378,17 @@ function TaskSummaryRow({ famille }: { famille: TaskGroup }) {
         </span>
         {famille.overdue > 0 && <Pill tone="danger">{famille.overdue.toLocaleString("fr-FR")} en retard</Pill>}
       </div>
+      {/* L'action de masse ne s'affiche que pour les familles dont l'action
+          tient en un appel (voir dashboardTaskActions.ts). Elle précède le
+          lien : traiter le lot est l'intention principale, aller voir la
+          liste est le repli. */}
+      {TASK_ACTIONS[famille.kind] && (
+        <BulkTaskActionDialog
+          kind={famille.kind}
+          libelle={famille.libelle}
+          cibles={famille.items.map((t) => ({ id: t.id, contactName: t.contactName }))}
+        />
+      )}
       {famille.href ? (
         <Link
           href={famille.href}
@@ -476,7 +496,15 @@ function OnboardingWidget({ steps, remaining }: { steps: OnboardingStep[]; remai
 // dashboardTasks.ts). Sans ce drapeau, le titre annoncerait un total qui
 // n'en est pas un — c'est précisément le défaut relevé par l'audit sur le
 // journal des automatisations, il ne faut pas le reproduire ici.
-function TasksWidget({ tasks, tronquee }: { tasks: DashboardTask[]; tronquee: boolean }) {
+function TasksWidget({
+  tasks,
+  tronquee,
+  repriseActuelleIso,
+}: {
+  tasks: DashboardTask[];
+  tronquee: boolean;
+  repriseActuelleIso: string | null;
+}) {
   const overdueCount = tasks.filter((t) => t.overdue).length;
 
   // Grouped by theme, but only once there are enough tasks for the grouping
@@ -493,7 +521,14 @@ function TasksWidget({ tasks, tronquee }: { tasks: DashboardTask[]; tronquee: bo
     <CollapsibleSection
       title={`À faire (${tasks.length}${tronquee ? "+" : ""})`}
       badge={overdueCount > 0 ? <Pill tone="danger">{overdueCount} en retard</Pill> : undefined}
-      extra={<RefreshButton />}
+      extra={
+        <div className="flex items-center gap-3">
+          {/* Après une reprise d'historique, la liste est pleine de dossiers
+              clos qui ne sont du travail pour personne. Une date, un clic. */}
+          <DismissBeforeDialog repriseActuelleIso={repriseActuelleIso} />
+          <RefreshButton />
+        </div>
+      }
     >
       {useGroups ? (
         <div className="flex flex-col gap-3.5">
