@@ -7,6 +7,8 @@ import { OrganizationAccessActions } from "@/components/OrganizationAccessAction
 import { PlatformAdminLogoutButton } from "@/components/PlatformAdminLogoutButton";
 import { AddOrganizationForm } from "@/components/AddOrganizationForm";
 import { billingConfigured, fetchPlanPrices, type PlanKey } from "@/lib/billing";
+import { lireEtatChaine } from "@/lib/cronCheckpoint";
+import { diagnosticChaine } from "@/lib/cronRunner";
 
 const PLAN_LABELS: Record<string, string> = { solo: "Solo", team: "Team", growth: "Growth" };
 const STATUS_LABELS: Record<string, string> = { trialing: "Essai", active: "Actif", past_due: "Impayé", canceled: "Résilié" };
@@ -36,10 +38,14 @@ export default async function PlatformAdminOrganizationsPage(props: {
   const searchParams = await props.searchParams;
   const qualiteFilter = searchParams.qualite === "prospect" || searchParams.qualite === "client" ? searchParams.qualite : null;
 
-  const organizations = await prisma.organization.findMany({
-    include: { subscription: true, _count: { select: { users: true } } },
-    orderBy: { createdAt: "desc" },
-  });
+  const [organizations, etatChaine] = await Promise.all([
+    prisma.organization.findMany({
+      include: { subscription: true, _count: { select: { users: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    lireEtatChaine(),
+  ]);
+  const diagnostic = diagnosticChaine(etatChaine, new Date());
 
   const activeCount = organizations.filter((o) => o.subscription?.status === "active").length;
   const trialingCount = organizations.filter((o) => o.subscription?.status === "trialing").length;
@@ -155,6 +161,22 @@ export default async function PlatformAdminOrganizationsPage(props: {
           <MetricCard label="Suspendus" value={String(suspendedCount)} tone={suspendedCount > 0 ? "danger" : "ink"} />
         </div>
         <AddOrganizationForm />
+      </div>
+      {/* État de la chaîne quotidienne. Discret quand tout va bien, visible
+          quand elle décroche : un dépassement de temps ne produit sinon
+          qu'une ligne dans un journal d'hébergeur que personne ne lit —
+          c'est ce que l'audit de tenue en charge appelait une panne
+          « définitive et silencieuse ». Voir src/lib/cronRunner.ts. */}
+      <div className="px-8 pb-3">
+        <div
+          className={`text-[12px] px-3 py-2 rounded-md border ${
+            diagnostic.ton === "alerte"
+              ? "border-rust/40 bg-rust/5 text-ink"
+              : "border-line bg-paper text-slate"
+          }`}
+        >
+          {diagnostic.texte}
+        </div>
       </div>
       <div className="px-8 pb-4 flex items-center gap-1">
         {[

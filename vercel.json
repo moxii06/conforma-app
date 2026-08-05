@@ -1,16 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/cron/automation-rules",
-      "schedule": "0 7 * * *"
-    },
-    {
       "path": "/api/cron/bank-sync",
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/platform-emails",
-      "schedule": "0 8 * * *"
+      "path": "/api/cron/automation-rules",
+      "schedule": "0 7 * * *"
     }
   ]
 }

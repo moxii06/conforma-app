@@ -9,6 +9,15 @@ import { sendSatisfactionSurvey } from "@/lib/satisfactionSurveys";
 import { runTrialOnboarding } from "@/lib/onboardingEmails";
 import { syncAllMailboxConnections } from "@/lib/mailboxCron";
 import { sendDailyDigests } from "@/lib/dailyDigest";
+import { sendDuePlatformEmails } from "@/lib/platformEmailsCron";
+import { executerChaine, type EtapeCron } from "@/lib/cronRunner";
+import {
+  ouvrirPassage,
+  noterEtapeEnCours,
+  cloturerPassage,
+  CHAINE_QUOTIDIENNE,
+  SEUIL_BLOCAGE,
+} from "@/lib/cronCheckpoint";
 import { getCourseCompletion } from "@/lib/lms";
 import type { Contact, Course, Session, Organization } from "@prisma/client";
 import { resolveAppOrigin } from "@/lib/appUrl";
@@ -39,24 +48,101 @@ function mergeContext(contact: Contact, course: Course, session: Session, organi
   };
 }
 
-// Runs daily (see vercel.json) to act on AutomationRules with sendEmail
-// enabled — the task-only part of a rule is computed live by
-// getDashboardTasks and needs nothing here. Requires CRON_SECRET, which
-// Vercel sends as `Authorization: Bearer <CRON_SECRET>` once the env var
-// exists; without it the route refuses in production rather than running
-// open (see assertCronRequest).
+/**
+ * La chaîne quotidienne (voir vercel.json). Requiert CRON_SECRET, que
+ * Vercel envoie en `Authorization: Bearer <CRON_SECRET>` dès que la
+ * variable existe ; sans elle la route refuse en production plutôt que de
+ * tourner ouverte (voir assertCronRequest).
+ *
+ * L'ordre des étapes n'est plus fixe : chaque passage démarre là où le
+ * précédent s'est arrêté. Avant cette bascule, les dernières étapes —
+ * synchronisation des boîtes mail, synthèses quotidiennes — n'étaient
+ * jamais atteintes dès que les premières mangeaient les 60 secondes, et
+ * comme le lendemain repartait dans le même ordre, elles ne l'étaient plus
+ * jamais. Voir src/lib/cronRunner.ts pour le mécanisme.
+ */
 export async function GET(request: Request) {
   const denied = assertCronRequest(request);
   if (denied) return denied;
 
   const origin = resolveAppOrigin(request);
+  const etat = await ouvrirPassage(CHAINE_QUOTIDIENNE);
 
+  const etapes: EtapeCron[] = [
+    {
+      nom: "enquetes_satisfaction",
+      libelle: "Enquêtes de satisfaction à chaud",
+      executer: async () => ({ envoyees: await sendHotSatisfactionSurveys(origin) }),
+    },
+    {
+      nom: "regles_relance",
+      libelle: "Règles de relance des formations",
+      executer: async () => ({ envoyees: await executerReglesRelance(origin) }),
+    },
+    {
+      nom: "echeanciers",
+      libelle: "Échéances de paiement à émettre",
+      executer: async () => ({ emises: await issueDueInstalments() }),
+    },
+    {
+      nom: "onboarding_essai",
+      libelle: "Séquence d'accueil des essais",
+      executer: async () => ({ envoyes: await runTrialOnboarding(origin) }),
+    },
+    {
+      nom: "emails_plateforme",
+      libelle: "Emails programmés depuis le back-office",
+      executer: () => sendDuePlatformEmails(),
+    },
+    {
+      nom: "synchro_boites_mail",
+      libelle: "Synchronisation des boîtes mail",
+      executer: () => syncAllMailboxConnections(),
+    },
+    {
+      // Volontairement après la synchro des boîtes mail quand l'ordre le
+      // permet : la synthèse reflète alors les suggestions RGPD et les
+      // emails du jour. La rotation peut l'en séparer un jour sur deux —
+      // une synthèse d'un jour en retard vaut mieux qu'aucune synthèse.
+      nom: "synthese_quotidienne",
+      libelle: "Synthèses « à faire » par utilisateur",
+      executer: () => sendDailyDigests(origin),
+    },
+  ];
+
+  const passage = await executerChaine({
+    etapes,
+    depart: etat.depart,
+    avantEtape: (nom) => noterEtapeEnCours(CHAINE_QUOTIDIENNE, nom),
+  });
+
+  await cloturerPassage(CHAINE_QUOTIDIENNE, passage.prochainDepart, passage.tourComplet);
+
+  return NextResponse.json({
+    tourComplet: passage.tourComplet,
+    etapes: passage.resultats,
+    differees: passage.differees,
+    prochainDepart: passage.prochainDepart,
+    // Remonté dans la réponse ET visible dans le back-office : une étape
+    // qui ne tient pas dans une exécution ne doit pas rester un chiffre
+    // dans un journal que personne ne lit.
+    ...(etat.stalledRuns >= SEUIL_BLOCAGE
+      ? { alerte: `L'étape « ${etat.depart} » a été coupée ${etat.stalledRuns} passages de suite.` }
+      : {}),
+  });
+}
+
+/**
+ * Les relances configurées par formation. Une étape à part entière de la
+ * chaîne : c'est la plus longue, et celle qui affamait toutes les autres.
+ */
+async function executerReglesRelance(origin: string): Promise<number> {
   const rules = await prisma.automationRule.findMany({
     where: { active: true, sendEmail: true },
     include: { organization: true, course: true },
   });
 
-  let sent = await sendHotSatisfactionSurveys(origin);
+  let sent = 0;
   for (const rule of rules) {
     if (rule.trigger === "needs_assessment_incomplete") {
       sent += await sendGenericReminder(rule, {
@@ -90,33 +176,13 @@ export async function GET(request: Request) {
       sent += await sendInvoiceOverdueReminders(rule);
     }
   }
-
-  // Contract instalments: issue what falls due soon. A global sweep, not a
-  // per-rule handler — an instalment exists because a signed contract says
-  // so, and it must go out whether or not the course has any AutomationRule.
-  const instalmentsIssued = await issueDueInstalments();
-
-  // Séquence d'onboarding d'essai (marketing propre de Jalon) — indépendante
-  // des AutomationRules ci-dessus. Voir src/lib/onboardingEmails.ts.
-  const onboardingSent = await runTrialOnboarding(origin);
-
-  // Audit P1 : le balayage « session livrée → étape À facturer » a disparu
-  // avec cette étape. Le besoin est couvert par la tâche
-  // `session_uninvoiced` du tableau de bord, recalculée à chaque affichage
-  // — donc sans le délai d'un jour qu'imposait ce cron. Voir lib/pipeline.ts.
-
-  // Boîte mail : la seule autre voie de synchro était le bouton manuel
-  // "Synchroniser maintenant" (contrairement à la synchro bancaire, déjà
-  // quotidienne) — voir src/lib/mailboxCron.ts.
-  const mailboxSync = await syncAllMailboxConnections();
-
-  // Synthèse quotidienne "à faire" par utilisateur, envoyée après la synchro
-  // boîte mail ci-dessus pour refléter les dernières suggestions RGPD/emails
-  // du jour — voir src/lib/dailyDigest.ts.
-  const digest = await sendDailyDigests(origin);
-
-  return NextResponse.json({ sent, instalmentsIssued, onboardingSent, mailboxSync, digest });
+  return sent;
 }
+
+// Audit P1 : le balayage « session livrée → étape À facturer » a disparu
+// avec cette étape. Le besoin est couvert par la tâche
+// `session_uninvoiced` du tableau de bord, recalculée à chaque affichage —
+// donc sans le délai d'un jour qu'imposait ce cron. Voir lib/pipeline.ts.
 
 function formatEuros(cents: number): string {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });

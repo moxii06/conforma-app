@@ -103,7 +103,7 @@ model Organization {
   vatRegime      String  @default("exempt") // exempt | standard
   vatRatePercent Float?
   // N° de TVA intracommunautaire, obligatoire dès qu'on facture avec TVA.
-  vatNumber String?
+  vatNumber      String?
 
   // Numérotation des factures — audit P1 : « comment cela se passe si le
   // client fait d'autres factures via son outil en dehors de la
@@ -163,7 +163,7 @@ model Organization {
   // The risk of opening content early is the organisation's own, not the
   // learner's — it performs while the learner can still withdraw and be
   // fully reimbursed — so this is deliberately its call.
-  withdrawalAccessPolicy String  @default("closed") // closed | partial
+  withdrawalAccessPolicy String    @default("closed") // closed | partial
   // Filled once, then reused: these appear in every generated contract but
   // belong to no other record, and asking for them on each document would
   // be absurd.
@@ -177,43 +177,43 @@ model Organization {
   // first: the day one of them disputes having been informed, this is the
   // answer. Memorised so the warning stops reappearing on every contract,
   // which is how a warning becomes wallpaper nobody reads.
-  paymentCapAckAt     DateTime?
-  paymentCapAckByName String?
+  paymentCapAckAt        DateTime?
+  paymentCapAckByName    String?
 
-  users                       User[]
-  contacts                    Contact[]
-  companies                   Company[]
-  dossiers                    Dossier[]
-  opportunities               Opportunity[]
-  courses                     Course[]
-  sessions                    Session[]
-  quotes                      Quote[]
-  invoices                    Invoice[]
-  payments                    Payment[]
-  processingActivities        ProcessingActivity[]
-  subProcessors               SubProcessor[]
-  qualiopiIndicators          QualiopiIndicatorEvidence[]
-  auditChecklistItems         AuditChecklistItem[]
-  dpiaRecords                 DPIARecord[]
-  sessionInvitations          SessionInvitation[]
-  nonConformities             NonConformity[]
-  qualiopiAudits              QualiopiAudit[]
-  intervenantEvaluations      IntervenantEvaluation[]
-  rightsRequests              RightsRequest[]
-  dataBreaches                DataBreach[]
-  documents                   Document[]
-  documentTemplates           DocumentTemplate[]
-  needsAssessmentRequests     NeedsAssessmentRequest[]
-  emailMessages               EmailMessage[]
-  mailboxConnections          MailboxConnection[]
-  integrationCredentials      IntegrationCredential[]
-  integrationRequests         IntegrationRequest[]
-  funders                     Funder[]
-  fundingCommitments          FundingCommitment[]
-  apiKeys                     ApiKey[]
-  webhooks                    Webhook[]
-  clientOutreaches            ClientOutreach[]
-  subscription                Subscription?
+  users                   User[]
+  contacts                Contact[]
+  companies               Company[]
+  dossiers                Dossier[]
+  opportunities           Opportunity[]
+  courses                 Course[]
+  sessions                Session[]
+  quotes                  Quote[]
+  invoices                Invoice[]
+  payments                Payment[]
+  processingActivities    ProcessingActivity[]
+  subProcessors           SubProcessor[]
+  qualiopiIndicators      QualiopiIndicatorEvidence[]
+  auditChecklistItems     AuditChecklistItem[]
+  dpiaRecords             DPIARecord[]
+  sessionInvitations      SessionInvitation[]
+  nonConformities         NonConformity[]
+  qualiopiAudits          QualiopiAudit[]
+  intervenantEvaluations  IntervenantEvaluation[]
+  rightsRequests          RightsRequest[]
+  dataBreaches            DataBreach[]
+  documents               Document[]
+  documentTemplates       DocumentTemplate[]
+  needsAssessmentRequests NeedsAssessmentRequest[]
+  emailMessages           EmailMessage[]
+  mailboxConnections      MailboxConnection[]
+  integrationCredentials  IntegrationCredential[]
+  integrationRequests     IntegrationRequest[]
+  funders                 Funder[]
+  fundingCommitments      FundingCommitment[]
+  apiKeys                 ApiKey[]
+  webhooks                Webhook[]
+  clientOutreaches        ClientOutreach[]
+  subscription            Subscription?
 
   // Manual access control, set by Jalon's own platform owner (a distinct
   // surface from every Organization's own app — see src/lib/platformAdmin.ts)
@@ -225,15 +225,15 @@ model Organization {
   // the org until it's cleared) — see AppLayout, which is where both are
   // actually enforced. Edge middleware can't run this check itself (Prisma's
   // Node engine doesn't run there), hence the layout-level gate instead.
-  suspendedAt                 DateTime?
-  suspendedReason             String?
-  accessWarningAt             DateTime?
-  accessWarningReason         String?
+  suspendedAt         DateTime?
+  suspendedReason     String?
+  accessWarningAt     DateTime?
+  accessWarningReason String?
   // Date à laquelle l'organisme a accepté les CGV de Jalon — saisie à la
   // main par le propriétaire de la plateforme (rien ne la capture
   // automatiquement aujourd'hui, ni à l'inscription essai ni au paiement
   // Stripe), donc nullable tant qu'elle n'a pas été renseignée.
-  cgvAcceptedAt                DateTime?
+  cgvAcceptedAt       DateTime?
 
   qualityRisks                QualityRisk[]
   resultIndicators            ResultIndicator[]
@@ -663,7 +663,7 @@ model User {
   // write can never leave a stale id pointing at a widget that no longer
   // renders. An id absent from this array (a widget added after the user
   // last customized their layout) falls back to appearing last, full width.
-  dashboardLayout              Json?
+  dashboardLayout             Json?
 
   trainerSessions                  Session[]               @relation("SessionTrainer")
   learnerDossiers                  Dossier[]               @relation("DossierLearnerUser")
@@ -702,21 +702,21 @@ model NotificationDismissal {
 // ---------------------------------------------------------------------------
 
 model Company {
-  id                   String       @id @default(cuid())
-  organization         Organization @relation(fields: [organizationId], references: [id])
-  organizationId       String
-  name                 String
-  siret                String?
-  address              String?
+  id                      String       @id @default(cuid())
+  organization            Organization @relation(fields: [organizationId], references: [id])
+  organizationId          String
+  name                    String
+  siret                   String?
+  address                 String?
   // Client feedback: when a training is company-funded (learnerCategory
   // employee/apprentice — see Dossier below), the OFP needs a named
   // point of contact at the company, not just its identity — stored
   // directly here rather than a separate contact-person table, same
   // pattern as Subcontractor's own contactEmail/contactPhone.
-  responsableFirstName String?
-  responsableLastName  String?
-  responsableEmail     String?
-  responsablePhone     String?
+  responsableFirstName    String?
+  responsableLastName     String?
+  responsableEmail        String?
+  responsablePhone        String?
   // Free-text "Name, Fonction" (e.g. "Julie Martin, DRH") — the person who
   // signs a convention on the company's behalf. Deliberately not split into
   // separate name/title fields, same shape as Organization.legalRepresentativeName;
@@ -776,8 +776,8 @@ model Contact {
   // on Contact (the persistent relationship), not Dossier (one course
   // engagement): a person's sector, priority, marketing consent and sales
   // notes don't reset between the different formations they take over time.
-  industry     String? // secteur d'activité
-  urgencyLevel String? // low | medium | high — sales-set priority, not derived
+  industry       String? // secteur d'activité
+  urgencyLevel   String? // low | medium | high — sales-set priority, not derived
   // *Consent is null until a staff member records an answer either way —
   // distinct from false, which means "asked, declined." *ConsentAt stamps
   // WHEN that answer (true or false, both are real answers) was last
@@ -908,14 +908,14 @@ model Dossier {
 // The ten-day period of art. L.6353-5 C. trav. is d'ordre public and is NOT
 // affected by this waiver — that is stated in the accepted text itself.
 model WithdrawalWaiver {
-  id             String   @id @default(cuid())
-  organizationId String
-  dossier        Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
-  dossierId      String   @unique
-  acceptedAt     DateTime @default(now())
-  ipAddress      String
-  textAccepted   String
-  checkboxDefaultUnchecked Boolean @default(true)
+  id                       String   @id @default(cuid())
+  organizationId           String
+  dossier                  Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId                String   @unique
+  acceptedAt               DateTime @default(now())
+  ipAddress                String
+  textAccepted             String
+  checkboxDefaultUnchecked Boolean  @default(true)
 
   @@index([organizationId])
 }
@@ -955,12 +955,12 @@ model Course {
   // "absence de prérequis" simply wasn't stated anywhere). All free text,
   // all optional — the PUBLIC page renders an explicit "Sans prérequis"
   // when prerequisites is empty, turning the 2022 trap into a default.
-  prerequisites        String?
-  objectives           String?
-  accessDelay          String? // délai d'accès estimé (demande → début)
-  accessModalities     String? // processus d'inscription
-  teachingMethods      String? // méthodes mobilisées
-  evaluationModalities String?
+  prerequisites         String?
+  objectives            String?
+  accessDelay           String? // délai d'accès estimé (demande → début)
+  accessModalities      String? // processus d'inscription
+  teachingMethods       String? // méthodes mobilisées
+  evaluationModalities  String?
   // Certification the course prepares for. Nothing recorded this until now,
   // although every CPF-funded contract leans on it and Qualiopi indicator 1
   // requires it to be published. All null when the course leads to no
@@ -975,7 +975,7 @@ model Course {
   retakeConditions      String?
   // Opt-in publication of the public course page (/catalogue/[id]) — the
   // OF decides per course; archived courses never render publicly.
-  isPublic             Boolean @default(false)
+  isPublic              Boolean @default(false)
   // What a visitor on the public page can actually DO, on top of reading it:
   //   "none"    — information only (the historical behaviour)
   //   "request" — leaves their details; creates a Contact + Opportunity in
@@ -985,12 +985,12 @@ model Course {
   // "request" is the safe middle ground and what the UI recommends: "direct"
   // turns unauthenticated form input into real learner records, which most
   // OFs want to vet first. Only meaningful when isPublic is true.
-  publicEnrollment     String  @default("none")
+  publicEnrollment      String  @default("none")
   // Opt-in "Passer cette vidéo" button on this course's video modules —
   // off by default so a skip path only exists where the OF has explicitly
   // decided it's acceptable. See ElearningProgress.skippedAt for how a
   // skip is tracked once used.
-  allowVideoSkip       Boolean @default(false)
+  allowVideoSkip        Boolean @default(false)
 
   // Cap on total enrolled learners across ALL of this course's sessions,
   // on top of the per-session Session.capacity (a rolling course's
@@ -1208,10 +1208,10 @@ model Session {
 //      émargement per half-day (the contract Jalon itself ships says so),
 //      which needs a per-day, per-half-day row to sign against.
 model SessionDay {
-  id        String   @id @default(cuid())
-  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  sessionId String
-  date      DateTime
+  id             String   @id @default(cuid())
+  session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId      String
+  date           DateTime
   // Teaching hours actually planned for each half-day, or null when that
   // half-day isn't held (a morning-only day). Null is therefore meaningful:
   // it's both "no hours" and "nothing to sign here", which is what the
@@ -1220,7 +1220,7 @@ model SessionDay {
   // hour for lunch is 7 teaching hours, not 8, and only the OF knows that.
   morningHours   Float?
   afternoonHours Float?
-  order          Int    @default(0)
+  order          Int      @default(0)
 
   attendance AttendanceEntry[]
 
@@ -1235,13 +1235,13 @@ enum HalfDay {
 // One learner's presence for one half-day. The unique constraint is what
 // makes signing idempotent: re-signing overwrites rather than stacking.
 model AttendanceEntry {
-  id           String     @id @default(cuid())
-  sessionDay   SessionDay @relation(fields: [sessionDayId], references: [id], onDelete: Cascade)
-  sessionDayId String
-  dossier      Dossier    @relation(fields: [dossierId], references: [id])
-  dossierId    String
-  halfDay      HalfDay
-  signedAt     DateTime   @default(now())
+  id               String     @id @default(cuid())
+  sessionDay       SessionDay @relation(fields: [sessionDayId], references: [id], onDelete: Cascade)
+  sessionDayId     String
+  dossier          Dossier    @relation(fields: [dossierId], references: [id])
+  dossierId        String
+  halfDay          HalfDay
+  signedAt         DateTime   @default(now())
   // Data-URL PNG of the on-screen signature. Kept inline rather than in Blob
   // storage: it's a few KB, and it has to survive exactly as long as the
   // attendance row it proves — this is audit evidence, not a file upload
@@ -1388,10 +1388,10 @@ model Quote {
   // comme sur un devis. Elle n'était nulle part : l'objet n'était devinable
   // qu'à travers dossier → session → formation, et dossierId est nullable —
   // une facture directe n'avait donc aucun objet.
-  description String?
-  amountCents Int
-  status      DocStatus @default(DRAFT)
-  createdAt   DateTime  @default(now())
+  description    String?
+  amountCents    Int
+  status         DocStatus    @default(DRAFT)
+  createdAt      DateTime     @default(now())
 
   lines QuoteLine[]
 
@@ -1399,38 +1399,38 @@ model Quote {
 }
 
 model Invoice {
-  id                 String       @id @default(cuid())
-  organization       Organization @relation(fields: [organizationId], references: [id])
-  organizationId     String
-  contact            Contact      @relation(fields: [contactId], references: [id])
-  contactId          String
-  dossier            Dossier?     @relation(fields: [dossierId], references: [id])
-  dossierId          String?
-  reference          String
+  id                    String       @id @default(cuid())
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  organizationId        String
+  contact               Contact      @relation(fields: [contactId], references: [id])
+  contactId             String
+  dossier               Dossier?     @relation(fields: [dossierId], references: [id])
+  dossierId             String?
+  reference             String
   // Voir Quote.description : la désignation de la prestation est une mention
   // obligatoire de l'article 242 nonies A de l'annexe II au CGI.
-  description        String?
-  amountCents        Int
-  status             DocStatus    @default(DRAFT)
+  description           String?
+  amountCents           Int
+  status                DocStatus    @default(DRAFT)
   // Payment deadline — set at creation (NewInvoiceForm defaults to +30
   // days, staff can override), null on invoices created before this field
   // existed. Lets dashboardTasks.ts flag an invoice as overdue the moment
   // the date passes instead of relying solely on staff remembering to flip
   // status to OVERDUE by hand — same "automatic by default, manual override
   // always wins" principle as the rest of the app's status fields.
-  dueDate            DateTime?
+  dueDate               DateTime?
   // The invoice is NOT itself the compliant e-invoice — transmission via an
   // accredited platform is delegated per spec §5.3 / §7.2. This field just
   // records which provider (if any) handled the compliant transmission.
-  einvoicingProvider String? // "pennylane" | "sellsy" | "ppf" | null
+  einvoicingProvider    String? // "pennylane" | "sellsy" | "ppf" | null
   // BPF §5.13 needs revenue broken down by funding origin.
-  fundingOrigin      String? // company | opco | public | individual
+  fundingOrigin         String? // company | opco | public | individual
   // Set when this invoice is addressed to a funder (subrogation) rather
   // than to the client. contactId stays pointing at the learner's contact —
   // that's who the training was FOR, and what keeps the invoice reachable
   // from the dossier — while funderId says who PAYS.
-  funder             Funder?      @relation(fields: [funderId], references: [id])
-  funderId           String?
+  funder                Funder?      @relation(fields: [funderId], references: [id])
+  funderId              String?
   // Position within a contract's payment schedule, when the invoice was
   // created by materialising one (see documentSending.ts). An échéancier
   // instalment IS an invoice with a dueDate — that is what makes the whole
@@ -1439,20 +1439,20 @@ model Invoice {
   // These two fields only add the context a lone invoice cannot carry:
   // "échéance 2 sur 4" reads very differently from "facture F-2026-114".
   // Null on every invoice created by hand.
-  installmentNumber  Int?
-  installmentTotal   Int?
+  installmentNumber     Int?
+  installmentTotal      Int?
   // Le document (contrat/convention) dont l'échéancier a produit cette
   // facture. Sert d'abord de garde d'idempotence côté prospect : un contact
   // sans dossier peut signer plusieurs contrats, chacun avec son échéancier,
   // et « une seule série d'échéances par dossier » ne veut alors rien dire.
   // Accessoirement, il rend traçable d'où vient une échéance — ce que le
   // couple installmentNumber/Total ne dit pas.
-  sourceDocumentId   String?
+  sourceDocumentId      String?
   // Idempotency stamp for the invoice_overdue automation trigger — same
   // pattern as the dossier's *AutoReminderSentAt fields: one automated
   // nudge per invoice, ever. Staff relances stay manual and unlimited.
   overdueReminderSentAt DateTime?
-  createdAt          DateTime     @default(now())
+  createdAt             DateTime     @default(now())
 
   payments           Payment[]
   bankTransactions   BankTransaction[]
@@ -1494,10 +1494,10 @@ model Invoice {
 // rapprochement bancaire et les totaux du tableau de bord : deux sources de
 // vérité sur un montant, c'est un écart qui finit par se voir en compta.
 model InvoiceLine {
-  id          String  @id @default(cuid())
-  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId   String
-  designation String
+  id             String  @id @default(cuid())
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  designation    String
   // Le prix unitaire est en centiers comme partout ailleurs ; seule la
   // quantité est un Float, parce qu'une demi-journée est une quantité
   // légitime alors qu'un demi-centime n'est pas un montant.
@@ -1506,8 +1506,8 @@ model InvoiceLine {
   // L'unité telle qu'elle sera lue sur le document : « heures », « jours »,
   // « stagiaires », « forfait ». Texte libre, aucune liste fermée ne
   // couvrirait la variété réelle des prestations de formation.
-  unit  String?
-  order Int    @default(0)
+  unit           String?
+  order          Int     @default(0)
 
   @@index([invoiceId])
 }
@@ -1869,33 +1869,33 @@ model NeedsAssessmentRequest {
 // déjà saisies survivent à la migration ; l'écran les signale « à compléter »
 // plutôt que de faire semblant qu'elles sont complètes.
 model ProcessingActivity {
-  id             String       @id @default(cuid())
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  organizationId String
-  name           String
+  id                String       @id @default(cuid())
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  organizationId    String
+  name              String
   // L'une des six clés de src/lib/rgpdLegalBases.ts. Reste un String et non
   // un enum : les valeurs libres saisies avant cette liste sont conservées
   // telles quelles, et l'affichage sait rendre les deux.
-  legalBasis      String
-  retentionPeriod String
+  legalBasis        String
+  retentionPeriod   String
   // Article 30(1)(b) — la finalité poursuivie.
-  purpose String?
+  purpose           String?
   // Article 30(1)(c) — catégories de personnes concernées, puis de données.
-  dataSubjects   String?
-  dataCategories String?
+  dataSubjects      String?
+  dataCategories    String?
   // Article 30(1)(d) — qui reçoit les données en dehors de l'organisme.
-  recipients String?
+  recipients        String?
   // Article 30(1)(e) — un transfert hors UE change les obligations, d'où un
   // booléen explicite plutôt qu'une mention noyée dans les destinataires.
-  transferOutsideEu Boolean @default(false)
+  transferOutsideEu Boolean      @default(false)
   transferDetails   String?
   // Article 30(1)(g) — les mesures de sécurité, décrites globalement.
-  securityMeasures String?
-  riskFlag         String   @default("ok") // ok | to_review
+  securityMeasures  String?
+  riskFlag          String       @default("ok") // ok | to_review
   // Pourquoi la ligne demande une décision : accompagne riskFlag = to_review
   // au lieu de laisser deviner ce qu'il y a à revoir.
-  reviewNote String?
-  createdAt  DateTime @default(now())
+  reviewNote        String?
+  createdAt         DateTime     @default(now())
 
   dpiaRecords DPIARecord[]
 
@@ -2254,29 +2254,29 @@ model ResultIndicator {
 // ---------------------------------------------------------------------------
 
 model ElearningModule {
-  id            String   @id @default(cuid())
-  course        Course   @relation(fields: [courseId], references: [id])
-  courseId      String
-  title         String
+  id                        String   @id @default(cuid())
+  course                    Course   @relation(fields: [courseId], references: [id])
+  courseId                  String
+  title                     String
   // Rich HTML (sanitizeRichText — src/lib/richText.ts), not plain text —
   // for "video"/"document" it's a supplementary note shown alongside the
   // file; for "page" it IS the module's entire content, so it needs real
   // formatting room, not a one-line caption.
-  description   String?
+  description               String?
   // "video" | "document" | "quiz" | "page" — drives which player the
   // learner portal renders and how progress is computed (playback
   // position, a manual "marquer comme lu", a graded attempt, or — "page" —
   // the same manual mark-as-read as "document" but with no file at all,
   // just the rich-text description). Free-text rather than an enum: cheap
   // to extend later (audio, scorm package, ...) without a migration.
-  type          String   @default("video")
+  type                      String   @default("video")
   // Real uploaded content (Vercel Blob — see src/lib/storage.ts), not a
   // pasted external link like Document.fileUrl elsewhere in this app.
   // Unused for type "quiz" and "page" — a quiz's content lives in the
   // linked Quiz instead, a page's in `description` above.
-  fileUrl       String?
-  fileName      String?
-  fileSizeBytes Int?
+  fileUrl                   String?
+  fileName                  String?
+  fileSizeBytes             Int?
   // Openable while the learner's withdrawal period is still running, when
   // the organisation set withdrawalAccessPolicy to "partial".
   //
@@ -2285,7 +2285,7 @@ model ElearningModule {
   // the learner can still withdraw and be reimbursed in full — a risk it
   // bears alone. Reserve this for what genuinely precedes the training:
   // livret d'accueil, programme, règlement intérieur, test de positionnement.
-  availableDuringWithdrawal Boolean @default(false)
+  availableDuringWithdrawal Boolean  @default(false)
   // Global position across the WHOLE course, unchanged by chapters below —
   // this is what unlockNextModuleIfNeeded (lib/lms.ts) and the sequential
   // unlock feature key off of. A chapter is purely a display grouping
@@ -2293,8 +2293,8 @@ model ElearningModule {
   // chapter's position on screen is wherever its modules naturally fall in
   // this same global order, and reordering modules keeps working exactly
   // as it did before chapters existed.
-  order         Int      @default(0)
-  createdAt     DateTime @default(now())
+  order                     Int      @default(0)
+  createdAt                 DateTime @default(now())
 
   chapter     Chapter?                    @relation(fields: [chapterId], references: [id])
   chapterId   String?
@@ -2912,4 +2912,33 @@ model RateLimitCounter {
   windowStart DateTime @default(now())
 
   @@index([windowStart])
+}
+
+// Point de reprise de la chaîne quotidienne (voir src/lib/cronRunner.ts).
+//
+// Une ligne, une chaîne. Le champ qui compte est `nextStage` : le passage
+// suivant démarre là, et non au début. Sans lui, l'ordre était fixe, donc
+// les dernières étapes de la chaîne — synchronisation des boîtes mail,
+// synthèses quotidiennes — n'étaient jamais atteintes dès que les
+// premières mangeaient les 60 secondes allouées. Définitivement, et sans
+// que rien ne le signale.
+//
+// `nextStage` est écrit AVANT de lancer l'étape, jamais après : c'est ce
+// qui permet de reprendre une étape que l'hébergeur a coupée en plein
+// milieu, sans lui laisser le temps d'écrire quoi que ce soit.
+model CronCheckpoint {
+  // Nom de la chaîne — "daily" est la seule pour l'instant.
+  job            String    @id
+  nextStage      String
+  // Posé au début d'un passage, retiré à sa fin. Le trouver encore posé au
+  // début du passage suivant est la SEULE façon de savoir que le précédent
+  // a été coupé en vol : un processus tué n'écrit rien en partant.
+  runInProgress  Boolean   @default(false)
+  // Passages consécutifs coupés avant d'avoir pu se terminer. À 2 ou plus,
+  // une étape ne tient pas dans une exécution — c'est ce qui rend la panne
+  // visible au lieu de silencieuse.
+  stalledRuns    Int       @default(0)
+  // Dernier passage ayant tenté TOUTES les étapes.
+  lastFullPassAt DateTime?
+  updatedAt      DateTime  @updatedAt
 }
