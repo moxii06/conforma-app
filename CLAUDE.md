@@ -250,6 +250,25 @@ Measure before deciding, with `npx tsx prisma/seed-volume.ts` (4 000 learners, 8
 dossiers/invoices, 4 000 documents, 20 000 emails; `--purge` removes it, by relation from
 the marked contacts and not by marker, so rows the app created meanwhile go too).
 
+### Proving a session happened — two shapes, never mixed
+
+A dated cohort proves itself by signatures: `SessionDay` + `AttendanceEntry`, the touch screen at
+`/planning/[id]/emargement`. A **rolling** session cannot — nobody signs at 9am when everyone
+connects on their own schedule — so it proves itself by `src/lib/activityReport.ts`: modules
+completed, first access, last activity, assessments passed, certificate. Article D.6313-3-1 is
+what makes this a substitution rather than a gap: for distance learning the law asks for
+activities and assessments, not signatures. `mode === "ROLLING"` therefore hides the émargement
+entry and the "Journées de la session" block, `/emargement` redirects to `/releve`, and a dated
+session with e-learning gets *both* (blended is real).
+
+What the report deliberately does **not** claim: a connection log. `ElearningProgress.lastEventAt`
+is one timestamp per module, not a journal — so `ACTIVITY_REPORT_NOTICE` says so, on screen and in
+the exported PDF, from a single constant so the two cannot drift. A funder demanding timestamped
+connections is asking for something the schema does not hold; that would need a real event table,
+which is a schema decision, not a screen tweak. Counting rules follow the BPF's discipline: quizzes
+count per *assessment* not per attempt (three tries at one quiz is 1/1, not 3), and "no assessment
+at all" prints `—` rather than `0/0`, because a zero reads as failure.
+
 ### The BPF and the history import — where "close enough" is not allowed
 
 `src/lib/bpfReport.ts` computes a legally binding annual declaration (Cerfa n°10443) from

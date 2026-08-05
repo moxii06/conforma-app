@@ -3,7 +3,7 @@ import { PageHeader, Pill, Avatar, InfoRow, ContextBanner, Button, initialsOf } 
 import { requireSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { PenLine } from "lucide-react";
+import { PenLine, Activity } from "lucide-react";
 import { Role } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -87,6 +87,11 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   const isReadOnly = isPast || isCancelled;
   const isValidated = session.status === "VALIDATED";
   const isFull = session.dossiers.length >= session.capacity;
+  // Une formation en continu n'a ni cohorte ni demi-journées : l'émargement
+  // et les journées de session n'ont rien à y faire, et sa réalisation se
+  // justifie par le relevé d'activité (voir lib/activityReport.ts).
+  const isRolling = session.mode === "ROLLING";
+  const hasElearning = (await prisma.elearningModule.count({ where: { courseId: session.courseId } })) > 0;
   // Combien de dossiers de cette promotion sont encore ouverts — c'est ce
   // nombre que porte le bouton de clôture, pour qu'il dise exactement ce
   // qu'il va faire plutôt qu'un « Clôturer » ambigu.
@@ -271,12 +276,36 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                   <CancelSessionButton sessionId={session.id} />
                 </>
               )}
-              {/* Deliberately a plain, always-available link: this is opened
-                  on a tablet at the start of a session, and hunting for it
-                  in front of the group is exactly the wrong moment. */}
-              <Button href={`/planning/${session.id}/emargement`} size="sm">
-                <PenLine size={13} /> Émargement
-              </Button>
+              {/* Émarger n'a de sens que pour une cohorte datée : en
+                  formation continue, chacun se connecte quand il veut, il
+                  n'y a ni demi-journée ni groupe à faire signer. Proposer
+                  une feuille de signature là-bas laissait croire qu'il
+                  fallait la remplir — et détournait de la preuve qui
+                  compte vraiment, le relevé d'activité.
+
+                  Le lien d'émargement reste volontairement toujours visible
+                  sur une session datée : il s'ouvre sur une tablette au
+                  début du cours, et le chercher devant le groupe est
+                  exactement le mauvais moment. */}
+              {isRolling ? (
+                <Button href={`/planning/${session.id}/releve`} size="sm">
+                  <Activity size={13} /> Relevé d&apos;activité
+                </Button>
+              ) : (
+                <>
+                  <Button href={`/planning/${session.id}/emargement`} size="sm">
+                    <PenLine size={13} /> Émargement
+                  </Button>
+                  {/* Une session datée peut être mixte : si la formation a
+                      des modules en ligne, sa réalisation se justifie aussi
+                      par eux. */}
+                  {hasElearning && (
+                    <Button href={`/planning/${session.id}/releve`} size="sm" variant="secondary">
+                      <Activity size={13} /> Relevé d&apos;activité
+                    </Button>
+                  )}
+                </>
+              )}
               <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />
             </div>
           )}
@@ -286,7 +315,13 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         {/* Vivait uniquement sur l'écran d'émargement — donc il fallait
             ouvrir l'écran de signature tactile, pensé pour la salle, pour
             simplement déclarer une deuxième journée. Toujours présent là-bas
-            pour la correction en direct ; ici pour la préparer en amont. */}
+            pour la correction en direct ; ici pour la préparer en amont.
+
+            Masqué en formation continue : les journées ne servent qu'à
+            l'émargement et au calcul d'heures d'une cohorte datée. Sur une
+            session sans cohorte, ce bloc invitait à saisir des demi-journées
+            que personne ne signera jamais. */}
+        {!isRolling && (
         <div className="bg-white border border-line rounded-card p-5">
           <div className="text-[13.5px] font-semibold text-ink mb-3.5">Journées de la session</div>
           <SessionDaysForm
@@ -301,6 +336,7 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
             canEdit={canEditDays}
           />
         </div>
+        )}
 
         {canEdit && !isReadOnly && (
           <div className="bg-white border border-line rounded-card p-5">

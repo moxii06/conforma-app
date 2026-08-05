@@ -25,6 +25,12 @@ export default async function EmargementPage(props: { params: Promise<{ id: stri
     },
   });
   if (!session) notFound();
+  // Une formation en continu n'a pas de demi-journées à faire signer :
+  // sa réalisation se justifie par le relevé d'activité. La fiche session
+  // n'y mène plus, mais un signet ou un lien ancien peut encore arriver
+  // ici — on le renvoie vers le bon écran plutôt que de lui présenter une
+  // feuille vide qu'il croirait devoir remplir.
+  if (session.mode === "ROLLING") redirect(`/planning/${params.id}/releve`);
 
   const canEdit = can(auth.role, "planning") !== "none";
   const learners = session.dossiers
