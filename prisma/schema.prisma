@@ -839,6 +839,30 @@ model Dossier {
 
   createdAt DateTime @default(now())
 
+  // Clôture du dossier. Le contact, la formation et la session avaient tous
+  // leur archivage ; le dossier non — donc la promotion 2022 restait dans
+  // toutes les listes de travail pour toujours (audit S7, P1 n°8).
+  //
+  // Ce que « clôturé » veut dire, et ce que ça ne veut PAS dire. Un dossier
+  // clos sort des listes de travail et ne déclenche plus rien : ni tâche du
+  // tableau de bord, ni relance automatique. Il ne disparaît de rien
+  // d'autre. En particulier :
+  //
+  //   — le BPF continue de le compter (une inscription de 2022 reste
+  //     déclarée sur 2022 ; l'archivage est un rangement d'écran, jamais
+  //     une réécriture de déclaration légale) ;
+  //   — les indicateurs de résultats Qualiopi aussi, pour la même raison ;
+  //   — l'apprenant garde l'accès à son espace et à ses attestations —
+  //     clôturer, c'est classer côté organisme, pas retirer à quelqu'un ce
+  //     qui lui appartient ;
+  //   — la facturation continue de le voir : une facture impayée sur un
+  //     dossier clos reste due.
+  //
+  // Archiver une session clôture ses dossiers d'un même geste (voir la
+  // route archive) : sans ça, refermer une promotion de trente personnes
+  // demanderait trente clics, ce qui est exactement le défaut signalé.
+  archivedAt DateTime?
+
   // BPF §5.13 groups learner hours by legal status category. Client
   // feedback: this should be captured right when the learner is enrolled
   // (any entry point — course catalog, planning, course creation), not

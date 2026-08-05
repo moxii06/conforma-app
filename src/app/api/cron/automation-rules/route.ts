@@ -27,6 +27,9 @@ import {
   plancherPremierAcces,
   MAX_ENQUETES_PAR_PASSAGE,
 } from "@/lib/relanceWindow";
+// C'est ici que le silence compte le plus : un dossier clos ne doit plus
+// recevoir d'email automatique. Un email parti ne se rattrape pas.
+import { DOSSIERS_ACTIFS } from "@/lib/dossierArchive";
 
 // Headroom for the extra work now bundled into this same daily run
 // (mailbox sync + digest emails across every org/user, see below) — Vercel
@@ -326,6 +329,7 @@ async function sendGenericReminder(
   const dossiers = await prisma.dossier.findMany({
     where: {
       organizationId: rule.organizationId,
+      ...DOSSIERS_ACTIFS,
       ...opts.where,
       // Fenêtre fermée aux deux bouts : assez ancien pour mériter une
       // relance, pas assez pour qu'elle soit absurde (voir relanceWindow.ts).
@@ -376,6 +380,7 @@ async function sendConvocations(rule: Rule) {
   const dossiers = await prisma.dossier.findMany({
     where: {
       organizationId: rule.organizationId,
+      ...DOSSIERS_ACTIFS,
       convocationSent: false,
       session: { courseId: rule.courseId, startsAt: { gte: new Date(), lte: soon } },
     },
@@ -414,6 +419,7 @@ async function sendSessionReminders(rule: Rule) {
   const dossiers = await prisma.dossier.findMany({
     where: {
       organizationId: rule.organizationId,
+      ...DOSSIERS_ACTIFS,
       convocationSent: true,
       sessionReminderSentAt: null,
       session: { courseId: rule.courseId, mode: "FIXED_DATE", startsAt: { gte: now, lte: soon } },
@@ -528,6 +534,7 @@ async function sendRollingDurationReminders(rule: Rule) {
   const dossiers = await prisma.dossier.findMany({
     where: {
       organizationId: rule.organizationId,
+      ...DOSSIERS_ACTIFS,
       accessDurationDays: { not: null },
       // L'échéance vaut firstAccessedAt + accessDurationDays, et Prisma ne
       // sait pas filtrer sur une somme de colonnes — la sélection se
@@ -600,6 +607,7 @@ async function sendSatisfactionReminders(rule: Rule, origin: string) {
   const dossiers = await prisma.dossier.findMany({
     where: {
       organizationId: rule.organizationId,
+      ...DOSSIERS_ACTIFS,
       evaluationColdDone: false,
       satisfactionAutoReminderSentAt: null,
       // Borne basse : on ne demande pas son avis à quelqu'un sur une
@@ -687,6 +695,7 @@ async function sendHotSatisfactionSurveys(origin: string) {
     const dossiers = await prisma.dossier.findMany({
       where: {
         organizationId: survey.organizationId,
+        ...DOSSIERS_ACTIFS,
         evaluationHotDone: false,
         // Deux bornes ajoutées par l'audit S7, pour deux raisons
         // différentes. La borne de date : `evaluationHotDone` ne passe à

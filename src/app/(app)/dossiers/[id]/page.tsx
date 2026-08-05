@@ -21,6 +21,7 @@ import { AccommodationForm } from "@/components/AccommodationForm";
 import { AccommodationStatusForm } from "@/components/AccommodationStatusForm";
 import { SendSatisfactionSurveyButton } from "@/components/SendSatisfactionSurveyButton";
 import { EditContactForm } from "@/components/EditContactForm";
+import { RouvrirDossierButton } from "@/components/RouvrirDossierButton";
 import { DossierSwitcher } from "@/components/DossierSwitcher";
 import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
@@ -224,6 +225,19 @@ export default async function DossierPage(
   return (
     <>
       <PageHeader title={`${dossier.contact.firstName} ${dossier.contact.lastName}`} />
+      {/* Un dossier clos doit se voir quand on l'ouvre. Sans ce bandeau,
+          « clôturé » n'existait que dans un onglet de liste — on pouvait
+          arriver ici par un lien et travailler sur un dossier fermé sans
+          jamais le savoir. */}
+      {dossier.archivedAt && (
+        <div className="mx-8 mt-3.5 border border-line bg-mist rounded-md px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-[12.5px] text-ink">
+            <span className="font-medium">Dossier clôturé.</span> Il n&apos;apparaît plus dans les listes de travail et
+            ne déclenche plus de relance. Le bilan pédagogique et l&apos;accès de l&apos;apprenant sont inchangés.
+          </div>
+          {canEditCategory && <RouvrirDossierButton dossierId={dossier.id} />}
+        </div>
+      )}
       <div className="px-8 pt-3.5 flex items-center gap-3 text-[12px] text-slate flex-wrap">
         <DossierSwitcher dossiers={dossierOptions} currentId={dossier.id} />
         <span className="text-line">·</span>

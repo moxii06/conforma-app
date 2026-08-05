@@ -17,6 +17,7 @@ import { CancelSessionButton } from "@/components/CancelSessionButton";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
 import { buildSessionClosing, closingTitle } from "@/lib/sessionClosing";
 import { SendBulkDocumentDialog } from "@/components/SendBulkDocumentDialog";
+import { CloreDossiersButton } from "@/components/CloreDossiersButton";
 
 const FORMAT_LABELS: Record<string, string> = {
   IN_PERSON: "Présentiel",
@@ -86,6 +87,10 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   const isReadOnly = isPast || isCancelled;
   const isValidated = session.status === "VALIDATED";
   const isFull = session.dossiers.length >= session.capacity;
+  // Combien de dossiers de cette promotion sont encore ouverts — c'est ce
+  // nombre que porte le bouton de clôture, pour qu'il dise exactement ce
+  // qu'il va faire plutôt qu'un « Clôturer » ambigu.
+  const dossiersOuverts = session.dossiers.filter((d) => d.archivedAt === null).length;
 
   // QW6 — les preuves du parcours, apprenant par apprenant. Le calcul vit
   // dans src/lib/sessionClosing.ts (testé) : c'est lui qui sait qu'une
@@ -386,14 +391,26 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         <div className="bg-white border border-line rounded-card p-5">
           <div className="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
             <div className="text-[13.5px] font-semibold text-ink">Apprenants inscrits ({session.dossiers.length})</div>
-            {canManage && (
-              <SendBulkDocumentDialog
-                sessionId={session.id}
-                templates={documentTemplates}
-                recipients={session.dossiers.map((d) => ({ id: d.id, name: `${d.contact.firstName} ${d.contact.lastName}` }))}
-                signatureHtml={senderSignatureHtml}
-              />
-            )}
+            <div className="flex items-center gap-3.5">
+              {/* Clôturer la promotion depuis la session : c'est l'unité qui
+                  correspond au problème réel — une promotion entière qui
+                  traîne dans les listes. Distinct de l'archivage de la
+                  session elle-même, qui range le planning. */}
+              {canManage &&
+                (dossiersOuverts > 0 ? (
+                  <CloreDossiersButton sessionId={session.id} nombre={dossiersOuverts} dejaClos={false} />
+                ) : (
+                  <CloreDossiersButton sessionId={session.id} nombre={session.dossiers.length} dejaClos={true} />
+                ))}
+              {canManage && (
+                <SendBulkDocumentDialog
+                  sessionId={session.id}
+                  templates={documentTemplates}
+                  recipients={session.dossiers.map((d) => ({ id: d.id, name: `${d.contact.firstName} ${d.contact.lastName}` }))}
+                  signatureHtml={senderSignatureHtml}
+                />
+              )}
+            </div>
           </div>
           {!isValidated && session.dossiers.length > 0 && (
             <div className="text-[12px] text-slate mb-3">

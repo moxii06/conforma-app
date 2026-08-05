@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { Role, type Prisma } from "@prisma/client";
 import { SearchInput } from "@/components/SearchInput";
 import { DossierStatusFilter } from "@/components/DossierStatusFilter";
+import { filtreCloture } from "@/lib/dossierArchive";
 import { Pagination } from "@/components/Pagination";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -22,7 +23,7 @@ const STATUS_FILTER_WHERE: Record<string, Prisma.DossierWhereInput> = {
 };
 
 export default async function DossiersPage(
-  props: { searchParams: Promise<{ q?: string; page?: string; status?: string }> }
+  props: { searchParams: Promise<{ q?: string; page?: string; status?: string; vue?: string }> }
 ) {
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
@@ -39,6 +40,10 @@ export default async function DossiersPage(
     organizationId,
     ...ownerFilter,
     ...statusFilter,
+    // Les dossiers clos sortent de la liste par défaut. « Clôturés » est un
+    // endroit explicite où regarder, pas une disparition — même leçon que
+    // pour les sessions archivées. Voir lib/dossierArchive.ts.
+    ...filtreCloture(searchParams.vue),
     ...(q
       ? {
           contact: {
@@ -78,7 +83,20 @@ export default async function DossiersPage(
 
   const dossiers = contactIds.length
     ? await prisma.dossier.findMany({
-        where: { organizationId, contactId: { in: contactIds } },
+        where: {
+          organizationId,
+          contactId: { in: contactIds },
+          // La clôture doit filtrer les DEUX passes. Le premier filtre
+          // choisit quels apprenants apparaissent ; sans celui-ci, une
+          // personne retenue par un dossier clos voyait aussi ses
+          // formations en cours listées sous l'onglet « Clôturés » — et
+          // réciproquement. La vue était crédible et fausse.
+          //
+          // Le filtre d'étape (« convention non signée »…) reste, lui,
+          // volontairement absent de cette passe : il sert à trouver
+          // l'apprenant, et on veut ensuite voir TOUT son parcours.
+          ...filtreCloture(searchParams.vue),
+        },
         include: { contact: true, session: { include: { course: true } } },
         orderBy: { createdAt: "desc" },
       })
@@ -111,6 +129,30 @@ export default async function DossiersPage(
         <div className="flex items-center gap-2.5 flex-wrap">
           <SearchInput placeholder="Rechercher un apprenant (nom, email)…" />
           <DossierStatusFilter />
+          {/* Trois vues plutôt qu'une case à cocher : « Clôturés » doit être
+              un endroit où l'on va, pas une option qu'on découvre. */}
+          <div className="flex items-center gap-1">
+            {[
+              { cle: undefined, libelle: "En cours" },
+              { cle: "clotures", libelle: "Clôturés" },
+              { cle: "tous", libelle: "Tous" },
+            ].map((v) => {
+              const actif = (searchParams.vue ?? undefined) === v.cle;
+              const qs = new URLSearchParams();
+              if (q) qs.set("q", q);
+              if (searchParams.status) qs.set("status", searchParams.status);
+              if (v.cle) qs.set("vue", v.cle);
+              return (
+                <Link
+                  key={v.libelle}
+                  href={qs.toString() ? `/dossiers?${qs}` : "/dossiers"}
+                  className={`text-[12px] px-2.5 py-1 rounded-full ${actif ? "bg-ink text-white" : "text-slate hover:text-ink"}`}
+                >
+                  {v.libelle}
+                </Link>
+              );
+            })}
+          </div>
           <div className="text-[12px] text-slate">{total} apprenant{total > 1 ? "s" : ""}</div>
         </div>
         <div className="flex flex-col gap-2">
@@ -182,7 +224,12 @@ export default async function DossiersPage(
             )
           )}
         </div>
-        <Pagination basePath="/dossiers" searchParams={{ q, status: searchParams.status, page: searchParams.page }} page={page} totalPages={totalPages} />
+        <Pagination
+          basePath="/dossiers"
+          searchParams={{ q, status: searchParams.status, vue: searchParams.vue, page: searchParams.page }}
+          page={page}
+          totalPages={totalPages}
+        />
       </div>
     </>
   );

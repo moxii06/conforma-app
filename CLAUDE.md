@@ -185,6 +185,20 @@ event — emitting a thousand `invoice.paid` webhooks for it would be false. The
 written all the same, because the invoicing screens derive "remaining due" from the sum of
 payments, so a PAID invoice with none would read as entirely unpaid.
 
+### Closing a learner file — what goes quiet, and what never does
+
+`Dossier.archivedAt` closes a learner file, and `src/lib/dossierArchive.ts` is the single
+place that says what that means — 22 files query dossiers and the answer is not the same in
+all of them. Working lists go quiet (`/dossiers` by default, dashboard tasks, the
+automation cron, pickers for a *new* action); the BPF, the Qualiopi result indicators, the
+learner's own space, invoicing and global search never do. Closing is the OF filing a
+record away, never a rewrite of a legal declaration or a revocation of what belongs to the
+learner. Archiving a *session* closes its whole cohort in one action — the audit's
+complaint was "the 2022 cohort stays in every list forever", and a per-file button alone
+would just have been thirty clicks. Note `/dossiers` groups by learner and queries twice
+(which learners match, then their dossiers): the closure filter must be on **both** passes,
+or a learner retained by a closed file also shows their open ones.
+
 ### The BPF and the history import — where "close enough" is not allowed
 
 `src/lib/bpfReport.ts` computes a legally binding annual declaration (Cerfa n°10443) from

@@ -4,6 +4,10 @@ import { addDays } from "date-fns";
 import { canWriteRgpd } from "@/lib/tenant";
 import { getCourseCompletion } from "@/lib/lms";
 import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } from "@/lib/funding";
+// Un dossier clos ne doit plus rien réclamer : c'est la moitié du sens du
+// mot « clôturer ». Voir dossierArchive.ts pour ce qui se tait et ce qui
+// ne se tait jamais.
+import { DOSSIERS_ACTIFS } from "@/lib/dossierArchive";
 
 // "Relances" thresholds — how long to wait before a pending step counts as
 // needing a follow-up. Not spec-mandated numbers, just sane defaults; make
@@ -273,6 +277,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const paidAwaitingAccess = await prisma.dossier.findMany({
       where: {
         organizationId,
+        ...DOSSIERS_ACTIFS,
         contact: { invoices: { some: { status: "PAID" } } },
         clientOutreaches: { none: { type: "platform_access" } },
         // Aucun événement ne fait sortir un dossier de ce lot : sans
@@ -309,6 +314,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const dossiersNeedingConvocation = await prisma.dossier.findMany({
       where: {
         organizationId,
+        ...DOSSIERS_ACTIFS,
         convocationSent: false,
         session: {
           startsAt: { gte: new Date(), lte: soon },
@@ -350,6 +356,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const incompleteDossiers = await prisma.dossier.findMany({
       where: {
         organizationId,
+        ...DOSSIERS_ACTIFS,
         OR: [{ needsAssessmentDone: false }, { contractSigned: false }],
         session: role === Role.TRAINER ? { trainerId: userId } : undefined,
         createdAt: { gte: plancher },
@@ -418,6 +425,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const rollingDossiers = await prisma.dossier.findMany({
       where: {
         organizationId,
+        ...DOSSIERS_ACTIFS,
         accessDurationDays: { not: null },
         firstAccessedAt: { not: null, gte: plancher },
         session: {
@@ -481,6 +489,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const startedDossiers = await prisma.dossier.findMany({
       where: {
         organizationId,
+        ...DOSSIERS_ACTIFS,
         firstAccessedAt: { not: null, gte: plancher },
         session: role === Role.TRAINER ? { trainerId: userId } : undefined,
       },
@@ -531,6 +540,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
       const dossiersToSurvey = await prisma.dossier.findMany({
         where: {
           organizationId,
+          ...DOSSIERS_ACTIFS,
           evaluationColdDone: false,
           session: {
             mode: "FIXED_DATE",
