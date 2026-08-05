@@ -26,7 +26,7 @@ export async function sendDailyDigests(origin: string): Promise<{ sent: number }
   for (const user of users) {
     if (can(user.role, "dashboard") === "none") continue;
 
-    const tasks = await getDashboardTasks(user.organizationId, user.role, user.id);
+    const { tasks } = await getDashboardTasks(user.organizationId, user.role, user.id);
     if (tasks.length === 0) continue;
 
     const shown = tasks.slice(0, MAX_ITEMS_IN_EMAIL);

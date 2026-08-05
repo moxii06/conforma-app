@@ -29,6 +29,9 @@ export function NotificationBell({ userId }: { userId: string }) {
   const [tasks, setTasks] = useState<DashboardTask[]>([]);
   const [count, setCount] = useState(0);
   const [overdueCount, setOverdueCount] = useState(0);
+  // Le décompte est plafonné côté serveur : sans ce drapeau, la cloche
+  // annoncerait « 200 » là où il y en a des milliers.
+  const [tronquee, setTronquee] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +42,7 @@ export function NotificationBell({ userId }: { userId: string }) {
         setTasks(data.tasks ?? []);
         setCount(data.count ?? 0);
         setOverdueCount(data.overdueCount ?? 0);
+        setTronquee(Boolean(data.tronquee));
       })
       // Silencieux : une cloche vide est un défaut acceptable, un écran
       // d'erreur sur toutes les pages ne l'est pas.
@@ -54,6 +58,7 @@ export function NotificationBell({ userId }: { userId: string }) {
     setTasks([]);
     setCount(0);
     setOverdueCount(0);
+    setTronquee(false);
     fetch("/api/notifications/clear", { method: "POST" })
       // Best-effort — l'état en mémoire reflète déjà l'effacement pour
       // cette session ; un échec réseau les fera juste réapparaître au
@@ -86,7 +91,7 @@ export function NotificationBell({ userId }: { userId: string }) {
           <div className="absolute left-0 top-10 z-20 w-80 bg-white border border-line rounded-card shadow-lg py-2">
             <div className="flex items-center justify-between px-3.5 py-1.5">
               <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide">
-                À faire ({count})
+                À faire ({count}{tronquee ? "+" : ""})
               </div>
               {count > 0 && (
                 <button type="button" onClick={clearAll} className="text-[11px] text-slate hover:text-ink underline decoration-line">

@@ -29,7 +29,7 @@ export async function GET() {
     return NextResponse.json({ tasks: [], count: 0, overdueCount: 0 });
   }
 
-  const [tasks, dismissals] = await Promise.all([
+  const [{ tasks, tronquee }, dismissals] = await Promise.all([
     getDashboardTasks(session.organizationId, session.role, session.userId),
     prisma.notificationDismissal.findMany({
       where: { userId: session.userId },
@@ -47,5 +47,8 @@ export async function GET() {
     tasks: visibles.slice(0, TACHES_AFFICHEES),
     count: visibles.length,
     overdueCount: visibles.filter((t) => t.overdue).length,
+    // Le décompte est plafonné en amont : la cloche doit l'écrire « 200+ »
+    // et non « 200 », sous peine d'annoncer un total qui n'en est pas un.
+    tronquee,
   });
 }

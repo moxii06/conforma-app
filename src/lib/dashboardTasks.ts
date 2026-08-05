@@ -29,6 +29,38 @@ const ROLLING_DURATION_WARNING_RATIO = 0.7;
 // signal, independent of session mode.
 const LEARNER_INACTIVITY_DAYS = 14;
 
+// Audit S7 (tenue en charge). Mesuré sur un organisme à 4 000 apprenants /
+// 8 000 dossiers : cette fonction produisait 14 000 tâches, dont 11 334
+// « en retard », et 19 Mo de données transférées — sur le tableau de bord
+// ET, via la cloche, sur chaque page de l'application. Un organisme qui
+// reprend son historique n'a coché aucune case dans Jalon : tout son passé
+// remonte comme du travail en retard.
+//
+// Deux garde-fous, de natures différentes.
+//
+// L'HORIZON est un choix de fond : un dossier dont l'échéance est passée
+// depuis plus d'un an n'est plus une tâche, c'est de l'archive. Le laisser
+// dans la liste ne le rend pas plus susceptible d'être traité — il rend
+// seulement invisible ce qui l'est. Un an est volontairement large (le
+// garde-fou des relances automatiques, lui, est à six mois : ne pas
+// envoyer d'email est plus prudent que ne pas afficher une ligne).
+const HORIZON_TACHES_JOURS = 365;
+
+// Le PLAFOND par famille borne ce qui est transféré. Mesuré : sur un
+// organisme migré dont AUCUNE case n'est cochée, il mord vraiment — le
+// jeu de volume produit 200 tâches, soit exactement deux familles au
+// plafond. Ce n'est donc pas un simple filet de sécurité, et c'est
+// pourquoi la troncature est remontée à l'appelant (voir `tronquee`)
+// plutôt que passée sous silence.
+//
+// Les lots sont pris par date croissante et retriés à la fin : ce sont les
+// plus anciens qui survivent, c'est-à-dire les plus en retard.
+const MAX_TACHES_PAR_FAMILLE = 100;
+
+function horizonTaches(): Date {
+  return addDays(new Date(), -HORIZON_TACHES_JOURS);
+}
+
 export type DashboardTask = {
   id: string;
   kind:
@@ -103,9 +135,20 @@ export function compareDashboardTasks(a: DashboardTask, b: DashboardTask): numbe
 // rework. Scoped by role using the same ownership rules as the rest of the
 // app: SALES only sees their own prospects' items, TRAINER only their own
 // sessions, ADMIN_OF/ADMIN_MANAGER see everything they have module access to.
-export async function getDashboardTasks(organizationId: string, role: Role, userId: string): Promise<DashboardTask[]> {
+export type DashboardTasksResult = {
+  tasks: DashboardTask[];
+  /** Au moins une famille a atteint MAX_TACHES_PAR_FAMILLE : il en reste au-delà. */
+  tronquee: boolean;
+};
+
+export async function getDashboardTasks(organizationId: string, role: Role, userId: string): Promise<DashboardTasksResult> {
   const threshold = addDays(new Date(), -REMINDER_AFTER_DAYS);
   const results: DashboardTask[] = [];
+  // Familles ayant ramené exactement leur plafond — voir le retour.
+  const famillesAuPlafond = new Set<string>();
+  function noterSiPlafond(famille: string, lot: unknown[]) {
+    if (lot.length >= MAX_TACHES_PAR_FAMILLE) famillesAuPlafond.add(famille);
+  }
 
   // Tasks are recomputed live from dossier/invoice/etc. state on every load
   // — there's no row to mark done, so "ignorer" is tracked separately here
@@ -217,10 +260,15 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         contact: { invoices: { some: { status: "PAID" } } },
         clientOutreaches: { none: { type: "platform_access" } },
+        // Aucun événement ne fait sortir un dossier de ce lot : sans
+        // horizon, tout l'historique payé y reste définitivement.
+        createdAt: { gte: horizonTaches() },
       },
       include: { contact: true },
       orderBy: { createdAt: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
     });
+    noterSiPlafond("platform_access_after_payment", paidAwaitingAccess);
     for (const d of paidAwaitingAccess) {
       results.push({
         id: d.id,
@@ -289,9 +337,13 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         OR: [{ needsAssessmentDone: false }, { contractSigned: false }],
         session: role === Role.TRAINER ? { trainerId: userId } : undefined,
+        createdAt: { gte: horizonTaches() },
       },
       include: { contact: true, session: true },
+      orderBy: { createdAt: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
     });
+    noterSiPlafond("dossier_prep", incompleteDossiers);
     for (const d of incompleteDossiers) {
       const isRolling = d.session.mode === "ROLLING";
       const genericDeadline = isRolling
@@ -352,7 +404,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
       where: {
         organizationId,
         accessDurationDays: { not: null },
-        firstAccessedAt: { not: null },
+        firstAccessedAt: { not: null, gte: horizonTaches() },
         session: {
           mode: "ROLLING",
           ...(role === Role.TRAINER ? { trainerId: userId } : {}),
@@ -414,7 +466,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const startedDossiers = await prisma.dossier.findMany({
       where: {
         organizationId,
-        firstAccessedAt: { not: null },
+        firstAccessedAt: { not: null, gte: horizonTaches() },
         session: role === Role.TRAINER ? { trainerId: userId } : undefined,
       },
       include: {
@@ -423,7 +475,10 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         elearningProgress: true,
         quizAttempts: true,
       },
+      orderBy: { firstAccessedAt: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
     });
+    noterSiPlafond("learner_inactive", startedDossiers);
     for (const d of startedDossiers) {
       const modules = d.session.course.elearningModules;
       if (modules.length === 0) continue;
@@ -502,10 +557,16 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         status: { notIn: ["PAID", "DRAFT"] },
         OR: [{ status: "OVERDUE" }, { dueDate: { lt: now } }],
+        // Une facture importée d'un ancien outil et restée « envoyée »
+        // faute d'avoir été rapprochée n'est pas une relance à faire
+        // aujourd'hui — c'est une reprise de comptabilité.
+        createdAt: { gte: horizonTaches() },
       },
       include: { contact: true },
       orderBy: { createdAt: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
     });
+    noterSiPlafond("invoice_overdue", overdueInvoices);
     for (const inv of overdueInvoices) {
       results.push({
         id: inv.id,
@@ -528,7 +589,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     const uninvoicedSessions = await prisma.session.findMany({
       where: {
         organizationId,
-        endsAt: { lt: now },
+        endsAt: { lt: now, gte: horizonTaches() },
         status: { not: "CANCELLED" },
         archivedAt: null,
         dossiers: {
@@ -546,7 +607,9 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         },
       },
       orderBy: { endsAt: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
     });
+    noterSiPlafond("session_uninvoiced", uninvoicedSessions);
     for (const s of uninvoicedSessions) {
       const count = s.dossiers.length;
       results.push({
@@ -818,5 +881,17 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     }
   }
 
-  return results.filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`)).sort(compareDashboardTasks);
+  const tasks = results.filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`)).sort(compareDashboardTasks);
+
+  // Une famille au plafond signifie qu'il en reste au-delà. On le dit :
+  // un compteur plafonné qui se lit comme un total est un mensonge, et
+  // c'est exactement le défaut relevé ailleurs par l'audit (le journal des
+  // automatisations affichait « 50 envois ces 30 derniers jours » quelle
+  // que soit la réalité, parce qu'il comptait sur une fenêtre déjà
+  // tronquée). Compter précisément coûterait une requête de plus par
+  // famille pour une information que personne n'actionne — savoir qu'il y
+  // en a « plus que ça » suffit.
+  const tronquee = famillesAuPlafond.size > 0;
+
+  return { tasks, tronquee };
 }

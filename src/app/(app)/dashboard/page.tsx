@@ -103,7 +103,7 @@ export default async function DashboardPage() {
       ? await prisma.subscription.findUnique({ where: { organizationId } })
       : null;
 
-  const tasks = await getDashboardTasks(organizationId, role, userId);
+  const { tasks, tronquee: tachesTronquees } = await getDashboardTasks(organizationId, role, userId);
   const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { dashboardLayout: true } });
   const savedLayout = parseDashboardLayout(currentUser.dashboardLayout);
 
@@ -223,7 +223,7 @@ export default async function DashboardPage() {
     onboardingRemaining > 0
       ? { id: "onboarding", node: <OnboardingWidget steps={onboarding} remaining={onboardingRemaining} /> }
       : null,
-    tasks.length > 0 ? { id: "tasks", node: <TasksWidget tasks={tasks} /> } : null,
+    tasks.length > 0 ? { id: "tasks", node: <TasksWidget tasks={tasks} tronquee={tachesTronquees} /> } : null,
     canManageComplaints && openComplaints.length > 0
       ? { id: "complaints", node: <ComplaintsWidget complaints={openComplaints} /> }
       : null,
@@ -428,7 +428,11 @@ function OnboardingWidget({ steps, remaining }: { steps: OnboardingStep[]; remai
   );
 }
 
-function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
+// `tronquee` : le calcul plafonne chaque famille de tâches (voir
+// dashboardTasks.ts). Sans ce drapeau, le titre annoncerait un total qui
+// n'en est pas un — c'est précisément le défaut relevé par l'audit sur le
+// journal des automatisations, il ne faut pas le reproduire ici.
+function TasksWidget({ tasks, tronquee }: { tasks: DashboardTask[]; tronquee: boolean }) {
   const overdueCount = tasks.filter((t) => t.overdue).length;
 
   // Grouped by theme, but only once there are enough tasks for the grouping
@@ -443,7 +447,7 @@ function TasksWidget({ tasks }: { tasks: DashboardTask[] }) {
 
   return (
     <CollapsibleSection
-      title={`À faire (${tasks.length})`}
+      title={`À faire (${tasks.length}${tronquee ? "+" : ""})`}
       badge={overdueCount > 0 ? <Pill tone="danger">{overdueCount} en retard</Pill> : undefined}
       extra={<RefreshButton />}
     >
