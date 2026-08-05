@@ -27,6 +27,11 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
   const [responsibleIds, setResponsibleIds] = useState<Set<string>>(new Set());
   const [subcontractorIds, setSubcontractorIds] = useState<Set<string>>(new Set());
   const [durationHours, setDurationHours] = useState("");
+  // Saisi en euros, envoyé en centimes. La route acceptait déjà priceCents ;
+  // c'est le formulaire qui ne l'a jamais envoyé. Sans prix, la convention et
+  // le contrat sortent avec un montant vide et le BPF est faux — c'est le
+  // champ manquant qui coûtait le plus cher.
+  const [priceEuros, setPriceEuros] = useState("");
   const [maxLearners, setMaxLearners] = useState("");
   const [learners, setLearners] = useState<PendingLearner[]>([]);
   const [accessDurationDays, setAccessDurationDays] = useState("");
@@ -168,6 +173,9 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
         responsibleUserIds: Array.from(responsibleIds),
         subcontractorIds: Array.from(subcontractorIds),
         durationHours: durationHours ? parseInt(durationHours, 10) : undefined,
+        // Arrondi explicite : « 1 400,5 » saisi en euros ne doit pas produire
+        // un demi-centime, que la route refuserait sans rien expliquer.
+        priceCents: priceEuros ? Math.round(parseFloat(priceEuros.replace(",", ".")) * 100) : undefined,
         maxLearners: maxLearners ? parseInt(maxLearners, 10) : undefined,
         initialLearners: learners.map((l) => l.input),
         outline: outline.length > 0 ? outline : undefined,
@@ -367,7 +375,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className={fieldLabelClass}>Durée (heures)</label>
                 <input
@@ -378,6 +386,19 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
                   placeholder="ex. 7"
                   className={fieldClass}
                 />
+              </div>
+              <div>
+                <label className={fieldLabelClass}>Prix (€)</label>
+                <input
+                  value={priceEuros}
+                  onChange={(e) => setPriceEuros(e.target.value)}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="ex. 1400"
+                  className={fieldClass}
+                />
+                <div className="text-[11px] text-slate mt-1">Reporté sur la convention et le contrat</div>
               </div>
               <div>
                 <label className={fieldLabelClass}>Places</label>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, Avatar, InfoRow, initialsOf } from "@/components/ui";
+import { CourseCompletenessBanner } from "@/components/CourseCompletenessBanner";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
@@ -170,6 +171,10 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
         <Link href="/formations" className="inline-flex items-center gap-1.5 text-[12.5px] text-slate hover:text-ink w-fit mb-4">
           <ArrowLeft size={14} /> Retour au catalogue
         </Link>
+        {/* Au-dessus des onglets de contenu et non dans l'un d'eux : ce qui
+            manque concerne la formation entière, et se lit avant d'avoir
+            choisi où regarder. Ne rend rien si rien ne manque. */}
+        <CourseCompletenessBanner courseId={course.id} course={course} />
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5 items-start">
         <div className="bg-white border border-line rounded-card p-5 lg:sticky lg:top-6">
           <Avatar initials={courseInitials} />
