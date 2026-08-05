@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { SessionFormat, SessionMode } from "@prisma/client";
 import { Button } from "@/components/ui";
+import { SegmentedControl, FORMAT_OPTIONS } from "@/components/Controls";
 
 type Course = { id: string; title: string };
 type Trainer = { id: string; name: string };
@@ -161,12 +162,18 @@ export function CreateSessionForm({
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
-        <select value={format} onChange={(e) => setFormat(e.target.value as SessionFormat)} className="border border-line rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none focus:border-seal">
-          {Object.entries(FORMAT_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
       </div>
+
+      {/* Sélecteur segmenté, comme à l'étape 1 de la création d'une
+          formation. Le format tenait dans un menu déroulant à côté du
+          formateur : le même choix avait deux apparences selon l'écran par
+          lequel on arrivait. */}
+      <SegmentedControl
+        value={format}
+        onChange={(v) => setFormat(v as SessionFormat)}
+        options={FORMAT_OPTIONS}
+        label="Format"
+      />
 
       {mode === "FIXED_DATE" ? (
         <div className="flex gap-2">

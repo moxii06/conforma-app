@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ParcoursRuleRow } from "@/components/ParcoursRuleRow";
+import { SwitchRow } from "@/components/Controls";
 
 /**
  * Les règles du parcours, sur la fiche formation — le pendant exact de
@@ -55,18 +55,18 @@ export function CourseParcoursRules({
 
   return (
     <div className="flex flex-col">
-      <ParcoursRuleRow
-        actif={sequentialUnlock}
+      <SwitchRow
+        checked={sequentialUnlock}
         disabled={loading}
-        onToggle={() => patch({ sequentialUnlock: !sequentialUnlock })}
+        onChange={() => patch({ sequentialUnlock: !sequentialUnlock })}
         titre="Terminer un module pour ouvrir le suivant"
         sous="Décochez pour une bibliothèque de ressources consultable dans le désordre."
         consequence="Décoché, tous les modules s'ouvrent dès que l'accès est donné. Un parcours certifiant, dont l'ordre porte la progression pédagogique, veut l'inverse."
       />
-      <ParcoursRuleRow
-        actif={withdrawalAccessPolicy !== "partial"}
+      <SwitchRow
+        checked={withdrawalAccessPolicy !== "partial"}
         disabled={loading}
-        onToggle={() => patch({ withdrawalAccessPolicy: withdrawalAccessPolicy === "partial" ? "closed" : "partial" })}
+        onChange={() => patch({ withdrawalAccessPolicy: withdrawalAccessPolicy === "partial" ? "closed" : "partial" })}
         titre="Bloquer l'accès pendant le délai de rétractation"
         sous={
           withdrawalAccessPolicy === null
@@ -75,10 +75,10 @@ export function CourseParcoursRules({
         }
         consequence="Ce n'est pas un délai pédagogique : c'est le droit de l'apprenant à se rétracter. Ouvrir un module pendant ce délai, c'est commencer à exécuter le contrat alors qu'il peut encore être remboursé intégralement. Décoché, seuls les modules marqués « disponibles pendant la rétractation » s'ouvrent."
       />
-      <ParcoursRuleRow
-        actif={allowVideoSkip}
+      <SwitchRow
+        checked={allowVideoSkip}
         disabled={loading}
-        onToggle={() => patch({ allowVideoSkip: !allowVideoSkip })}
+        onChange={() => patch({ allowVideoSkip: !allowVideoSkip })}
         titre="Autoriser « Passer cette vidéo »"
         sous="Désactivé par défaut. La suite se débloque, mais le saut reste tracé et visible."
       />

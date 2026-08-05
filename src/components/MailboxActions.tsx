@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import { Switch } from "@/components/Controls";
 
 // MailboxConnection.provider stores "gmail" (matches the display/DB value
 // used throughout the rest of the app), but the API routes live under
@@ -75,18 +76,20 @@ export function MailboxActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2.5">
-      <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-slate">
-        <input
-          type="checkbox"
+      {/* Interrupteur et non case à cocher : ceci enregistre immédiatement,
+          il n'y a aucun bouton « Valider » derrière. Une case dit « je
+          remplis un formulaire », un interrupteur dit « c'est fait ». */}
+      <div className="flex items-center gap-1.5 text-[12px] text-slate">
+        <Switch
           checked={syncEnabled}
           onChange={handleToggle}
           disabled={loading !== null}
-          className="h-3.5 w-3.5 accent-seal disabled:opacity-60"
+          label="Synchroniser cette boîte"
         />
-        <span title="Décocher arrête la synchronisation sans supprimer les emails déjà importés.">
+        <span title="Désactiver arrête la synchronisation sans supprimer les emails déjà importés.">
           {loading === "toggle" ? "…" : "Synchroniser cette boîte"}
         </span>
-      </label>
+      </div>
       <button
         onClick={handleSync}
         disabled={loading !== null || !syncEnabled}

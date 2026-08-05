@@ -6,6 +6,7 @@ import { SessionFormat } from "@prisma/client";
 import { format as formatDate } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui";
+import { SegmentedControl, FORMAT_OPTIONS } from "@/components/Controls";
 
 type Trainer = { id: string; name: string };
 
@@ -134,12 +135,16 @@ export function EditSessionForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className={labelClass} htmlFor="es-format">Format</label>
-        <select id="es-format" value={sessFormat} onChange={(e) => setSessFormat(e.target.value as SessionFormat)} className={fieldClass}>
-          {Object.entries(FORMAT_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
+        {/* Sélecteur segmenté, comme à l'étape 1 de la création d'une
+            formation : le même choix ne peut pas avoir deux apparences à
+            deux clics d'écart. */}
+        <span className={labelClass}>Format</span>
+        <SegmentedControl
+          value={sessFormat}
+          onChange={(v) => setSessFormat(v as SessionFormat)}
+          options={FORMAT_OPTIONS}
+          label="Format"
+        />
       </div>
 
       <div className="flex flex-col gap-1">

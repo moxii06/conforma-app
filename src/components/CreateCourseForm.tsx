@@ -8,9 +8,9 @@ import { LEARNER_CATEGORY_LABELS } from "@/lib/bpfCategories";
 import { COURSE_TEMPLATES, COURSE_TEMPLATE_SECTORS } from "@/lib/courseTemplates";
 import { X, FileUp, LayoutTemplate, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui";
-// Partagé avec la fiche formation : ce qu'on règle en créant doit se
-// retrouver à l'identique en modifiant.
-import { ParcoursRuleRow } from "@/components/ParcoursRuleRow";
+// Partagés avec la fiche formation et les écrans de session : ce qu'on
+// règle en créant doit se retrouver à l'identique partout ailleurs.
+import { SwitchRow, SegmentedControl, FORMAT_OPTIONS, RYTHME_OPTIONS } from "@/components/Controls";
 
 const ETAPES = [
   { n: 1, titre: "L'essentiel" },
@@ -399,34 +399,12 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
 
             <div>
               <label className={fieldLabelClass}>Comment se déroule-t-elle ?</label>
-              <div className="flex border border-line rounded-md overflow-hidden w-fit max-w-full flex-wrap">
-                {([["IN_PERSON", "Présentiel"], ["REMOTE", "Distanciel"], ["HYBRID", "Mixte"]] as const).map(([v, l]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setFormat(v)}
-                    className={`px-3.5 py-1.5 text-[12.5px] border-r border-line last:border-r-0 ${format === v ? "bg-ink text-white font-medium" : "text-slate hover:text-ink"}`}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl value={format} onChange={setFormat} options={FORMAT_OPTIONS} label="Format" />
             </div>
 
             <div>
               <label className={fieldLabelClass}>Rythme</label>
-              <div className="flex border border-line rounded-md overflow-hidden w-fit max-w-full flex-wrap">
-                {([["FIXED_DATE", "Session à date fixe"], ["ROLLING", "En continu — chacun son calendrier"]] as const).map(([v, l]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setRythme(v)}
-                    className={`px-3.5 py-1.5 text-[12.5px] border-r border-line last:border-r-0 ${rythme === v ? "bg-ink text-white font-medium" : "text-slate hover:text-ink"}`}
-                  >
-                    {l}
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl value={rythme} onChange={setRythme} options={RYTHME_OPTIONS} label="Rythme" />
             </div>
           </div>
 
@@ -590,23 +568,23 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
 
           {/* ── ÉTAPE 3 — Les règles du parcours ──────────────────────── */}
           <div className={etape === 3 ? "flex flex-col" : "hidden"}>
-            <ParcoursRuleRow
-              actif={sequentialUnlock}
-              onToggle={() => setSequentialUnlock((v) => !v)}
+            <SwitchRow
+              checked={sequentialUnlock}
+              onChange={() => setSequentialUnlock((v) => !v)}
               titre="Terminer un module pour ouvrir le suivant"
               sous="Décochez pour une bibliothèque de ressources consultable dans le désordre."
               consequence="Décoché, tous les modules s'ouvrent dès que l'accès est donné. Un parcours certifiant, dont l'ordre porte la progression pédagogique, veut l'inverse."
             />
-            <ParcoursRuleRow
-              actif={withdrawalPolicy !== "partial"}
-              onToggle={() => setWithdrawalPolicy((v) => (v === "partial" ? "closed" : "partial"))}
+            <SwitchRow
+              checked={withdrawalPolicy !== "partial"}
+              onChange={() => setWithdrawalPolicy((v) => (v === "partial" ? "closed" : "partial"))}
               titre="Bloquer l'accès pendant le délai de rétractation"
               sous="14 jours après la signature — article L.221-18 du code de la consommation."
               consequence="Ce n'est pas un délai pédagogique : c'est le droit de l'apprenant à se rétracter. Ouvrir un module pendant ce délai, c'est commencer à exécuter le contrat alors qu'il peut encore être remboursé intégralement. Décoché, seuls les modules que vous marquez « disponibles pendant la rétractation » s'ouvrent — livret d'accueil, programme, règlement intérieur."
             />
-            <ParcoursRuleRow
-              actif={allowVideoSkip}
-              onToggle={() => setAllowVideoSkip((v) => !v)}
+            <SwitchRow
+              checked={allowVideoSkip}
+              onChange={() => setAllowVideoSkip((v) => !v)}
               titre="Autoriser « Passer cette vidéo »"
               sous="Désactivé par défaut. Chaque saut reste tracé."
             />
