@@ -11,6 +11,7 @@ import {
   decodeHtmlEntities,
   persistEmailAttachments,
 } from "@/lib/mailboxMatching";
+import { sanitizeEmailHtml } from "@/lib/emailHtml";
 import { classifyEmailForRgpd } from "@/lib/ai";
 import type { OutgoingAttachment } from "@/lib/emailMime";
 import type { MailboxConnection } from "@prisma/client";
@@ -130,6 +131,9 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
         // text/plain fallback, which for template-based senders is often
         // worse (raw "Label (https://...)" links, undecoded entities).
         const body = parsed.html ? htmlToPlainText(parsed.html) : decodeHtmlEntities(parsed.text || "");
+        // Et la version affichable, assainie — même raison que côté Gmail :
+        // n'en garder que le texte aplati, c'est perdre les paragraphes.
+        const bodyHtml = parsed.html ? sanitizeEmailHtml(parsed.html) : null;
         const receivedAt = parsed.date ?? new Date();
         const threadId = parsed.references?.[0] ?? parsed.inReplyTo ?? parsed.messageId ?? null;
 
@@ -155,6 +159,7 @@ export async function syncImapMailbox(organizationId: string, connectionId: stri
             subject,
             snippet: body.slice(0, 140),
             body: body || null,
+            bodyHtml,
             externalId: `imap-${uidValidity}-${msg.uid}`,
             externalThreadId: threadId,
             receivedAt,

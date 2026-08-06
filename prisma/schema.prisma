@@ -2606,6 +2606,19 @@ model EmailMessage {
   subject            String
   snippet            String
   body               String? // full content — snippet stays a short preview for list views
+  // Le message tel qu'il a été envoyé, mise en forme comprise.
+  //
+  // `body` reste le texte aplati : c'est lui que lisent la recherche, la
+  // classification RGPD et l'IA de rédaction, qui n'ont que faire des tables
+  // et des couleurs. Mais l'aplatir était aussi tout ce qu'on gardait, et un
+  // e-mail s'affichait donc en un seul pavé sans paragraphes — htmlToPlainText
+  // écrase les sauts de ligne avec le reste des espaces.
+  //
+  // Assaini à la synchronisation (lib/emailHtml.ts), jamais brut : ce champ
+  // est rendu dans le navigateur d'un organisme connecté à ses données
+  // clients. null pour les messages composés ici et les lignes de démo, qui
+  // n'ont pas de version HTML d'origine.
+  bodyHtml           String?
   externalId         String?      @unique // provider message id (e.g. Gmail's id) — dedupes repeated syncs; null for locally-composed replies and seed/demo rows
   externalThreadId   String? // Gmail threadId — lets a real reply land in the same Gmail conversation instead of starting a new one
   receivedAt         DateTime

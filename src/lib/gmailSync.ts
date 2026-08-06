@@ -8,6 +8,7 @@ import {
   decodeHtmlEntities,
   persistEmailAttachments,
 } from "@/lib/mailboxMatching";
+import { sanitizeEmailHtml } from "@/lib/emailHtml";
 import { classifyEmailForRgpd } from "@/lib/ai";
 import { buildRawMimeMessage, type OutgoingAttachment } from "@/lib/emailMime";
 import type { MailboxConnection } from "@prisma/client";
@@ -147,11 +148,19 @@ function findMimePart(part: GmailPart, mimeType: string): string | null {
 // which is exactly the "email banner (https://...)" junk real inbound
 // marketing mail showed up with. A genuine plain-text-only personal email
 // (no HTML part at all) still falls back to its own text, decoded.
-function extractBody(part: GmailPart): string {
+//
+// Deux sorties, pas une : le texte aplati (recherche, classification RGPD,
+// rédaction IA) ET le HTML assaini (affichage). Ne garder que le premier
+// revenait à jeter la mise en forme à la porte d'entrée — un message
+// s'affichait alors en un pavé continu, sans paragraphes ni tableaux, parce
+// qu'il n'en restait rien à afficher.
+function extractBody(part: GmailPart): { texte: string; html: string | null } {
   const html = findMimePart(part, "text/html");
-  if (html) return htmlToPlainText(html);
+  if (html) return { texte: htmlToPlainText(html), html: sanitizeEmailHtml(html) };
   const plain = findMimePart(part, "text/plain");
-  return plain ? decodeHtmlEntities(plain) : "";
+  // Un message en texte seul n'a pas de HTML à afficher : l'écran retombe sur
+  // le texte, avec ses vrais retours à la ligne préservés.
+  return { texte: plain ? decodeHtmlEntities(plain) : "", html: null };
 }
 
 function extractFromAddress(fromHeader: string): string {
@@ -236,10 +245,10 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
     const dateHeader = headerValue(message.payload.headers, "Date");
     const fromAddress = extractFromAddress(fromHeader);
     const fromName = extractFromName(fromHeader);
-    const body = extractBody(message.payload);
+    const { texte: body, html: bodyHtml } = extractBody(message.payload);
     const receivedAt = dateHeader ? new Date(dateHeader) : new Date();
     const attachmentParts = extractAttachmentParts(message.payload);
-    return { message, subject, fromAddress, fromName, body, receivedAt, attachmentParts };
+    return { message, subject, fromAddress, fromName, body, bodyHtml, receivedAt, attachmentParts };
   });
 
   // Best-effort, never blocks a sync from completing — a classification
@@ -260,7 +269,7 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
   for (let i = 0; i < parsedMessages.length; i++) {
     const parsed = parsedMessages[i];
     if (!parsed) continue;
-    const { message, subject, fromAddress, fromName, body, receivedAt, attachmentParts } = parsed;
+    const { message, subject, fromAddress, fromName, body, bodyHtml, receivedAt, attachmentParts } = parsed;
     const classification = classifications[i];
 
     const contactId = matcher.matchContact(fromAddress);
@@ -281,6 +290,7 @@ export async function syncGmailMailbox(organizationId: string, connectionId: str
         subject,
         snippet: body.slice(0, 140),
         body: body || null,
+        bodyHtml,
         externalId: message.id,
         externalThreadId: message.threadId,
         receivedAt: Number.isNaN(receivedAt.getTime()) ? new Date() : receivedAt,

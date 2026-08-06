@@ -8,6 +8,7 @@ import { Avatar, initialsOf } from "@/components/ui";
 import { InboxMessageActions, type CourseOption } from "@/components/InboxMessageActions";
 import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { InboxReplyDialog } from "@/components/InboxReplyDialog";
+import { EmailBodyView } from "@/components/EmailBodyView";
 
 type Attachment = { id: string; fileName: string; fileSizeBytes: number };
 type Contact = { id: string; firstName: string; lastName: string; email: string };
@@ -19,6 +20,7 @@ type Message = {
   subject: string;
   snippet: string;
   body: string | null;
+  bodyHtml: string | null;
   receivedAt: Date;
   externalThreadId: string | null;
   assignedToUserId: string | null;
@@ -154,7 +156,7 @@ export function InboxTriageSplitView({
 
             <div className="font-display text-[16px] text-ink">{selected.subject}</div>
 
-            <div className="text-[12.5px] text-ink leading-relaxed whitespace-pre-wrap">{selected.body || selected.snippet}</div>
+            <EmailBodyView html={selected.bodyHtml} texte={selected.body || selected.snippet} />
 
             {selected.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2">

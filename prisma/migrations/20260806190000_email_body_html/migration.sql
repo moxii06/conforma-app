@@ -1,0 +1,12 @@
+-- Le message tel qu'il a ete envoye, mise en forme comprise.
+--
+-- Jusqu'ici seul `body` etait stocke : le HTML aplati en texte par
+-- htmlToPlainText, qui ecrase les sauts de ligne avec le reste des espaces.
+-- Un e-mail s'affichait donc en un pave continu, sans paragraphes ni
+-- tableaux. `body` reste (recherche, classification RGPD, redaction IA) ;
+-- `bodyHtml` porte la version affichable, assainie a la synchronisation.
+--
+-- Nullable et sans valeur par defaut : les messages deja synchronises n'ont
+-- plus leur HTML d'origine, il n'y a rien a reconstituer. Ils continuent de
+-- s'afficher via `body`, et les prochains arrivent mis en forme.
+ALTER TABLE "EmailMessage" ADD COLUMN "bodyHtml" TEXT;
