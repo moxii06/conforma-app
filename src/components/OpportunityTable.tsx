@@ -7,6 +7,7 @@ import { fr } from "date-fns/locale";
 import { GripVertical } from "lucide-react";
 import { PipelineStage } from "@prisma/client";
 import { STAGE_LABELS } from "@/lib/pipelineStages";
+import type { ModeleChoisissable } from "@/lib/templatePicker";
 import { Pill } from "@/components/ui";
 import { OpportunityStageSelect } from "@/components/OpportunityStageSelect";
 import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
@@ -92,7 +93,7 @@ export function OpportunityTable({
 }: {
   opportunities: OpportunityRow[];
   canWrite: boolean;
-  templates: { id: string; title: string; category: string }[];
+  templates: ModeleChoisissable[];
   signatureHtml: string;
   eSignatureAvailable: boolean;
 }) {

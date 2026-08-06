@@ -176,7 +176,7 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
               templateCourseFilter(session.courseId),
             ],
           },
-          select: { id: true, title: true, category: true, courseId: true },
+          select: { id: true, title: true, category: true, courseId: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
         }),
         session.courseId,

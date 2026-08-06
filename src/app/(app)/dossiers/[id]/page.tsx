@@ -440,7 +440,7 @@ async function FormationsTab({
           where: {
             AND: [{ OR: [{ organizationId }, { organizationId: null }] }, templateCourseFilter(courseEnJeu)],
           },
-          select: { id: true, title: true, category: true, courseId: true },
+          select: { id: true, title: true, category: true, courseId: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
         })
       : Promise.resolve([]),
@@ -753,7 +753,7 @@ async function DocumentsTab({
           where: {
             AND: [{ OR: [{ organizationId }, { organizationId: null }] }, templateCourseFilter(courseEnJeu)],
           },
-          select: { id: true, title: true, category: true, courseId: true },
+          select: { id: true, title: true, category: true, courseId: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
         })
       : Promise.resolve([]),

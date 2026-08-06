@@ -47,7 +47,7 @@ export default async function SubcontractorRecordPage(props: { params: Promise<{
         OR: [{ organizationId: session.organizationId }, { organizationId: null }],
         ...templateCourseFilter(null),
       },
-      select: { id: true, title: true, category: true },
+      select: { id: true, title: true, category: true, organizationId: true, forkedFromId: true },
       orderBy: { title: "asc" },
     }),
     isYousignConfigured(session.organizationId),

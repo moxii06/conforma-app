@@ -10,8 +10,9 @@ import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnai
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
+import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
 
-type Template = { id: string; title: string; category: string };
+type Template = ModeleChoisissable;
 type AttachMode = "none" | "library" | "upload";
 type PendingQuestion = { key: QuestionKey; label: string; options: { value: string; label: string }[] };
 type Preview = {
@@ -99,11 +100,17 @@ export function SendProspectDocumentDialog({
 
   const selectedTemplate = templates.find((t) => t.id === templateId);
   const isNeedsAssessment = attachMode === "library" && selectedTemplate?.category === "needs_assessment";
-  const filteredTemplates = templates.filter((t) => {
-    const q = templateSearch.trim().toLowerCase();
-    if (!q) return true;
-    return t.title.toLowerCase().includes(q) || (CATEGORY_LABELS[t.category] ?? "").toLowerCase().includes(q);
-  });
+  // Groupés « Mes modèles » / « Modèles Jalon » : une copie adaptée garde le
+  // titre de l'original, donc à plat les deux lignes sont indiscernables —
+  // voir lib/templatePicker.ts.
+  const groupesFiltres = grouperModeles(
+    templates.filter((t) => {
+      const q = templateSearch.trim().toLowerCase();
+      if (!q) return true;
+      return t.title.toLowerCase().includes(q) || (CATEGORY_LABELS[t.category] ?? "").toLowerCase().includes(q);
+    }),
+  );
+  const aucunResultat = groupesFiltres.length === 0;
 
   async function loadPreview(id: string, manualAnswers: Partial<Record<QuestionKey, string>>) {
     setLoadingPreview(true);
@@ -342,18 +349,25 @@ export function SendProspectDocumentDialog({
                     />
                   </div>
                   <div className="border border-line rounded-md max-h-40 overflow-y-auto">
-                    {filteredTemplates.length === 0 && <div className="px-2.5 py-2 text-[11.5px] text-slate">Aucun modèle trouvé.</div>}
-                    {filteredTemplates.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => handlePickTemplate(t.id)}
-                        className={`w-full text-left px-2.5 py-1.5 text-[12.5px] border-b border-line last:border-b-0 ${
-                          t.id === templateId ? "bg-linen text-ink font-medium" : "text-ink hover:bg-mist"
-                        }`}
-                      >
-                        <span className="text-slate">{CATEGORY_LABELS[t.category] ?? t.category}</span> — {t.title}
-                      </button>
+                    {aucunResultat && <div className="px-2.5 py-2 text-[11.5px] text-slate">Aucun modèle trouvé.</div>}
+                    {groupesFiltres.map((g) => (
+                      <div key={g.cle}>
+                        <div className="px-2.5 py-1 text-[10.5px] uppercase tracking-wide text-slate bg-mist border-b border-line">
+                          {g.label}
+                        </div>
+                        {g.entrees.map((e) => (
+                          <button
+                            key={e.modele.id}
+                            type="button"
+                            onClick={() => handlePickTemplate(e.modele.id)}
+                            className={`w-full text-left px-2.5 py-1.5 text-[12.5px] border-b border-line last:border-b-0 ${
+                              e.modele.id === templateId ? "bg-linen text-ink font-medium" : "text-ink hover:bg-mist"
+                            }`}
+                          >
+                            {libelleEntree(e, CATEGORY_LABELS[e.modele.category] ?? e.modele.category)}
+                          </button>
+                        ))}
+                      </div>
                     ))}
                   </div>
 

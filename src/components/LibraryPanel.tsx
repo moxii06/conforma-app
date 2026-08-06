@@ -9,6 +9,7 @@ import { TemplateEditor } from "@/components/TemplateEditor";
 import { TemplateBlocksEditor, type BlockRow } from "@/components/TemplateBlocksEditor";
 import { NewTemplateForm } from "@/components/NewTemplateForm";
 import { parseConditions } from "@/lib/documentAssembly";
+import type { ModeleChoisissable } from "@/lib/templatePicker";
 
 type Row = {
   id: string;
@@ -60,7 +61,10 @@ export function LibraryPanel({
    *  label rather than arbitrary trigger content, so the opener can never
    *  end up being a button nested inside a button. */
   variant?: "link" | "button";
-  onUse?: (template: { id: string; title: string; category: string }) => void;
+  /** L'origine et le lien de copie voyagent avec le modèle : sans eux, le
+   *  sélecteur qui le reçoit ne peut plus le ranger ni signaler qu'il double
+   *  un original Jalon — voir lib/templatePicker.ts. */
+  onUse?: (template: ModeleChoisissable) => void;
   /** Pre-filters the list to the category this screen is about — a
    *  subcontractor page opens on subcontractor contracts, not on all 17. */
   defaultCategory?: string;
@@ -188,7 +192,15 @@ export function LibraryPanel({
                 type="button"
                 size="sm"
                 onClick={() => {
-                  onUse({ id: r.id, title: r.title, category: r.category });
+                  onUse({
+                    id: r.id,
+                    title: r.title,
+                    category: r.category,
+                    // L'API expose `origin`, pas l'identifiant d'organisation ;
+                    // seule compte la distinction Jalon / organisme.
+                    organizationId: r.origin === "jalon" ? null : "organization",
+                    forkedFromId: r.forkedFromId,
+                  });
                   setOpen(false);
                 }}
               >

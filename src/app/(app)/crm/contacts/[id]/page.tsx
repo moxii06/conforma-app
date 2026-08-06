@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can, canAccessContact } from "@/lib/tenant";
 import { templateCourseFilter } from "@/lib/templateScope";
+import type { ModeleChoisissable } from "@/lib/templatePicker";
 import { IntentEmailComposer } from "@/components/IntentEmailComposer";
 import { EmailReplyComposer } from "@/components/EmailReplyComposer";
 import { NewEmailComposer } from "@/components/NewEmailComposer";
@@ -101,7 +102,7 @@ export default async function ContactRecordPage(
           // Fiche prospect : aucune formation en jeu, donc pas de modèle
           // rattaché à une formation — voir lib/templateScope.ts.
           where: { OR: [{ organizationId }, { organizationId: null }], ...templateCourseFilter(null) },
-          select: { id: true, title: true, category: true },
+          select: { id: true, title: true, category: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
         }),
         isYousignConfigured(organizationId),
@@ -455,7 +456,7 @@ async function DocumentsAndOutreachTab({
   canWrite: boolean;
   contactFirstName: string;
   signatureHtml: string;
-  templates: { id: string; title: string; category: string }[];
+  templates: ModeleChoisissable[];
   eSignatureAvailable: boolean;
   latestDossierId: string | null;
   latestOpportunity: { id: string; alreadySentNeedsAssessment: boolean } | null;

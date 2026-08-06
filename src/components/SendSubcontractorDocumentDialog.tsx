@@ -11,8 +11,9 @@ import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
+import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
 
-type Template = { id: string; title: string; category: string };
+type Template = ModeleChoisissable;
 type Mode = "template" | "upload";
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
 
@@ -228,10 +229,16 @@ export function SendSubcontractorDocumentDialog({
                   className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
                 >
                   <option value="">Choisir un modèle…</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
-                    </option>
+                  {/* Groupé : une copie adaptée porte le titre de l'original
+                      Jalon — voir lib/templatePicker.ts. */}
+                  {grouperModeles(templates).map((g) => (
+                    <optgroup key={g.cle} label={g.label}>
+                      {g.entrees.map((e) => (
+                        <option key={e.modele.id} value={e.modele.id}>
+                          {libelleEntree(e, CATEGORY_LABELS[e.modele.category] ?? e.modele.category)}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               )}

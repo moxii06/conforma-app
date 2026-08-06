@@ -9,8 +9,9 @@ import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { MERGE_TAGS } from "@/lib/mergeTags";
 import { LibraryPanel } from "@/components/LibraryPanel";
 import { Button } from "@/components/ui";
+import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
 
-type Template = { id: string; title: string; category: string };
+type Template = ModeleChoisissable;
 type Recipient = { id: string; name: string };
 
 function stripHtml(html: string): string {
@@ -297,10 +298,16 @@ export function SendBulkDocumentDialog({
                   className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
                 >
                   <option value="">Choisir un modèle…</option>
-                  {[...templates, ...panelTemplates.filter((p) => !templates.some((t) => t.id === p.id))].map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {CATEGORY_LABELS[t.category] ?? t.category} — {t.title}
-                    </option>
+                  {/* Groupé : une copie adaptée porte le titre de l'original
+                      Jalon — voir lib/templatePicker.ts. */}
+                  {grouperModeles([...templates, ...panelTemplates]).map((g) => (
+                    <optgroup key={g.cle} label={g.label}>
+                      {g.entrees.map((e) => (
+                        <option key={e.modele.id} value={e.modele.id}>
+                          {libelleEntree(e, CATEGORY_LABELS[e.modele.category] ?? e.modele.category)}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
                 {/* Same dead end as the single-recipient dialog: the list

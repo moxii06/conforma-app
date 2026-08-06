@@ -192,7 +192,7 @@ export default async function CrmPage(
           // prospect, donc pas de modèle rattaché à une formation — voir
           // lib/templateScope.ts.
           where: { OR: [{ organizationId }, { organizationId: null }], ...templateCourseFilter(null) },
-          select: { id: true, title: true, category: true },
+          select: { id: true, title: true, category: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
         })
       : Promise.resolve([]),
