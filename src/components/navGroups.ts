@@ -18,6 +18,7 @@ import {
   HelpCircle,
   MessageCircleWarning,
   CreditCard,
+  MessagesSquare,
 } from "lucide-react";
 import type { PERMISSIONS } from "@/lib/tenant";
 
@@ -45,6 +46,11 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
     items: [
       { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard, feature: "dashboard" },
       { href: "/mon-espace", label: "Mon espace", icon: User, feature: "portal" },
+      // La messagerie de l'equipe est en tete, hors zone metier : on y va
+      // pour joindre quelqu'un, pas pour traiter un dossier. La placer sous
+      // « Commercial », a cote de la boite mail, aurait entretenu la
+      // confusion entre ecrire a un collegue et ecrire a un client.
+      { href: "/messagerie", label: "Messagerie interne", icon: MessagesSquare, feature: "messagerie" },
     ],
   },
   {

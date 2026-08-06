@@ -192,6 +192,7 @@ model Organization {
   mediatorReminderSnoozedUntil DateTime?
 
   users                   User[]
+  conversations           Conversation[]
   contacts                Contact[]
   companies               Company[]
   dossiers                Dossier[]
@@ -684,8 +685,86 @@ model User {
   subcontractorRecord              Subcontractor?
   documents                        Document[]              @relation("UserDocuments")
   notificationDismissals           NotificationDismissal[]
+  conversationMemberships          ConversationMember[]
+  conversationsCreees              Conversation[]          @relation("ConversationCreator")
+  messagesInternes                 InternalMessage[]
 
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Messagerie interne — les membres d'un organisme se parlent entre eux.
+//
+// Rien à voir avec EmailMessage, et c'est la distinction structurante :
+// EmailMessage est le courrier ENTRANT, synchronisé depuis une boîte externe,
+// tourné vers les clients et les prospects. Ici, tout reste chez l'organisme :
+// aucun e-mail n'est émis, rien ne sort. Les mélanger aurait fait apparaître
+// les échanges internes dans le triage de la boîte mail et, pire, dans les
+// suggestions de rattachement à un dossier client.
+//
+// Pas de temps réel : Vercel est sans serveur persistant, un websocket n'y
+// survivrait pas entre deux requêtes. L'écran interroge donc à intervalle
+// régulier quand il est ouvert — c'est moins élégant et parfaitement suffisant
+// pour une équipe de cinq personnes.
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  // Nommée seulement pour un groupe. Un tête-à-tête prend le nom de l'autre
+  // personne, qui dépend de qui regarde : le stocker n'aurait aucun sens.
+  titre     String?
+  estGroupe Boolean @default(false)
+
+  createdBy   User?   @relation("ConversationCreator", fields: [createdById], references: [id])
+  createdById String?
+
+  createdAt DateTime @default(now())
+  // Dénormalisé exprès : la liste des conversations se trie dessus, et le
+  // calculer par un max() sur les messages coûterait une agrégation par ligne
+  // à chaque affichage. Écrit à chaque envoi, dans la même transaction.
+  lastMessageAt DateTime @default(now())
+
+  membres  ConversationMember[]
+  messages InternalMessage[]
+
+  @@index([organizationId, lastMessageAt])
+}
+
+model ConversationMember {
+  id             String       @id @default(cuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+
+  joinedAt DateTime @default(now())
+  // Ce que cette personne a lu, et rien d'autre : le non-lu est « les messages
+  // postés après cette date, par quelqu'un d'autre ». Une table de lectures
+  // message par message aurait été exacte au message près et aurait grossi
+  // en O(messages × membres) pour un compteur qu'on affiche arrondi.
+  lastReadAt DateTime @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model InternalMessage {
+  id             String       @id @default(cuid())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  author         User         @relation(fields: [authorId], references: [id])
+  authorId       String
+
+  // Texte brut, volontairement. Un éditeur riche ici ouvrirait la même
+  // surface d'injection que le HTML d'e-mail entrant, pour un gain nul dans
+  // une conversation d'équipe.
+  corps     String
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 // La cloche de notifications (NotificationBell.tsx) recalcule sa liste "à

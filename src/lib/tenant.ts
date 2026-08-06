@@ -84,6 +84,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   billing: "Abonnement",
   automations: "Automatisations",
   inbox: "Boîte mail",
+  messagerie: "Messagerie interne",
   bpf: "Bilan pédagogique et financier",
   portal: "Mon espace",
   faq: "FAQ & guides",
@@ -136,6 +137,19 @@ export const PERMISSIONS = {
   // would just hit the redirect.
   automations: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   inbox: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "limited", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
+  // La messagerie INTERNE, à ne pas confondre avec la boîte mail au-dessus :
+  // celle-ci reçoit les clients et les prospects, celle-là fait parler
+  // l'équipe entre elle et n'émet aucun e-mail.
+  //
+  // Ouverte au formateur, contrairement à la boîte mail : un intervenant a
+  // besoin de joindre le responsable pédagogique, et ce qu'il lit reste borné
+  // aux conversations où il est membre — l'appartenance décide, pas le rôle.
+  // Fermée à l'apprenant (ce n'est pas un collègue, et ce serait lui ouvrir
+  // l'annuaire du personnel) et au DPO externe (prestataire, borné au RGPD).
+  //
+  // Ce qui est écrit ici doit rester d'accord avec ROLES_MESSAGERIE dans
+  // lib/messagerie.ts, que les routes appellent.
+  messagerie: { ADMIN_OF: "full", ADMIN_MANAGER: "full", SALES: "full", TRAINER: "full", LEARNER: "none", DPO_EXTERNAL: "none" },
   bpf: { ADMIN_OF: "full", ADMIN_MANAGER: "limited", SALES: "none", TRAINER: "none", LEARNER: "none", DPO_EXTERNAL: "none" },
   // The admin-facing nav filters this one out for everyone except the two
   // roles it exists for — Admin/Manager/Sales/DPO manage the org from the
