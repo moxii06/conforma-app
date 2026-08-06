@@ -129,4 +129,35 @@ describe("échéancier conforme proposé", () => {
   it("ne produit rien pour un prix nul", () => {
     expect(compliantSchedule(0, start, end)).toEqual([]);
   });
+
+  it("échelonne réellement une formation d'une seule journée", () => {
+    // Le défaut : la répartition proportionnelle sur une action de durée
+    // nulle donnait quatre échéances au même jour — « payez quatre fois
+    // aujourd'hui ». On passe alors à un pas mensuel.
+    const jour = new Date("2026-09-14T09:00:00.000Z");
+    const s = compliantSchedule(PRICE, jour, jour);
+    const dates = s.map((i) => i.dueDate);
+    expect(new Set(dates).size).toBe(dates.length);
+    expect(dates[0]).toBe("2026-09-14");
+    expect(dates[1]).toBe("2026-10-14");
+    // Le montant, lui, ne bouge pas : le plafond reste sur la première.
+    expect(s.reduce((n, i) => n + i.amountCents, 0)).toBe(PRICE);
+    expect(s[0].amountCents).toBe(CAP);
+  });
+
+  it("garde des dates distinctes et croissantes sur une action de deux jours", () => {
+    const s = compliantSchedule(PRICE, new Date("2026-09-14T09:00:00.000Z"), new Date("2026-09-15T17:00:00.000Z"));
+    const dates = s.map((i) => i.dueDate);
+    expect(new Set(dates).size).toBe(dates.length);
+    expect([...dates].sort()).toEqual(dates);
+  });
+
+  it("ne change rien à un parcours qui dure assez pour s'étaler", () => {
+    // start → end couvre plusieurs mois : la répartition proportionnelle
+    // suffit, et c'est elle qui doit continuer à s'appliquer.
+    const s = compliantSchedule(PRICE, start, end);
+    const dates = s.map((i) => i.dueDate);
+    expect(new Set(dates).size).toBe(dates.length);
+    expect(dates[dates.length - 1]).toBe(end.toISOString().slice(0, 10));
+  });
 });

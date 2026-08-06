@@ -7,6 +7,7 @@ import {
   ScrollText,
   UserCog,
   Library,
+  Files,
   Receipt,
   Inbox,
   BarChart3,
@@ -60,7 +61,21 @@ export const NAV_GROUPS: { label: string | null; items: NavItem[] }[] = [
       { href: "/planning", label: "Planning des sessions", icon: Calendar, feature: "planning" },
       { href: "/formations", label: "Catalogue de formations", icon: GraduationCap, feature: "courses" },
       { href: "/dossiers", label: "Dossiers apprenants", icon: FileText, feature: "dossiers" },
-      { href: "/documents", label: "Documents", icon: Library, feature: "toolkit" },
+      // Deux entrées, parce que ce sont deux choses.
+      //
+      // « Documents » contient les EXEMPLAIRES : le contrat de M. Benali,
+      // brouillon puis finalisé puis envoyé puis signé. « Bibliothèque de
+      // modèles » contient les PATRONS dont on les fabrique, et rien de ce
+      // qui s'y trouve ne s'envoie à personne.
+      //
+      // La bibliothèque n'était atteignable que par un bouton depuis la
+      // liste des documents : un espace de travail entier — adapter les
+      // modèles, régler les clauses contractuelles — n'existait nulle part
+      // dans la navigation. Le libellé dit « modèles » plutôt que « ma
+      // bibliothèque » pour la même raison : « bibliothèque » à côté de
+      // « documents » ne dit pas lequel contient quoi.
+      { href: "/documents", label: "Documents", icon: Files, feature: "toolkit" },
+      { href: "/documents/bibliotheque", label: "Bibliothèque de modèles", icon: Library, feature: "toolkit" },
     ],
   },
   {

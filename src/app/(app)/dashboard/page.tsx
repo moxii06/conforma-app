@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
+import { TASK_THEMES, themeOf, themeDemande, libelleTheme, type ThemeKey } from "@/lib/dashboardTaskThemes";
 import { groupTasksByKind, type TaskGroup } from "@/lib/dashboardTaskGroups";
 import { TASK_ACTIONS } from "@/lib/dashboardTaskActions";
 import { BulkTaskActionDialog } from "@/components/BulkTaskActionDialog";
@@ -52,24 +53,8 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   email_assigned: "Email assigné",
 };
 
-// Which pile a task belongs to. A flat list of 24 items sorted by date reads
-// as one undifferentiated wall — the dirigeant can't tell "this costs me
-// money today" from "this is paperwork for an audit in three months", which
-// is exactly the distinction they'd use to decide what to do in the twenty
-// minutes they have.
-//
-// Order matters: money first, because it's the pile with a deadline someone
-// else enforces.
-const TASK_THEMES = [
-  { key: "argent", label: "Argent", kinds: ["invoice_overdue", "session_uninvoiced", "bank_transaction_pending", "funding_no_reply", "funding_agreement_expiring"] },
-  { key: "conformite", label: "Conformité", kinds: ["qualiopi_certificate_expiring", "qualiopi_audit_upcoming", "qualiopi_finding_open", "rgpd_suggestion", "rgpd_deadline", "subcontractor_expiry", "intervenant_evaluation_due"] },
-  { key: "pedagogie", label: "Sessions et apprenants", kinds: ["session_draft", "convocation", "learner_inactive", "rolling_deadline_warning", "rolling_deadline_overdue", "certificate_to_send", "satisfaction_not_collected"] },
-  { key: "admin", label: "Dossiers à compléter", kinds: ["needs_assessment", "contract", "platform_access", "platform_access_after_payment", "dossier_prep_needs_assessment", "dossier_prep_contract", "email_assigned"] },
-] as const satisfies readonly { key: string; label: string; kinds: readonly DashboardTask["kind"][] }[];
-
-function themeOf(kind: DashboardTask["kind"]): string {
-  return TASK_THEMES.find((t) => (t.kinds as readonly string[]).includes(kind))?.key ?? "admin";
-}
+// Les piles vivent dans lib/dashboardTaskThemes.ts : le filtre en a besoin,
+// et c'est désormais cette table qui définit le vocabulaire des tâches.
 
 // Defensive re-parse of User.dashboardLayout (Json?) — validated by the
 // route that wrote it, but a Json column proves nothing at read time. A
@@ -88,7 +73,8 @@ function parseDashboardLayout(raw: unknown): { id: string; span: 1 | 2 }[] | nul
   return entries.length > 0 ? entries : null;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: { searchParams: Promise<{ pile?: string }> }) {
+  const { pile } = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   // /dashboard shows org-wide CRM pipeline and cross-learner progress
   // data — it was never gated like every other page, and being the
@@ -234,7 +220,19 @@ export default async function DashboardPage() {
     onboardingRemaining > 0
       ? { id: "onboarding", node: <OnboardingWidget steps={onboarding} remaining={onboardingRemaining} /> }
       : null,
-    tasks.length > 0 ? { id: "tasks", node: <TasksWidget tasks={tasks} tronquee={tachesTronquees} repriseActuelleIso={repriseActuelleIso} /> } : null,
+    tasks.length > 0
+      ? {
+          id: "tasks",
+          node: (
+            <TasksWidget
+              tasks={tasks}
+              tronquee={tachesTronquees}
+              repriseActuelleIso={repriseActuelleIso}
+              pile={themeDemande(pile)}
+            />
+          ),
+        }
+      : null,
     canManageComplaints && openComplaints.length > 0
       ? { id: "complaints", node: <ComplaintsWidget complaints={openComplaints} /> }
       : null,
@@ -501,26 +499,42 @@ function TasksWidget({
   tasks,
   tronquee,
   repriseActuelleIso,
+  pile,
 }: {
   tasks: DashboardTask[];
   tronquee: boolean;
   repriseActuelleIso: string | null;
+  /** La pile isolée, ou null pour tout voir. */
+  pile: ThemeKey | null;
 }) {
-  const overdueCount = tasks.filter((t) => t.overdue).length;
+  // Les piles se comptent sur la LISTE ENTIÈRE, jamais sur ce qui reste
+  // après filtrage : sinon isoler « Argent » ferait tomber les trois autres
+  // compteurs à zéro et il n'y aurait plus de chemin de retour lisible.
+  const parPile = TASK_THEMES.map((theme) => ({
+    ...theme,
+    items: tasks.filter((t) => themeOf(t.kind) === theme.key),
+  })).filter((g) => g.items.length > 0);
+
+  const affichees = pile ? tasks.filter((t) => themeOf(t.kind) === pile) : tasks;
+  const overdueCount = affichees.filter((t) => t.overdue).length;
 
   // Grouped by theme, but only once there are enough tasks for the grouping
   // to earn its headers — with four items, section titles are more chrome
   // than signal. Within a theme the incoming order is preserved, so overdue
   // still comes first and oldest-first inside that.
-  const grouped = TASK_THEMES.map((theme) => ({
-    ...theme,
-    items: tasks.filter((t) => themeOf(t.kind) === theme.key),
-  })).filter((g) => g.items.length > 0);
-  const useGroups = tasks.length > 6 && grouped.length > 1;
+  //
+  // Une pile isolée n'a plus d'intertitre à porter : le filtre au-dessus dit
+  // déjà laquelle on regarde, le répéter en tête de liste ne dirait rien.
+  const grouped = pile ? [] : parPile;
+  const useGroups = !pile && affichees.length > 6 && grouped.length > 1;
 
   return (
     <CollapsibleSection
-      title={`À faire (${tasks.length}${tronquee ? "+" : ""})`}
+      title={
+        pile
+          ? `À faire — ${libelleTheme(pile)} (${affichees.length})`
+          : `À faire (${tasks.length}${tronquee ? "+" : ""})`
+      }
       badge={overdueCount > 0 ? <Pill tone="danger">{overdueCount} en retard</Pill> : undefined}
       extra={
         <div className="flex items-center gap-3">
@@ -530,6 +544,27 @@ function TasksWidget({
           <RefreshButton />
         </div>
       }
+      // Le filtre reste visible replié : le widget démarre fermé, et un
+      // filtre caché dans un corps fermé ne sert à rien. Choisir une pile
+      // ouvre la liste — on vient de demander à la voir.
+      header={
+        parPile.length > 1 ? (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <PilleFiltre href="/dashboard" label="Tout" count={tasks.length} actif={pile === null} />
+            {parPile.map((g) => (
+              <PilleFiltre
+                key={g.key}
+                href={`/dashboard?pile=${g.key}`}
+                label={g.label}
+                count={g.items.length}
+                actif={pile === g.key}
+                alerte={g.items.filter((t) => t.overdue).length}
+              />
+            ))}
+          </div>
+        ) : undefined
+      }
+      defaultOpen={pile !== null}
     >
       {useGroups ? (
         <div className="flex flex-col gap-3.5">
@@ -562,12 +597,49 @@ function TasksWidget({
         </div>
       ) : (
         <div className="flex flex-col">
-          {tasks.map((t) => (
-            <TaskRow key={`${t.kind}-${t.id}`} task={t} />
-          ))}
+          {/* Même dans une pile isolée, les familles nombreuses se résument
+              en une ligne : c'est la règle du widget, pas celle des
+              intertitres, et vingt factures en retard n'ont pas à être lues
+              une par une pour être relancées ensemble. */}
+          {groupTasksByKind(affichees).map((famille) =>
+            famille.resume ? (
+              <TaskSummaryRow key={famille.kind} famille={famille} />
+            ) : (
+              famille.items.map((t) => <TaskRow key={`${t.kind}-${t.id}`} task={t} />)
+            ),
+          )}
         </div>
       )}
     </CollapsibleSection>
+  );
+}
+
+/** Une pastille de filtre : un lien, son compte, et son retard s'il y en a. */
+function PilleFiltre({
+  href,
+  label,
+  count,
+  actif,
+  alerte = 0,
+}: {
+  href: string;
+  label: string;
+  count: number;
+  actif: boolean;
+  alerte?: number;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={actif ? "true" : undefined}
+      className={`flex items-center gap-1.5 text-[11.5px] rounded-full border px-2.5 py-1 transition-colors ${
+        actif ? "bg-ink text-white border-ink" : "bg-white text-slate border-line hover:text-ink hover:border-ash"
+      }`}
+    >
+      <span className="font-medium">{label}</span>
+      <span className={actif ? "text-white/70" : "text-ash"}>{count}</span>
+      {alerte > 0 && !actif && <span className="w-1.5 h-1.5 rounded-full bg-rust" aria-label={`${alerte} en retard`} />}
+    </Link>
   );
 }
 

@@ -8,6 +8,7 @@ import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } fro
 // mot « clôturer ». Voir dossierArchive.ts pour ce qui se tait et ce qui
 // ne se tait jamais.
 import { DOSSIERS_ACTIFS } from "@/lib/dossierArchive";
+import type { DashboardTaskKind } from "@/lib/dashboardTaskThemes";
 import {
   REMINDER_AFTER_DAYS,
   CONVOCATION_WARNING_DAYS,
@@ -68,33 +69,12 @@ function plancherTaches(reprise: Date | null): Date {
 
 export type DashboardTask = {
   id: string;
-  kind:
-    | "needs_assessment"
-    | "contract"
-    | "platform_access"
-    | "platform_access_after_payment"
-    | "convocation"
-    | "invoice_overdue"
-    | "rgpd_suggestion"
-    | "rgpd_deadline"
-    | "session_draft"
-    | "subcontractor_expiry"
-    | "dossier_prep_needs_assessment"
-    | "dossier_prep_contract"
-    | "rolling_deadline_warning"
-    | "rolling_deadline_overdue"
-    | "satisfaction_not_collected"
-    | "learner_inactive"
-    | "certificate_to_send"
-    | "bank_transaction_pending"
-    | "funding_no_reply"
-    | "funding_agreement_expiring"
-    | "qualiopi_certificate_expiring"
-    | "qualiopi_audit_upcoming"
-    | "qualiopi_finding_open"
-    | "intervenant_evaluation_due"
-    | "session_uninvoiced"
-    | "email_assigned";
+  // L'union se DÉDUIT des piles de dashboardTaskThemes.ts, qui est
+  // désormais le vocabulaire : un type de tâche nouveau ne compile pas tant
+  // qu'il n'a pas été rangé dans une pile. La liste était auparavant écrite
+  // ici et recopiée là-bas ; la seconde pouvait donc en oublier un, qui
+  // tombait alors en silence dans « Dossiers à compléter ».
+  kind: DashboardTaskKind;
   label: string;
   contactName: string;
   /** La date de référence de la tâche, quel qu'en soit le sens. */

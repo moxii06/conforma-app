@@ -13,6 +13,7 @@ export function CollapsibleSection({
   title,
   badge,
   extra,
+  header,
   defaultOpen = false,
   children,
 }: {
@@ -23,6 +24,15 @@ export function CollapsibleSection({
   title: React.ReactNode;
   badge?: React.ReactNode;
   extra?: React.ReactNode;
+  /**
+   * Rendu sous le titre, ouvert OU fermé.
+   *
+   * Pour ce qui doit rester lisible sans déplier — le filtre par pile du
+   * widget « à faire », par exemple : le mettre dans le corps le rendrait
+   * invisible tant qu'on n'a pas ouvert, alors que son intérêt est
+   * justement de voir d'un coup d'œil où se trouve le travail.
+   */
+  header?: React.ReactNode;
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
@@ -38,6 +48,7 @@ export function CollapsibleSection({
         <div className="flex-1" />
         {extra}
       </div>
+      {header && <div className="mt-2.5">{header}</div>}
       {open && <div className="mt-3">{children}</div>}
     </div>
   );

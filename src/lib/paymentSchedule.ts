@@ -147,11 +147,30 @@ export function compliantSchedule(
   const step = Math.floor(balance / remainingInstalments);
   const spanMs = Math.max(0, endsAt.getTime() - startsAt.getTime());
 
+  // Une action trop courte n'a rien sur quoi étaler.
+  //
+  // La répartition proportionnelle donnait trois échéances au MÊME JOUR sur
+  // une formation d'une journée — un échéancier qui dit « payez trois fois
+  // aujourd'hui », et qui vide de son sens le solde censé courir avec le
+  // déroulement de l'action. On repasse alors à un pas mensuel à compter du
+  // début, ce que fait un organisme en pratique pour une journée réglée en
+  // plusieurs fois. Le plafond des 30 % porte sur ce qui est encaissé
+  // d'avance : il reste respecté, et l'échelonnement devient réel.
+  //
+  // Le seuil est celui où les dates se confondent : les échéances sont à la
+  // journée près, donc en dessous d'un jour d'écart deux d'entre elles
+  // tombent le même jour. Un parcours de plusieurs mois garde donc très
+  // exactement le comportement d'avant.
+  const dateEcheance = (n: number): Date =>
+    spanMs / remainingInstalments < JOUR_MS
+      ? new Date(startsAt.getTime() + n * MOIS_MS)
+      : new Date(startsAt.getTime() + (spanMs * n) / remainingInstalments);
+
   const rest: Instalment[] = [];
   for (let n = 1; n <= remainingInstalments; n++) {
     const last = n === remainingInstalments;
     rest.push({
-      dueDate: iso(new Date(startsAt.getTime() + (spanMs * n) / remainingInstalments)),
+      dueDate: iso(dateEcheance(n)),
       // The last one absorbs the rounding remainder.
       amountCents: last ? balance - step * (remainingInstalments - 1) : step,
       label: last ? "Solde" : `Échéance ${n}`,
@@ -159,6 +178,12 @@ export function compliantSchedule(
   }
   return [first, ...rest];
 }
+
+const JOUR_MS = 24 * 60 * 60 * 1000;
+// Trente jours, pas « le même quantième du mois suivant » : un échéancier
+// contractuel se lit mieux avec un pas constant, et le 31 n'existe pas
+// partout.
+const MOIS_MS = 30 * JOUR_MS;
 
 function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
