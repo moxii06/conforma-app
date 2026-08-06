@@ -54,12 +54,16 @@ const RANG: Record<DocumentBucket, number> = { draft: 0, final: 1, sent: 2, sign
 
 export type BatchMember = LifecycleInput & { id: string; title: string; recipientName: string | null };
 
-export type DocumentGroup = {
+// Générique sur le membre : l'appelant y attache ce dont il a besoin (la
+// ligne Prisma complète, la formation, la catégorie) et le récupère tel quel
+// à la sortie. Sans ça, chaque appelant devait recaster ses membres après
+// coup — un `as` par écran, dont aucun n'était vérifié par le compilateur.
+export type DocumentGroup<T extends BatchMember = BatchMember> = {
   /** L'identifiant du lot, ou celui du document quand il est isolé. */
   key: string;
   title: string;
   bucket: DocumentBucket;
-  members: BatchMember[];
+  members: T[];
   /** Nombre de membres signés — le « 5 » de « 5/8 signés ». */
   signedCount: number;
   /** Vrai dès qu'il y a plus d'un membre : la ligne se déplie. */
@@ -77,8 +81,8 @@ export type DocumentGroup = {
  * que lorsque tout le monde a signé — et à ce moment-là, il n'y a plus rien
  * à faire, ce qui est bien le sens de cet onglet.
  */
-export function groupDocuments(docs: BatchMember[]): DocumentGroup[] {
-  const parLot = new Map<string, BatchMember[]>();
+export function groupDocuments<T extends BatchMember>(docs: T[]): DocumentGroup<T>[] {
+  const parLot = new Map<string, T[]>();
   for (const d of docs) {
     // Un document sans batchId est son propre lot d'un seul membre : le
     // reste du code n'a alors pas à distinguer les deux cas.
@@ -88,7 +92,7 @@ export function groupDocuments(docs: BatchMember[]): DocumentGroup[] {
     parLot.set(cle, liste);
   }
 
-  const groupes: DocumentGroup[] = [];
+  const groupes: DocumentGroup<T>[] = [];
   for (const [key, members] of parLot) {
     const bucket = members.reduce<DocumentBucket>((moinsAvance, m) => {
       const b = documentBucket(m);
@@ -118,6 +122,6 @@ export function batchProgressLabel(groupe: DocumentGroup): string | null {
 }
 
 /** Les membres qu'il reste à relancer, dans l'ordre d'affichage. */
-export function pendingMembers(groupe: DocumentGroup): BatchMember[] {
+export function pendingMembers<T extends BatchMember>(groupe: DocumentGroup<T>): T[] {
   return groupe.members.filter((m) => !isSigned(m));
 }

@@ -6,9 +6,10 @@ import { Role, type Prisma } from "@prisma/client";
 import { CATEGORY_LABELS, categoryLabelIsRedundant } from "@/lib/documentCategories";
 import { Tabs } from "@/components/Tabs";
 import { SearchInput } from "@/components/SearchInput";
-import { DocumentCategoryFilter } from "@/components/DocumentCategoryFilter";
-import { DocumentGroupList, type Group } from "@/components/DocumentGroupList";
+import { QueryFilterSelect, QueryChoiceSelect } from "@/components/QueryFilterSelect";
+import { DocumentGroupList, type Group, type ListSection } from "@/components/DocumentGroupList";
 import { Pagination } from "@/components/Pagination";
+import Link from "next/link";
 import { scopeOfCategory, scopeLabel } from "@/lib/documentScope";
 import {
   DOCUMENT_BUCKETS,
@@ -19,12 +20,35 @@ import {
   type DocumentBucket,
   type BatchMember,
 } from "@/lib/documentLifecycle";
+import {
+  AXES_CLASSEMENT,
+  AXE_LABELS,
+  axeClassement,
+  correspondAuxFiltres,
+  decouperEnSections,
+  ordonnerLots,
+  optionsAnnee,
+  optionsFormation,
+  optionsType,
+  HORS_FORMATION,
+  HORS_FORMATION_LABEL,
+  type LotClassable,
+} from "@/lib/documentClassement";
 
 // L'espace Documents : quatre onglets qui suivent la vie d'un document —
 // brouillon, finalisé, envoyé, signé. Les modèles ont déménagé dans
 // /documents/bibliotheque : un modèle sert à FABRIQUER un document, il ne
 // s'envoie pas, et les mélanger rendait « mon contrat » ambigu (le modèle,
 // ou l'exemplaire signé de M. Benali ?).
+//
+// L'onglet dit OÙ EN EST un document. Il ne dit pas LEQUEL c'est — et chez
+// un organisme qui a trois ans derrière lui, « Mes documents envoyés » finit
+// par contenir deux mille envois dans une liste chronologique à plat.
+// D'où le second axe, à l'intérieur de chaque onglet : trois filtres
+// cumulables (formation, type, année) et un classement (par mois, par
+// formation, par type) qui pose des intertitres dans la liste. Toute la
+// logique est dans documentClassement.ts, testée, et travaille sur des LOTS
+// puisque c'est l'unité affichée.
 
 const VIDE: Record<DocumentBucket, string> = {
   draft: "Aucun brouillon en cours. Les documents que vous commencez sans les finir se retrouvent ici.",
@@ -39,7 +63,15 @@ const VIDE: Record<DocumentBucket, string> = {
 const PAGE_SIZE = 25;
 
 export default async function DocumentsPage(props: {
-  searchParams: Promise<{ tab?: string; q?: string; category?: string; page?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    q?: string;
+    category?: string;
+    formation?: string;
+    annee?: string;
+    classer?: string;
+    page?: string;
+  }>;
 }) {
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
@@ -47,7 +79,13 @@ export default async function DocumentsPage(props: {
 
   const activeTab = (DOCUMENT_BUCKETS.find((b) => b.key === searchParams.tab)?.key ?? "draft") as DocumentBucket;
   const q = searchParams.q?.trim();
-  const category = searchParams.category;
+  const filtres = {
+    category: searchParams.category || undefined,
+    formation: searchParams.formation || undefined,
+    annee: searchParams.annee || undefined,
+  };
+  const axe = axeClassement(searchParams.classer);
+  const filtreActif = Boolean(q || filtres.category || filtres.formation || filtres.annee);
 
   // Un formateur ne voit que les documents des dossiers de SES sessions —
   // le filtre imbriqué exclut aussi, au passage, les documents sans dossier
@@ -55,11 +93,16 @@ export default async function DocumentsPage(props: {
   const ownerFilter: Prisma.DocumentWhereInput =
     role === Role.TRAINER ? { dossier: { session: { trainerId: userId } } } : {};
 
+  // Les trois filtres (type, formation, année) ne sont PAS dans le SQL :
+  // ils s'appliquent en mémoire sur la première passe. C'est ce qui permet
+  // de proposer des menus dont chaque entrée porte son compte exact — un
+  // menu construit après filtrage ne saurait plus que compter ce qu'il a
+  // déjà retenu, et se viderait de ses propres options à mesure qu'on
+  // l'utilise.
   const where: Prisma.DocumentWhereInput = {
     organizationId,
     archivedAt: null,
     ...ownerFilter,
-    ...(category ? { category } : {}),
     ...(q
       ? {
           OR: [
@@ -87,26 +130,87 @@ export default async function DocumentsPage(props: {
   // chaque document, sur la TOTALITÉ de ce qui correspond au filtre. Sept
   // colonnes scalaires se lisent vite, même à plusieurs milliers de lignes,
   // et c'est ce qui permet des compteurs exacts.
+  // `courseId` et non le titre : un identifiant se répète sans coût sur des
+  // milliers de lignes, et les titres se résolvent en une requête à part.
   const situation = await prisma.document.findMany({
     where,
-    select: { id: true, batchId: true, createdAt: true, status: true, sentByUserId: true, signatureStatus: true, signedAt: true },
+    select: {
+      id: true,
+      batchId: true,
+      createdAt: true,
+      status: true,
+      sentByUserId: true,
+      signatureStatus: true,
+      signedAt: true,
+      category: true,
+      dossier: { select: { session: { select: { courseId: true } } } },
+    },
     orderBy: { createdAt: "desc" },
   });
+
+  const titreParFormation = new Map(
+    (await prisma.course.findMany({ where: { organizationId }, select: { id: true, title: true } })).map((c) => [
+      c.id,
+      c.title,
+    ])
+  );
 
   // On regroupe, on situe, on compte — puis on ne va chercher le détail que
   // des lots de la page demandée.
   const groupesLegers = groupDocuments(
-    situation.map((d) => ({ ...d, title: "", recipientName: null }))
+    situation.map((d) => ({
+      ...d,
+      title: "",
+      recipientName: null,
+      courseId: d.dossier?.session.courseId ?? null,
+    }))
   );
+
+  /** Ce qu'il faut savoir d'un lot pour le classer, lu sur son premier membre. */
+  const classableDe = (g: (typeof groupesLegers)[number]): LotClassable => {
+    const premier = g.members[0];
+    return {
+      key: g.key,
+      createdAt: premier.createdAt,
+      courseId: premier.courseId,
+      formation: premier.courseId ? (titreParFormation.get(premier.courseId) ?? null) : null,
+      category: premier.category,
+      typeLabel: CATEGORY_LABELS[premier.category] ?? premier.category,
+    };
+  };
+  const classableParCle = new Map(groupesLegers.map((g) => [g.key, classableDe(g)]));
+  const classable = (g: { key: string }) => classableParCle.get(g.key)!;
+
+  // Les menus sont construits sur l'onglet actif AVANT filtrage : chaque
+  // entrée annonce donc combien de lots elle contient réellement ici, et
+  // aucune ne disparaît sous les doigts de celui qui filtre.
+  const lotsOngletBrut = groupesLegers.filter((g) => g.bucket === activeTab).map(classable);
+  const optionsFormationOnglet = complete(
+    optionsFormation(lotsOngletBrut),
+    filtres.formation,
+    (v) => (v === HORS_FORMATION ? HORS_FORMATION_LABEL : (titreParFormation.get(v) ?? "Formation sélectionnée"))
+  );
+  const optionsTypeOnglet = complete(optionsType(lotsOngletBrut), filtres.category, (v) => CATEGORY_LABELS[v] ?? v);
+  const optionsAnneeOnglet = complete(optionsAnnee(lotsOngletBrut), filtres.annee, (v) => v);
+
+  const groupesFiltres = groupesLegers.filter((g) => correspondAuxFiltres(classable(g), filtres));
   const counts = DOCUMENT_BUCKETS.reduce<Record<string, number>>((acc, b) => {
-    acc[b.key] = groupesLegers.filter((g) => g.bucket === b.key).length;
+    acc[b.key] = groupesFiltres.filter((g) => g.bucket === b.key).length;
     return acc;
   }, {});
-  const groupesOnglet = groupesLegers.filter((g) => g.bucket === activeTab);
+
+  // Le classement porte sur la totalité de l'onglet, jamais sur la page :
+  // reclasser vingt-cinq lignes déjà tirées par date laisserait la formation
+  // cherchée dispersée sur quarante pages.
+  const groupesOnglet = ordonnerLots(
+    groupesFiltres.filter((g) => g.bucket === activeTab).map((g) => ({ ...classable(g), groupe: g })),
+    axe
+  );
   const totalPages = Math.max(1, Math.ceil(groupesOnglet.length / PAGE_SIZE));
   const page = Math.min(Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1), totalPages);
-  const clesPage = groupesOnglet.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((g) => g.key);
-  const idsPage = groupesLegers.filter((g) => clesPage.includes(g.key)).flatMap((g) => g.members.map((m) => m.id));
+  const lotsPage = groupesOnglet.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const clesPage = lotsPage.map((l) => l.key);
+  const idsPage = lotsPage.flatMap((l) => l.groupe.members.map((m) => m.id));
 
   // Seconde passe : le détail, pour ces documents-là seulement.
   const rows = idsPage.length
@@ -162,18 +266,19 @@ export default async function DocumentsPage(props: {
     signedAt: r.signedAt,
     batchId: r.batchId,
     row: r,
-  })) as (BatchMember & { row: Ligne })[];
+  }));
 
   // Les lots de la page, dans l'ordre décidé par la première passe : c'est
   // elle qui a vu l'ensemble et qui sait donc quel lot vient avant quel
   // autre.
   const parCle = new Map(groupDocuments(members).map((g) => [g.key, g]));
-  const affichés: Group[] = clesPage
-    .map((cle) => parCle.get(cle))
-    .filter((g): g is NonNullable<typeof g> => Boolean(g))
-    .map((g) => {
-      const premier = (g.members[0] as BatchMember & { row: Ligne }).row;
-      return {
+  const affichés = new Map<string, Group>(
+    clesPage
+      .map((cle) => parCle.get(cle))
+      .filter((g): g is NonNullable<typeof g> => Boolean(g))
+      .map((g) => {
+      const premier = g.members[0].row;
+      return [g.key, {
         key: g.key,
         title: g.title,
         subtitle: sousTitre(premier, g.isBatch),
@@ -191,7 +296,7 @@ export default async function DocumentsPage(props: {
             ? { scopeLabel: scopeLabel(scopeOfCategory(premier.category)), signatureAvailable, signatureHtml }
             : null,
         members: g.members.map((m) => {
-          const r = (m as BatchMember & { row: Ligne }).row;
+          const r = m.row;
           const signé = isSigned(m);
           return {
             id: m.id,
@@ -213,8 +318,18 @@ export default async function DocumentsPage(props: {
             canMarkSigned: canMarkSigned && !signé && documentBucket(m) === "sent",
           };
         }),
-      };
-    });
+      }] as const;
+    })
+  );
+
+  // Les intertitres se posent sur la PAGE affichée, l'ordre ayant déjà été
+  // décidé sur l'ensemble : une section qui déborde sur la page suivante y
+  // réaffiche simplement son titre.
+  const sections: ListSection[] = decouperEnSections(lotsPage, axe).map((s) => ({
+    key: s.key,
+    label: s.label,
+    groups: s.lots.map((l) => affichés.get(l.key)).filter((g): g is Group => Boolean(g)),
+  }));
 
   const TABS = DOCUMENT_BUCKETS.map((b) => ({ key: b.key, label: `${b.label} (${counts[b.key] ?? 0})` }));
 
@@ -233,24 +348,75 @@ export default async function DocumentsPage(props: {
         }
       />
       <Tabs basePath="/documents" tabs={TABS} active={activeTab} />
-      <div className="p-8 flex flex-col gap-4 max-w-3xl">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <SearchInput placeholder="Rechercher un document ou un destinataire…" />
-          <DocumentCategoryFilter />
-          <div className="text-[12px] text-slate">
-            {groupesOnglet.length} envoi{groupesOnglet.length > 1 ? "s" : ""}
+      <div className="p-8 flex flex-col gap-4 max-w-4xl">
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <SearchInput placeholder="Rechercher un document ou un destinataire…" />
+            <QueryFilterSelect param="formation" allLabel="Toutes les formations" options={optionsFormationOnglet} />
+            <QueryFilterSelect param="category" allLabel="Tous les types" options={optionsTypeOnglet} />
+            <QueryFilterSelect param="annee" allLabel="Toutes les années" options={optionsAnneeOnglet} />
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <QueryChoiceSelect
+              param="classer"
+              label="Classer par"
+              value={axe}
+              options={AXES_CLASSEMENT.map((a) => ({ value: a, label: AXE_LABELS[a] }))}
+            />
+            <div className="text-[12px] text-slate">
+              {groupesOnglet.length} envoi{groupesOnglet.length > 1 ? "s" : ""}
+            </div>
+            {filtreActif && (
+              // Un filtre posé trois écrans plus tôt explique la plupart des
+              // « mon document a disparu ». Le chemin du retour doit être
+              // visible sans avoir à retrouver quel menu on avait touché.
+              <Link
+                href={activeTab === "draft" ? "/documents" : `/documents?tab=${activeTab}`}
+                className="text-[12px] text-seal hover:underline"
+              >
+                Réinitialiser les filtres
+              </Link>
+            )}
           </div>
         </div>
-        <DocumentGroupList groups={affichés} emptyLabel={q || category ? "Aucun document ne correspond à cette recherche." : VIDE[activeTab]} />
+        <DocumentGroupList
+          sections={sections}
+          emptyLabel={filtreActif ? "Aucun document ne correspond à cette recherche." : VIDE[activeTab]}
+        />
         <Pagination
           basePath="/documents"
-          searchParams={{ tab: searchParams.tab, q, category, page: searchParams.page }}
+          searchParams={{
+            tab: searchParams.tab,
+            q,
+            category: filtres.category,
+            formation: filtres.formation,
+            annee: filtres.annee,
+            classer: searchParams.classer,
+            page: searchParams.page,
+          }}
           page={page}
           totalPages={totalPages}
         />
       </div>
     </>
   );
+}
+
+/**
+ * Garde dans le menu une valeur active qui n'a plus d'occurrence ici.
+ *
+ * Sans ça, filtrer sur une formation puis changer d'onglet laisse un
+ * `<select>` dont la valeur ne figure dans aucune option : le navigateur
+ * l'affiche vide, la liste est filtrée, et plus rien à l'écran ne dit
+ * pourquoi. L'entrée réapparaît donc avec son compte réel — zéro.
+ */
+function complete(
+  options: { value: string; label: string; count: number }[],
+  actif: string | undefined,
+  libelle: (v: string) => string
+): { value: string; label: string; count: number }[] {
+  if (!actif || options.some((o) => o.value === actif)) return options;
+  return [...options, { value: actif, label: libelle(actif), count: 0 }];
 }
 
 /** Où mène un clic sur un document. */
@@ -266,7 +432,12 @@ function hrefDe(m: BatchMember, r: { id: string; fileUrl: string | null; templat
   // l'autre (voir le commentaire de Document.fileUrl dans le schéma). Tester
   // l'absence de fichier revient donc à tester la présence du texte, sans
   // avoir à charger des pages de contrat pour le savoir.
-  return r.fileUrl ? `/api/documents/${r.id}/file` : `/api/documents/generated/${r.id}`;
+  //
+  // Un document rédigé ici s'ouvre dans une PAGE et non à une URL d'API :
+  // le clic menait droit à /api/documents/generated/<id>, sans titre, sans
+  // retour, sans contexte. Un fichier téléversé n'a rien à afficher d'autre
+  // que ses octets — il part donc directement.
+  return r.fileUrl ? `/api/documents/${r.id}/file` : `/documents/apercu/${r.id}`;
 }
 
 type Row = {

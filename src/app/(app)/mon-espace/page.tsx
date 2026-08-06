@@ -104,7 +104,7 @@ async function LearnerDocumentsTab({ userId, organizationId }: { userId: string;
       {documents.map((doc) => (
         <div key={doc.id} className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-linen">
           <a
-            href={doc.bodyText ? `/api/documents/generated/${doc.id}` : `/api/documents/${doc.id}/file`}
+            href={doc.bodyText ? `/documents/apercu/${doc.id}` : `/api/documents/${doc.id}/file`}
             target="_blank"
             rel="noreferrer"
             className="flex-1 min-w-0"

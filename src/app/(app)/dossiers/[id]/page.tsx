@@ -506,7 +506,7 @@ async function FormationsTab({
         for (const doc of documents) {
           if (!["needs_assessment", "convention", "convocation", "eval_hot", "eval_cold"].includes(doc.category)) continue;
           if (documentHrefByStep[doc.category]) continue; // most recent already kept — findMany above is createdAt desc
-          documentHrefByStep[doc.category] = doc.fileUrl ? `/api/documents/${doc.id}/file` : `/api/documents/generated/${doc.id}`;
+          documentHrefByStep[doc.category] = doc.fileUrl ? `/api/documents/${doc.id}/file` : `/documents/apercu/${doc.id}`;
         }
         for (const r of allSurveyResponses.filter((r) => r.dossierId === d.id)) {
           documentHrefByStep[`eval_${r.survey.kind}`] = `/dossiers/${d.id}/satisfaction/${r.survey.kind}`;
@@ -606,7 +606,7 @@ async function FormationsTab({
                   {documents.map((doc) => (
                     <a
                       key={doc.id}
-                      href={doc.bodyText ? `/api/documents/generated/${doc.id}` : `/api/documents/${doc.id}/file`}
+                      href={doc.bodyText ? `/documents/apercu/${doc.id}` : `/api/documents/${doc.id}/file`}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center justify-between gap-3 text-[12px] text-ink underline decoration-line hover:decoration-ink"
@@ -776,7 +776,7 @@ async function DocumentsTab({
         <div key={d.id} className="flex items-center justify-between gap-3 py-2.5 border-t border-line first:border-t-0">
           <div className="min-w-0">
             <a
-              href={d.bodyText ? `/api/documents/generated/${d.id}` : `/api/documents/${d.id}/file`}
+              href={d.bodyText ? `/documents/apercu/${d.id}` : `/api/documents/${d.id}/file`}
               target="_blank"
               rel="noreferrer"
               className="text-[12.5px] text-ink underline decoration-line hover:decoration-ink"

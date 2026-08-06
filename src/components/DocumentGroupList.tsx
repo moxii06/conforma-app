@@ -37,8 +37,11 @@ export type Group = {
   members: GroupMember[];
 };
 
-export function DocumentGroupList({ groups, emptyLabel }: { groups: Group[]; emptyLabel: string }) {
-  if (groups.length === 0) {
+/** Un intertitre et les lots qu'il coiffe. `label: null` = pas d'intertitre. */
+export type ListSection = { key: string; label: string | null; groups: Group[] };
+
+export function DocumentGroupList({ sections, emptyLabel }: { sections: ListSection[]; emptyLabel: string }) {
+  if (sections.length === 0) {
     return (
       <div className="bg-white border border-line rounded-card px-4 py-8 text-[12.5px] text-slate text-center">
         {emptyLabel}
@@ -47,8 +50,24 @@ export function DocumentGroupList({ groups, emptyLabel }: { groups: Group[]; emp
   }
   return (
     <div className="bg-white border border-line rounded-card">
-      {groups.map((g) => (
-        <GroupRow key={g.key} group={g} />
+      {sections.map((s) => (
+        <div key={s.key} className="border-t border-line first:border-t-0">
+          {s.label && (
+            // L'intertitre colle en haut pendant qu'on parcourt sa section :
+            // à trente lots par formation, on perd sinon de vue ce qu'on est
+            // en train de lire. `top-0` suffit ici, le défilement se faisant
+            // dans <main> et non dans la fenêtre.
+            <div className="sticky top-0 z-10 flex items-baseline gap-2 px-4 py-2 bg-linen border-b border-line">
+              <span className="text-[11.5px] font-semibold text-ink uppercase tracking-wide truncate">{s.label}</span>
+              <span className="text-[11px] text-slate shrink-0">
+                {s.groups.length} envoi{s.groups.length > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+          {s.groups.map((g) => (
+            <GroupRow key={g.key} group={g} />
+          ))}
+        </div>
       ))}
     </div>
   );

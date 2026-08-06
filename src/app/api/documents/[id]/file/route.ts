@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSessionContext, can } from "@/lib/tenant";
+import { getSessionContext } from "@/lib/tenant";
 import { streamStoredFile } from "@/lib/blobStream";
+import { INCLUDE_ACCES_DOCUMENT, peutLireDocument } from "@/lib/documentAccess";
 
 // Serves an uploaded document's bytes behind the same access rules that
 // decide who may see the record it hangs off.
@@ -22,24 +22,15 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
 
   const document = await prisma.document.findFirst({
     where: { id: params.id, organizationId: session.organizationId },
-    include: { dossier: { select: { learnerUserId: true, session: { select: { trainerId: true } } } } },
+    include: INCLUDE_ACCES_DOCUMENT,
   });
   if (!document?.fileUrl) return NextResponse.json({ error: "Document introuvable." }, { status: 404 });
 
-  const denied = NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
-
-  if (session.role === Role.LEARNER) {
-    // Their own dossier's documents, nothing else — same rule as the
-    // mon-espace listing.
-    if (!document.dossier || document.dossier.learnerUserId !== session.userId) return denied;
-  } else if (document.dossierId) {
-    if (can(session.role, "dossiers") === "none") return denied;
-    // TRAINER sees their own sessions only, the same second-layer ownership
-    // filter /dossiers applies.
-    if (session.role === Role.TRAINER && document.dossier?.session.trainerId !== session.userId) return denied;
-  } else {
-    // Team member / subcontractor record (CV, diploma, contract).
-    if (can(session.role, "team") === "none") return denied;
+  // La règle vit dans lib/documentAccess.ts, partagée avec
+  // /api/documents/generated/[id] : le même document est servi par deux
+  // chemins, il ne peut pas avoir deux règles de lecture.
+  if (!peutLireDocument(document, { role: session.role, userId: session.userId })) {
+    return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 
   return streamStoredFile(document.fileUrl, { downloadName: document.title });

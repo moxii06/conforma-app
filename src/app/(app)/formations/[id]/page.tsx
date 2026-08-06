@@ -783,7 +783,7 @@ function DocumentsTab({
           {signedDocuments.map((doc) => (
             <a
               key={doc.id}
-              href={doc.bodyText ? `/api/documents/generated/${doc.id}` : `/api/documents/${doc.id}/file`}
+              href={doc.bodyText ? `/documents/apercu/${doc.id}` : `/api/documents/${doc.id}/file`}
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-3 px-4 py-3 border-t border-line first:border-t-0 hover:bg-linen"
