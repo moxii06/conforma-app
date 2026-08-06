@@ -11,7 +11,12 @@ import sanitizeHtml from "sanitize-html";
 // (htmlToPdf.ts) is text-only and would silently drop it. allowedSchemesByTag
 // keeps img src to https (blocks data: URIs and anything else), since this
 // HTML can end up rendered in another user's inbox/browser.
-const ALLOWED_TAGS = ["b", "strong", "i", "em", "u", "span", "font", "p", "br", "div", "mark", "img"];
+// ul/ol/li : la liste blanche décide seule de ce qui survit à
+// l'enregistrement. Sans elles, les boutons « liste » de la barre d'outils
+// auraient produit une liste à l'écran, puis un paragraphe unique aux
+// éléments collés bout à bout dès le rechargement du brouillon — un bug
+// invisible au moment de la saisie, et visible seulement chez le client.
+const ALLOWED_TAGS = ["b", "strong", "i", "em", "u", "span", "font", "p", "br", "div", "mark", "img", "ul", "ol", "li"];
 const ALLOWED_STYLES = {
   "*": {
     color: [/^#[0-9a-fA-F]{3,6}$/, /^rgb\(/],
@@ -33,6 +38,7 @@ export function sanitizeRichText(html: string): string {
       font: ["face", "style"],
       p: ["style"],
       div: ["style"],
+      li: ["style"],
       img: ["src", "alt", "style"],
     },
     allowedStyles: ALLOWED_STYLES,

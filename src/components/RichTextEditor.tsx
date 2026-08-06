@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Underline, Highlighter, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Bold, Italic, Underline, Highlighter, Image as ImageIcon, List, ListOrdered, Loader2, Braces, Search, X } from "lucide-react";
 import { MERGE_TAGS } from "@/lib/mergeTags";
+import { grouperBalises } from "@/lib/mergeFieldCatalog";
 
 const FONT_OPTIONS = [
   { value: "Helvetica, Arial, sans-serif", label: "Sans" },
@@ -11,17 +12,24 @@ const FONT_OPTIONS = [
 ];
 
 // contentEditable-based rich text input (bold/italic/underline/highlight/
-// font) — deliberately not a library (Tiptap/Slate etc.): the formatting
-// vocabulary is small and fixed, and document.execCommand, despite being
-// long-deprecated, still does exactly this reliably in every evergreen
-// browser. Uncontrolled by design: `html` only gets written into the DOM
-// when `resetKey` changes (e.g. the caller loads a different template),
-// never on every keystroke — a normal controlled re-render would fight the
-// browser's own cursor/selection state on each character typed.
+// font/lists) — deliberately not a library (Tiptap/Slate etc.): the
+// formatting vocabulary is small and fixed, and document.execCommand,
+// despite being long-deprecated, still does exactly this reliably in every
+// evergreen browser. Uncontrolled by design: `html` only gets written into
+// the DOM when `resetKey` changes (e.g. the caller loads a different
+// template), never on every keystroke — a normal controlled re-render would
+// fight the browser's own cursor/selection state on each character typed.
+//
+// `lg` est le mode « document » : pas d'ascenseur interne, la page défile, et
+// la barre d'outils SUIT le rédacteur (position: sticky). Retour client :
+// « il faut que la barre suive pour qu'il n'ait pas à monter à chaque fois
+// pour changer la typographie ou mettre en gras ». Un ascenseur interne
+// rendrait cette barre inutile — on ne peut pas coller au haut d'un cadre
+// qu'on a soi-même fait défiler.
 const SIZE_CLASSES = {
-  sm: "min-h-[100px] max-h-[220px]",
-  md: "min-h-[160px] max-h-[360px]",
-  lg: "min-h-[300px] max-h-[600px]",
+  sm: "min-h-[100px] max-h-[220px] overflow-y-auto",
+  md: "min-h-[160px] max-h-[360px] overflow-y-auto",
+  lg: "min-h-[420px]",
 };
 
 export function RichTextEditor({
@@ -32,6 +40,7 @@ export function RichTextEditor({
   allowImages = false,
   onUploadImage,
   mergeTags,
+  mergeFields,
   size = "md",
 }: {
   html: string;
@@ -43,20 +52,25 @@ export function RichTextEditor({
   // draws text only and would silently drop an inserted image.
   allowImages?: boolean;
   onUploadImage?: (file: File) => Promise<string>;
-  // Passed by composers sending to a specific learner/contact — see
-  // lib/mergeTags.ts. Omit to hide the tag row entirely (e.g. SignatureEditor,
-  // which isn't addressed to any one recipient).
+  // Le petit jeu de balises des emails ([Prénom], [Formation]…) — une
+  // poignée, affichées telles quelles. Voir lib/mergeTags.ts.
   mergeTags?: typeof MERGE_TAGS;
-  // "lg" for content meant to be read at length (an LMS module's own body) —
-  // client feedback: the default height was fine for a short email note but
-  // too cramped for real course content. Defaults to the original size so
-  // every existing caller (composers, signature editor) is unaffected.
+  // Les balises {{...}} des documents — 59 clés. Passées ici comme une liste
+  // de clés brutes ; c'est l'éditeur qui les nomme et les regroupe, via
+  // lib/mergeFieldCatalog.ts. Elles s'affichaient auparavant à plat, par
+  // ordre alphabétique, sur toute la hauteur de l'écran.
+  mergeFields?: string[];
+  // "lg" for content meant to be read at length (a document, an LMS module's
+  // own body) — client feedback: the default height was fine for a short
+  // email note but too cramped for real content.
   size?: keyof typeof SIZE_CLASSES;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [balisesOuvertes, setBalisesOuvertes] = useState(false);
+  const [recherche, setRecherche] = useState("");
 
   useEffect(() => {
     if (ref.current) ref.current.innerHTML = html;
@@ -123,24 +137,46 @@ export function RichTextEditor({
     }
   }
 
+  const outil = "p-1.5 rounded hover:bg-white text-ink disabled:opacity-50";
+  const groupes = mergeFields ? grouperBalises(mergeFields, recherche) : [];
+  const modeDocument = size === "lg";
+
   return (
-    <div className="border border-line rounded-md overflow-hidden bg-white">
-      <div className="flex items-center gap-1 border-b border-line bg-mist px-2 py-1.5">
-        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("bold")} title="Gras" className="p-1.5 rounded hover:bg-white text-ink">
+    // Pas d'`overflow-hidden` ici : n'importe quel overflow autre que
+    // `visible` sur un ancêtre annule `position: sticky` sur la barre
+    // d'outils. Les coins sont donc arrondis sur les enfants.
+    <div className="border border-line rounded-md bg-white">
+      <div className="sticky top-0 z-20 flex items-center gap-1 flex-wrap border-b border-line bg-mist rounded-t-md px-2 py-1.5">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("bold")} title="Gras" aria-label="Gras" className={outil}>
           <Bold size={13} />
         </button>
-        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("italic")} title="Italique" className="p-1.5 rounded hover:bg-white text-ink">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("italic")} title="Italique" aria-label="Italique" className={outil}>
           <Italic size={13} />
         </button>
-        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("underline")} title="Souligné" className="p-1.5 rounded hover:bg-white text-ink">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("underline")} title="Souligné" aria-label="Souligné" className={outil}>
           <Underline size={13} />
         </button>
-        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("hiliteColor", "#FFF3A0")} title="Surligner" className="p-1.5 rounded hover:bg-white text-ink">
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("hiliteColor", "#FFF3A0")} title="Surligner" aria-label="Surligner" className={outil}>
           <Highlighter size={13} />
         </button>
+
         <div className="w-px h-4 bg-line mx-1" />
+
+        {/* Les listes. `insertUnorderedList` produit un vrai <ul><li>, que
+            splitIntoBlocks sait porter jusqu'au PDF et au .docx — c'est ce
+            qui rend le bouton honnête. */}
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("insertUnorderedList")} title="Liste à puces" aria-label="Liste à puces" className={outil}>
+          <List size={13} />
+        </button>
+        <button type="button" onMouseDown={preserveSelection} onClick={() => exec("insertOrderedList")} title="Liste numérotée" aria-label="Liste numérotée" className={outil}>
+          <ListOrdered size={13} />
+        </button>
+
+        <div className="w-px h-4 bg-line mx-1" />
+
         <select
           defaultValue=""
+          aria-label="Police"
           onChange={(e) => {
             if (e.target.value) exec("fontName", e.target.value);
             e.target.value = "";
@@ -156,6 +192,27 @@ export function RichTextEditor({
             </option>
           ))}
         </select>
+
+        {mergeFields && mergeFields.length > 0 && (
+          <>
+            <div className="w-px h-4 bg-line mx-1" />
+            {/* Repliées par défaut : 59 pastilles ouvertes en permanence
+                repoussaient le document hors de l'écran. */}
+            <button
+              type="button"
+              onClick={() => setBalisesOuvertes((v) => !v)}
+              aria-expanded={balisesOuvertes}
+              title="Insérer une information reprise automatiquement"
+              className={`inline-flex items-center gap-1.5 text-[11.5px] font-medium rounded px-2 py-1 ${
+                balisesOuvertes ? "bg-ink text-white" : "text-ink hover:bg-white"
+              }`}
+            >
+              <Braces size={12} />
+              Informations
+            </button>
+          </>
+        )}
+
         {allowImages && (
           <>
             <div className="w-px h-4 bg-line mx-1" />
@@ -164,7 +221,8 @@ export function RichTextEditor({
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingImage}
               title="Insérer une image (logo)"
-              className="p-1.5 rounded hover:bg-white text-ink disabled:opacity-50"
+              aria-label="Insérer une image"
+              className={outil}
             >
               {uploadingImage ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
             </button>
@@ -172,6 +230,72 @@ export function RichTextEditor({
           </>
         )}
       </div>
+
+      {/* Le panneau des balises de document, groupées et cherchables. */}
+      {mergeFields && balisesOuvertes && (
+        <div className="border-b border-line bg-mist px-3 py-2.5 max-h-[280px] overflow-y-auto">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="relative flex-1 min-w-0">
+              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate" />
+              <input
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                placeholder="Chercher une information — « prix », « SIRET », « date »…"
+                aria-label="Chercher une information"
+                className="w-full bg-white border border-line rounded-md pl-7 pr-2 py-1.5 text-[12px] text-ink outline-none focus:border-seal placeholder:text-ash"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setBalisesOuvertes(false);
+                setRecherche("");
+              }}
+              aria-label="Fermer les informations"
+              className="text-slate hover:text-ink shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <div className="text-[11px] text-slate mb-2 leading-snug">
+            Cliquez pour insérer un emplacement : il sera remplacé par la vraie valeur au moment de générer le document.
+          </div>
+
+          {groupes.length === 0 ? (
+            <div className="text-[11.5px] text-slate py-1.5">Aucune information ne correspond à « {recherche.trim()} ».</div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {groupes.map((g) => (
+                <div key={g.famille.prefixe}>
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">{g.famille.titre}</div>
+                    {g.famille.precision && <div className="text-[10.5px] text-ash">{g.famille.precision}</div>}
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {g.balises.map((b) => (
+                      <button
+                        key={b.cle}
+                        type="button"
+                        onMouseDown={preserveSelection}
+                        onClick={() => insertTag(b.tag)}
+                        // La clé technique en infobulle : elle reste la
+                        // référence pour qui relit un modèle existant.
+                        title={b.tag}
+                        className="text-[11px] bg-white border border-line hover:border-seal hover:text-seal-dark text-ink rounded-full px-2 py-0.5"
+                      >
+                        {b.libelle}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Les balises courtes des emails — une poignée, sans regroupement. */}
       {mergeTags && mergeTags.length > 0 && (
         <div className="flex flex-wrap gap-1 border-b border-line bg-mist px-2 py-1.5">
           {mergeTags.map((m) => (
@@ -187,13 +311,20 @@ export function RichTextEditor({
           ))}
         </div>
       )}
+
       <div
         ref={ref}
         contentEditable
         suppressContentEditableWarning
         onInput={() => onChange(ref.current?.innerHTML ?? "")}
         data-placeholder={placeholder}
-        className={`rich-text-editable px-3 py-2.5 text-[13px] text-ink overflow-y-auto focus:outline-none ${SIZE_CLASSES[size]}`}
+        className={`rich-text-editable focus:outline-none ${
+          modeDocument
+            ? // Le document se rédige tel qu'il se lira : même classe de mise
+              // en page que l'aperçu, posée sur une feuille avec ses marges.
+              "document-prose mx-auto px-9 py-7"
+            : "px-3 py-2.5 text-[13px] text-ink"
+        } ${SIZE_CLASSES[size]}`}
       />
       {imageError && <div className="px-3 py-1.5 text-[11px] text-rust border-t border-line">{imageError}</div>}
     </div>

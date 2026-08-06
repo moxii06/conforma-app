@@ -17,3 +17,104 @@ body {
   color: #9a9689;
   pointer-events: none;
 }
+
+/* ---------------------------------------------------------------------------
+   .document-prose — la mise en page d'un document Jalon (contrat, convention,
+   règlement intérieur…), partagée par l'ÉDITION et l'APERÇU.
+
+   Une seule classe pour les deux, délibérément : tant qu'elles étaient
+   séparées, ce qu'on relisait n'était pas ce qu'on avait écrit, et le contrat
+   sortait en 13 px interligne serré sur toute la largeur de l'écran — un pavé
+   qu'on ne relit pas, pour un document qui engage juridiquement.
+
+   Tailwind neutralise les styles par défaut du navigateur (preflight) : sans
+   les règles ci-dessous, un <ul> n'a ni puce ni retrait, et un <p> aucune
+   marge. Les boutons « liste » de l'éditeur ne produiraient donc rien de
+   visible. Voir htmlToPdf.ts pour le pendant côté fichier exporté.
+   --------------------------------------------------------------------------- */
+.document-prose {
+  /* Une mesure de lecture, pas la largeur de l'écran : au-delà d'environ 80
+     caractères, l'œil perd la ligne suivante en revenant à la marge. */
+  max-width: 78ch;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #1b2430;
+  text-align: left;
+}
+
+.document-prose p,
+.document-prose div {
+  margin-bottom: 0.85em;
+}
+
+.document-prose p:last-child,
+.document-prose div:last-child {
+  margin-bottom: 0;
+}
+
+.document-prose ul,
+.document-prose ol {
+  margin: 0.6em 0 0.9em;
+  padding-left: 1.6em;
+}
+
+.document-prose ul {
+  list-style: disc outside;
+}
+
+.document-prose ol {
+  list-style: decimal outside;
+}
+
+/* Une sous-liste numérotée repart de 1 dans un style distinct, comme le fait
+   le PDF et comme l'attend un article « 2.1, 2.2 ». */
+.document-prose ol ol {
+  list-style: lower-latin outside;
+}
+
+.document-prose ul ul {
+  list-style: circle outside;
+}
+
+.document-prose li {
+  margin-bottom: 0.3em;
+  padding-left: 0.2em;
+}
+
+.document-prose li > p {
+  margin-bottom: 0;
+}
+
+/* Les balises {{...}} non encore résolues : visibles comme un emplacement à
+   remplir, et non comme du texte du contrat. C'est ce qui évite qu'un
+   « {{contact.firstName}} » parte chez le client sans qu'on l'ait vu. */
+.document-prose mark,
+.rich-text-editable mark {
+  background: #fff3a0;
+  padding: 0 0.1em;
+}
+
+.document-prose h1,
+.document-prose h2,
+.document-prose h3 {
+  font-weight: 600;
+  margin: 1.3em 0 0.5em;
+  line-height: 1.3;
+}
+
+.document-prose h1 {
+  font-size: 1.25em;
+}
+
+.document-prose h2 {
+  font-size: 1.12em;
+}
+
+.document-prose h3 {
+  font-size: 1em;
+}
+
+.document-prose a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

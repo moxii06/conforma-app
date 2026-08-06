@@ -33,12 +33,113 @@ function resolveFontKey(face: string | null): FontKey {
   return "sans";
 }
 
+/**
+ * Un bloc de document : un paragraphe, ou un élément de liste.
+ *
+ * Le découpage rendait auparavant une simple liste de chaînes, en coupant
+ * sur `</p>` et `</div>` uniquement. Une liste à puces saisie dans
+ * l'éditeur arrivait donc ici comme UN seul bloc, tous les éléments collés
+ * bout à bout, sans puce ni retour à la ligne : le PDF envoyé au client ne
+ * ressemblait plus à ce qui avait été écrit. Offrir un bouton « liste »
+ * sans ce découpage aurait été pire que ne pas l'offrir.
+ */
+export type Block = {
+  /** Le fragment de balisage inline (gras, italique, police…) du bloc. */
+  html: string;
+  /**
+   * Profondeur d'imbrication. 0 pour un paragraphe ordinaire, 1 pour un
+   * élément de liste de premier niveau, 2 pour une sous-liste, etc.
+   */
+  depth: number;
+  /**
+   * Absent hors liste. `marker` est déjà résolu (« • », « 2. ») pour le PDF,
+   * qui dessine du texte ; `kind` sert au .docx, qui doit produire une vraie
+   * liste Word plutôt qu'une puce tapée à la main.
+   */
+  list?: { kind: "bullet" | "ordered"; marker: string };
+};
+
+/**
+ * Découpe le HTML de l'éditeur en blocs, listes comprises.
+ *
+ * Analyse par balayage plutôt que par DOM : ce module tourne aussi côté
+ * serverless, où il n'y a pas de `document`. Le vocabulaire d'entrée est
+ * exactement ce que produit `document.execCommand` dans l'éditeur, plus le
+ * HTML de nos propres modèles — pas du HTML arbitraire.
+ */
+export function splitIntoBlocks(html: string): Block[] {
+  const source = html.replace(/<br\s*\/?>/gi, "\n");
+  const blocks: Block[] = [];
+  // Une entrée par liste ouverte ; `index` porte la numérotation, qui
+  // repart de 1 à chaque sous-liste — comme le fait un navigateur.
+  const stack: { kind: "bullet" | "ordered"; index: number }[] = [];
+  let buffer = "";
+  let dansUnItem = false;
+
+  function vider(commeItem: boolean) {
+    const texte = buffer.trim();
+    buffer = "";
+    if (!texte) return;
+    const liste = stack[stack.length - 1];
+    if (commeItem && liste) {
+      liste.index += 1;
+      blocks.push({
+        html: texte,
+        depth: stack.length,
+        list: { kind: liste.kind, marker: liste.kind === "ordered" ? `${liste.index}.` : "•" },
+      });
+    } else {
+      blocks.push({ html: texte, depth: stack.length });
+    }
+  }
+
+  const structure = /<(\/?)(ul|ol|li|p|div|h[1-6])\b[^>]*>/gi;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = structure.exec(source)) !== null) {
+    buffer += source.slice(lastIndex, match.index);
+    lastIndex = structure.lastIndex;
+    const fermante = match[1] === "/";
+    const tag = match[2].toLowerCase();
+
+    if (tag === "ul" || tag === "ol") {
+      // Vider AVANT de dépiler : le texte en attente appartient encore à la
+      // liste qu'on ferme, pas à ce qui l'entoure.
+      vider(dansUnItem);
+      dansUnItem = false;
+      if (fermante) stack.pop();
+      else stack.push({ kind: tag === "ol" ? "ordered" : "bullet", index: 0 });
+      continue;
+    }
+
+    if (tag === "li") {
+      // Le même geste ferme l'item précédent, qu'on rencontre `</li>` ou
+      // directement le `<li>` suivant — le second est du HTML valide, et
+      // les navigateurs en produisent.
+      vider(dansUnItem);
+      dansUnItem = !fermante;
+      continue;
+    }
+
+    // p / div / titre. Chrome enveloppe parfois le contenu d'un <li> dans un
+    // <div> : à l'intérieur d'un item, ces balises ne coupent rien, sans quoi
+    // l'élément sortirait en deux blocs dont un sans puce.
+    if (!dansUnItem) vider(false);
+  }
+
+  buffer += source.slice(lastIndex);
+  vider(dansUnItem);
+  return blocks;
+}
+
+/**
+ * Conservée pour les appelants qui n'ont que faire des listes (et pour les
+ * tests d'origine) — définie à partir de `splitIntoBlocks` et non l'inverse,
+ * pour qu'il n'existe qu'une seule règle de découpage.
+ */
 export function splitIntoParagraphs(html: string): string[] {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .split(/<\/(?:p|div)>/gi)
-    .map((chunk) => chunk.replace(/<(?:p|div)[^>]*>/gi, "").trim())
-    .filter((chunk) => chunk.length > 0);
+  return splitIntoBlocks(html).map((b) => b.html);
 }
 
 // Walks one paragraph's inline markup into a flat run list, tracking a
@@ -118,6 +219,9 @@ const PAGE_HEIGHT = 841.89;
 const MARGIN = 56;
 const FONT_SIZE = 11;
 const LINE_HEIGHT = 15;
+// Décalage d'un niveau de liste, en points. Assez large pour que « 10. »
+// tienne dans la gouttière sans toucher le texte.
+const LIST_INDENT = 18;
 
 function pickFont(fonts: Record<FontKey, { normal: PDFFont; bold: PDFFont; italic: PDFFont; boldItalic: PDFFont }>, run: Run): PDFFont {
   const set = fonts[run.fontKey];
@@ -168,10 +272,13 @@ export async function generatePdfFromRichText(title: string, bodyHtml: string): 
   page.drawText(toWinAnsi(title), { x: MARGIN, y: cursorY, size: titleSize, font: titleFont, color: rgb(0.1, 0.14, 0.19) });
   cursorY -= titleSize + 14;
 
-  const maxWidth = PAGE_WIDTH - MARGIN * 2;
-
-  for (const paragraph of splitIntoParagraphs(bodyHtml)) {
-    const runs = parseInlineRuns(paragraph);
+  for (const block of splitIntoBlocks(bodyHtml)) {
+    // Un élément de liste s'écrit dans une colonne décalée, sa puce ou son
+    // numéro posé dans la gouttière à gauche. `textLeft` sert au texte,
+    // `maxWidth` s'ajuste pour que le retour à la ligne reste dans la marge.
+    const textLeft = MARGIN + block.depth * LIST_INDENT;
+    const maxWidth = PAGE_WIDTH - MARGIN - textLeft;
+    const runs = parseInlineRuns(block.html);
     // Flatten into word-level tokens carrying their run's style, so a line
     // can mix runs (e.g. "normal **gras** normal") and still wrap correctly.
     // A run's text can still contain a literal "\n" here (a <br> inside this
@@ -195,11 +302,25 @@ export async function generatePdfFromRichText(title: string, bodyHtml: string): 
 
     let line: Token[] = [];
     let lineWidth = 0;
+    // La puce n'accompagne que la PREMIÈRE ligne de l'élément : un item qui
+    // se replie sur trois lignes ne doit pas afficher trois puces.
+    let markerÀPoser = block.list?.marker ?? null;
 
     function flushLine() {
       if (line.length === 0) return;
       ensureSpace();
-      let x = MARGIN;
+      if (markerÀPoser) {
+        const markerFont = embedded.sans.normal;
+        page.drawText(toWinAnsi(markerÀPoser), {
+          x: textLeft - LIST_INDENT + 4,
+          y: cursorY,
+          size: FONT_SIZE,
+          font: markerFont,
+          color: rgb(0.1, 0.1, 0.12),
+        });
+        markerÀPoser = null;
+      }
+      let x = textLeft;
       for (const token of line) {
         const font = pickFont(embedded, token.run);
         const width = font.widthOfTextAtSize(token.word, FONT_SIZE);
@@ -230,7 +351,9 @@ export async function generatePdfFromRichText(title: string, bodyHtml: string): 
       lineWidth += width;
     }
     flushLine();
-    cursorY -= LINE_HEIGHT * 0.4; // paragraph spacing
+    // Les éléments d'une même liste se serrent : l'espace de paragraphe
+    // entre chaque puce casserait la liste en autant de blocs isolés.
+    cursorY -= LINE_HEIGHT * (block.list ? 0.15 : 0.4);
   }
 
   const bytes = await doc.save();

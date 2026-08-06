@@ -116,7 +116,11 @@ export function CourseModulesList({ rows, defaultExpandedId }: { rows: ModuleRow
                     <>
                       {r.description && (
                         <div
-                          className={r.type === "page" ? "text-[12.5px] text-ink leading-relaxed" : "text-[11.5px] text-slate"}
+                          // Une page de contenu se lit comme un document :
+                          // même mise en page que l'éditeur qui l'a produite,
+                          // listes et puces comprises. Les autres types n'ont
+                          // ici qu'une ligne de description, pas un corps.
+                          className={r.type === "page" ? "document-prose" : "text-[11.5px] text-slate"}
                           dangerouslySetInnerHTML={{ __html: r.description }}
                         />
                       )}

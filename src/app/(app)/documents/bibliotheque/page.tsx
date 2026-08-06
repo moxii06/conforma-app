@@ -13,7 +13,7 @@ import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
 import { Tabs } from "@/components/Tabs";
 import { SearchInput } from "@/components/SearchInput";
 import { DocumentCategoryFilter } from "@/components/DocumentCategoryFilter";
-import { AVAILABLE_MERGE_FIELDS } from "@/lib/mergeTemplate";
+import { toutesLesBalisesGroupees } from "@/lib/mergeFieldCatalog";
 import { parseConditions, collectQuestionKeys } from "@/lib/documentAssembly";
 import { QUESTION_BY_KEY } from "@/lib/documentQuestionnaire";
 import type { BlockRow } from "@/components/TemplateBlocksEditor";
@@ -296,12 +296,30 @@ async function TemplatesTab({ organizationId, query }: { organizationId: string;
           <ChevronRight size={13} className="transition-transform group-open:rotate-90 shrink-0" />
           Aide : champs de fusion disponibles
         </summary>
-        <div className="mt-2 pl-[19px]">
-          Les modèles fournis par Jalon sont des points de départ génériques — à faire relire par un juriste avant
-          tout usage réel (voir le texte d&apos;avertissement inclus dans chaque modèle). Insérez ces champs dans le
-          texte d&apos;un modèle pour qu&apos;ils soient remplacés automatiquement à la génération :{" "}
-          {AVAILABLE_MERGE_FIELDS.map((f) => (
-            <code key={f} className="inline-block bg-pebble rounded px-1 py-0.5 mr-1 mt-1 text-[10.5px]">{`{{${f}}}`}</code>
+        <div className="mt-2 pl-[19px] flex flex-col gap-3">
+          <p className="max-w-[70ch] leading-snug">
+            Les modèles fournis par Jalon sont des points de départ génériques — à faire relire par un juriste avant
+            tout usage réel (voir le texte d&apos;avertissement inclus dans chaque modèle). Insérez ces champs dans le
+            texte d&apos;un modèle pour qu&apos;ils soient remplacés automatiquement à la génération.
+          </p>
+          {/* Groupés et nommés, comme dans l'éditeur : la liste à plat des 59
+              clés techniques ne se lisait pas, et « company » / « organization »
+              s'y confondaient — deux parties au contrat, pas deux tables. */}
+          {toutesLesBalisesGroupees().map((g) => (
+            <div key={g.famille.prefixe}>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">{g.famille.titre}</div>
+                {g.famille.precision && <div className="text-[10.5px] text-ash">{g.famille.precision}</div>}
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                {g.balises.map((b) => (
+                  <span key={b.cle} className="inline-flex items-baseline gap-1.5">
+                    <span className="text-ink">{b.libelle}</span>
+                    <code className="bg-pebble rounded px-1 py-0.5 text-[10px]">{b.tag}</code>
+                  </span>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </details>

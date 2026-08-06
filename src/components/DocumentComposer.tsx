@@ -230,8 +230,8 @@ export function DocumentComposer({
   // sert aux corps d'emails d'automatisation ; les passer ici ferait
   // insérer dans un contrat des balises que le moteur ne résoudrait
   // jamais, et le document partirait chez le client avec « [Prénom] »
-  // en toutes lettres.
-  const balisesDocument = mergeFields.map((cle) => ({ tag: `{{${cle}}}`, label: cle }));
+  // en toutes lettres. Les clés partent brutes à l'éditeur, qui les nomme
+  // et les regroupe lui-même (lib/mergeFieldCatalog.ts).
 
   const btn = "text-[13px] font-medium rounded-md inline-flex items-center justify-center min-h-[40px] px-4 disabled:opacity-50";
   const champ = "w-full border border-line rounded-md px-2.5 py-2 text-[12.5px] text-ink outline-none focus:border-seal min-h-[40px]";
@@ -276,20 +276,24 @@ export function DocumentComposer({
               <RichTextEditor
                 html={texte}
                 onChange={setTexteÉdité}
-                mergeTags={balisesDocument}
+                mergeFields={mergeFields}
                 size="lg"
                 placeholder="Rédigez votre document…"
               />
             ) : (
+              // Même mise en page que l'éditeur (document-prose) et même
+              // modèle de défilement : sans cela, passer de « Modifier » à
+              // « Prévisualiser » changeait à la fois l'allure du texte et
+              // l'endroit où il fallait faire défiler.
               <div
-                className="bg-white border border-line rounded-card p-6 text-[12.5px] text-ink leading-relaxed overflow-y-auto"
-                style={{ minHeight: 520, maxHeight: 620 }}
+                className="bg-white border border-line rounded-card px-9 py-7"
+                style={{ minHeight: 520 }}
               >
                 {chargement ? (
                   <span className="text-slate">Chargement de l&apos;aperçu…</span>
                 ) : proposition ? (
                   <div
-                    className="bg-[#DEE5E0] -m-2 p-2 rounded"
+                    className="document-prose bg-[#DEE5E0] -m-2 p-2 rounded"
                     dangerouslySetInnerHTML={{ __html: ensureHtml(proposition.bodyText) }}
                   />
                 ) : texte ? (
@@ -297,7 +301,7 @@ export function DocumentComposer({
                   // tous deux passés par plainTextToHtml qui échappe déjà
                   // le balisage saisi. Aucune source tierce n'alimente ce
                   // champ.
-                  <div dangerouslySetInnerHTML={{ __html: texte }} />
+                  <div className="document-prose" dangerouslySetInnerHTML={{ __html: texte }} />
                 ) : (
                   <span className="text-slate">Aperçu vide.</span>
                 )}
