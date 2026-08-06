@@ -94,24 +94,75 @@ body {
   padding: 0 0.1em;
 }
 
+/* Titres d'article : gras ET soulignés, à l'identique du PDF et du .docx.
+   Le soulignement porte sur le TEXTE (text-decoration) et non sur toute la
+   largeur de la colonne (une bordure basse) — c'est ce que fait un contrat
+   tapé à la machine, et c'est ce que rendent les deux générateurs. */
 .document-prose h1,
 .document-prose h2,
 .document-prose h3 {
-  font-weight: 600;
-  margin: 1.3em 0 0.5em;
-  line-height: 1.3;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin: 1.5em 0 0.5em;
+  line-height: 1.35;
 }
 
 .document-prose h1 {
-  font-size: 1.25em;
+  font-size: 1.2em;
 }
 
 .document-prose h2 {
-  font-size: 1.12em;
+  font-size: 1.08em;
 }
 
 .document-prose h3 {
   font-size: 1em;
+}
+
+/* Encadré d'avertissement — ce qui doit être vu : délai de rétractation,
+   renonciation. Filet à gauche plutôt qu'un cadre complet : le cadre coupe
+   la lecture, le filet la souligne. */
+.document-prose blockquote {
+  border-left: 3px solid #8c6b2e;
+  background: #faf7f0;
+  padding: 0.6em 0.9em;
+  margin: 1em 0;
+}
+
+.document-prose blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* Tableau récapitulatif et bloc signatures. `table-layout: fixed` : sans
+   lui, une cellule au contenu long s'accapare la largeur et le bloc
+   signatures perd sa symétrie. */
+.document-prose table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+.document-prose th,
+.document-prose td {
+  border: 1px solid #d8d4c8;
+  padding: 0.5em 0.6em;
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.document-prose th {
+  background: #f1eee8;
+  font-weight: 600;
+}
+
+/* Un tableau dépasse plus vite que du texte : il défile dans son propre
+   cadre plutôt que de pousser la page de côté. */
+.document-prose .table-wrap {
+  overflow-x: auto;
 }
 
 .document-prose a {

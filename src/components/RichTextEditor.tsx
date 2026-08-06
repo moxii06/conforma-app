@@ -1,7 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Underline, Highlighter, Image as ImageIcon, List, ListOrdered, Loader2, Braces, Search, X } from "lucide-react";
+import {
+  Bold,
+  Italic,
+  Underline,
+  Highlighter,
+  Image as ImageIcon,
+  List,
+  ListOrdered,
+  Loader2,
+  Braces,
+  Search,
+  X,
+  Heading1,
+  Heading2,
+  AlertTriangle,
+  Table as TableIcon,
+  PenLine,
+} from "lucide-react";
 import { MERGE_TAGS } from "@/lib/mergeTags";
 import { grouperBalises } from "@/lib/mergeFieldCatalog";
 
@@ -102,6 +119,47 @@ export function RichTextEditor({
     onChange(ref.current?.innerHTML ?? "");
   }
 
+  /**
+   * Insère un bloc HTML au point d'insertion.
+   *
+   * `insertHTML` et non une manipulation manuelle du DOM : le navigateur
+   * place le bloc au bon endroit dans la structure existante (il ne mettra
+   * pas un tableau à l'intérieur d'un paragraphe), et l'annulation par
+   * Ctrl+Z continue de fonctionner — ce que ne fait pas un innerHTML posé à
+   * la main.
+   */
+  function insererBloc(html: string) {
+    ref.current?.focus();
+    document.execCommand("insertHTML", false, html);
+    onChange(ref.current?.innerHTML ?? "");
+  }
+
+  /** Un tableau vide de 3 colonnes, prêt à remplir. */
+  function insererTableau() {
+    insererBloc(
+      "<table><tr><th>Intitulé</th><th>Durée</th><th>Prix</th></tr>" +
+        "<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>" +
+        "<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr></table><p><br></p>",
+    );
+  }
+
+  /**
+   * Le bloc de signatures, en deux colonnes.
+   *
+   * Un tableau et non deux colonnes CSS : c'est la seule structure qui tient
+   * à l'identique dans le PDF, dans Word et à l'écran. « Lu et approuvé » est
+   * prérempli parce que c'est la mention d'usage — elle se supprime en un
+   * geste si le document n'en veut pas.
+   */
+  function insererSignatures() {
+    insererBloc(
+      "<table><tr>" +
+        "<td>Pour le Bénéficiaire<br><br>Date et lieu :<br><br>Lu et approuvé<br><br><br></td>" +
+        "<td>Pour l'Organisme de formation<br><br>Date et lieu :<br><br>Lu et approuvé<br><br><br></td>" +
+        "</tr></table><p><br></p>",
+    );
+  }
+
   // Toolbar buttons are outside the contentEditable, so a plain click first
   // fires mousedown -> the browser collapses/clears the current text
   // selection before the click handler (and thus exec()) ever runs. By the
@@ -160,6 +218,24 @@ export function RichTextEditor({
           <Highlighter size={13} />
         </button>
 
+        {modeDocument && (
+          <>
+            <div className="w-px h-4 bg-line mx-1" />
+            {/* Les titres d'article. `formatBlock` produit un vrai <h1>/<h2>,
+                que splitIntoBlocks porte jusqu'au PDF et au .docx — où ils
+                sortent gras ET soulignés, comme ici. */}
+            <button type="button" onMouseDown={preserveSelection} onClick={() => exec("formatBlock", "<h1>")} title="Titre principal" aria-label="Titre principal" className={outil}>
+              <Heading1 size={13} />
+            </button>
+            <button type="button" onMouseDown={preserveSelection} onClick={() => exec("formatBlock", "<h2>")} title="Titre d'article" aria-label="Titre d'article" className={outil}>
+              <Heading2 size={13} />
+            </button>
+            <button type="button" onMouseDown={preserveSelection} onClick={() => exec("formatBlock", "<p>")} title="Texte courant" aria-label="Texte courant" className={`${outil} text-[11px] px-2 font-medium`}>
+              ¶
+            </button>
+          </>
+        )}
+
         <div className="w-px h-4 bg-line mx-1" />
 
         {/* Les listes. `insertUnorderedList` produit un vrai <ul><li>, que
@@ -171,6 +247,21 @@ export function RichTextEditor({
         <button type="button" onMouseDown={preserveSelection} onClick={() => exec("insertOrderedList")} title="Liste numérotée" aria-label="Liste numérotée" className={outil}>
           <ListOrdered size={13} />
         </button>
+
+        {modeDocument && (
+          <>
+            <div className="w-px h-4 bg-line mx-1" />
+            <button type="button" onMouseDown={preserveSelection} onClick={() => exec("formatBlock", "<blockquote>")} title="Encadré d'avertissement" aria-label="Encadré d'avertissement" className={outil}>
+              <AlertTriangle size={13} />
+            </button>
+            <button type="button" onMouseDown={preserveSelection} onClick={insererTableau} title="Insérer un tableau" aria-label="Insérer un tableau" className={outil}>
+              <TableIcon size={13} />
+            </button>
+            <button type="button" onMouseDown={preserveSelection} onClick={insererSignatures} title="Bloc de signatures" aria-label="Bloc de signatures" className={outil}>
+              <PenLine size={13} />
+            </button>
+          </>
+        )}
 
         <div className="w-px h-4 bg-line mx-1" />
 

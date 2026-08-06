@@ -1,5 +1,5 @@
 import { put } from "@vercel/blob";
-import { generatePdfFromRichText } from "@/lib/htmlToPdf";
+import { generatePdfFromRichText, type MiseEnPageDocument } from "@/lib/htmlToPdf";
 import { prisma } from "@/lib/prisma";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { privateStoreToken } from "@/lib/storage";
@@ -49,6 +49,66 @@ export function safeUploadName(original: string): string {
   return extension ? `${stem}.${extension}` : stem;
 }
 
+/**
+ * L'habillage du document : identité de l'organisme + octets du logo.
+ *
+ * Vit ici plutôt que dans htmlToPdf.ts parce que ce module-là ne connaît ni
+ * Prisma ni le réseau. Deux garde-fous qui comptent :
+ *
+ *   — le téléchargement du logo est borné dans le temps ET ses erreurs sont
+ *     avalées : un blob momentanément indisponible ne doit jamais empêcher
+ *     un contrat de partir. Un document sans logo reste valable ; un
+ *     document absent, non.
+ *   — un logo trop lourd est ignoré : il gonflerait chaque PDF envoyé.
+ */
+const LOGO_MAX_OCTETS = 1_500_000;
+
+export async function chargerMiseEnPage(organizationId: string): Promise<MiseEnPageDocument | undefined> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      name: true,
+      logoUrl: true,
+      legalForm: true,
+      legalAddress: true,
+      siret: true,
+      activityDeclarationNumber: true,
+      regionPrefecture: true,
+      publicContactPhone: true,
+      publicContactEmail: true,
+    },
+  });
+  if (!org) return undefined;
+
+  let logo: Uint8Array | null = null;
+  if (org.logoUrl) {
+    try {
+      const reponse = await fetch(org.logoUrl, { signal: AbortSignal.timeout(4000) });
+      if (reponse.ok) {
+        const octets = new Uint8Array(await reponse.arrayBuffer());
+        if (octets.byteLength <= LOGO_MAX_OCTETS) logo = octets;
+      }
+    } catch {
+      logo = null;
+    }
+  }
+
+  return {
+    organisme: {
+      nom: org.name,
+      logoUrl: org.logoUrl,
+      formeJuridique: org.legalForm,
+      adresseLegale: org.legalAddress,
+      siret: org.siret,
+      numeroDeclarationActivite: org.activityDeclarationNumber,
+      prefectureRegion: org.regionPrefecture,
+      telephone: org.publicContactPhone,
+      email: org.publicContactEmail,
+    },
+    logo,
+  };
+}
+
 // Shared by the dossier and CRM-prospect "envoyer un document" send routes:
 // turns either a rich-text template (→ a real generated PDF) or an
 // uploaded file into (a) a persisted Blob so it shows up in the existing
@@ -70,7 +130,11 @@ export async function buildDocumentAttachment(params: {
   let mimeType: string;
 
   if (params.mode === "template") {
-    buffer = await generatePdfFromRichText(params.title, params.bodyHtml ?? "");
+    // L'en-tête et le pied de page arrivent par ici : tous les envois de
+    // document passent par cette fonction, donc l'habillage apparaît partout
+    // sans avoir à le brancher écran par écran.
+    const miseEnPage = await chargerMiseEnPage(params.organizationId);
+    buffer = await generatePdfFromRichText(params.title, params.bodyHtml ?? "", miseEnPage);
     fileName = `${safeFileStem(params.title)}.pdf`;
     mimeType = "application/pdf";
   } else {

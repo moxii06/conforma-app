@@ -16,7 +16,17 @@ import sanitizeHtml from "sanitize-html";
 // auraient produit une liste à l'écran, puis un paragraphe unique aux
 // éléments collés bout à bout dès le rechargement du brouillon — un bug
 // invisible au moment de la saisie, et visible seulement chez le client.
-const ALLOWED_TAGS = ["b", "strong", "i", "em", "u", "span", "font", "p", "br", "div", "mark", "img", "ul", "ol", "li"];
+// prettier-ignore
+const ALLOWED_TAGS = [
+  "b", "strong", "i", "em", "u", "span", "font", "p", "br", "div", "mark", "img",
+  "ul", "ol", "li",
+  // Titres d'article, encadré d'avertissement, tableau récapitulatif et bloc
+  // signatures. Chaque balise ajoutée ici l'est APRÈS que le PDF et le .docx
+  // savent la rendre : l'inverse produirait une mise en forme visible à
+  // l'écran et absente du fichier envoyé au client.
+  "h1", "h2", "blockquote",
+  "table", "thead", "tbody", "tr", "th", "td",
+];
 const ALLOWED_STYLES = {
   "*": {
     color: [/^#[0-9a-fA-F]{3,6}$/, /^rgb\(/],
@@ -39,6 +49,8 @@ export function sanitizeRichText(html: string): string {
       p: ["style"],
       div: ["style"],
       li: ["style"],
+      th: ["style", "colspan", "rowspan"],
+      td: ["style", "colspan", "rowspan"],
       img: ["src", "alt", "style"],
     },
     allowedStyles: ALLOWED_STYLES,
@@ -54,8 +66,12 @@ export function sanitizeRichText(html: string): string {
 export function richTextToPlainText(html: string): string {
   const withBreaks = html
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div)>/gi, "\n")
-    .replace(/<(p|div)[^>]*>/gi, "");
+    // Les titres, éléments de liste et cellules comptent aussi comme des
+    // coupures : sans eux, une liste de huit engagements ressortait en une
+    // seule phrase dans la version texte de l'email.
+    .replace(/<\/(p|div|h[1-6]|li|tr|blockquote)>/gi, "\n")
+    .replace(/<\/(th|td)>/gi, " · ")
+    .replace(/<(p|div|h[1-6]|li|tr|th|td|blockquote)[^>]*>/gi, "");
   const text = sanitizeHtml(withBreaks, { allowedTags: [], allowedAttributes: {} });
   return text.replace(/\n{3,}/g, "\n\n").trim();
 }

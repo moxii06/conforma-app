@@ -8,6 +8,7 @@ import { QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { generatePdfFromRichText } from "@/lib/htmlToPdf";
 import { generateDocxFromRichText } from "@/lib/htmlToDocx";
+import { chargerMiseEnPage } from "@/lib/documentSending";
 
 const schema = z.object({
   answers: z.record(z.string()).optional(),
@@ -68,9 +69,13 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   const html = plainTextToHtml(merged);
   const isDocx = parsed.data.format === "docx";
+  // Même habillage que sur un envoi réel : un modèle téléchargé pour être
+  // relu doit ressembler au document qui partira chez le client, sans quoi
+  // la relecture ne prouve rien.
+  const miseEnPage = await chargerMiseEnPage(session.organizationId);
   const bytes = isDocx
-    ? await generateDocxFromRichText(template.title, html)
-    : await generatePdfFromRichText(template.title, html);
+    ? await generateDocxFromRichText(template.title, html, miseEnPage)
+    : await generatePdfFromRichText(template.title, html, miseEnPage);
   const ext = isDocx ? "docx" : "pdf";
   const contentType = isDocx
     ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
