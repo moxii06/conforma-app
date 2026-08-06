@@ -79,15 +79,27 @@ export default async function ProfilePage() {
             </div>
           </div>
 
-          <div className="bg-white border border-line rounded-card p-5">
-            <div className="text-[13.5px] font-semibold text-ink mb-1">Signature de mail</div>
+          {/* Repliée comme les blocs de l'organisme, et pour la même raison :
+              une signature se règle une fois. Dépliée, son éditeur faisait à
+              lui seul la hauteur des quatre cartes de droite réunies — replier
+              celles-ci sans celle-ci n'aurait fait que déplacer le
+              déséquilibre d'une colonne à l'autre. */}
+          <CollapsibleSection
+            title={titre("Signature de mail")}
+            defaultOpen={!user.emailSignature}
+            header={etat(
+              user.emailSignature
+                ? "Signature personnalisée, ajoutée à vos messages."
+                : `Signature par défaut : « Cordialement, ${user.name} ».`,
+            )}
+          >
             <div className="text-[11.5px] text-slate mb-3">
               Ajoutée automatiquement à la fin des messages composés (envoi de documents, communications avec un
               apprenant ou un prospect) — la même que celle que vous utilisez normalement depuis votre propre boîte
               mail.
             </div>
             <SignatureEditor initialSignature={user.emailSignature ?? `Cordialement,<br>${user.name}`} />
-          </div>
+          </CollapsibleSection>
         </div>
 
         {organization && (
