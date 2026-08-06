@@ -12,18 +12,11 @@ import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
 import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
 import { estPertinentPourProspect } from "@/lib/documentStage";
+import { PieceFinanciereTab } from "@/components/PieceFinanciereTab";
+import type { PieceFinanciere } from "@/lib/pieceFinanciere";
 
 type Template = ModeleChoisissable;
-type AttachMode = "none" | "library" | "quote" | "upload";
-
-type Devis = {
-  id: string;
-  reference: string;
-  amountCents: number;
-  status: string;
-  createdAt: string;
-  description?: string | null;
-};
+type AttachMode = "none" | "library" | "quote" | "invoice" | "upload";
 type PendingQuestion = { key: QuestionKey; label: string; options: { value: string; label: string }[] };
 type Preview = {
   title: string;
@@ -115,19 +108,10 @@ export function SendProspectDocumentDialog({
   const [includeSignature, setIncludeSignature] = useState(true);
   const [requiresESignature, setRequiresESignature] = useState(false);
   const [tousLesModeles, setTousLesModeles] = useState(false);
-  // Chargés à l'ouverture de l'onglet plutôt que passés en propriété : la
-  // liste du CRM affiche des dizaines de prospects, précharger les devis de
-  // chacun coûterait à tout le monde ce dont un seul a besoin. Et un devis
-  // créé il y a dix secondes est là sans recharger la page.
-  const [devisList, setDevisList] = useState<Devis[] | null>(null);
-  const [quoteId, setQuoteId] = useState("");
-  const [devisChoisi, setDevisChoisi] = useState<Devis | null>(null);
-  const [editeur, setEditeur] = useState(false);
-  const [listeVisible, setListeVisible] = useState(false);
-  const [creationEnCours, setCreationEnCours] = useState(false);
-  const [refDevis, setRefDevis] = useState("");
-  const [montantDevis, setMontantDevis] = useState("");
-  const [designationDevis, setDesignationDevis] = useState("");
+  // Une seule pièce financière peut être jointe à la fois — les onglets
+  // s'excluent. Tout ce que l'éditeur sait faire vit dans PieceFinanciereTab ;
+  // ici on ne retient que ce que l'envoi doit connaître.
+  const [pieceAttachee, setPieceAttachee] = useState<PieceFinanciere | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ message: string; link?: string; emailFailed?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -161,130 +145,28 @@ export function SendProspectDocumentDialog({
   );
   const aucunResultat = groupesFiltres.length === 0;
 
-  // Retour client : « quand je clique sur Devis, cela doit m'ouvrir
-  // l'éditeur ; je remplis, je valide, cela referme avec modifier/supprimer
-  // à côté, et je continue mon message. » L'éditeur est donc l'état
-  // d'arrivée, pas une liste suivie d'un lien — écrire un devis est le geste
-  // attendu ici, en réutiliser un est le cas particulier.
-  async function ouvrirDevis() {
-    setAttachMode("quote");
-    // Sans le droit d'émettre, l'onglet sert à joindre un devis existant :
-    // c'est la liste qu'on ouvre, pas l'éditeur.
-    if (!quoteId) {
-      setEditeur(peutCreerDevis);
-      setListeVisible(!peutCreerDevis);
+  // Changer d'onglet détache la pièce en cours : une facture jointe ne doit
+  // pas survivre au passage sur « Devis ». Elle continue d'exister en
+  // Facturation, et se rejoint d'un clic depuis la liste de l'onglet.
+  function changerMode(m: AttachMode) {
+    setAttachMode(m);
+    if (m !== attachMode && pieceAttachee) {
+      setPieceAttachee(null);
+      setTitle("");
+      setCategory("other");
     }
-    if (devisList !== null) return;
-    const res = await fetch(`/api/crm/contacts/${contactId}/quotes`);
-    const body = await res.json().catch(() => ({ quotes: [] }));
-    setDevisList(body.quotes ?? []);
   }
 
-  function ouvrirEnModification() {
-    if (!devisChoisi) return;
-    setRefDevis(devisChoisi.reference);
-    setMontantDevis(String(devisChoisi.amountCents / 100));
-    setDesignationDevis(devisChoisi.description ?? "");
-    setEditeur(true);
+  function attacherPiece(piece: PieceFinanciere, titre: string, categorie: string) {
+    setPieceAttachee(piece);
+    setTitle(titre);
+    setCategory(categorie);
   }
 
-  async function supprimerDevis() {
-    if (!devisChoisi) return;
-    // Un devis déjà parti n'est pas supprimable — la route le refuse aussi,
-    // mais l'écran ne doit pas proposer un geste qui va échouer. On se
-    // contente alors de le détacher du message.
-    if (devisChoisi.status !== "DRAFT") {
-      setQuoteId("");
-      setDevisChoisi(null);
-      setEditeur(true);
-      return;
-    }
-    setCreationEnCours(true);
-    const res = await fetch(`/api/facturation/quotes/${devisChoisi.id}`, { method: "DELETE" });
-    setCreationEnCours(false);
-    if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
-      setError(b.error ?? "Impossible de supprimer le devis.");
-      return;
-    }
-    setDevisList((prev) => (prev ?? []).filter((d) => d.id !== devisChoisi.id));
-    setQuoteId("");
-    setDevisChoisi(null);
+  function detacherPiece() {
+    setPieceAttachee(null);
     setTitle("");
-    setEditeur(true);
-  }
-
-  function choisirDevis(d: Devis) {
-    setQuoteId(d.id);
-    setDevisChoisi(d);
-    setEditeur(false);
-    setListeVisible(false);
-    // Le titre du document envoyé porte la référence : c'est sous ce nom
-    // que le prospect le recevra et que vous le retrouverez.
-    setTitle(`Devis ${d.reference}`);
-    setCategory("quote");
-  }
-
-  // Création sur place : trois champs, la même route que la Facturation.
-  //
-  // Délibérément court. L'éditeur de lignes détaillées reste dans
-  // Facturation : ici on est en train d'écrire un e-mail à un prospect, et
-  // demander une grille de prestations au milieu d'un message ferait perdre
-  // le fil. Référence, montant et désignation suffisent à émettre un devis
-  // recevable ; le détail se complète ensuite depuis Facturation.
-  async function creerDevis() {
-    const cents = Math.round(Number(montantDevis.replace(",", ".")) * 100);
-    if (!refDevis.trim() || !Number.isFinite(cents) || cents <= 0) {
-      setError("Référence et montant sont requis.");
-      return;
-    }
-    setCreationEnCours(true);
-    setError(null);
-    // Le même bouton crée ou corrige, selon qu'un devis est déjà choisi.
-    // « Modifier » rouvre cet éditeur pré-rempli : de l'endroit où on est,
-    // les deux gestes sont le même — poser le devis qu'on va envoyer.
-    const enModification = Boolean(devisChoisi);
-    const res = enModification
-      ? await fetch(`/api/facturation/quotes/${devisChoisi!.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reference: refDevis.trim(),
-            description: designationDevis.trim() || null,
-            amountCents: cents,
-          }),
-        })
-      : await fetch("/api/facturation/quotes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contactId,
-            reference: refDevis.trim(),
-            description: designationDevis.trim() || undefined,
-            amountCents: cents,
-          }),
-        });
-    const body = await res.json().catch(() => ({}));
-    setCreationEnCours(false);
-    if (!res.ok) {
-      setError(body.error ?? (enModification ? "Impossible de modifier le devis." : "Impossible de créer le devis."));
-      return;
-    }
-    const devis: Devis = {
-      id: body.id,
-      reference: body.reference,
-      amountCents: body.amountCents,
-      status: body.status,
-      createdAt: body.createdAt,
-      description: body.description ?? null,
-    };
-    setDevisList((prev) =>
-      enModification ? (prev ?? []).map((d) => (d.id === devis.id ? devis : d)) : [devis, ...(prev ?? [])],
-    );
-    choisirDevis(devis);
-    setRefDevis("");
-    setMontantDevis("");
-    setDesignationDevis("");
+    setCategory("other");
   }
 
   async function loadPreview(id: string, manualAnswers: Partial<Record<QuestionKey, string>>) {
@@ -324,6 +206,7 @@ export function SendProspectDocumentDialog({
 
   function reset() {
     setAttachMode("none");
+    setPieceAttachee(null);
     setTemplateSearch("");
     setTemplateId("");
     setPreview(null);
@@ -386,7 +269,7 @@ export function SendProspectDocumentDialog({
     }
 
     const formData = new FormData();
-    formData.set("mode", attachMode === "library" ? "template" : attachMode === "quote" ? "quote" : "upload");
+    formData.set("mode", attachMode === "library" ? "template" : attachMode);
     formData.set("title", title);
     formData.set("category", category);
     formData.set("message", includeSignature ? message + signatureHtml : message);
@@ -394,8 +277,8 @@ export function SendProspectDocumentDialog({
     if (attachMode === "library") {
       formData.set("templateId", templateId);
       if (Object.keys(answers).length > 0) formData.set("answers", JSON.stringify(answers));
-    } else if (attachMode === "quote") {
-      formData.set("quoteId", quoteId);
+    } else if (attachMode === "quote" || attachMode === "invoice") {
+      formData.set("pieceId", pieceAttachee?.id ?? "");
     } else if (file) {
       formData.set("file", file);
     }
@@ -438,7 +321,7 @@ export function SendProspectDocumentDialog({
     (isNeedsAssessment ||
       (attachMode === "none" && subject.trim().length > 0 && stripHtml(message).length > 0) ||
       (attachMode === "library" && !!templateId && !!preview && title.trim().length > 0) ||
-      (attachMode === "quote" && !!quoteId && title.trim().length > 0) ||
+      ((attachMode === "quote" || attachMode === "invoice") && !!pieceAttachee && title.trim().length > 0) ||
       (attachMode === "upload" && !!file && title.trim().length > 0));
 
   return (
@@ -502,16 +385,19 @@ export function SendProspectDocumentDialog({
                 <Paperclip size={11} /> Pièce jointe
               </div>
               <div className="flex gap-1.5 flex-wrap">
-                <button type="button" onClick={() => setAttachMode("none")} className={attachTabClass(attachMode === "none")}>
+                <button type="button" onClick={() => changerMode("none")} className={attachTabClass(attachMode === "none")}>
                   Aucune — email simple
                 </button>
-                <button type="button" onClick={ouvrirDevis} className={attachTabClass(attachMode === "quote")}>
+                <button type="button" onClick={() => changerMode("quote")} className={attachTabClass(attachMode === "quote")}>
                   Devis
                 </button>
-                <button type="button" onClick={() => setAttachMode("library")} className={attachTabClass(attachMode === "library")}>
+                <button type="button" onClick={() => changerMode("invoice")} className={attachTabClass(attachMode === "invoice")}>
+                  Facture
+                </button>
+                <button type="button" onClick={() => changerMode("library")} className={attachTabClass(attachMode === "library")}>
                   Document de la bibliothèque
                 </button>
-                <button type="button" onClick={() => setAttachMode("upload")} className={attachTabClass(attachMode === "upload")}>
+                <button type="button" onClick={() => changerMode("upload")} className={attachTabClass(attachMode === "upload")}>
                   Fichier de mon ordinateur
                 </button>
               </div>
@@ -646,158 +532,17 @@ export function SendProspectDocumentDialog({
                 </div>
               )}
 
-              {attachMode === "quote" && (
-                <div className="flex flex-col gap-2">
-                  {/* Un devis posé : l'éditeur s'efface au profit d'une ligne
-                      de résumé, pour rendre la place au message. C'est le
-                      cheminement demandé — remplir, valider, continuer à
-                      écrire — et non une liste qu'il faudrait re-parcourir. */}
-                  {!peutCreerDevis && !devisChoisi && (
-                    <div className="text-[11.5px] text-slate leading-relaxed">
-                      Vous pouvez joindre un devis existant. En créer un relève de la Facturation, à laquelle votre rôle
-                      n&apos;a pas accès — demandez-le à un administrateur de l&apos;organisme.
-                    </div>
-                  )}
-                  {!peutCreerDevis && devisList?.length === 0 && (
-                    <div className="text-[12px] text-slate">Aucun devis pour ce prospect.</div>
-                  )}
-
-                  {devisChoisi && !editeur && (
-                    <div className="border border-line rounded-md px-2.5 py-2 bg-white flex items-center gap-2 flex-wrap">
-                      <span className="text-[12.5px] text-ink font-medium min-w-0 truncate">
-                        Devis {devisChoisi.reference}
-                      </span>
-                      <span className="text-[12.5px] text-slate tabular-nums">
-                        {(devisChoisi.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                      </span>
-                      <div className="flex-1" />
-                      {/* Relire avant d'engager : c'est le PDF réel qui
-                          partira, pas un rendu approchant — la même fonction
-                          le fabrique dans les deux cas. En onglet, pour ne
-                          pas perdre le message en cours de rédaction. */}
-                      <a
-                        href={`/api/crm/quotes/${devisChoisi.id}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="shrink-0 text-[11.5px] text-slate underline decoration-line hover:text-ink"
-                      >
-                        Voir le devis
-                      </a>
-                      <button
-                        type="button"
-                        onClick={ouvrirEnModification}
-                        className="shrink-0 text-[11.5px] text-slate underline decoration-line hover:text-ink"
-                      >
-                        Modifier
-                      </button>
-                      {/* « Supprimer » sur un brouillon, « Retirer » sur un
-                          devis déjà parti : celui-là, le client en détient une
-                          copie, l'effacer laisserait une étape sans cause. */}
-                      <button
-                        type="button"
-                        onClick={supprimerDevis}
-                        disabled={creationEnCours}
-                        className="shrink-0 text-[11.5px] text-slate underline decoration-line hover:text-rust"
-                      >
-                        {devisChoisi.status === "DRAFT" ? "Supprimer" : "Retirer"}
-                      </button>
-                    </div>
-                  )}
-
-                  {editeur && (
-                    <div className="border border-line rounded-md p-2.5 bg-mist flex flex-col gap-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[11px] text-slate uppercase tracking-wide">Référence</span>
-                          <input
-                            value={refDevis}
-                            onChange={(e) => setRefDevis(e.target.value)}
-                            placeholder="DEV-2026-001"
-                            className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[11px] text-slate uppercase tracking-wide">Montant €</span>
-                          <input
-                            value={montantDevis}
-                            onChange={(e) => setMontantDevis(e.target.value)}
-                            inputMode="decimal"
-                            placeholder="1500"
-                            className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
-                          />
-                        </label>
-                      </div>
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[11px] text-slate uppercase tracking-wide">Désignation</span>
-                        <input
-                          value={designationDevis}
-                          onChange={(e) => setDesignationDevis(e.target.value)}
-                          placeholder="Intitulé de la prestation, tel qu'il figurera sur le devis"
-                          className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
-                        />
-                      </label>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Button type="button" size="sm" onClick={creerDevis} disabled={creationEnCours}>
-                          {creationEnCours ? "…" : devisChoisi ? "Enregistrer" : "Valider le devis"}
-                        </Button>
-                        {devisChoisi && (
-                          <button
-                            type="button"
-                            onClick={() => setEditeur(false)}
-                            className="text-[11.5px] text-slate underline decoration-line hover:text-ink"
-                          >
-                            Annuler
-                          </button>
-                        )}
-                        {!devisChoisi && (devisList?.length ?? 0) > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setListeVisible((v) => !v)}
-                            className="text-[11.5px] text-slate underline decoration-line hover:text-ink"
-                          >
-                            {listeVisible
-                              ? "Masquer les devis existants"
-                              : `Joindre un devis existant (${devisList?.length})`}
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate leading-relaxed">
-                        Le détail ligne par ligne se complète ensuite depuis Facturation — ici on ne demande que ce
-                        qu&apos;il faut pour émettre le devis et l&apos;envoyer.
-                      </p>
-                    </div>
-                  )}
-
-                  {listeVisible && devisList && devisList.length > 0 && (
-                    <div className="border border-line rounded-md max-h-40 overflow-y-auto">
-                      {devisList.map((d) => (
-                        <button
-                          key={d.id}
-                          type="button"
-                          onClick={() => choisirDevis(d)}
-                          className={`w-full text-left px-2.5 py-1.5 text-[12.5px] border-b border-line last:border-b-0 flex items-center gap-2 ${
-                            d.id === quoteId ? "bg-linen text-ink font-medium" : "text-ink hover:bg-mist"
-                          }`}
-                        >
-                          <span className="flex-1 min-w-0 truncate">{d.reference}</span>
-                          <span className="shrink-0 tabular-nums">
-                            {(d.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-slate">
-                            {new Date(d.createdAt).toLocaleDateString("fr-FR")}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {quoteId && !editeur && (
-                    <div className="text-[11.5px] text-slate leading-relaxed">
-                      À l&apos;envoi, ce devis passera en « envoyé » et l&apos;affaire avancera à « Devis envoyé » — comme
-                      depuis la Facturation.
-                    </div>
-                  )}
-                </div>
+              {(attachMode === "quote" || attachMode === "invoice") && (
+                <PieceFinanciereTab
+                  key={attachMode}
+                  kind={attachMode}
+                  contactId={contactId}
+                  peutCreer={peutCreerDevis}
+                  pieceAttachee={pieceAttachee}
+                  onAttacher={attacherPiece}
+                  onDetacher={detacherPiece}
+                  onErreur={setError}
+                />
               )}
 
               {attachMode === "upload" && (

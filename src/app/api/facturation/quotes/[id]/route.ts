@@ -4,6 +4,7 @@ import { DocStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { marquerDevisEnvoye, marquerDevisSigne } from "@/lib/quoteStatus";
+import { checkLines } from "@/lib/invoiceLines";
 
 // Deux usages dans un seul verbe : franchir un jalon (status), ou corriger
 // le contenu du devis. Ils ne se mélangent pas — un envoi ne modifie pas le
@@ -15,6 +16,20 @@ const schema = z
     reference: z.string().min(1).max(60).optional(),
     description: z.string().max(300).nullable().optional(),
     amountCents: z.number().int().positive().optional(),
+    // Le détail, quand il est envoyé, REMPLACE l'ancien en entier — un
+    // rapiéçage ligne à ligne demanderait des identifiants stables côté
+    // client pour un gain nul : le détail se saisit d'un bloc.
+    lines: z
+      .array(
+        z.object({
+          designation: z.string().min(1).max(300),
+          quantity: z.number().positive(),
+          unitPriceCents: z.number().int().min(0),
+          unit: z.string().max(40).optional(),
+        }),
+      )
+      .max(50)
+      .optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: "Rien à modifier." });
 
@@ -57,14 +72,45 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {}),
     ...(parsed.data.amountCents !== undefined ? { amountCents: parsed.data.amountCents } : {}),
   };
-  if (Object.keys(contenu).length > 0) {
+  // Le détail seul est une modification à part entière : il compte dans cette
+  // condition, sans quoi un PATCH ne portant que des lignes serait accepté et
+  // silencieusement sans effet.
+  if (Object.keys(contenu).length > 0 || parsed.data.lines !== undefined) {
     if (quote.status !== DocStatus.DRAFT) {
       return NextResponse.json(
         { error: "Ce devis est déjà parti chez le client — il ne peut plus être modifié." },
         { status: 409 },
       );
     }
-    await prisma.quote.update({ where: { id: quote.id }, data: contenu });
+    const montantFinal = parsed.data.amountCents ?? quote.amountCents;
+
+    if (parsed.data.lines !== undefined) {
+      // Détail fourni : il fait foi avec le montant, et la même règle qu'à la
+      // création s'applique — la somme doit tomber exactement dessus. Zéro
+      // tolérance, c'est l'écart d'un centime que relève un OPCO.
+      const verif = checkLines(parsed.data.lines, montantFinal);
+      if (!verif.ok) return NextResponse.json({ error: verif.error }, { status: 400 });
+      await prisma.quoteLine.deleteMany({ where: { quoteId: quote.id } });
+      if (parsed.data.lines.length > 0) {
+        await prisma.quoteLine.createMany({
+          data: parsed.data.lines.map((l, i) => ({ ...l, quoteId: quote.id, order: i })),
+        });
+      }
+    } else if (parsed.data.amountCents !== undefined && parsed.data.amountCents !== quote.amountCents) {
+      // Montant seul, sur un devis qui porte déjà un détail : l'écrire ferait
+      // diverger le total de sa propre grille. On refuse plutôt que de
+      // produire un PDF qui se contredit.
+      const lignes = await prisma.quoteLine.count({ where: { quoteId: quote.id } });
+      if (lignes > 0) {
+        return NextResponse.json(
+          { error: "Ce devis a un détail ligne par ligne — envoyez aussi le détail, ou corrigez-le depuis la Facturation." },
+          { status: 409 },
+        );
+      }
+    }
+    if (Object.keys(contenu).length > 0) {
+      await prisma.quote.update({ where: { id: quote.id }, data: contenu });
+    }
   }
 
   const updated = await prisma.quote.findUniqueOrThrow({ where: { id: quote.id } });

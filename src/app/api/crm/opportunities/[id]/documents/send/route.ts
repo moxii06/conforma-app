@@ -13,6 +13,8 @@ import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { buildFacturationPdf } from "@/lib/invoiceDocument";
 import { marquerDevisEnvoye } from "@/lib/quoteStatus";
+import { appliquerStatutFacture } from "@/lib/invoiceStatus";
+import { DocStatus } from "@prisma/client";
 
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/send — see
 // that route's comment for the real-attachment + rich-message rationale.
@@ -46,9 +48,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const messageHtmlRaw = formData.get("message")?.toString() ?? "";
   const requiresSignature = formData.get("requiresSignature") === "true";
   if (!title) return NextResponse.json({ error: "Titre requis." }, { status: 400 });
-  if (mode !== "template" && mode !== "upload" && mode !== "quote") {
+  if (mode !== "template" && mode !== "upload" && mode !== "quote" && mode !== "invoice") {
     return NextResponse.json({ error: "Mode invalide." }, { status: 400 });
   }
+  const estPieceFinanciere = mode === "quote" || mode === "invoice";
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
 
@@ -117,27 +120,33 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     resolvedCategory = template.category ?? category;
   }
 
-  // Le devis : un PDF déjà rendu par la Facturation, joint tel quel. On le
-  // charge avant l'envoi pour qu'un devis introuvable échoue ici, avec un
-  // message clair, plutôt qu'après avoir écrit un Document sans contenu.
+  // Devis ou facture : un PDF déjà rendu par la Facturation, joint tel quel.
+  // On le charge avant l'envoi pour qu'une pièce introuvable échoue ici, avec
+  // un message clair, plutôt qu'après avoir écrit un Document sans contenu.
   let devis: { id: string; contactId: string } | null = null;
+  let factureId: string | null = null;
   let octets: { buffer: Buffer; fileName: string; mimeType: string } | undefined;
-  if (mode === "quote") {
-    const quoteId = formData.get("quoteId")?.toString() || null;
-    if (!quoteId) return NextResponse.json({ error: "Devis requis." }, { status: 400 });
-    const q = await prisma.quote.findFirst({
-      where: { id: quoteId, organizationId: session.organizationId, contactId: opportunity.contactId },
-      select: { id: true, contactId: true },
-    });
-    // Le filtre sur contactId n'est pas décoratif : sans lui, un identifiant
-    // de devis appartenant à un autre prospect du même organisme partirait
+  if (estPieceFinanciere) {
+    const pieceId = formData.get("pieceId")?.toString() || null;
+    const nom = mode === "quote" ? "Devis" : "Facture";
+    if (!pieceId) return NextResponse.json({ error: `${nom} requis.` }, { status: 400 });
+
+    // Le filtre sur contactId n'est pas décoratif : sans lui, l'identifiant
+    // d'une pièce appartenant à un autre prospect du même organisme partirait
     // chez celui-ci.
-    if (!q) return NextResponse.json({ error: "Devis introuvable pour ce prospect." }, { status: 404 });
-    const built = await buildFacturationPdf("quote", q.id, session.organizationId);
-    if (!built) return NextResponse.json({ error: "Devis introuvable." }, { status: 404 });
-    devis = q;
+    const portee = { id: pieceId, organizationId: session.organizationId, contactId: opportunity.contactId };
+    const piece =
+      mode === "quote"
+        ? await prisma.quote.findFirst({ where: portee, select: { id: true, contactId: true } })
+        : await prisma.invoice.findFirst({ where: portee, select: { id: true, contactId: true } });
+    if (!piece) return NextResponse.json({ error: `${nom} introuvable pour ce prospect.` }, { status: 404 });
+
+    const built = await buildFacturationPdf(mode, piece.id, session.organizationId);
+    if (!built) return NextResponse.json({ error: `${nom} introuvable.` }, { status: 404 });
+    if (mode === "quote") devis = piece;
+    else factureId = piece.id;
     octets = { buffer: built.pdf, fileName: built.fileName, mimeType: "application/pdf" };
-    resolvedCategory = "quote";
+    resolvedCategory = mode;
   }
 
   let attachment;
@@ -147,7 +156,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       // d'où vient le document, le second comment il se fabrique. Les
       // confondre obligerait buildDocumentAttachment à connaître la
       // facturation.
-      mode: mode === "quote" ? "bytes" : mode,
+      mode: estPieceFinanciere ? "bytes" : mode,
       title,
       bodyHtml,
       bytes: octets,
@@ -235,6 +244,16 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   // donc le sort de l'e-mail.
   if (devis && emailSent) {
     await marquerDevisEnvoye(session.organizationId, devis);
+  }
+
+  // La facture, elle, ne déplace RIEN dans le CRM — et l'asymétrie est voulue.
+  // Émettre n'est pas encaisser : seul le règlement complet clôt l'affaire
+  // (voir lib/invoiceStatus.ts, qui n'avance l'étape que sur « payée »). Faire
+  // avancer le pipeline ici afficherait des affaires terminées qui n'ont pas
+  // encore vu un euro. On passe par appliquerStatutFacture malgré tout, pour
+  // que « ce que change un changement de statut » reste à un seul endroit.
+  if (factureId && emailSent) {
+    await appliquerStatutFacture(session.organizationId, factureId, DocStatus.SENT);
   }
 
   return NextResponse.json({ document, emailSent, documentUrl: attachment.fileUrl }, { status: 201 });
