@@ -5,6 +5,7 @@ import { SignOutButton } from "@/components/SignOutButton";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NAV_GROUPS } from "@/components/navGroups";
+import { MessagerieBadge } from "@/components/MessagerieBadge";
 
 
 export async function Sidebar({
@@ -83,6 +84,10 @@ export async function Sidebar({
                 >
                   <Icon size={16} />
                   {item.label}
+                  {/* Seule entrée à porter un compteur vivant : un message
+                      d'un collègue attend une réponse, et l'apprendre en
+                      changeant de page serait l'apprendre trop tard. */}
+                  {item.feature === "messagerie" && <MessagerieBadge />}
                 </Link>
               );
             })}
