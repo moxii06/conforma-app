@@ -544,6 +544,105 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
           "Choisissez le rattachement au moment du « + Ajouter votre propre modèle ».",
         ],
       },
+      {
+        question: "Quelle différence entre « Documents » et « Bibliothèque de modèles » ?",
+        steps: [
+          "Documents contient les EXEMPLAIRES : le contrat de M. Benali, brouillon puis finalisé, puis envoyé, puis signé.",
+          "Bibliothèque de modèles contient les PATRONS dont on les fabrique. Rien de ce qui s'y trouve ne s'envoie à personne.",
+          "Les deux ont leur entrée dans le menu de gauche, sous Pédagogie.",
+        ],
+      },
+      {
+        question: "Que veut dire « Un par apprenant » ou « Document unique » sur un modèle ?",
+        steps: [
+          "C'est le nombre de PDF produits à l'envoi, déduit du type de document — jamais une case à cocher.",
+          "Un par apprenant : contrat de formation particulier, convocation, recueil des besoins, évaluations, bilans, attestations. Huit stagiaires, huit PDF nommés, chacun signable séparément.",
+          "Document unique : convention d'entreprise, règlement intérieur, CGV, programme, livret d'accueil, feuille d'émargement. Un seul exemplaire, commun.",
+          "Un contrat unique pour huit stagiaires serait une pièce inopposable ; huit règlements intérieurs identiques noieraient votre bibliothèque et feraient payer huit signatures au lieu de zéro.",
+        ],
+      },
+      {
+        question: "Comment retrouver un document quand j'en ai des milliers ?",
+        steps: [
+          "Les quatre onglets disent où en est un document : brouillon, finalisé, envoyé, signé.",
+          "Trois filtres se cumulent au-dessus de la liste — formation, type, année — et chacun affiche le nombre d'envois qu'il contient réellement.",
+          "« Classer par » regroupe la liste avec des intertitres : par mois, par formation ou par type de document.",
+          "Un clic sur un document ouvre sa page de consultation, avec le contexte et le téléchargement PDF.",
+        ],
+      },
+      {
+        question: "Comment prévoir un paiement en plusieurs fois dans un contrat ?",
+        steps: [
+          "Sur l'écran d'envoi d'un contrat ou d'une convention, saisissez les échéances : une date et un montant par ligne.",
+          "« Proposer un échéancier conforme » remplit un plan qui respecte le plafond légal — 30 % maximum à la première échéance pour un particulier qui finance lui-même (art. L.6353-6).",
+          "Vous restez libre de le dépasser : Jalon chiffre l'écart en euros et vous le fait acquitter une fois, pas à chaque contrat.",
+          "À la signature, chaque échéance devient une facture datée. Le rappel au client part peu avant l'échéance, pas le jour de la signature.",
+          "Le retard remonte ensuite tout seul dans « À faire », pile Argent.",
+        ],
+      },
+      {
+        question: "L'indemnité de résiliation est-elle la même pour tous mes contrats ?",
+        steps: [
+          "Non : c'est une clause négociée. La valeur de votre profil n'est qu'une PROPOSITION, pré-remplie sur l'écran d'envoi.",
+          "Changez-la pour ce contrat-là sans toucher à votre réglage : l'aperçu se met à jour immédiatement.",
+          "Elle doit rester réciproque. Un contrat qui ne pénalise que le client comporte une clause présumée abusive (art. R.212-2, 3° du Code de la consommation).",
+          "Laissez le champ vide pour ne stipuler aucune indemnité.",
+        ],
+      },
+    ],
+  },
+  {
+    key: "particuliers",
+    label: "Vente aux particuliers",
+    description: "Médiation, délai de rétractation, renonciation.",
+    icon: ScrollText,
+    feature: "profile",
+    staffOnly: true,
+    guides: [
+      {
+        question: "Qu'est-ce qu'un médiateur de la consommation, et suis-je obligé d'y adhérer ?",
+        steps: [
+          "C'est un tiers indépendant que votre client particulier peut saisir gratuitement en cas de litige, avant d'aller devant un tribunal.",
+          "L'adhésion est OBLIGATOIRE dès votre premier contrat avec un particulier (art. L.612-1 du Code de la consommation), et ses coordonnées doivent figurer sur vos contrats, vos CGV et votre site.",
+          "Un organisme qui ne vend qu'à des entreprises et à des financeurs n'y est pas tenu. Jalon ne vous le rappelle donc que si vous avez réellement des clients particuliers.",
+          "L'adhésion se fait auprès d'un médiateur référencé par la CECMC — la liste officielle est publiée sur economie.gouv.fr. Comptez quelques dizaines d'euros par an pour un petit organisme.",
+          "Renseignez-le sur Profil, bloc « Vente aux particuliers ». La mention part ensuite automatiquement dans vos contrats.",
+        ],
+      },
+      {
+        question: "Puis-je remettre l'adhésion à plus tard ?",
+        steps: [
+          "Oui : « Je m'en occupe plus tard » repousse le rappel d'un mois.",
+          "C'est un report, pas un renoncement. L'obligation court toujours, l'étape reste décochée dans votre parcours de démarrage, et le rappel revient.",
+        ],
+      },
+      {
+        question: "Comment fonctionne le délai de rétractation de mon apprenant ?",
+        steps: [
+          "Quatorze jours à compter de la signature d'un contrat de formation particulier (art. L.221-18). Il ne concerne pas les conventions d'entreprise.",
+          "Pendant ce délai, Jalon bloque l'accès aux modules e-learning : ouvrir un module, c'est commencer à exécuter le contrat alors que l'apprenant peut encore être remboursé intégralement.",
+          "Le blocage se règle PAR FORMATION, dans « Règles du parcours » de sa fiche — une formation de trois jours et un parcours de six mois n'appellent pas la même réponse. La valeur de Profil n'est que le repli.",
+          "En mode partiel, cochez dans l'onglet Contenu les modules qui restent ouverts : réservez-le à ce qui précède vraiment la formation (livret d'accueil, programme, règlement intérieur, test de positionnement).",
+        ],
+      },
+      {
+        question: "Mon apprenant veut démarrer tout de suite — que se passe-t-il ?",
+        steps: [
+          "Il coche une renonciation dans son espace. Jalon enregistre l'instant, l'adresse IP et le texte exact qu'il a lu : c'est la preuve que réclamerait un litige.",
+          "Le texte n'est pas le même selon la formation, parce que le fondement juridique diffère.",
+          "Formation avec e-learning : art. L.221-28, 13° — le droit tombe dès le premier accès au contenu numérique.",
+          "Formation sans e-learning qui s'achève dans les quatorze jours : art. L.221-28, 1° — le droit tombe à l'achèvement, et l'apprenant qui se rétracte avant reste redevable d'une somme proportionnelle à ce qui a été fourni.",
+          "Formation sans e-learning qui déborde des quatorze jours : aucune exception ne joue, il n'y a rien à faire signer. Jalon refuse alors la renonciation plutôt que de fabriquer une preuve sans fondement.",
+        ],
+      },
+      {
+        question: "Un client professionnel peut-il avoir un droit de rétractation ?",
+        steps: [
+          "Oui, et c'est un piège classique. L'art. L.221-3 l'étend au professionnel de cinq salariés ou moins, pour un contrat conclu hors établissement dont l'objet n'entre pas dans le champ de son activité principale.",
+          "Une formation bureautique vendue à une entreprise artisanale de trois personnes est typiquement dans ce cas.",
+          "Jalon se déclenche sur le type de contrat signé, pas sur le statut déclaré du client : il suffit de lui faire signer un contrat de formation plutôt qu'une convention pour que le délai et la renonciation s'appliquent.",
+        ],
+      },
     ],
   },
   {
