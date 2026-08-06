@@ -66,7 +66,15 @@ export default async function ProfilePage() {
       <PageHeader title="Mon profil" subtitle="Vos informations personnelles et les réglages de votre organisme" />
       <div className={`p-8 grid grid-cols-1 gap-6 items-start ${organization ? "max-w-5xl lg:grid-cols-2" : "max-w-2xl"}`}>
         <div className="flex flex-col gap-4">
-          <div className="text-[11px] font-semibold text-slate uppercase tracking-wide">Vous</div>
+          {/* Deux domaines, deux propriétaires : ce qui est à vous, ce qui
+              est à l'organisme. Le client proposait deux sous-onglets ; la
+              page tenant desormais en cinq lignes repliées, des onglets
+              coûteraient un clic pour naviguer dans ce qui tient sur un
+              écran, et surtout ils cacheraient la ligne « à compléter » —
+              qui est tout l'intérêt du repli — depuis l'autre onglet. Un
+              intertitre franc donne la même frontière sans ce prix. Les
+              libellés sont les siens. */}
+          <div className="text-[12px] font-semibold text-ink border-b border-line pb-1.5">Moi</div>
 
           <div className="bg-white border border-line rounded-card p-5 flex items-center gap-4">
             <Avatar initials={initialsOf(user.name)} size="lg" />
@@ -104,7 +112,7 @@ export default async function ProfilePage() {
 
         {organization && (
           <div className="flex flex-col gap-4">
-            <div className="text-[11px] font-semibold text-slate uppercase tracking-wide">Votre organisme</div>
+            <div className="text-[12px] font-semibold text-ink border-b border-line pb-1.5">Mon organisme</div>
 
             <CollapsibleSection
               title={titre("Marque")}
