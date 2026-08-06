@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
@@ -10,6 +9,7 @@ import { MERGE_TAGS } from "@/lib/mergeTags";
 import { LibraryPanel } from "@/components/LibraryPanel";
 import { Button } from "@/components/ui";
 import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
+import { DialogShell } from "@/components/DialogShell";
 
 type Template = ModeleChoisissable;
 type Recipient = { id: string; name: string };
@@ -180,21 +180,10 @@ export function SendBulkDocumentDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-[13.5px] font-semibold text-ink">Envoyer un document à plusieurs apprenants</div>
-          <button
-            type="button"
-            onClick={() => {
+    <DialogShell title={"Envoyer un document à plusieurs apprenants"} onClose={() => {
               setOpen(false);
               reset();
-            }}
-            className="text-slate hover:text-ink"
-          >
-            <X size={16} />
-          </button>
-        </div>
+            }} maxWidth="max-w-lg">
 
         {result ? (
           <div className="flex flex-col gap-2">
@@ -390,7 +379,6 @@ export function SendBulkDocumentDialog({
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </form>
         )}
-      </div>
-    </div>
+    </DialogShell>
   );
 }

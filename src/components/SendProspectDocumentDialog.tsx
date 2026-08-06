@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Search, Paperclip, CheckCircle2 } from "lucide-react";
+import { Search, Paperclip, CheckCircle2 } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
@@ -14,6 +14,7 @@ import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/te
 import { estPertinentPourProspect } from "@/lib/documentStage";
 import { PieceFinanciereTab } from "@/components/PieceFinanciereTab";
 import type { PieceFinanciere } from "@/lib/pieceFinanciere";
+import { DialogShell } from "@/components/DialogShell";
 
 type Template = ModeleChoisissable;
 type AttachMode = "none" | "library" | "quote" | "invoice" | "upload";
@@ -325,21 +326,10 @@ export function SendProspectDocumentDialog({
       (attachMode === "upload" && !!file && title.trim().length > 0));
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={(e) => e.stopPropagation()}>
-      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-[13.5px] font-semibold text-ink">Contacter le prospect</div>
-          <button
-            type="button"
-            onClick={() => {
+    <DialogShell title={"Contacter le prospect"} onClose={() => {
               setOpen(false);
               reset();
-            }}
-            className="text-slate hover:text-ink"
-          >
-            <X size={16} />
-          </button>
-        </div>
+            }} maxWidth="max-w-lg">
 
         {result ? (
           <div className="flex flex-col gap-2">
@@ -609,7 +599,6 @@ export function SendProspectDocumentDialog({
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </form>
         )}
-      </div>
-    </div>
+    </DialogShell>
   );
 }

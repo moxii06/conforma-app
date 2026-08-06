@@ -9,6 +9,7 @@ import { LibraryPanel } from "@/components/LibraryPanel";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { Button } from "@/components/ui";
+import { DialogShell } from "@/components/DialogShell";
 
 type ExistingDocument = { id: string; title: string; category: string; createdAt: string };
 type PickedTemplate = { id: string; title: string };
@@ -129,23 +130,10 @@ export function InboxReplyDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-[13.5px] font-semibold text-ink">
-            Répondre {fromName ? `à ${fromName}` : ""}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
+    <DialogShell title={"Répondre {fromName ? `à ${fromName}` : &quot;&quot;}"} onClose={() => {
               setOpen(false);
               reset();
-            }}
-            className="text-slate hover:text-ink"
-          >
-            <X size={16} />
-          </button>
-        </div>
+            }} maxWidth="max-w-2xl">
 
         {result ? (
           <div className="flex flex-col gap-2">
@@ -294,7 +282,6 @@ export function InboxReplyDialog({
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </div>
         )}
-      </div>
-    </div>
+    </DialogShell>
   );
 }

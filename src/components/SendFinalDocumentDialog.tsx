@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
+import { DialogShell } from "@/components/DialogShell";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { MERGE_TAGS } from "@/lib/mergeTags";
@@ -163,14 +164,14 @@ export function SendFinalDocumentDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-ink/55 z-50 flex items-center justify-center p-5" onClick={(e) => e.target === e.currentTarget && setOuvert(false)}>
-      <div className="bg-paper rounded-xl w-full max-w-3xl max-h-[88vh] overflow-y-auto" role="dialog" aria-modal="true">
-        <div className="px-5 py-4 border-b border-line">
-          <div className="font-display text-[17px] text-ink">Envoyer le document</div>
-          <div className="text-[12.5px] text-slate mt-0.5">
-            {documentTitle} · {scopeLabel}
-          </div>
-        </div>
+    <DialogShell
+      title="Envoyer le document"
+      subtitle={`${documentTitle} · ${scopeLabel}`}
+      onClose={() => setOuvert(false)}
+      maxWidth="max-w-3xl"
+      // Plan de travail en deux colonnes : le corps pose sa propre grille.
+      dense
+    >
 
         <div className="p-5 grid gap-5" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div>
@@ -308,8 +309,7 @@ export function SendFinalDocumentDialog({
           </div>
           {erreur && <div className="text-[12px] text-rust text-right">{erreur}</div>}
         </div>
-      </div>
-    </div>
+    </DialogShell>
   );
 }
 

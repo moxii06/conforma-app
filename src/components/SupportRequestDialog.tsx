@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
 import { Button } from "@/components/ui";
+import { DialogShell } from "@/components/DialogShell";
 
 type Intent = "complaint" | "question" | "secure_report" | "rights_request" | "accommodation_request";
 
@@ -115,14 +115,7 @@ export function SupportRequestDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-[13.5px] font-semibold text-ink">Nouvelle demande</div>
-          <button type="button" onClick={() => { setOpen(false); reset(); }} className="text-slate hover:text-ink">
-            <X size={16} />
-          </button>
-        </div>
+    <DialogShell title={"Nouvelle demande"} onClose={() => { setOpen(false); reset(); }} maxWidth="max-w-lg">
 
         {done ? (
           <div className="flex flex-col gap-2">
@@ -277,7 +270,6 @@ export function SupportRequestDialog({
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </form>
         )}
-      </div>
-    </div>
+    </DialogShell>
   );
 }

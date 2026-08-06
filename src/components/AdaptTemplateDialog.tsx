@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, ArrowLeft, FileText, FileDown } from "lucide-react";
+import { ArrowLeft, FileText, FileDown } from "lucide-react";
 import { SHORT_OPTION_LABELS, type QuestionDefinition, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { TemplateBlocksEditor, type BlockRow } from "@/components/TemplateBlocksEditor";
 import { TemplateEditor } from "@/components/TemplateEditor";
 import { ActivateBlocksButton } from "@/components/ActivateBlocksButton";
 import { Button } from "@/components/ui";
+import { DialogShell } from "@/components/DialogShell";
 
 /**
  * The "Adapter ce modèle" flow, rebuilt as a dialog — client feedback: the
@@ -158,21 +159,7 @@ export function AdaptTemplateDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <div className="text-[13.5px] font-semibold text-ink truncate">{title}</div>
-            <div className="text-[11px] text-slate mt-0.5">
-              {step === "questions" && "Personnalisez le modèle en quelques réponses."}
-              {step === "preview" && "Aperçu du modèle adapté — vos informations d'organisme sont préremplies."}
-              {step === "legal" && "Texte juridique du modèle — réservé aux ajustements de fond."}
-            </div>
-          </div>
-          <button type="button" onClick={close} className="text-slate hover:text-ink shrink-0">
-            <X size={16} />
-          </button>
-        </div>
+    <DialogShell title={title} onClose={close} maxWidth="max-w-2xl">
 
         {step === "questions" && (
           <div className="flex flex-col gap-3">
@@ -293,7 +280,6 @@ export function AdaptTemplateDialog({
         )}
 
         {error && <div className="text-[11.5px] text-rust">{error}</div>}
-      </div>
-    </div>
+    </DialogShell>
   );
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, X } from "lucide-react";
+import { Upload } from "lucide-react";
+import { DialogShell } from "@/components/DialogShell";
 import { importFieldsFor, type ImportKind, type ImportMapping } from "@/lib/dataImport";
 import { Button } from "@/components/ui";
 
@@ -183,20 +184,17 @@ export function ImportDataDialog({
 
   return (
     <>
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-xl max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-[13.5px] font-semibold text-ink">
-            {kind === "contacts"
-              ? "Importer des contacts"
-              : kind === "history"
-                ? "Reprendre l'historique d'un ancien outil"
-                : "Importer des formations"}
-          </div>
-          <button type="button" onClick={closeAndReset} className="text-slate hover:text-ink">
-            <X size={16} />
-          </button>
-        </div>
+    <DialogShell
+      title={
+        kind === "contacts"
+          ? "Importer des contacts"
+          : kind === "history"
+            ? "Reprendre l'historique d'un ancien outil"
+            : "Importer des formations"
+      }
+      onClose={closeAndReset}
+      maxWidth="max-w-xl"
+    >
 
         {report ? (
           <div className="flex flex-col gap-2.5">
@@ -415,8 +413,7 @@ export function ImportDataDialog({
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DialogShell>
     {missingCoursesFile && (
       <ImportDataDialog kind="courses" initialFile={missingCoursesFile} onClose={() => setMissingCoursesFile(null)} />
     )}

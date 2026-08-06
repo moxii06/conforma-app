@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, X } from "lucide-react";
+import { Upload } from "lucide-react";
 import { importFieldsFor, type ImportMapping } from "@/lib/dataImport";
 import { Button } from "@/components/ui";
+import { DialogShell } from "@/components/DialogShell";
 
 type Analysis = { headers: string[]; sampleRows: string[][]; totalRows: number; mapping: ImportMapping };
 type Report = { totalRows: number; creditRowsFound: number; imported: number; alreadyKnown: number; errors: { line: number; message: string }[] };
@@ -86,21 +87,10 @@ export function BankStatementImportDialog() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-card border border-line w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="text-[13.5px] font-semibold text-ink">Importer un relevé bancaire</div>
-          <button
-            type="button"
-            onClick={() => {
+    <DialogShell title={"Importer un relevé bancaire"} onClose={() => {
               setOpen(false);
               reset();
-            }}
-            className="text-slate hover:text-ink"
-          >
-            <X size={16} />
-          </button>
-        </div>
+            }} maxWidth="max-w-lg">
 
         {report ? (
           <div className="flex flex-col gap-2.5">
@@ -194,7 +184,6 @@ export function BankStatementImportDialog() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </DialogShell>
   );
 }
