@@ -104,6 +104,11 @@ export function SendProspectDocumentDialog({
   // créé il y a dix secondes est là sans recharger la page.
   const [devisList, setDevisList] = useState<Devis[] | null>(null);
   const [quoteId, setQuoteId] = useState("");
+  const [creation, setCreation] = useState(false);
+  const [creationEnCours, setCreationEnCours] = useState(false);
+  const [refDevis, setRefDevis] = useState("");
+  const [montantDevis, setMontantDevis] = useState("");
+  const [designationDevis, setDesignationDevis] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ message: string; link?: string; emailFailed?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -151,6 +156,52 @@ export function SendProspectDocumentDialog({
     // que le prospect le recevra et que vous le retrouverez.
     setTitle(`Devis ${d.reference}`);
     setCategory("quote");
+  }
+
+  // Création sur place : trois champs, la même route que la Facturation.
+  //
+  // Délibérément court. L'éditeur de lignes détaillées reste dans
+  // Facturation : ici on est en train d'écrire un e-mail à un prospect, et
+  // demander une grille de prestations au milieu d'un message ferait perdre
+  // le fil. Référence, montant et désignation suffisent à émettre un devis
+  // recevable ; le détail se complète ensuite depuis Facturation.
+  async function creerDevis() {
+    const cents = Math.round(Number(montantDevis.replace(",", ".")) * 100);
+    if (!refDevis.trim() || !Number.isFinite(cents) || cents <= 0) {
+      setError("Référence et montant sont requis.");
+      return;
+    }
+    setCreationEnCours(true);
+    setError(null);
+    const res = await fetch("/api/facturation/quotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contactId,
+        reference: refDevis.trim(),
+        description: designationDevis.trim() || undefined,
+        amountCents: cents,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setCreationEnCours(false);
+    if (!res.ok) {
+      setError(body.error ?? "Impossible de créer le devis.");
+      return;
+    }
+    const nouveau: Devis = {
+      id: body.id,
+      reference: body.reference,
+      amountCents: body.amountCents,
+      status: body.status,
+      createdAt: body.createdAt,
+    };
+    setDevisList((prev) => [nouveau, ...(prev ?? [])]);
+    choisirDevis(nouveau);
+    setCreation(false);
+    setRefDevis("");
+    setMontantDevis("");
+    setDesignationDevis("");
   }
 
   async function loadPreview(id: string, manualAnswers: Partial<Record<QuestionKey, string>>) {
@@ -515,18 +566,8 @@ export function SendProspectDocumentDialog({
               {attachMode === "quote" && (
                 <div className="flex flex-col gap-2">
                   {devisList === null && <div className="text-[12px] text-slate">Chargement des devis…</div>}
-                  {devisList?.length === 0 && (
-                    // Pas de liste vide muette : ce prospect n'a pas encore de
-                    // devis, et le geste attendu est d'aller en créer un. Le
-                    // lien ouvre la Facturation dans un onglet pour ne pas
-                    // perdre le message déjà rédigé ici.
-                    <div className="text-[12px] text-slate">
-                      Aucun devis pour ce prospect.{" "}
-                      <a href="/facturation?tab=devis" target="_blank" rel="noreferrer" className="text-ink underline decoration-line">
-                        Créer un devis
-                      </a>{" "}
-                      — il apparaîtra ici en rouvrant cet onglet.
-                    </div>
+                  {devisList?.length === 0 && !creation && (
+                    <div className="text-[12px] text-slate">Aucun devis pour ce prospect.</div>
                   )}
                   {devisList && devisList.length > 0 && (
                     <div className="border border-line rounded-md max-h-40 overflow-y-auto">
@@ -550,6 +591,67 @@ export function SendProspectDocumentDialog({
                       ))}
                     </div>
                   )}
+                  {devisList !== null && !creation && (
+                    <button
+                      type="button"
+                      onClick={() => setCreation(true)}
+                      className="self-start text-[11.5px] text-slate underline decoration-line hover:text-ink"
+                    >
+                      Créer un devis pour ce prospect
+                    </button>
+                  )}
+
+                  {creation && (
+                    <div className="border border-line rounded-md p-2.5 bg-mist flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11px] text-slate uppercase tracking-wide">Référence</span>
+                          <input
+                            value={refDevis}
+                            onChange={(e) => setRefDevis(e.target.value)}
+                            placeholder="DEV-2026-001"
+                            className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11px] text-slate uppercase tracking-wide">Montant €</span>
+                          <input
+                            value={montantDevis}
+                            onChange={(e) => setMontantDevis(e.target.value)}
+                            inputMode="decimal"
+                            placeholder="1500"
+                            className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
+                          />
+                        </label>
+                      </div>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-slate uppercase tracking-wide">Désignation</span>
+                        <input
+                          value={designationDevis}
+                          onChange={(e) => setDesignationDevis(e.target.value)}
+                          placeholder="Intitulé de la prestation, tel qu'il figurera sur le devis"
+                          className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
+                        />
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Button type="button" size="sm" onClick={creerDevis} disabled={creationEnCours}>
+                          {creationEnCours ? "…" : "Créer et joindre"}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => setCreation(false)}
+                          className="text-[11.5px] text-slate underline decoration-line hover:text-ink"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-slate leading-relaxed">
+                        Le détail ligne par ligne se complète ensuite depuis Facturation — ici on ne demande que ce
+                        qu&apos;il faut pour émettre le devis et l&apos;envoyer.
+                      </p>
+                    </div>
+                  )}
+
                   {quoteId && (
                     <div className="text-[11.5px] text-slate leading-relaxed">
                       À l&apos;envoi, ce devis passera en « envoyé » et l&apos;affaire avancera à « Devis envoyé » — comme
