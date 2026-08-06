@@ -116,10 +116,16 @@ export async function chargerMiseEnPage(organizationId: string): Promise<MiseEnP
 // ready to attach to the notification email — client feedback wants a real
 // attachment, not a link to click.
 export async function buildDocumentAttachment(params: {
-  mode: "template" | "upload";
+  // « bytes » : un PDF déjà produit ailleurs — aujourd'hui un devis, rendu
+  // par lib/invoiceDocument.ts. Il passe quand même par ici pour être
+  // stocké, tracé et joint exactement comme les autres : un envoi qui
+  // contournerait cette fonction serait un envoi qu'aucun écran ne
+  // retrouverait.
+  mode: "template" | "upload" | "bytes";
   title: string;
   bodyHtml?: string;
   file?: File;
+  bytes?: { buffer: Buffer; fileName: string; mimeType: string };
   organizationId: string;
   ownerKey: string; // dossierId, or `opportunity-<id>` for a prospect with no dossier yet
 }): Promise<{ fileUrl: string; fileName: string; sizeBytes: number; contentBase64: string; mimeType: string }> {
@@ -129,7 +135,12 @@ export async function buildDocumentAttachment(params: {
   let fileName: string;
   let mimeType: string;
 
-  if (params.mode === "template") {
+  if (params.mode === "bytes") {
+    if (!params.bytes) throw new Error("Contenu requis.");
+    buffer = params.bytes.buffer;
+    fileName = params.bytes.fileName;
+    mimeType = params.bytes.mimeType;
+  } else if (params.mode === "template") {
     // L'en-tête et le pied de page arrivent par ici : tous les envois de
     // document passent par cette fonction, donc l'habillage apparaît partout
     // sans avoir à le brancher écran par écran.

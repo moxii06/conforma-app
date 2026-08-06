@@ -11,6 +11,8 @@ import { mergeTemplate } from "@/lib/mergeTemplate";
 import { resolveAnswers, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
+import { buildFacturationPdf } from "@/lib/invoiceDocument";
+import { marquerDevisEnvoye } from "@/lib/quoteStatus";
 
 // Opportunity-level counterpart to /api/dossiers/[id]/documents/send — see
 // that route's comment for the real-attachment + rich-message rationale.
@@ -44,7 +46,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const messageHtmlRaw = formData.get("message")?.toString() ?? "";
   const requiresSignature = formData.get("requiresSignature") === "true";
   if (!title) return NextResponse.json({ error: "Titre requis." }, { status: 400 });
-  if (mode !== "template" && mode !== "upload") return NextResponse.json({ error: "Mode invalide." }, { status: 400 });
+  if (mode !== "template" && mode !== "upload" && mode !== "quote") {
+    return NextResponse.json({ error: "Mode invalide." }, { status: 400 });
+  }
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
 
@@ -113,12 +117,40 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     resolvedCategory = template.category ?? category;
   }
 
+  // Le devis : un PDF déjà rendu par la Facturation, joint tel quel. On le
+  // charge avant l'envoi pour qu'un devis introuvable échoue ici, avec un
+  // message clair, plutôt qu'après avoir écrit un Document sans contenu.
+  let devis: { id: string; contactId: string } | null = null;
+  let octets: { buffer: Buffer; fileName: string; mimeType: string } | undefined;
+  if (mode === "quote") {
+    const quoteId = formData.get("quoteId")?.toString() || null;
+    if (!quoteId) return NextResponse.json({ error: "Devis requis." }, { status: 400 });
+    const q = await prisma.quote.findFirst({
+      where: { id: quoteId, organizationId: session.organizationId, contactId: opportunity.contactId },
+      select: { id: true, contactId: true },
+    });
+    // Le filtre sur contactId n'est pas décoratif : sans lui, un identifiant
+    // de devis appartenant à un autre prospect du même organisme partirait
+    // chez celui-ci.
+    if (!q) return NextResponse.json({ error: "Devis introuvable pour ce prospect." }, { status: 404 });
+    const built = await buildFacturationPdf("quote", q.id, session.organizationId);
+    if (!built) return NextResponse.json({ error: "Devis introuvable." }, { status: 404 });
+    devis = q;
+    octets = { buffer: built.pdf, fileName: built.fileName, mimeType: "application/pdf" };
+    resolvedCategory = "quote";
+  }
+
   let attachment;
   try {
     attachment = await buildDocumentAttachment({
-      mode,
+      // « quote » côté écran, « bytes » côté pièce jointe : le premier dit
+      // d'où vient le document, le second comment il se fabrique. Les
+      // confondre obligerait buildDocumentAttachment à connaître la
+      // facturation.
+      mode: mode === "quote" ? "bytes" : mode,
       title,
       bodyHtml,
+      bytes: octets,
       file: mode === "upload" ? (formData.get("file") as File | null) ?? undefined : undefined,
       organizationId: session.organizationId,
       ownerKey: `opportunity-${opportunity.id}`,
@@ -191,6 +223,18 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     emailSent = true;
   } catch {
     // Non-fatal — the document record still exists and can be shared manually.
+  }
+
+  // Envoyer un devis est un jalon commercial, pas une pièce jointe de plus :
+  // le devis passe à « envoyé » et l'affaire avance à « Devis envoyé ». La
+  // règle vient de lib/quoteStatus.ts, la même que la Facturation appelle —
+  // sinon les deux écrans finiraient par ne plus dire la même chose.
+  //
+  // Après l'envoi et non avant : marquer envoyé un devis dont le mail a
+  // échoué mentirait sur l'état de la relation commerciale. Le jalon suit
+  // donc le sort de l'e-mail.
+  if (devis && emailSent) {
+    await marquerDevisEnvoye(session.organizationId, devis);
   }
 
   return NextResponse.json({ document, emailSent, documentUrl: attachment.fileUrl }, { status: 201 });

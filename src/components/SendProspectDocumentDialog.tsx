@@ -14,7 +14,9 @@ import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/te
 import { estPertinentPourProspect } from "@/lib/documentStage";
 
 type Template = ModeleChoisissable;
-type AttachMode = "none" | "library" | "upload";
+type AttachMode = "none" | "library" | "quote" | "upload";
+
+type Devis = { id: string; reference: string; amountCents: number; status: string; createdAt: string };
 type PendingQuestion = { key: QuestionKey; label: string; options: { value: string; label: string }[] };
 type Preview = {
   title: string;
@@ -96,6 +98,12 @@ export function SendProspectDocumentDialog({
   const [includeSignature, setIncludeSignature] = useState(true);
   const [requiresESignature, setRequiresESignature] = useState(false);
   const [tousLesModeles, setTousLesModeles] = useState(false);
+  // Chargés à l'ouverture de l'onglet plutôt que passés en propriété : la
+  // liste du CRM affiche des dizaines de prospects, précharger les devis de
+  // chacun coûterait à tout le monde ce dont un seul a besoin. Et un devis
+  // créé il y a dix secondes est là sans recharger la page.
+  const [devisList, setDevisList] = useState<Devis[] | null>(null);
+  const [quoteId, setQuoteId] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ message: string; link?: string; emailFailed?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +136,22 @@ export function SendProspectDocumentDialog({
     }),
   );
   const aucunResultat = groupesFiltres.length === 0;
+
+  async function ouvrirDevis() {
+    setAttachMode("quote");
+    if (devisList !== null) return;
+    const res = await fetch(`/api/crm/contacts/${contactId}/quotes`);
+    const body = await res.json().catch(() => ({ quotes: [] }));
+    setDevisList(body.quotes ?? []);
+  }
+
+  function choisirDevis(d: Devis) {
+    setQuoteId(d.id);
+    // Le titre du document envoyé porte la référence : c'est sous ce nom
+    // que le prospect le recevra et que vous le retrouverez.
+    setTitle(`Devis ${d.reference}`);
+    setCategory("quote");
+  }
 
   async function loadPreview(id: string, manualAnswers: Partial<Record<QuestionKey, string>>) {
     setLoadingPreview(true);
@@ -228,7 +252,7 @@ export function SendProspectDocumentDialog({
     }
 
     const formData = new FormData();
-    formData.set("mode", attachMode === "library" ? "template" : "upload");
+    formData.set("mode", attachMode === "library" ? "template" : attachMode === "quote" ? "quote" : "upload");
     formData.set("title", title);
     formData.set("category", category);
     formData.set("message", includeSignature ? message + signatureHtml : message);
@@ -236,6 +260,8 @@ export function SendProspectDocumentDialog({
     if (attachMode === "library") {
       formData.set("templateId", templateId);
       if (Object.keys(answers).length > 0) formData.set("answers", JSON.stringify(answers));
+    } else if (attachMode === "quote") {
+      formData.set("quoteId", quoteId);
     } else if (file) {
       formData.set("file", file);
     }
@@ -278,6 +304,7 @@ export function SendProspectDocumentDialog({
     (isNeedsAssessment ||
       (attachMode === "none" && subject.trim().length > 0 && stripHtml(message).length > 0) ||
       (attachMode === "library" && !!templateId && !!preview && title.trim().length > 0) ||
+      (attachMode === "quote" && !!quoteId && title.trim().length > 0) ||
       (attachMode === "upload" && !!file && title.trim().length > 0));
 
   return (
@@ -343,6 +370,9 @@ export function SendProspectDocumentDialog({
               <div className="flex gap-1.5 flex-wrap">
                 <button type="button" onClick={() => setAttachMode("none")} className={attachTabClass(attachMode === "none")}>
                   Aucune — email simple
+                </button>
+                <button type="button" onClick={ouvrirDevis} className={attachTabClass(attachMode === "quote")}>
+                  Devis
                 </button>
                 <button type="button" onClick={() => setAttachMode("library")} className={attachTabClass(attachMode === "library")}>
                   Document de la bibliothèque
@@ -477,6 +507,53 @@ export function SendProspectDocumentDialog({
                           {preview.bodyText}
                         </div>
                       </details>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {attachMode === "quote" && (
+                <div className="flex flex-col gap-2">
+                  {devisList === null && <div className="text-[12px] text-slate">Chargement des devis…</div>}
+                  {devisList?.length === 0 && (
+                    // Pas de liste vide muette : ce prospect n'a pas encore de
+                    // devis, et le geste attendu est d'aller en créer un. Le
+                    // lien ouvre la Facturation dans un onglet pour ne pas
+                    // perdre le message déjà rédigé ici.
+                    <div className="text-[12px] text-slate">
+                      Aucun devis pour ce prospect.{" "}
+                      <a href="/facturation?tab=devis" target="_blank" rel="noreferrer" className="text-ink underline decoration-line">
+                        Créer un devis
+                      </a>{" "}
+                      — il apparaîtra ici en rouvrant cet onglet.
+                    </div>
+                  )}
+                  {devisList && devisList.length > 0 && (
+                    <div className="border border-line rounded-md max-h-40 overflow-y-auto">
+                      {devisList.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => choisirDevis(d)}
+                          className={`w-full text-left px-2.5 py-1.5 text-[12.5px] border-b border-line last:border-b-0 flex items-center gap-2 ${
+                            d.id === quoteId ? "bg-linen text-ink font-medium" : "text-ink hover:bg-mist"
+                          }`}
+                        >
+                          <span className="flex-1 min-w-0 truncate">{d.reference}</span>
+                          <span className="shrink-0 tabular-nums">
+                            {(d.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-slate">
+                            {new Date(d.createdAt).toLocaleDateString("fr-FR")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {quoteId && (
+                    <div className="text-[11.5px] text-slate leading-relaxed">
+                      À l&apos;envoi, ce devis passera en « envoyé » et l&apos;affaire avancera à « Devis envoyé » — comme
+                      depuis la Facturation.
                     </div>
                   )}
                 </div>
