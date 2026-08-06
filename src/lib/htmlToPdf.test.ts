@@ -91,6 +91,75 @@ describe("splitIntoBlocks — listes", () => {
   });
 });
 
+describe("splitIntoBlocks — titres", () => {
+  it("retient le niveau du titre", () => {
+    const blocks = splitIntoBlocks("<h1>CONTRAT</h1><h2>Article 1 — Objet</h2><p>Texte.</p>");
+    expect(blocks).toEqual([
+      { html: "CONTRAT", depth: 0, heading: 1 },
+      { html: "Article 1 — Objet", depth: 0, heading: 2 },
+      { html: "Texte.", depth: 0 },
+    ]);
+  });
+
+  it("ne contamine pas le paragraphe suivant", () => {
+    const blocks = splitIntoBlocks("<h2>Article 2</h2><p>Le Bénéficiaire s'engage.</p><p>Suite.</p>");
+    expect(blocks.map((b) => b.heading ?? null)).toEqual([2, null, null]);
+  });
+
+  it("traite h3 à h6 comme un titre de second niveau", () => {
+    // L'export ne connaît que deux niveaux ; mieux vaut un titre dégradé
+    // qu'un titre perdu en texte courant.
+    expect(splitIntoBlocks("<h3>Sous-article</h3>")[0].heading).toBe(2);
+  });
+
+  it("laisse un paragraphe ordinaire sans niveau", () => {
+    expect(splitIntoBlocks("<p>Texte.</p>")[0].heading).toBeUndefined();
+  });
+});
+
+describe("splitIntoBlocks — encadré et tableau", () => {
+  it("marque un <blockquote> comme encadré", () => {
+    const blocks = splitIntoBlocks("<p>Avant</p><blockquote><p>Délai de rétractation : 14 jours.</p></blockquote><p>Après</p>");
+    expect(blocks.map((b) => [b.html, b.callout ?? false])).toEqual([
+      ["Avant", false],
+      ["Délai de rétractation : 14 jours.", true],
+      ["Après", false],
+    ]);
+  });
+
+  it("rend un tableau en lignes de cellules, en-tête repéré", () => {
+    const blocks = splitIntoBlocks(
+      "<table><tr><th>Intitulé</th><th>Durée</th></tr><tr><td>Anglais B1</td><td>14 h</td></tr></table>",
+    );
+    expect(blocks).toEqual([
+      { html: "", depth: 0, table: { header: true, rows: [["Intitulé", "Durée"], ["Anglais B1", "14 h"]] } },
+    ]);
+  });
+
+  it("reconnaît un tableau sans ligne d'en-tête", () => {
+    const t = splitIntoBlocks("<table><tr><td>A</td><td>B</td></tr></table>")[0].table;
+    expect(t?.header).toBe(false);
+    expect(t?.rows).toEqual([["A", "B"]]);
+  });
+
+  it("garde le balisage inline dans une cellule", () => {
+    const t = splitIntoBlocks("<table><tr><td><b>Prix</b> TTC</td></tr></table>")[0].table;
+    expect(t?.rows[0][0]).toBe("<b>Prix</b> TTC");
+  });
+
+  it("reprend le texte qui suit le tableau", () => {
+    const blocks = splitIntoBlocks("<p>Avant</p><table><tr><td>X</td></tr></table><p>Après</p>");
+    expect(blocks.map((b) => b.html)).toEqual(["Avant", "", "Après"]);
+    expect(blocks[1].table?.rows).toEqual([["X"]]);
+  });
+
+  it("survit à un <table> jamais fermé sans avaler le reste en silence", () => {
+    const blocks = splitIntoBlocks("<p>Avant</p><table><tr><td>X</td></tr>");
+    expect(blocks[0].html).toBe("Avant");
+    expect(blocks[1].table?.rows).toEqual([["X"]]);
+  });
+});
+
 describe("splitIntoParagraphs", () => {
   it("reste la vue « texte seul » du même découpage", () => {
     const html = "<p>Intro</p><ul><li>Un</li><li>Deux</li></ul>";

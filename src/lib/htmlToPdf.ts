@@ -57,7 +57,42 @@ export type Block = {
    * liste Word plutôt qu'une puce tapée à la main.
    */
   list?: { kind: "bullet" | "ordered"; marker: string };
+  /**
+   * Niveau de titre (1 ou 2), absent pour un paragraphe ordinaire.
+   *
+   * Retenu ici parce que le PDF et le .docx doivent le rendre : un titre
+   * d'article qui revient en texte courant dans le fichier envoyé au client
+   * ne serait pas un titre. `splitIntoBlocks` consommait <h1>/<h2> comme
+   * simples séparateurs et perdait l'information.
+   */
+  heading?: 1 | 2;
+  /** Encadré d'avertissement (<blockquote>) — ce qui doit être vu. */
+  callout?: true;
+  /**
+   * Un tableau. `html` est alors vide : le contenu vit dans `rows`, chaque
+   * cellule gardant son balisage inline. `header` dit si la première ligne
+   * est une ligne d'en-tête (<th>), qui se dessine en gras sur fond léger.
+   */
+  table?: { rows: string[][]; header: boolean };
 };
+
+/** Découpe un <table> en lignes de cellules, balisage inline conservé. */
+function parseTable(fragment: string): { rows: string[][]; header: boolean } {
+  const rows: string[][] = [];
+  let header = false;
+  const lignes = fragment.match(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi) ?? [];
+  for (const ligne of lignes) {
+    const cellules: string[] = [];
+    const re = /<(th|td)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(ligne)) !== null) {
+      if (m[1].toLowerCase() === "th" && rows.length === 0) header = true;
+      cellules.push(m[2].replace(/<\/?(?:p|div)[^>]*>/gi, " ").replace(/\s+/g, " ").trim());
+    }
+    if (cellules.length > 0) rows.push(cellules);
+  }
+  return { rows, header };
+}
 
 /**
  * Découpe le HTML de l'éditeur en blocs, listes comprises.
@@ -75,6 +110,10 @@ export function splitIntoBlocks(html: string): Block[] {
   const stack: { kind: "bullet" | "ordered"; index: number }[] = [];
   let buffer = "";
   let dansUnItem = false;
+  // Le niveau du titre ouvert, s'il y en a un. Porté par le bloc qu'on vide
+  // à sa fermeture — un <h2>…</h2> produit UN bloc, pas deux.
+  let titreOuvert: 1 | 2 | null = null;
+  let dansUnEncadre = false;
 
   function vider(commeItem: boolean) {
     const texte = buffer.trim();
@@ -89,11 +128,16 @@ export function splitIntoBlocks(html: string): Block[] {
         list: { kind: liste.kind, marker: liste.kind === "ordered" ? `${liste.index}.` : "•" },
       });
     } else {
-      blocks.push({ html: texte, depth: stack.length });
+      blocks.push({
+        html: texte,
+        depth: stack.length,
+        ...(titreOuvert ? { heading: titreOuvert } : {}),
+        ...(dansUnEncadre ? { callout: true as const } : {}),
+      });
     }
   }
 
-  const structure = /<(\/?)(ul|ol|li|p|div|h[1-6])\b[^>]*>/gi;
+  const structure = /<(\/?)(ul|ol|li|p|div|h[1-6]|blockquote|table)\b[^>]*>/gi;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -102,6 +146,29 @@ export function splitIntoBlocks(html: string): Block[] {
     lastIndex = structure.lastIndex;
     const fermante = match[1] === "/";
     const tag = match[2].toLowerCase();
+
+    // Un tableau se lit d'un bloc : on saute jusqu'à sa fermeture et on
+    // l'analyse à part, plutôt que de tenter d'en suivre la structure avec
+    // le même automate que les paragraphes.
+    if (tag === "table" && !fermante) {
+      vider(dansUnItem);
+      dansUnItem = false;
+      const fin = source.toLowerCase().indexOf("</table>", lastIndex);
+      const interieur = source.slice(lastIndex, fin === -1 ? source.length : fin);
+      const t = parseTable(interieur);
+      if (t.rows.length > 0) blocks.push({ html: "", depth: stack.length, table: t });
+      lastIndex = fin === -1 ? source.length : fin + "</table>".length;
+      structure.lastIndex = lastIndex;
+      continue;
+    }
+    if (tag === "table") continue;
+
+    if (tag === "blockquote") {
+      vider(dansUnItem);
+      dansUnItem = false;
+      dansUnEncadre = !fermante;
+      continue;
+    }
 
     if (tag === "ul" || tag === "ol") {
       // Vider AVANT de dépiler : le texte en attente appartient encore à la
@@ -125,7 +192,18 @@ export function splitIntoBlocks(html: string): Block[] {
     // p / div / titre. Chrome enveloppe parfois le contenu d'un <li> dans un
     // <div> : à l'intérieur d'un item, ces balises ne coupent rien, sans quoi
     // l'élément sortirait en deux blocs dont un sans puce.
-    if (!dansUnItem) vider(false);
+    if (dansUnItem) continue;
+
+    const niveau = tag.startsWith("h") ? (tag === "h1" ? 1 : 2) : null;
+    if (niveau && !fermante) {
+      // Le texte AVANT le titre appartient au paragraphe précédent : on le
+      // vide en ordinaire, puis on ouvre le titre.
+      vider(false);
+      titreOuvert = niveau;
+      continue;
+    }
+    vider(false);
+    if (niveau && fermante) titreOuvert = null;
   }
 
   buffer += source.slice(lastIndex);
