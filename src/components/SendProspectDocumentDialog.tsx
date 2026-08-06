@@ -646,6 +646,18 @@ export function SendProspectDocumentDialog({
                         {(devisChoisi.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
                       </span>
                       <div className="flex-1" />
+                      {/* Relire avant d'engager : c'est le PDF réel qui
+                          partira, pas un rendu approchant — la même fonction
+                          le fabrique dans les deux cas. En onglet, pour ne
+                          pas perdre le message en cours de rédaction. */}
+                      <a
+                        href={`/api/crm/quotes/${devisChoisi.id}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 text-[11.5px] text-slate underline decoration-line hover:text-ink"
+                      >
+                        Voir le devis
+                      </a>
                       <button
                         type="button"
                         onClick={ouvrirEnModification}
