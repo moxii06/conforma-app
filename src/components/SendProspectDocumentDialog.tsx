@@ -11,6 +11,7 @@ import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
 import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
+import { estPertinentPourProspect } from "@/lib/documentStage";
 
 type Template = ModeleChoisissable;
 type AttachMode = "none" | "library" | "upload";
@@ -94,20 +95,36 @@ export function SendProspectDocumentDialog({
   const [messageResetKey, setMessageResetKey] = useState(0);
   const [includeSignature, setIncludeSignature] = useState(true);
   const [requiresESignature, setRequiresESignature] = useState(false);
+  const [tousLesModeles, setTousLesModeles] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ message: string; link?: string; emailFailed?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selectedTemplate = templates.find((t) => t.id === templateId);
   const isNeedsAssessment = attachMode === "library" && selectedTemplate?.category === "needs_assessment";
-  // Groupés « Mes modèles » / « Modèles Jalon » : une copie adaptée garde le
-  // titre de l'original, donc à plat les deux lignes sont indiscernables —
-  // voir lib/templatePicker.ts.
+  // Deux réductions successives, de natures différentes.
+  //
+  // Le MOMENT du parcours d'abord : un bilan final ou une feuille
+  // d'émargement supposent quelqu'un d'inscrit, et cet écran écrit à un
+  // prospect. Ils sont repliés, jamais retirés — un organisme peut vouloir
+  // envoyer n'importe lequel, et « Voir tous les modèles » est à un clic.
+  // Une recherche en cours passe outre le repli : chercher, c'est déjà dire
+  // qu'on sait ce qu'on veut.
+  //
+  // Le GROUPEMENT ensuite (« Mes modèles » / « Modèles Jalon »), parce
+  // qu'une copie adaptée garde le titre de l'original et qu'à plat les deux
+  // lignes sont indiscernables — voir lib/templatePicker.ts.
+  const recherche = templateSearch.trim().toLowerCase();
+  const pertinents = templates.filter((t) => estPertinentPourProspect(t.category));
+  const relegues = templates.length - pertinents.length;
+  const base = tousLesModeles || recherche ? templates : pertinents;
   const groupesFiltres = grouperModeles(
-    templates.filter((t) => {
-      const q = templateSearch.trim().toLowerCase();
-      if (!q) return true;
-      return t.title.toLowerCase().includes(q) || (CATEGORY_LABELS[t.category] ?? "").toLowerCase().includes(q);
+    base.filter((t) => {
+      if (!recherche) return true;
+      return (
+        t.title.toLowerCase().includes(recherche) ||
+        (CATEGORY_LABELS[t.category] ?? "").toLowerCase().includes(recherche)
+      );
     }),
   );
   const aucunResultat = groupesFiltres.length === 0;
@@ -366,10 +383,27 @@ export function SendProspectDocumentDialog({
                           >
                             {libelleEntree(e, CATEGORY_LABELS[e.modele.category] ?? e.modele.category)}
                           </button>
+
                         ))}
                       </div>
                     ))}
                   </div>
+
+                  {/* Le repli se dit, il ne se subit pas : le nombre exact de
+                      modèles écartés, et de quoi les rappeler d'un clic. Une
+                      liste silencieusement raccourcie se lit comme une liste
+                      complète, et l'organisme chercherait un modèle qu'il a. */}
+                  {relegues > 0 && !recherche && (
+                    <button
+                      type="button"
+                      onClick={() => setTousLesModeles((v) => !v)}
+                      className="self-start text-[11.5px] text-slate underline decoration-line hover:text-ink"
+                    >
+                      {tousLesModeles
+                        ? "N'afficher que les modèles utiles à un prospect"
+                        : `Voir tous les modèles (${relegues} de plus, liés au suivi d'un apprenant inscrit)`}
+                    </button>
+                  )}
 
                   {isNeedsAssessment && (
                     <div className="text-[12px] text-slate">
