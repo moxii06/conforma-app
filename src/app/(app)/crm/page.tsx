@@ -17,6 +17,7 @@ import { FirstVisitBanner } from "@/components/FirstVisitBanner";
 import { isYousignConfigured } from "@/lib/yousign";
 import { STAGE_LABELS, STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
 import { templateCourseFilter } from "@/lib/templateScope";
+import { CATEGORIES_FOURNISSEUR } from "@/lib/documentAudience";
 
 function formatAmount(cents: number | null) {
   if (cents === null) return "—";
@@ -191,7 +192,13 @@ export default async function CrmPage(
           // Aucune formation en jeu ici : on ne devine pas celle d'un
           // prospect, donc pas de modèle rattaché à une formation — voir
           // lib/templateScope.ts.
-          where: { OR: [{ organizationId }, { organizationId: null }], ...templateCourseFilter(null) },
+          where: {
+            OR: [{ organizationId }, { organizationId: null }],
+            ...templateCourseFilter(null),
+            // Un contrat de sous-traitance n'a rien à faire dans un écran
+            // qui écrit à un client — voir lib/documentAudience.ts.
+            category: { notIn: CATEGORIES_FOURNISSEUR },
+          },
           select: { id: true, title: true, category: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
         })

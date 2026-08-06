@@ -27,6 +27,7 @@ import { EditCompanyForm } from "@/components/EditCompanyForm";
 import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { templateCourseFilter, sortTemplatesForCourse } from "@/lib/templateScope";
+import { CATEGORIES_FOURNISSEUR } from "@/lib/documentAudience";
 import { DossierFundingPanel } from "@/components/DossierFundingPanel";
 import { resolveDossierPriceCents, computeFundingReadiness, computeFundingSummary, formatCents } from "@/lib/funding";
 import { LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCategories";
@@ -439,6 +440,9 @@ async function FormationsTab({
           // seconde écrase la première. D'où le AND explicite.
           where: {
             AND: [{ OR: [{ organizationId }, { organizationId: null }] }, templateCourseFilter(courseEnJeu)],
+            // Écran client : pas de document fournisseur — voir
+            // lib/documentAudience.ts.
+            category: { notIn: CATEGORIES_FOURNISSEUR },
           },
           select: { id: true, title: true, category: true, courseId: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
@@ -752,6 +756,9 @@ async function DocumentsTab({
       ? prisma.documentTemplate.findMany({
           where: {
             AND: [{ OR: [{ organizationId }, { organizationId: null }] }, templateCourseFilter(courseEnJeu)],
+            // Écran client : pas de document fournisseur — voir
+            // lib/documentAudience.ts.
+            category: { notIn: CATEGORIES_FOURNISSEUR },
           },
           select: { id: true, title: true, category: true, courseId: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },

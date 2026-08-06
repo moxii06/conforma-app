@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, Avatar, InfoRow, ContextBanner, Button, initialsOf } from "@/components/ui";
 import { requireSessionContext, can, canManageSessionInvitations } from "@/lib/tenant";
 import { templateCourseFilter, sortTemplatesForCourse } from "@/lib/templateScope";
+import { CATEGORIES_FOURNISSEUR } from "@/lib/documentAudience";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PenLine, Activity } from "lucide-react";
@@ -175,6 +176,9 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
               { OR: [{ organizationId: auth.organizationId }, { organizationId: null }] },
               templateCourseFilter(session.courseId),
             ],
+            // Écran client : pas de document fournisseur — voir
+            // lib/documentAudience.ts.
+            category: { notIn: CATEGORIES_FOURNISSEUR },
           },
           select: { id: true, title: true, category: true, courseId: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },

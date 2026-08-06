@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can, canAccessContact } from "@/lib/tenant";
 import { templateCourseFilter } from "@/lib/templateScope";
+import { CATEGORIES_FOURNISSEUR } from "@/lib/documentAudience";
 import type { ModeleChoisissable } from "@/lib/templatePicker";
 import { IntentEmailComposer } from "@/components/IntentEmailComposer";
 import { EmailReplyComposer } from "@/components/EmailReplyComposer";
@@ -101,7 +102,13 @@ export default async function ContactRecordPage(
         prisma.documentTemplate.findMany({
           // Fiche prospect : aucune formation en jeu, donc pas de modèle
           // rattaché à une formation — voir lib/templateScope.ts.
-          where: { OR: [{ organizationId }, { organizationId: null }], ...templateCourseFilter(null) },
+          where: {
+            OR: [{ organizationId }, { organizationId: null }],
+            ...templateCourseFilter(null),
+            // Un contrat de sous-traitance n'a rien à faire dans un écran
+            // qui écrit à un client — voir lib/documentAudience.ts.
+            category: { notIn: CATEGORIES_FOURNISSEUR },
+          },
           select: { id: true, title: true, category: true, organizationId: true, forkedFromId: true },
           orderBy: { title: "asc" },
         }),
