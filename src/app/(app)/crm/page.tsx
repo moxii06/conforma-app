@@ -63,6 +63,9 @@ export default async function CrmPage(
   const searchParams = await props.searchParams;
   const { organizationId, role, userId } = await requireSessionContext();
   if (can(role, "crm") === "none") redirect("/dashboard");
+  // Emettre un devis engage un prix au nom de l organisme : reserve aux
+  // roles qui ont la Facturation. Un commercial joint un devis existant.
+  const peutCreerDevis = can(role, "invoicing") !== "none";
   const canWrite = can(role, "crm") !== "none";
   const sender = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } });
   const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
@@ -456,6 +459,7 @@ export default async function CrmPage(
               templates={templates}
               signatureHtml={signatureHtml}
               eSignatureAvailable={eSignatureAvailable}
+              peutCreerDevis={peutCreerDevis}
             />
           </>
         )}

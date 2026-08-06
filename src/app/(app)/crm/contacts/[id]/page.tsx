@@ -81,6 +81,9 @@ export default async function ContactRecordPage(
 
   const canManageEmail = can(role, "inbox") !== "none";
   const canSeePayments = can(role, "invoicing") !== "none";
+  // Emettre un devis engage un prix au nom de l organisme : reserve aux
+  // roles qui ont la Facturation. Un commercial joint un devis existant.
+  const peutCreerDevis = can(role, "invoicing") !== "none";
   const canWrite = can(role, "crm") !== "none";
   const members = canManageEmail
     ? await prisma.user.findMany({
@@ -188,6 +191,7 @@ export default async function ContactRecordPage(
             contactFirstName={contact.firstName}
             signatureHtml={signatureHtml}
             templates={templates}
+            peutCreerDevis={peutCreerDevis}
             eSignatureAvailable={eSignatureAvailable}
             latestDossierId={contact.dossiers[0]?.id ?? null}
             latestOpportunity={
@@ -453,6 +457,7 @@ async function DocumentsAndOutreachTab({
   signatureHtml,
   templates,
   eSignatureAvailable,
+  peutCreerDevis,
   latestDossierId,
   latestOpportunity,
   contactId,
@@ -465,6 +470,7 @@ async function DocumentsAndOutreachTab({
   signatureHtml: string;
   templates: ModeleChoisissable[];
   eSignatureAvailable: boolean;
+  peutCreerDevis: boolean;
   latestDossierId: string | null;
   latestOpportunity: { id: string; alreadySentNeedsAssessment: boolean } | null;
 }) {
@@ -497,6 +503,7 @@ async function DocumentsAndOutreachTab({
               contactFirstName={contactFirstName}
               signatureHtml={signatureHtml}
               eSignatureAvailable={eSignatureAvailable}
+              peutCreerDevis={peutCreerDevis}
             />
           )}
         </div>

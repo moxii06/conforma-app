@@ -75,6 +75,7 @@ export function SendProspectDocumentDialog({
   contactFirstName,
   signatureHtml,
   eSignatureAvailable = false,
+  peutCreerDevis = false,
 }: {
   opportunityId: string;
   contactId: string;
@@ -86,6 +87,15 @@ export function SendProspectDocumentDialog({
   // exists server-side — there's no internal-stub fallback for a prospect
   // (no portal login yet), so without a key the checkbox simply isn't shown.
   eSignatureAvailable?: boolean;
+  /**
+   * Émettre un devis engage un prix au nom de l'organisme : c'est réservé
+   * aux rôles qui ont la Facturation (PERMISSIONS.invoicing). Un commercial
+   * ne l'a pas aujourd'hui — il peut joindre un devis existant, pas en
+   * créer un. Sans ce drapeau l'écran lui proposait un bouton qui renvoyait
+   * 403 : proposer une action qu'on refusera ensuite est pire que ne pas la
+   * proposer.
+   */
+  peutCreerDevis?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -158,7 +168,12 @@ export function SendProspectDocumentDialog({
   // attendu ici, en réutiliser un est le cas particulier.
   async function ouvrirDevis() {
     setAttachMode("quote");
-    if (!quoteId) setEditeur(true);
+    // Sans le droit d'émettre, l'onglet sert à joindre un devis existant :
+    // c'est la liste qu'on ouvre, pas l'éditeur.
+    if (!quoteId) {
+      setEditeur(peutCreerDevis);
+      setListeVisible(!peutCreerDevis);
+    }
     if (devisList !== null) return;
     const res = await fetch(`/api/crm/contacts/${contactId}/quotes`);
     const body = await res.json().catch(() => ({ quotes: [] }));
@@ -637,6 +652,16 @@ export function SendProspectDocumentDialog({
                       de résumé, pour rendre la place au message. C'est le
                       cheminement demandé — remplir, valider, continuer à
                       écrire — et non une liste qu'il faudrait re-parcourir. */}
+                  {!peutCreerDevis && !devisChoisi && (
+                    <div className="text-[11.5px] text-slate leading-relaxed">
+                      Vous pouvez joindre un devis existant. En créer un relève de la Facturation, à laquelle votre rôle
+                      n&apos;a pas accès — demandez-le à un administrateur de l&apos;organisme.
+                    </div>
+                  )}
+                  {!peutCreerDevis && devisList?.length === 0 && (
+                    <div className="text-[12px] text-slate">Aucun devis pour ce prospect.</div>
+                  )}
+
                   {devisChoisi && !editeur && (
                     <div className="border border-line rounded-md px-2.5 py-2 bg-white flex items-center gap-2 flex-wrap">
                       <span className="text-[12.5px] text-ink font-medium min-w-0 truncate">

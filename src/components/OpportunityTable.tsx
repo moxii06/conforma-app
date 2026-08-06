@@ -90,10 +90,14 @@ export function OpportunityTable({
   templates,
   signatureHtml,
   eSignatureAvailable,
+  peutCreerDevis,
 }: {
   opportunities: OpportunityRow[];
   canWrite: boolean;
   templates: ModeleChoisissable[];
+  /** Voir SendProspectDocumentDialog : emettre un devis reste reserve aux
+   *  roles qui ont la Facturation. */
+  peutCreerDevis: boolean;
   signatureHtml: string;
   eSignatureAvailable: boolean;
 }) {
@@ -171,6 +175,7 @@ export function OpportunityTable({
               contactFirstName={o.contact.firstName}
               signatureHtml={signatureHtml}
               eSignatureAvailable={eSignatureAvailable}
+              peutCreerDevis={peutCreerDevis}
             />
             <ArchiveContactButton contactId={o.contactId} archived={false} />
             <DeleteOpportunityButton opportunityId={o.id} contactName={`${o.contact.firstName} ${o.contact.lastName}`} />
