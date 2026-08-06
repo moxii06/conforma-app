@@ -13,23 +13,60 @@
 
 export type DocumentScope = "per_learner" | "single";
 
-// Les catégories qui engagent une personne nommée. Tout le reste est
-// commun par défaut : c'est le sens le moins coûteux quand on hésite, un
-// document commun de trop se renvoie, un contrat manquant se plaide.
-const PER_LEARNER_CATEGORIES = new Set([
-  "contrat_formation", // engage le stagiaire lui-même
-  "convocation", // porte ses dates et son lieu
-  "needs_assessment", // sa situation, ses objectifs
-  "eval_hot",
-  "eval_cold",
-  "results_summary",
-  "attendance_certificate",
-  "lms_certificate",
-]);
+// La portée de CHAQUE catégorie du catalogue, écrite une par une.
+//
+// La version précédente listait les catégories « par apprenant » et laissait
+// tout le reste tomber sur « unique » par défaut. Ce silence a coûté deux
+// erreurs : le bilan intermédiaire et le bilan final — qui portent
+// l'assiduité, les résultats et l'évaluation des acquis d'UNE personne —
+// partaient en un seul exemplaire identique pour toute la promotion. Une
+// table exhaustive oblige à trancher pour toute nouvelle catégorie, et le
+// test vérifie qu'aucune n'a été oubliée.
+const SCOPE_PAR_CATEGORIE: Record<string, DocumentScope> = {
+  // — Ce qui engage ou décrit une personne nommée —
+  contrat_formation: "per_learner", // engage le stagiaire lui-même (L.6353-3)
+  convocation: "per_learner", // porte ses dates et son lieu
+  needs_assessment: "per_learner", // sa situation, ses objectifs
+  eval_hot: "per_learner", // son ressenti
+  eval_cold: "per_learner", // sa mise en pratique
+  results_summary: "per_learner", // ses résultats — et l'attestation qui en découle
+  interim_report: "per_learner", // sa progression à mi-parcours
+  final_report: "per_learner", // son assiduité, ses acquis, sa note
 
+  // — Ce qui est commun à toute une session ou à tout l'organisme —
+  convention: "single", // lie l'organisme à l'ENTREPRISE acheteuse (L.6353-2)
+  cgv: "single",
+  internal_rules: "single",
+  welcome_booklet: "single",
+  attendance_sheet: "single", // une feuille par journée, tout le monde y signe
+  handicap_partners: "single",
+  other: "single",
+
+  // — Ce qui engage un intervenant, pas un apprenant —
+  //
+  // « Unique » au sens de la génération : le document se produit en un
+  // exemplaire pour le sous-traitant visé. Le multiplier par apprenant
+  // n'aurait aucun sens.
+  subcontractor_contract: "single",
+  trainer_contract: "single",
+  video_shoot_contract: "single",
+};
+
+/**
+ * La portée d'une catégorie, « unique » pour tout ce qui n'est pas au
+ * catalogue.
+ *
+ * Les catégories hors catalogue sont les pièces déposées au dossier d'un
+ * intervenant (CV, diplôme, NDA, engagement RNQ) : des fichiers téléversés
+ * qui ne se génèrent pas, et pour lesquels « unique » est la seule réponse
+ * qui ait un sens.
+ */
 export function scopeOfCategory(category: string): DocumentScope {
-  return PER_LEARNER_CATEGORIES.has(category) ? "per_learner" : "single";
+  return SCOPE_PAR_CATEGORIE[category] ?? "single";
 }
+
+/** Exposé pour le test d'exhaustivité — rien d'autre ne devrait le lire. */
+export const CATEGORIES_AVEC_PORTEE = Object.keys(SCOPE_PAR_CATEGORIE);
 
 export function scopeLabel(scope: DocumentScope): string {
   return scope === "per_learner" ? "Un par apprenant" : "Document unique";

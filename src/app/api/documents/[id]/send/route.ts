@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { getSessionContext, can } from "@/lib/tenant";
 import { buildDocumentAttachment } from "@/lib/documentSending";
 import { sendTransactionalEmail } from "@/lib/brevo";
@@ -164,6 +165,17 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         fileUrl: pièce.fileUrl,
         category: patron.category,
         templateOrigin: patron.templateOrigin,
+        // L'échéancier suit le document jusqu'au destinataire.
+        //
+        // Il restait sur le patron : les N exemplaires réellement envoyés
+        // partaient sans, et materialiseScheduleFromSignedDocument — qui lit
+        // Document.paymentSchedule sur le document SIGNÉ — ne trouvait rien.
+        // Un contrat échelonné signé ne créait donc aucune facture, donc
+        // aucune relance et aucun rapprochement bancaire possible. Chaque
+        // exemplaire porte le même échéancier, ce qui est correct : c'est le
+        // même montant dû par chaque apprenant, et la matérialisation est
+        // idempotente par dossier.
+        paymentSchedule: patron.paymentSchedule ?? Prisma.DbNull,
         status: "final",
         batchId: plan.batchId,
         sentByUserId: auth.userId,

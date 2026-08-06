@@ -10,7 +10,9 @@ import { MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { LibraryPanel } from "@/components/LibraryPanel";
 import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
-import type { Instalment } from "@/lib/paymentSchedule";
+// SCHEDULED_CATEGORIES vit dans lib/paymentSchedule.ts : l'écran de création
+// pose la même question et doit y répondre pareil.
+import { SCHEDULED_CATEGORIES, type Instalment } from "@/lib/paymentSchedule";
 import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
@@ -44,8 +46,6 @@ const SESSION_FORMAT_LABELS: Record<string, string> = {
   HYBRID: "Mixte",
 };
 
-// The schedule only means something on the documents that stipulate one.
-const SCHEDULED_CATEGORIES = new Set(["contrat_formation", "convention"]);
 type PendingQuestion = { key: QuestionKey; label: string; hint?: string; options: { value: string; label: string }[] };
 type AppliedAnswer = { key: string; value: string };
 

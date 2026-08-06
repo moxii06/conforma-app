@@ -429,30 +429,42 @@ export const STARTER_TEMPLATES: { category: string; title: string; bodyText: str
       "[À COMPLÉTER EN PRÉSENTIEL]",
   },
   {
+    // Les deux bilans portent l'assiduité, les acquis et la note d'UNE
+    // personne : ils se génèrent par apprenant (voir documentScope.ts). Le
+    // stagiaire, la formation et les dates se remplissent donc tout seuls,
+    // et seule l'appréciation reste à écrire — c'est le seul endroit où le
+    // formateur apporte quelque chose que Jalon ne sait pas.
     category: "interim_report",
     title: "Bilan intermédiaire",
     bodyText:
       "BILAN INTERMÉDIAIRE\n\n" +
-      "Formation : [TITRE DE LA FORMATION]\n" +
-      "Période couverte : [DATES]\n\n" +
-      "1. Progression par rapport aux objectifs initiaux : [À COMPLÉTER].\n\n" +
-      "2. Modules ou compétences déjà validés.\n\n" +
-      "3. Points de vigilance ou difficultés identifiées à date.\n\n" +
-      "4. Ajustements envisagés pour la suite du parcours, le cas échéant (individualisation).\n\n" +
-      "5. Prochaine échéance de suivi : [DATE].",
+      "Stagiaire : {{contact.firstName}} {{contact.lastName}}\n" +
+      "Formation : {{course.title}}\n" +
+      "Période couverte : du {{session.startsAt}} au {{session.endsAt}}\n" +
+      "Organisme : {{organization.name}}\n\n" +
+      "1. Progression par rapport aux objectifs initiaux : [à compléter].\n\n" +
+      "2. Modules ou compétences déjà validés : [à compléter].\n\n" +
+      "3. Points de vigilance ou difficultés identifiées à date : [à compléter].\n\n" +
+      "4. Ajustements envisagés pour la suite du parcours, le cas échéant (individualisation) : [à compléter].\n\n" +
+      "5. Prochaine échéance de suivi : [date].",
   },
   {
     category: "final_report",
     title: "Bilan final",
     bodyText:
       "BILAN FINAL\n\n" +
-      "Formation : [TITRE DE LA FORMATION]\n" +
-      "Période : [DATES DE DÉBUT ET DE FIN]\n\n" +
-      "1. Objectifs initiaux de la formation : [RAPPEL].\n\n" +
-      "2. Atteinte des objectifs — synthèse des résultats obtenus.\n\n" +
-      "3. Assiduité — taux de présence sur l'ensemble du parcours.\n\n" +
-      "4. Évaluation finale des acquis — résultats, le cas échéant note ou validation de compétences.\n\n" +
-      "5. Recommandations et suites possibles (formation complémentaire, mise en pratique...).",
+      "Stagiaire : {{contact.firstName}} {{contact.lastName}}\n" +
+      "Formation : {{course.title}}\n" +
+      "Durée : {{course.duration}}\n" +
+      "Période : du {{session.startsAt}} au {{session.endsAt}}\n" +
+      "Organisme : {{organization.name}}\n\n" +
+      "1. Objectifs de la formation : {{course.objectives}}\n\n" +
+      "2. Atteinte des objectifs — synthèse des résultats obtenus : [à compléter].\n\n" +
+      "3. Assiduité — taux de présence sur l'ensemble du parcours : [à compléter].\n\n" +
+      "4. Évaluation finale des acquis — résultats, le cas échéant note ou validation de compétences : [à compléter].\n\n" +
+      "5. Recommandations et suites possibles (formation complémentaire, mise en pratique...) : [à compléter].\n\n" +
+      "Fait à [lieu], le [date].\n" +
+      "Pour {{organization.name}} — {{organization.legalRepresentativeName}}",
   },
   {
     category: "results_summary",

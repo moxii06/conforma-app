@@ -31,7 +31,8 @@ export default async function ComposerPage(props: {
     select: {
       id: true,
       startsAt: true,
-      course: { select: { title: true } },
+      endsAt: true,
+      course: { select: { title: true, priceCents: true } },
       _count: { select: { dossiers: true } },
     },
     orderBy: { startsAt: "desc" },
@@ -42,12 +43,20 @@ export default async function ComposerPage(props: {
   const brouillon = doc
     ? await prisma.document.findFirst({
         where: { id: doc, organizationId, status: "draft", sentByUserId: null },
-        select: { id: true, title: true, bodyText: true, dossierId: true },
+        select: { id: true, title: true, bodyText: true, dossierId: true, paymentSchedule: true },
       })
     : null;
 
   const sessionDuBrouillon = brouillon?.dossierId
     ? (await prisma.dossier.findUnique({ where: { id: brouillon.dossierId }, select: { sessionId: true } }))?.sessionId ?? null
+    : null;
+
+  // L'échéancier est une donnée d'argent : même audience que /facturation,
+  // pas l'ensemble plus large des rôles qui peuvent rédiger un document. Un
+  // formateur apprendrait sinon le prix par ce biais.
+  const peutVoirArgent = can(role, "invoicing") !== "none";
+  const organization = peutVoirArgent
+    ? await prisma.organization.findUnique({ where: { id: organizationId }, select: { paymentCapAckAt: true } })
     : null;
 
   return (
@@ -57,9 +66,44 @@ export default async function ComposerPage(props: {
         id: s.id,
         label: `${s.course.title} — ${new Date(s.startsAt).toLocaleDateString("fr-FR")}`,
         learnerCount: s._count.dossiers,
+        // Sans prix connu, pas d'échéancier proposé : un échéancier contre
+        // un total inconnu ne veut rien dire (même règle que la fiche
+        // dossier).
+        priceCents: peutVoirArgent ? s.course.priceCents : null,
+        startsAt: s.startsAt.toISOString(),
+        endsAt: (s.endsAt ?? s.startsAt).toISOString(),
       }))}
       mergeFields={AVAILABLE_MERGE_FIELDS}
-      draft={brouillon ? { id: brouillon.id, title: brouillon.title, bodyText: brouillon.bodyText ?? "", sessionId: sessionDuBrouillon } : null}
+      capAcknowledged={Boolean(organization?.paymentCapAckAt)}
+      draft={
+        brouillon
+          ? {
+              id: brouillon.id,
+              title: brouillon.title,
+              bodyText: brouillon.bodyText ?? "",
+              sessionId: sessionDuBrouillon,
+              schedule: lireEcheancier(brouillon.paymentSchedule),
+            }
+          : null
+      }
     />
   );
+}
+
+/**
+ * L'échéancier stocké sur un brouillon, relu défensivement.
+ *
+ * Document.paymentSchedule est une colonne Json : elle a été validée à
+ * l'écriture, mais une colonne Json ne prouve rien à la lecture. Une entrée
+ * mal formée est écartée — mieux vaut une ligne en moins qu'un montant faux
+ * dans un contrat. Même posture que parseStoredSchedule côté envoi.
+ */
+function lireEcheancier(raw: unknown): { dueDate: string; amountCents: number; label?: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((e) => {
+    if (typeof e !== "object" || e === null) return [];
+    const { dueDate, amountCents, label } = e as Record<string, unknown>;
+    if (typeof dueDate !== "string" || typeof amountCents !== "number") return [];
+    return [{ dueDate, amountCents, ...(typeof label === "string" ? { label } : {}) }];
+  });
 }

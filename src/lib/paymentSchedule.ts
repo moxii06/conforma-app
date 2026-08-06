@@ -30,6 +30,23 @@ export function capAppliesTo(category: string): boolean {
   return category === "contrat_formation";
 }
 
+/**
+ * Les catégories qui peuvent porter un échéancier.
+ *
+ * Un seul endroit, parce que la question se pose sur DEUX écrans — l'envoi
+ * depuis un dossier et la création depuis la bibliothèque. Elle n'était
+ * posée que sur le premier : le questionnaire proposait « paiement selon un
+ * échéancier », le paragraphe conditionnel apparaissait dans le contrat, et
+ * il n'existait nulle part où saisir les dates. Le contrat partait donc en
+ * annonçant un échelonnement dont Jalon ne savait rien — donc sans facture
+ * à la signature, sans relance, sans rapprochement bancaire.
+ */
+export const SCHEDULED_CATEGORIES = new Set(["contrat_formation", "convention"]);
+
+export function acceptsSchedule(category: string): boolean {
+  return SCHEDULED_CATEGORIES.has(category);
+}
+
 export type Instalment = {
   /** ISO date (yyyy-mm-dd) the instalment falls due. */
   dueDate: string;

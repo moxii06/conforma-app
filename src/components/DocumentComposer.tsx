@@ -7,6 +7,8 @@ import { scopeLabel, scopeHint, type DocumentScope } from "@/lib/documentScope";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { ensureHtml } from "@/lib/plainTextToHtml";
 import { Button } from "@/components/ui";
+import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
+import { acceptsSchedule, type Instalment } from "@/lib/paymentSchedule";
 
 // L'écran de création : le document à gauche, les réglages à droite.
 //
@@ -31,12 +33,29 @@ export function DocumentComposer({
   template,
   sessions,
   mergeFields,
+  capAcknowledged: capAcknowledgedInitial,
   draft,
 }: {
   template: { id: string; title: string; category: string };
-  sessions: { id: string; label: string; learnerCount: number }[];
+  sessions: {
+    id: string;
+    label: string;
+    learnerCount: number;
+    /** Null quand le prix est inconnu, ou que ce rôle ne voit pas l'argent. */
+    priceCents: number | null;
+    startsAt: string;
+    endsAt: string;
+  }[];
   mergeFields: string[];
-  draft: { id: string; title: string; bodyText: string; sessionId: string | null } | null;
+  /** Vrai si l'organisme a déjà acquitté un dépassement du plafond légal. */
+  capAcknowledged: boolean;
+  draft: {
+    id: string;
+    title: string;
+    bodyText: string;
+    sessionId: string | null;
+    schedule: Instalment[];
+  } | null;
 }) {
   const router = useRouter();
   const [sessionId, setSessionId] = useState(draft?.sessionId ?? "");
@@ -60,6 +79,24 @@ export function DocumentComposer({
   const [proposition, setProposition] = useState<{ bodyText: string; explanation: string } | null>(null);
   const [iaEnCours, setIaEnCours] = useState(false);
   const [iaErreur, setIaErreur] = useState<string | null>(null);
+
+  // L'échéancier. Il n'existait que sur l'écran d'envoi depuis un dossier :
+  // ici, le questionnaire proposait « paiement selon un échéancier », le
+  // paragraphe apparaissait dans le contrat, et il n'y avait nulle part où
+  // saisir les dates. Le contrat partait donc en annonçant un échelonnement
+  // dont Jalon ne savait rien — donc sans facture à la signature, sans
+  // relance et sans rapprochement bancaire possible.
+  const [schedule, setSchedule] = useState<Instalment[]>(draft?.schedule ?? []);
+  const [capAcknowledged, setCapAcknowledged] = useState(capAcknowledgedInitial);
+  const sessionChoisie = sessions.find((s) => s.id === sessionId);
+  const contexteEcheancier =
+    acceptsSchedule(template.category) && sessionChoisie?.priceCents != null
+      ? {
+          priceCents: sessionChoisie.priceCents,
+          startsAt: new Date(sessionChoisie.startsAt),
+          endsAt: new Date(sessionChoisie.endsAt),
+        }
+      : null;
 
   const [documentId, setDocumentId] = useState<string | null>(draft?.id ?? null);
   const [enregistrement, setEnregistrement] = useState<"idle" | "saving" | "saved">("idle");
@@ -132,6 +169,7 @@ export function DocumentComposer({
           title: titre,
           bodyText: texte,
           category: template.category,
+          paymentSchedule: schedule,
           finalize: false,
         }),
       });
@@ -142,7 +180,10 @@ export function DocumentComposer({
       setDernierAutosave(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }));
     }, 3000);
     return () => clearTimeout(timer);
-  }, [texte, nonEnregistré, enregistrement, documentId, sessionId, titre, template.id, template.category]);
+    // `schedule` en dépendance : une échéance saisie doit déclencher la
+    // sauvegarde comme une frappe dans le texte, sinon elle se perd au
+    // rafraîchissement.
+  }, [texte, nonEnregistré, enregistrement, documentId, sessionId, titre, template.id, template.category, schedule]);
 
   const balisesRestantes = texteÉdité
     ? // Recalculé côté serveur à l'enregistrement ; ici on se contente de
@@ -195,6 +236,7 @@ export function DocumentComposer({
         title: titre,
         bodyText: texte,
         category: template.category,
+        paymentSchedule: schedule,
         finalize,
       }),
     });
@@ -343,6 +385,39 @@ export function DocumentComposer({
                 {scopeHint(scope, preview?.learnerCount ?? 0)}
               </div>
             </div>
+
+            {acceptsSchedule(template.category) && (
+              <div className="p-4">
+                {contexteEcheancier ? (
+                  <PaymentScheduleBuilder
+                    priceCents={contexteEcheancier.priceCents}
+                    category={template.category}
+                    startsAt={contexteEcheancier.startsAt}
+                    endsAt={contexteEcheancier.endsAt}
+                    value={schedule}
+                    onChange={setSchedule}
+                    capAcknowledged={capAcknowledged}
+                    onAcknowledge={async () => {
+                      const res = await fetch("/api/organization/payment-cap-ack", { method: "POST" });
+                      if (res.ok) setCapAcknowledged(true);
+                    }}
+                  />
+                ) : (
+                  // Dire pourquoi l'échéancier n'est pas là vaut mieux que de
+                  // le faire disparaître : « paiement échelonné » resterait
+                  // sinon une option du questionnaire sans nulle part où
+                  // saisir les dates — exactement ce qu'on corrige ici.
+                  <>
+                    <div className="text-[11.5px] font-semibold text-ink mb-1">Échéancier de règlement</div>
+                    <div className="text-[11.5px] text-slate leading-snug">
+                      {sessionId
+                        ? "Cette formation n'a pas de prix renseigné : un échéancier contre un total inconnu ne veut rien dire. Renseignez le prix dans la fiche formation."
+                        : "Choisissez une formation pour saisir les échéances. Elles deviendront des factures datées à la signature du contrat."}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             {(preview?.needsAnswers.length ?? 0) > 0 && (
               <div className="p-4">

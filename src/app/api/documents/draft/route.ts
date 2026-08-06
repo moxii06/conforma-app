@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { scopeOfCategory, unresolvedTags } from "@/lib/documentScope";
+import { acceptsSchedule } from "@/lib/paymentSchedule";
 
 // Enregistrer un brouillon, ou le finaliser.
 //
@@ -16,6 +17,16 @@ import { scopeOfCategory, unresolvedTags } from "@/lib/documentScope";
 // l'envoi, pas avant, sinon corriger une virgule demanderait de régénérer
 // huit fichiers.
 
+// L'échéancier est validé ici et nulle part ailleurs avant l'écriture : la
+// colonne est du Json, elle n'impose rien. Une date au format ISO court et
+// un montant entier en centimes — le reste est refusé plutôt que rangé
+// approximativement dans un contrat.
+const echeanceSchema = z.object({
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  amountCents: z.number().int().min(0),
+  label: z.string().max(120).optional(),
+});
+
 const schema = z.object({
   documentId: z.string().optional(),
   templateId: z.string(),
@@ -23,6 +34,7 @@ const schema = z.object({
   title: z.string().min(1).max(300),
   bodyText: z.string().min(1).max(200_000),
   category: z.string().min(1).max(60),
+  paymentSchedule: z.array(echeanceSchema).max(60).optional(),
   finalize: z.boolean().optional(),
 });
 
@@ -36,6 +48,18 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
   const { documentId, sessionId, title, bodyText, category, finalize } = parsed.data;
+
+  // Un échéancier ne se met que sur un document qui en stipule un, et un
+  // tableau vide efface : c'est ce qui permet de revenir en arrière après
+  // avoir choisi « paiement comptant ». `undefined` (champ absent) laisse au
+  // contraire la valeur en place — un appelant qui ignore ce champ ne doit
+  // pas effacer le travail d'un autre écran.
+  const paymentSchedule =
+    parsed.data.paymentSchedule === undefined
+      ? undefined
+      : acceptsSchedule(category)
+        ? parsed.data.paymentSchedule
+        : [];
 
   // Un document qui part avec « [Nom apprenant] » en toutes lettres est un
   // document raté chez un client. On ne bloque pas le brouillon — c'est
@@ -83,7 +107,14 @@ export async function POST(request: Request) {
     }
     const maj = await prisma.document.update({
       where: { id: existant.id },
-      data: { title, bodyText, category, dossierId, status: finalize ? "final" : "draft" },
+      data: {
+        title,
+        bodyText,
+        category,
+        dossierId,
+        status: finalize ? "final" : "draft",
+        ...(paymentSchedule !== undefined ? { paymentSchedule } : {}),
+      },
       select: { id: true, status: true },
     });
     return NextResponse.json(maj);
@@ -98,6 +129,7 @@ export async function POST(request: Request) {
       category,
       status: finalize ? "final" : "draft",
       templateOrigin: parsed.data.templateId,
+      ...(paymentSchedule !== undefined ? { paymentSchedule } : {}),
     },
     select: { id: true, status: true },
   });

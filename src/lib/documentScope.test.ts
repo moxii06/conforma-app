@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { scopeOfCategory, scopeHint, unresolvedTags } from "./documentScope";
+import { scopeOfCategory, scopeHint, unresolvedTags, CATEGORIES_AVEC_PORTEE } from "./documentScope";
+import { DOCUMENT_CATEGORIES } from "./documentCategories";
 
 // Se tromper de portée coûte dans les deux sens : un contrat unique pour
 // huit stagiaires est inopposable et insignable individuellement ; huit
@@ -7,16 +8,44 @@ import { scopeOfCategory, scopeHint, unresolvedTags } from "./documentScope";
 // huit signatures au lieu de zéro.
 
 describe("scopeOfCategory", () => {
+  it("tranche pour chaque catégorie du catalogue", () => {
+    // Le garde-fou de tout ce fichier. La portée retombait auparavant sur
+    // « unique » par défaut, sans que rien ne le signale : c'est ainsi que
+    // le bilan final — l'assiduité et les acquis d'UNE personne — partait en
+    // un exemplaire identique pour toute la promotion. Une catégorie
+    // nouvelle doit maintenant être tranchée explicitement.
+    const oubliees = DOCUMENT_CATEGORIES.filter((c) => !CATEGORIES_AVEC_PORTEE.includes(c));
+    expect(oubliees).toEqual([]);
+  });
+
   it("produit un document par apprenant pour ce qui engage une personne", () => {
     expect(scopeOfCategory("contrat_formation")).toBe("per_learner");
     expect(scopeOfCategory("convocation")).toBe("per_learner");
-    expect(scopeOfCategory("lms_certificate")).toBe("per_learner");
+    // Le relevé de résultats est la catégorie que porte l'attestation
+    // délivrée par le LMS (voir certificateIssue.ts) — « lms_certificate »
+    // est un templateOrigin, jamais une catégorie.
+    expect(scopeOfCategory("results_summary")).toBe("per_learner");
+  });
+
+  it("personnalise les bilans, qui portent les résultats d'une personne", () => {
+    // Assiduité, évaluation finale des acquis, note : un bilan commun à huit
+    // stagiaires ne veut rien dire.
+    expect(scopeOfCategory("final_report")).toBe("per_learner");
+    expect(scopeOfCategory("interim_report")).toBe("per_learner");
   });
 
   it("produit un document unique pour ce qui est commun", () => {
     expect(scopeOfCategory("internal_rules")).toBe("single");
     expect(scopeOfCategory("welcome_booklet")).toBe("single");
     expect(scopeOfCategory("cgv")).toBe("single");
+    // Une feuille par journée, tout le monde y signe.
+    expect(scopeOfCategory("attendance_sheet")).toBe("single");
+  });
+
+  it("ne multiplie pas par apprenant ce qui engage un intervenant", () => {
+    expect(scopeOfCategory("trainer_contract")).toBe("single");
+    expect(scopeOfCategory("subcontractor_contract")).toBe("single");
+    expect(scopeOfCategory("video_shoot_contract")).toBe("single");
   });
 
   it("traite la convention comme un document unique", () => {
