@@ -113,6 +113,9 @@ export default async function DossierPage(
     canSeeFunding && dossierPriceCents != null && dossierPriceCents > 0
       ? {
           priceCents: dossierPriceCents,
+          // Proposition, pas règle : une indemnité de résiliation se négocie
+          // client par client, l'écran d'envoi peut s'en écarter.
+          cancellationFeeDefault: organization.cancellationFeePercent,
           startsAt: dossier.session.startsAt.toISOString(),
           endsAt: dossier.session.endsAt.toISOString(),
           capAcknowledged: organization.paymentCapAckAt != null,

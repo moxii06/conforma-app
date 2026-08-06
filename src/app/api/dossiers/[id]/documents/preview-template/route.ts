@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { indemniteApplicable, lireIndemniteParam } from "@/lib/cancellationFee";
 import { getSessionContext, can } from "@/lib/tenant";
 import { mergeTemplate, findEmptyMergeFields, describeMissingFields } from "@/lib/mergeTemplate";
 import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
@@ -29,6 +30,12 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const templateId = url.searchParams.get("templateId");
   if (!templateId) return NextResponse.json({ error: "templateId requis." }, { status: 400 });
   let manualAnswers: Partial<Record<QuestionKey, string>> | undefined;
+  // L’indemnité de résiliation stipulée POUR CE CONTRAT — voir
+  // lib/cancellationFee.ts. Absente, la proposition de l’organisme joue.
+  const indemnite = lireIndemniteParam(url.searchParams.get("indemnite"));
+  // Résolu une fois, utilisé par le questionnaire ET par la fusion : les
+  // deux doivent parler du même pourcentage.
+  // (indemniteEffective est calculé plus bas, une fois l’organisme chargé.)
   const answersRaw = url.searchParams.get("answers");
   if (answersRaw) {
     try {
@@ -62,6 +69,11 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   }
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
 
+  // Résolue une fois, utilisée par le questionnaire ET par la fusion : les
+  // deux doivent parler du même pourcentage, sinon le paragraphe apparaît
+  // avec un montant qui n'est pas celui stipulé.
+  const indemniteEffective = indemniteApplicable(indemnite, organization.cancellationFeePercent);
+
   let bodyTextSource = template.bodyText;
   // Which variant each conditional question resolved to, for the questions
   // this template actually references — lets the dialog show "✓ Distanciel"
@@ -74,7 +86,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
         session: { format: dossier.session.format },
         course: { priceCents: dossier.session.course.priceCents, certificationCode: dossier.session.course.certificationCode },
         fundingCommitments: dossier.fundingCommitments,
-        organization: { withdrawalAccessPolicy: organization.withdrawalAccessPolicy, cancellationFeePercent: organization.cancellationFeePercent },
+        organization: {
+          withdrawalAccessPolicy: organization.withdrawalAccessPolicy,
+          cancellationFeePercent: indemniteEffective,
+        },
       },
       manualAnswers,
     );
@@ -91,9 +106,11 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     resolveDossierPriceCents(dossier, dossier.session.course),
     dossier.fundingCommitments,
   );
+  // L’indemnité effective écrase celle de l’organisme dans le contexte de
+  // fusion : c’est elle qui se substitue dans le texte du contrat.
   const mergeContext = {
     contact: dossier.contact,
-    organization: { ...organization, referentHandicapName: organization.referentHandicapUser?.name ?? null },
+    organization: { ...organization, cancellationFeePercent: indemniteEffective, referentHandicapName: organization.referentHandicapUser?.name ?? null },
     session: { courseTitle: dossier.session.course.title, startsAt: dossier.session.startsAt, location: dossier.session.location },
     dossier: { retentionUntil: dossier.retentionUntil },
     course: dossier.session.course,

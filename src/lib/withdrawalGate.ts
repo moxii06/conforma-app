@@ -101,9 +101,27 @@ export type WithdrawalGate = {
   policy: string;
   /** True once the learner has expressly waived. */
   waived: boolean;
+  /**
+   * Le fondement applicable, ou null quand aucune exception ne joue.
+   *
+   * Résolu ICI et nulle part ailleurs : l'écran qui affiche la case et la
+   * route qui enregistre la preuve doivent tomber sur le même texte, au
+   * caractère près. Deux calculs séparés finiraient par diverger, et la
+   * preuve ne correspondrait plus à ce qui était affiché.
+   */
+  waiverBasis: WaiverBasis | null;
+  /** Le texte exact soumis à l'apprenant, ou null s'il n'y a rien à signer. */
+  waiverText: string | null;
 };
 
-const OPEN: WithdrawalGate = { active: false, endsAt: null, policy: "closed", waived: false };
+const OPEN: WithdrawalGate = {
+  active: false,
+  endsAt: null,
+  policy: "closed",
+  waived: false,
+  waiverBasis: null,
+  waiverText: null,
+};
 
 /**
  * Quelle politique s'applique : celle de la formation si elle a tranché,
@@ -141,7 +159,21 @@ export async function loadWithdrawalGate(dossierId: string): Promise<WithdrawalG
       where: { id: dossierId },
       select: {
         organization: { select: { withdrawalAccessPolicy: true } },
-        session: { select: { course: { select: { withdrawalAccessPolicy: true } } } },
+        session: {
+          select: {
+            // La fin PRÉVUE de la formation : c'est elle qui dit si le
+            // service sera pleinement exécuté dans le délai (L.221-28, 1°).
+            endsAt: true,
+            course: {
+              select: {
+                withdrawalAccessPolicy: true,
+                // Un seul module suffit à faire du contenu numérique : on
+                // cherche l'existence, pas le compte.
+                elearningModules: { select: { id: true }, take: 1 },
+              },
+            },
+          },
+        },
       },
     }),
   ]);
@@ -154,12 +186,19 @@ export async function loadWithdrawalGate(dossierId: string): Promise<WithdrawalG
     dossier.organization.withdrawalAccessPolicy,
   );
   const waived = waiver != null;
+  const waiverBasis = resolveWaiverBasis({
+    aDuElearning: dossier.session.course.elearningModules.length > 0,
+    finPrevue: dossier.session.endsAt,
+    signeLe: contract.signedAt,
+  });
 
   return {
     active: !waived && new Date() < endsAt,
     endsAt,
     policy,
     waived,
+    waiverBasis,
+    waiverText: waiverBasis ? WAIVER_TEXTS[waiverBasis] : null,
   };
 }
 

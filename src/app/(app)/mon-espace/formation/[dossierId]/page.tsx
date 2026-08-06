@@ -9,7 +9,7 @@ import { QuizTaker } from "@/components/QuizTaker";
 import { CourseModulesList, type ModuleRow } from "@/components/CourseModulesList";
 import { CourseCertificateButton } from "@/components/CourseCertificateButton";
 import { buildCourseProgress, unlockNextModuleIfNeeded } from "@/lib/lms";
-import { loadWithdrawalGate, moduleAccessibleUnderGate, WAIVER_TEXT } from "@/lib/withdrawalGate";
+import { loadWithdrawalGate, moduleAccessibleUnderGate } from "@/lib/withdrawalGate";
 import { WithdrawalGatePanel } from "@/components/WithdrawalGatePanel";
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
@@ -159,11 +159,11 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
           <ArrowLeft size={14} /> Retour à mes formations
         </Link>
 
-        {gate.active && gate.endsAt && (
+        {gate.active && gate.endsAt && gate.waiverText && (
           <WithdrawalGatePanel
             dossierId={dossier.id}
             endsAtLabel={gate.endsAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
-            waiverText={WAIVER_TEXT}
+            waiverText={gate.waiverText}
             partial={gate.policy === "partial" && modules.length > 0}
           />
         )}

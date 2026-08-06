@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { indemniteApplicable, lireIndemniteParam } from "@/lib/cancellationFee";
 import { getSessionContext, can } from "@/lib/tenant";
 import { mergeTemplate, mergeTemplatePartial, findEmptyMergeFields, describeMissingFields } from "@/lib/mergeTemplate";
 import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
@@ -34,6 +35,11 @@ export async function GET(request: Request) {
   if (!templateId) return NextResponse.json({ error: "templateId requis." }, { status: 400 });
 
   let manualAnswers: Partial<Record<QuestionKey, string>> | undefined;
+  // L’indemnité de résiliation stipulée POUR CE CONTRAT — voir
+  // lib/cancellationFee.ts. Absente, la proposition de l’organisme joue.
+  const indemnite = lireIndemniteParam(url.searchParams.get("indemnite"));
+  // Résolue une fois pour le questionnaire et pour la fusion — les deux
+  // doivent parler du même pourcentage.
   const answersRaw = url.searchParams.get("answers");
   if (answersRaw) {
     try {
@@ -81,6 +87,9 @@ export async function GET(request: Request) {
   }
 
   const exemple = session?.dossiers[0] ?? null;
+  // L'indemnité stipulée pour CE contrat, ou la proposition de l'organisme
+  // quand l'écran n'a pas d'avis — voir lib/cancellationFee.ts.
+  const indemniteEffective = indemniteApplicable(indemnite, organization.cancellationFeePercent);
 
   let bodyTextSource = template.bodyText;
   let applied: { key: string; value: string }[] = [];
@@ -105,7 +114,7 @@ export async function GET(request: Request) {
             fundingCommitments: exemple?.fundingCommitments ?? [],
             organization: {
               withdrawalAccessPolicy: organization.withdrawalAccessPolicy,
-              cancellationFeePercent: organization.cancellationFeePercent,
+              cancellationFeePercent: indemniteEffective,
             },
           },
           manualAnswers,
@@ -143,7 +152,7 @@ export async function GET(request: Request) {
       scope === "per_learner" || !exemple
         ? { firstName: "", lastName: "", email: "", phone: null }
         : exemple.contact,
-    organization: { ...organization, referentHandicapName: organization.referentHandicapUser?.name ?? null },
+    organization: { ...organization, cancellationFeePercent: indemniteEffective, referentHandicapName: organization.referentHandicapUser?.name ?? null },
     session: session
       ? { courseTitle: session.course.title, startsAt: session.startsAt, location: session.location }
       : undefined,

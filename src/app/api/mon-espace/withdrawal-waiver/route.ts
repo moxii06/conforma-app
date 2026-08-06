@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
 import { clientIp } from "@/lib/rateLimit";
-import { loadWithdrawalGate, WAIVER_TEXT } from "@/lib/withdrawalGate";
+import { loadWithdrawalGate } from "@/lib/withdrawalGate";
 
 const schema = z.object({ dossierId: z.string().min(1) });
 
@@ -45,12 +45,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Aucun délai de rétractation en cours sur cette formation." }, { status: 400 });
   }
 
+  // Aucun fondement, rien à faire signer.
+  //
+  // Une formation sans e-learning qui déborde des quatorze jours ne relève
+  // d'aucune exception de l'art. L.221-28 : le droit de rétractation court,
+  // et enregistrer une renonciation sans fondement serait pire que ne rien
+  // faire — une preuve d'un acte que la loi ne permet pas.
+  if (!gate.waiverBasis || !gate.waiverText) {
+    return NextResponse.json(
+      { error: "Cette formation ne permet pas de renoncer au délai de rétractation." },
+      { status: 400 },
+    );
+  }
+
   const waiver = await prisma.withdrawalWaiver.create({
     data: {
       organizationId: dossier.organizationId,
       dossierId: dossier.id,
       ipAddress: clientIp(request.headers),
-      textAccepted: WAIVER_TEXT,
+      // Le texte vient du MÊME calcul que celui qui l'a affiché
+      // (loadWithdrawalGate), pas d'une constante choisie ici : c'est la
+      // seule façon que la preuve corresponde à ce qui était à l'écran.
+      textAccepted: gate.waiverText,
+      legalBasis: gate.waiverBasis,
       checkboxDefaultUnchecked: true,
     },
   });

@@ -38,6 +38,8 @@ const gate = (over: Partial<WithdrawalGate> = {}): WithdrawalGate => ({
   endsAt: new Date("2026-08-19"),
   policy: "closed",
   waived: false,
+  waiverBasis: "digital_content",
+  waiverText: WAIVER_TEXTS.digital_content,
   ...over,
 });
 

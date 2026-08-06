@@ -24,6 +24,9 @@ type Template = { id: string; title: string; category: string };
  *  dossier) simply get no schedule section. */
 export type ScheduleContext = {
   priceCents: number;
+  // La proposition de l’organisme pour l’indemnité de résiliation. Le
+  // contrat peut s’en écarter : c’est une clause négociée, pas un réglage.
+  cancellationFeeDefault: number | null;
   startsAt: string; // ISO
   endsAt: string; // ISO
   capAcknowledged: boolean;
@@ -224,12 +227,25 @@ export function SendDocumentDialog({
   const [missingFields, setMissingFields] = useState<{ key: string; label: string; fixHref: string }[]>([]);
   const [schedule, setSchedule] = useState<Instalment[]>([]);
   const [capAcknowledged, setCapAcknowledged] = useState(scheduleContext?.capAcknowledged ?? false);
+  // `undefined` = « on suit la proposition de l’organisme ». Toute autre
+  // valeur, y compris null, est un choix pour CE contrat.
+  const [indemnite, setIndemnite] = useState<number | null | undefined>(undefined);
   const showSchedule = scheduleContext != null && SCHEDULED_CATEGORIES.has(category);
 
-  async function loadPreview(id: string, answers?: Partial<Record<QuestionKey, string>>) {
+  async function loadPreview(
+    id: string,
+    answers?: Partial<Record<QuestionKey, string>>,
+    // Passé explicitement plutôt que lu dans l'état : au moment du onChange,
+    // setIndemnite n'a pas encore rendu, et l'aperçu partirait avec la valeur
+    // précédente.
+    indemniteChoisie: number | null | undefined = indemnite,
+  ) {
     setLoadingPreview(true);
     const query = answers && Object.keys(answers).length > 0 ? `&answers=${encodeURIComponent(JSON.stringify(answers))}` : "";
-    const res = await fetch(`/api/dossiers/${dossierId}/documents/preview-template?templateId=${id}${query}`);
+    // Envoyé seulement quand l’écran a un avis — sinon la proposition de
+    // l’organisme joue, ce qui est le comportement d’avant.
+    const qIndemnite = indemniteChoisie === undefined ? "" : `&indemnite=${indemniteChoisie ?? ""}`;
+    const res = await fetch(`/api/dossiers/${dossierId}/documents/preview-template?templateId=${id}${query}${qIndemnite}`);
     setLoadingPreview(false);
     if (!res.ok) {
       setError("Impossible de charger le modèle.");
@@ -593,7 +609,30 @@ export function SendDocumentDialog({
                     />
                   </div>
                   {showSchedule && (
-                    <div className="border-t border-line pt-3">
+                    <div className="border-t border-line pt-3 flex flex-col gap-3">
+                      {/* L'indemnité stipulée pour CE contrat. Une clause se
+                          négocie client par client : la valeur de l'organisme
+                          n'est qu'une proposition, et il faut pouvoir s'en
+                          écarter sans aller changer un réglage global. */}
+                      <label className="flex items-center gap-2 text-[12.5px] text-ink">
+                        <span className="text-[11px] text-slate uppercase tracking-wide">
+                          Indemnité de résiliation
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={indemnite === undefined ? (scheduleContext.cancellationFeeDefault ?? "") : (indemnite ?? "")}
+                          onChange={(e) => {
+                            const v = e.target.value === "" ? null : Number(e.target.value);
+                            setIndemnite(v);
+                            if (templateId) void loadPreview(templateId, pendingAnswers, v);
+                          }}
+                          placeholder="—"
+                          className="border border-line rounded-md px-2 py-1 text-[12.5px] text-ink outline-none focus:border-seal w-16 text-right tabular-nums"
+                        />
+                        <span className="text-[12.5px] text-slate">% du prix, réciproque</span>
+                      </label>
                       <PaymentScheduleBuilder
                         priceCents={scheduleContext.priceCents}
                         category={category}
