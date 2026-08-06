@@ -180,6 +180,17 @@ model Organization {
   paymentCapAckAt        DateTime?
   paymentCapAckByName    String?
 
+  // « À faire plus tard » sur l'adhésion à un médiateur de la consommation.
+  //
+  // Un report, pas un renoncement : l'obligation de l'art. L.612-1 ne
+  // s'éteint pas parce qu'on a cliqué. Le champ fait taire le rappel jusqu'à
+  // cette date, et l'étape de démarrage reste décochée pendant tout ce
+  // temps — une check-list qui annonce terminé ce qui ne l'est pas ne sert
+  // plus à rien. Voir lib/mediationConsommation.ts pour la règle complète,
+  // et notamment pourquoi le rappel ne se déclenche QUE chez un organisme
+  // qui vend réellement à des particuliers.
+  mediatorReminderSnoozedUntil DateTime?
+
   users                   User[]
   contacts                Contact[]
   companies               Company[]
@@ -940,6 +951,19 @@ model WithdrawalWaiver {
   ipAddress                String
   textAccepted             String
   checkboxDefaultUnchecked Boolean  @default(true)
+
+  // Sur quel alinéa de l'art. L.221-28 la renonciation repose :
+  // "digital_content" (13°, contenu numérique — le droit tombe dès l'accès)
+  // ou "service_completed" (1°, service pleinement exécuté dans le délai —
+  // le droit tombe à l'achèvement, et une somme proportionnelle reste due
+  // en cas de rétractation avant). Ce ne sont pas deux formulations d'une
+  // même chose : les effets diffèrent, et invoquer le 13° pour deux jours
+  // de présentiel serait mal fondé faute de contenu numérique.
+  //
+  // Nullable : les lignes antérieures reposent toutes sur le 13°, seul
+  // fondement que Jalon connaissait. Leur `textAccepted` le dit déjà — on
+  // ne réécrit pas une preuve pour lui ajouter une colonne.
+  legalBasis               String?
 
   @@index([organizationId])
 }

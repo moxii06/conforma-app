@@ -7,7 +7,6 @@ import { ChevronRight } from "lucide-react";
 import { STARTER_TEMPLATE_NOTICE } from "@/../prisma/lib/starter-templates";
 import { CATEGORY_LABELS, categoryLabelIsRedundant } from "@/lib/documentCategories";
 import { AdaptTemplateDialog } from "@/components/AdaptTemplateDialog";
-import { OrganizationContractPolicyForm } from "@/components/OrganizationContractPolicyForm";
 import { NewTemplateForm } from "@/components/NewTemplateForm";
 import { GenerateDocumentButton } from "@/components/GenerateDocumentButton";
 import { Tabs } from "@/components/Tabs";
@@ -50,17 +49,14 @@ export default async function BibliothequePage(props: { searchParams: Promise<{ 
   const { organizationId, role } = await requireSessionContext();
   if (can(role, "toolkit") === "none") redirect("/documents");
 
-  // Les modèles servent à FABRIQUER des documents ; ils ne s'envoient pas.
-  // Les séparer de l'espace Documents évite la confusion qui régnait quand
-  // les deux cohabitaient dans les mêmes onglets — « mon contrat » pouvait
-  // désigner le modèle ou l'exemplaire signé de M. Benali.
-  const TABS = [
-    { key: "modeles", label: "Mes modèles" },
-    ...(role === Role.ADMIN_OF ? [{ key: "reglages", label: "Réglages des contrats" }] : []),
-  ];
-  const activeTab = searchParams.tab ?? "modeles";
-  if (activeTab === "reglages" && role !== Role.ADMIN_OF) redirect("/documents/bibliotheque");
-
+  // Un seul contenu : des modèles. L'onglet « Réglages des contrats » a
+  // disparu — il rassemblait quatre choses de natures différentes, dont
+  // aucune n'était à sa place. Les mentions d'identité (médiateur,
+  // préfecture) et le réglage par défaut de l'accès pendant la rétractation
+  // sont dans Mon profil, avec le SIRET et le RCS ; l'indemnité de
+  // résiliation se demande au contrat, puisque c'est une clause négociée qui
+  // varie d'un client à l'autre et qu'un pourcentage unique pour tout
+  // l'organisme n'avait pas de sens.
   return (
     <>
       <PageHeader
@@ -75,37 +71,8 @@ export default async function BibliothequePage(props: { searchParams: Promise<{ 
           </a>
         }
       />
-      <Tabs basePath="/documents/bibliotheque" tabs={TABS} active={activeTab} />
-      {activeTab === "reglages" ? (
-        <ContractSettingsTab organizationId={organizationId} />
-      ) : (
-        <TemplatesTab organizationId={organizationId} query={searchParams.q} />
-      )}
+      <TemplatesTab organizationId={organizationId} query={searchParams.q} />
     </>
-  );
-}
-
-async function ContractSettingsTab({ organizationId }: { organizationId: string }) {
-  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
-  return (
-    <div className="p-8 max-w-2xl">
-      <div className="bg-white border border-line rounded-card p-5">
-        <div className="text-[13.5px] font-semibold text-ink mb-1">Clauses et politiques contractuelles</div>
-        <div className="text-[11.5px] text-slate mb-3">
-          Réglages repris automatiquement dans les contrats générés depuis les modèles ci-contre et dans l&apos;accès
-          à la formation en ligne pendant le délai de rétractation d&apos;un apprenant.
-        </div>
-        <OrganizationContractPolicyForm
-          initial={{
-            withdrawalAccessPolicy: organization.withdrawalAccessPolicy,
-            cancellationFeePercent: organization.cancellationFeePercent,
-            regionPrefecture: organization.regionPrefecture ?? "",
-            mediatorName: organization.mediatorName ?? "",
-            mediatorContact: organization.mediatorContact ?? "",
-          }}
-        />
-      </div>
-    </div>
   );
 }
 

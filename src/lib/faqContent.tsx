@@ -82,6 +82,11 @@ export const FAQ_STARTER_STEPS: FaqStarterStep[] = [
       "Sur Intégrations : messagerie, encaissement Stripe, signature électronique. Tant qu'aucune boîte n'est connectée, les emails affichés sont des données de démonstration.",
     anchor: "boite-mail",
   },
+  {
+    title: "Adhérez à un médiateur de la consommation",
+    detail:
+      "Sur Profil, bloc « Vente aux particuliers ». Obligatoire dès votre premier contrat avec un particulier (art. L.612-1 du Code de la consommation) : ses coordonnées doivent figurer sur vos contrats, vos CGV et votre site. Sans objet si vous ne vendez qu'à des entreprises — vous pouvez reporter l'étape, elle reviendra vous le rappeler.",
+  },
 ];
 
 export const FAQ_CATEGORIES: FaqCategory[] = [

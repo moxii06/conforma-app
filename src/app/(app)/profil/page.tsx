@@ -5,6 +5,9 @@ import { SignatureEditor } from "@/components/SignatureEditor";
 import { OrganizationLegalForm } from "@/components/OrganizationLegalForm";
 import { OrganizationBrandingForm } from "@/components/OrganizationBrandingForm";
 import { InvoiceNumberingForm } from "@/components/InvoiceNumberingForm";
+import { OrganizationConsumerForm } from "@/components/OrganizationConsumerForm";
+import { chargerEtatMediation } from "@/lib/mediationServeur";
+import { messageMediation } from "@/lib/mediationConsommation";
 import { Role } from "@prisma/client";
 
 // Every role gets one — no permission gate beyond being logged in, unlike
@@ -14,9 +17,7 @@ import { Role } from "@prisma/client";
 // their mail signature), the right about the ORGANISATION (brand, legal
 // mentions) and only exists for ADMIN_OF. The prior single stack made
 // "your signature" and "your company's RCS number" read as the same kind
-// of thing, which they are not. Contract-wide clause settings moved to the
-// Bibliothèque's "Réglages des contrats" tab, next to the templates they
-// feed.
+// of thing, which they are not.
 export default async function ProfilePage() {
   const session = await requireSessionContext();
   const [user, organization] = await Promise.all([
@@ -25,6 +26,12 @@ export default async function ProfilePage() {
       ? prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } })
       : null,
   ]);
+  // Ce que la situation réelle impose de dire sur la médiation : une
+  // information pour un organisme qui ne vend qu'aux entreprises, un
+  // manquement dès qu'il y a un particulier. Voir mediationConsommation.ts.
+  const etatMediation = organization
+    ? await chargerEtatMediation(session.organizationId)
+    : { mediateurRenseigne: false, signal: { contratsParticulier: 0, facturesFondsPropres: 0 }, reporteJusquA: null };
 
   return (
     <>
@@ -80,12 +87,7 @@ export default async function ProfilePage() {
               <div className="text-[13.5px] font-semibold text-ink mb-1">Informations légales de l&apos;organisme</div>
               <div className="text-[11.5px] text-slate mb-3">
                 Mentions légales à faire figurer sur vos documents (contrats, conventions, CGV) — reprises
-                automatiquement dans les documents générés depuis la bibliothèque de modèles. Les clauses des
-                contrats (rétractation, indemnités, médiation) se règlent dans la{" "}
-                <a href="/documents?tab=reglages" className="underline decoration-line hover:decoration-ink text-ink">
-                  Bibliothèque de documents
-                </a>
-                .
+                automatiquement dans les documents générés depuis la bibliothèque de modèles.
               </div>
               <OrganizationLegalForm
                 initial={{
@@ -101,6 +103,33 @@ export default async function ProfilePage() {
                   vatRatePercent: organization.vatRatePercent?.toString() ?? "20",
                   vatNumber: organization.vatNumber ?? "",
                 }}
+              />
+            </div>
+
+            {/* Les mentions et réglages qui ne concernent QUE la vente au
+                particulier. Ils vivaient dans un onglet « Réglages des
+                contrats » de la bibliothèque de modèles, mélangés à une
+                clause négociée qui n'avait rien à y faire — et le médiateur,
+                qui est une mention d'identité, n'existait nulle part
+                ailleurs. */}
+            <div className="bg-white border border-line rounded-card p-5" id="particuliers">
+              <div className="text-[13.5px] font-semibold text-ink mb-1">Vente aux particuliers</div>
+              <div className="text-[11.5px] text-slate mb-3">
+                Ce qui s&apos;applique quand votre client est une personne physique qui finance sa formation
+                elle-même. Sans objet si vous ne vendez qu&apos;à des entreprises et à des financeurs.
+              </div>
+              <OrganizationConsumerForm
+                initial={{
+                  regionPrefecture: organization.regionPrefecture ?? "",
+                  mediatorName: organization.mediatorName ?? "",
+                  mediatorContact: organization.mediatorContact ?? "",
+                  withdrawalAccessPolicy: organization.withdrawalAccessPolicy,
+                  cancellationFeePercent: organization.cancellationFeePercent,
+                }}
+                messageMediation={messageMediation(etatMediation)}
+                rappelReporte={
+                  etatMediation.reporteJusquA !== null && etatMediation.reporteJusquA > new Date()
+                }
               />
             </div>
 

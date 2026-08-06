@@ -50,6 +50,7 @@ export const TASK_THEMES = [
       "rgpd_deadline",
       "subcontractor_expiry",
       "intervenant_evaluation_due",
+      "mediator_missing",
     ],
   },
   {

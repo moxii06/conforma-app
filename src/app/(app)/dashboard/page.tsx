@@ -31,6 +31,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   platform_access_after_payment: "Accès plateforme",
   convocation: "Convocation",
   invoice_overdue: "Facture",
+  mediator_missing: "Médiation",
   rgpd_suggestion: "RGPD (IA)",
   rgpd_deadline: "RGPD",
   session_draft: "Session",

@@ -31,6 +31,7 @@ export const SEUIL_REGROUPEMENT = 5;
 const LIBELLES_COLLECTIFS: Record<DashboardTask["kind"], string> = {
   needs_assessment: "tests de positionnement sans réponse",
   contract: "conventions en attente",
+  mediator_missing: "adhésion médiateur à souscrire",
   platform_access: "accès plateforme à envoyer",
   platform_access_after_payment: "accès plateforme à envoyer (paiement reçu)",
   convocation: "convocations à envoyer",
@@ -75,6 +76,8 @@ const DESTINATIONS_COLLECTIVES: Record<DashboardTask["kind"], string | null> = {
   // regroupement par apprenant.
   dossier_prep_contract: "/dossiers?status=contract_missing",
   contract: "/dossiers?status=contract_missing",
+  // Null : il n'y en a jamais qu'une, elle se lit et se traite sur place.
+  mediator_missing: null,
   dossier_prep_needs_assessment: "/dossiers?status=needs_assessment_missing",
   needs_assessment: "/dossiers?status=needs_assessment_missing",
   convocation: "/dossiers?status=convocation_missing",

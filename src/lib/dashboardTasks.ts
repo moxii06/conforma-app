@@ -9,6 +9,8 @@ import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } fro
 // ne se tait jamais.
 import { DOSSIERS_ACTIFS } from "@/lib/dossierArchive";
 import type { DashboardTaskKind } from "@/lib/dashboardTaskThemes";
+import { chargerEtatMediation } from "@/lib/mediationServeur";
+import { rappelMediationDu } from "@/lib/mediationConsommation";
 import {
   REMINDER_AFTER_DAYS,
   CONVOCATION_WARNING_DAYS,
@@ -937,6 +939,32 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         contactName: s.name,
         since: now,
         href: "/team?tab=evaluations",
+        overdue: false,
+      });
+    }
+  }
+
+  // Le rappel d'adhésion à un médiateur de la consommation.
+  //
+  // Réservé au rôle qui peut y répondre — c'est une décision d'organisme, pas
+  // une tâche d'équipe — et conditionné à un signal RÉEL de vente au
+  // particulier : un organisme qui ne vend qu'à des entreprises n'est pas
+  // tenu par l'art. L.612-1, et lui servir cette alerte tous les mois
+  // décrédibiliserait toutes les autres. La règle complète, et le pourquoi
+  // du report, sont dans lib/mediationConsommation.ts.
+  if (role === Role.ADMIN_OF) {
+    const etat = await chargerEtatMediation(organizationId);
+    if (rappelMediationDu(etat, new Date())) {
+      results.push({
+        id: "mediation",
+        kind: "mediator_missing",
+        label: "Adhésion à un médiateur de la consommation à souscrire — obligatoire (art. L.612-1)",
+        contactName: "Votre organisme",
+        // `since` et non `dueAt` : il n'y a pas de date après laquelle il
+        // serait trop tard, l'obligation est déjà née. La tâche se range
+        // donc avec ce qui traîne, pas avec ce qui arrive à échéance.
+        since: new Date(),
+        href: "/profil#particuliers",
         overdue: false,
       });
     }

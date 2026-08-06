@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { FAQ_STARTER_STEPS } from "@/lib/faqContent";
 import { recordActivationEvent } from "@/lib/activation";
+import { etapeMediationFaite, vendAuxParticuliers } from "@/lib/mediationConsommation";
 
 // Le parcours de démarrage existait déjà, écrit et ordonné, dans la FAQ —
 // mais en texte statique : il fallait aller le chercher, et rien ne disait où
@@ -22,19 +23,45 @@ export type OnboardingStep = {
 
 // Une entrée par étape de FAQ_STARTER_STEPS, dans le même ordre. Le lien est
 // celui de l'écran où l'étape se fait, pas de la page d'aide qui l'explique.
-const STEP_LINKS = ["/profil", "/team", "/formations", "/formations", "/planning", "/integrations"];
+const STEP_LINKS = [
+  "/profil",
+  "/team",
+  "/formations",
+  "/formations",
+  "/planning",
+  "/integrations",
+  "/profil#particuliers",
+];
 
 export async function getOnboardingSteps(organizationId: string): Promise<OnboardingStep[]> {
   const [org, courseCount, moduleCount, dossierCount, mailboxCount] = await Promise.all([
     prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
-      select: { legalForm: true, rcsNumber: true, legalRepresentativeName: true, referentHandicapUserId: true },
+      select: {
+        legalForm: true,
+        rcsNumber: true,
+        legalRepresentativeName: true,
+        referentHandicapUserId: true,
+        mediatorName: true,
+      },
     }),
     prisma.course.count({ where: { organizationId } }),
     prisma.elearningModule.count({ where: { course: { organizationId } } }),
     prisma.dossier.count({ where: { organizationId } }),
     prisma.mailboxConnection.count({ where: { organizationId } }),
   ]);
+
+  // Le signal de vente au particulier : deux `findFirst` indexés qui ne
+  // rendent qu'un id. On cherche l'existence, pas le volume — une seule
+  // vente suffit à faire naître l'obligation.
+  const [contratParticulier, factureFondsPropres] = await Promise.all([
+    prisma.document.findFirst({ where: { organizationId, category: "contrat_formation" }, select: { id: true } }),
+    prisma.invoice.findFirst({ where: { organizationId, fundingOrigin: "individual" }, select: { id: true } }),
+  ]);
+  const signalParticulier = {
+    contratsParticulier: contratParticulier ? 1 : 0,
+    facturesFondsPropres: factureFondsPropres ? 1 : 0,
+  };
 
   const done = [
     // Les trois mentions légales qui partent réellement dans les documents
@@ -52,6 +79,21 @@ export async function getOnboardingSteps(organizationId: string): Promise<Onboar
     // l'inscription qui débloque tout ce qui suit.
     dossierCount > 0,
     mailboxCount > 0,
+    // L'adhésion à un médiateur — cochée quand elle est faite, OU quand elle
+    // ne s'applique pas.
+    //
+    // L'obligation de l'art. L.612-1 ne vise que le professionnel qui
+    // contracte avec un consommateur. Un organisme qui ne vend qu'à des
+    // entreprises n'y est pas tenu : lui laisser une étape éternellement
+    // rouge — et l'empêcher à jamais d'atteindre `onboarding_completed` —
+    // serait une fausse alerte permanente. Le libellé de l'étape le dit
+    // (« Sans objet si vous ne vendez qu'à des entreprises »).
+    //
+    // « À faire plus tard », lui, ne coche RIEN : il fait taire le rappel du
+    // tableau de bord, pas la check-list. Une check-list qui annonce terminé
+    // ce qui ne l'est pas ne sert plus à rien.
+    etapeMediationFaite({ mediateurRenseigne: Boolean(org.mediatorName?.trim()) }) ||
+      !vendAuxParticuliers(signalParticulier),
   ];
 
   if (done.every(Boolean)) {
