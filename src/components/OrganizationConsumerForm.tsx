@@ -81,6 +81,13 @@ export function OrganizationConsumerForm({
 
   return (
     <div className="flex flex-col gap-3.5">
+      <div>
+        <div className="text-[12px] text-ink font-medium">Mentions obligatoires</div>
+        <p className="text-[11.5px] text-slate leading-relaxed mt-0.5">
+          Des faits sur votre organisme, repris tels quels dans chaque contrat conclu avec un particulier.
+        </p>
+      </div>
+
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center gap-1.5">
           <span className="text-[12px] text-ink font-medium">Médiation de la consommation</span>
@@ -157,7 +164,23 @@ export function OrganizationConsumerForm({
         </span>
       </label>
 
-      <div className="flex flex-col gap-1 border-t border-line pt-3.5">
+      {/* Deux natures, deux blocs. Au-dessus, des MENTIONS : des faits sur
+          l'organisme, obligatoires, qui partent tels quels dans chaque contrat
+          conclu avec un particulier. Ci-dessous, des VALEURS PAR DÉFAUT :
+          elles ne décident rien à elles seules, chaque formation ou chaque
+          contrat pouvant en disposer autrement. Les présenter côte à côte
+          sans le dire faisait lire les secondes comme les premières — c'est
+          exactement le reproche fait à l'ancien onglet « Réglages des
+          contrats », qui semblait s'appliquer à tous les contrats. */}
+      <div className="border-t border-line pt-3.5">
+        <div className="text-[12px] text-ink font-medium">Valeurs par défaut</div>
+        <p className="text-[11.5px] text-slate leading-relaxed mt-0.5">
+          Le point de départ, pas la décision : ces deux valeurs s&apos;appliquent seulement à ce qui n&apos;en
+          dispose pas autrement. Elles se redéfinissent formation par formation et contrat par contrat.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-slate uppercase tracking-wide">
             Accès à la formation en ligne pendant le délai de rétractation
@@ -189,10 +212,10 @@ export function OrganizationConsumerForm({
         </span>
       </div>
 
-      <div className="flex flex-col gap-1 border-t border-line pt-3.5">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[11px] text-slate uppercase tracking-wide">
-            Indemnité de résiliation anticipée — valeur proposée
+            Indemnité de résiliation anticipée
           </span>
           <HelpTip label="Indemnité de résiliation">
             <p>

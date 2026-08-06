@@ -9,6 +9,7 @@ import { OrganizationConsumerForm } from "@/components/OrganizationConsumerForm"
 import { chargerEtatMediation } from "@/lib/mediationServeur";
 import { messageMediation } from "@/lib/mediationConsommation";
 import { Role } from "@prisma/client";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 
 // Every role gets one — no permission gate beyond being logged in, unlike
 // most pages here which are feature-gated per PERMISSIONS.
@@ -32,6 +33,33 @@ export default async function ProfilePage() {
   const etatMediation = organization
     ? await chargerEtatMediation(session.organizationId)
     : { mediateurRenseigne: false, signal: { contratsParticulier: 0, facturesFondsPropres: 0 }, reporteJusquA: null };
+
+  // L'état de chaque bloc, affiché sous son titre et lisible sans déplier.
+  //
+  // La page présentait quatre cartes dépliées de poids identique : rien n'y
+  // disait où il manquait quelque chose, alors qu'un SIRET absent produit
+  // silencieusement un contrat troué. Ce qui est complet se replie, ce qui
+  // manque s'ouvre — la page s'ouvre donc sur ce qui reste à faire.
+  const manqueLegal = organization
+    ? [
+        !organization.siret?.trim() && "SIRET",
+        !organization.legalAddress?.trim() && "adresse du siège",
+        !organization.legalRepresentativeName?.trim() && "représentant légal",
+        !organization.activityDeclarationNumber?.trim() && "n° de déclaration d'activité",
+      ].filter((x): x is string => typeof x === "string")
+    : [];
+  const marqueFaite = Boolean(organization?.logoUrl);
+  // Le médiateur n'est un manquement que face à un signal B2C réel : un
+  // organisme qui ne vend qu'aux entreprises n'y est pas tenu.
+  const vendAuxParticuliers =
+    etatMediation.signal.contratsParticulier > 0 || etatMediation.signal.facturesFondsPropres > 0;
+  const mediateurManquant = vendAuxParticuliers && !etatMediation.mediateurRenseigne;
+
+  const etat = (texte: string, alerte = false) => (
+    <span className={`text-[11.5px] ${alerte ? "text-rust" : "text-slate"}`}>{texte}</span>
+  );
+  const titre = (t: string) => <span className="text-[13.5px] font-semibold text-ink">{t}</span>;
+  const prochaineAutomatique = `FAC-${new Date().getFullYear()}-001`;
 
   return (
     <>
@@ -66,8 +94,15 @@ export default async function ProfilePage() {
           <div className="flex flex-col gap-4">
             <div className="text-[11px] font-semibold text-slate uppercase tracking-wide">Votre organisme</div>
 
-            <div className="bg-white border border-line rounded-card p-5">
-              <div className="text-[13.5px] font-semibold text-ink mb-1">Marque</div>
+            <CollapsibleSection
+              title={titre("Marque")}
+              defaultOpen={!marqueFaite}
+              header={etat(
+                marqueFaite
+                  ? "Logo en place — vos apprenants ne voient pas Jalon."
+                  : "Aucun logo : vos pages publiques portent encore la marque Jalon.",
+              )}
+            >
               <div className="text-[11.5px] text-slate mb-3">
                 Logo et couleur affichés à la place de ceux de Jalon dans l&apos;espace de vos apprenants et sur les
                 pages publiques qu&apos;ils reçoivent (recueil des besoins, évaluations, activation de compte) — vos
@@ -81,10 +116,18 @@ export default async function ProfilePage() {
                   publicContactPhone: organization.publicContactPhone,
                 }}
               />
-            </div>
+            </CollapsibleSection>
 
-            <div className="bg-white border border-line rounded-card p-5">
-              <div className="text-[13.5px] font-semibold text-ink mb-1">Informations légales de l&apos;organisme</div>
+            <CollapsibleSection
+              title={titre("Informations légales de l'organisme")}
+              defaultOpen={manqueLegal.length > 0}
+              header={etat(
+                manqueLegal.length === 0
+                  ? "Complètes — vos contrats et conventions se remplissent seuls."
+                  : `À compléter : ${manqueLegal.join(", ")}. Un contrat généré porterait le trou.`,
+                manqueLegal.length > 0,
+              )}
+            >
               <div className="text-[11.5px] text-slate mb-3">
                 Mentions légales à faire figurer sur vos documents (contrats, conventions, CGV) — reprises
                 automatiquement dans les documents générés depuis la bibliothèque de modèles.
@@ -104,7 +147,7 @@ export default async function ProfilePage() {
                   vatNumber: organization.vatNumber ?? "",
                 }}
               />
-            </div>
+            </CollapsibleSection>
 
             {/* Les mentions et réglages qui ne concernent QUE la vente au
                 particulier. Ils vivaient dans un onglet « Réglages des
@@ -112,13 +155,24 @@ export default async function ProfilePage() {
                 clause négociée qui n'avait rien à y faire — et le médiateur,
                 qui est une mention d'identité, n'existait nulle part
                 ailleurs. */}
-            <div className="bg-white border border-line rounded-card p-5" id="particuliers">
-              <div className="text-[13.5px] font-semibold text-ink mb-1">Vente aux particuliers</div>
-              <div className="text-[11.5px] text-slate mb-3">
-                Ce qui s&apos;applique quand votre client est une personne physique qui finance sa formation
-                elle-même. Sans objet si vous ne vendez qu&apos;à des entreprises et à des financeurs.
-              </div>
-              <OrganizationConsumerForm
+            <div id="particuliers" className="scroll-mt-4">
+              <CollapsibleSection
+                title={titre("Vente aux particuliers")}
+                defaultOpen={mediateurManquant}
+                header={etat(
+                  mediateurManquant
+                    ? "Médiateur manquant alors que vous vendez à des particuliers — obligatoire (art. L.612-1)."
+                    : etatMediation.mediateurRenseigne
+                      ? "Médiateur renseigné — la mention part dans vos contrats."
+                      : "Sans objet tant que vous ne vendez qu'à des entreprises et à des financeurs.",
+                  mediateurManquant,
+                )}
+              >
+                <div className="text-[11.5px] text-slate mb-3">
+                  Ce qui s&apos;applique quand votre client est une personne physique qui finance sa formation
+                  elle-même.
+                </div>
+                <OrganizationConsumerForm
                 initial={{
                   regionPrefecture: organization.regionPrefecture ?? "",
                   mediatorName: organization.mediatorName ?? "",
@@ -127,24 +181,38 @@ export default async function ProfilePage() {
                   cancellationFeePercent: organization.cancellationFeePercent,
                 }}
                 messageMediation={messageMediation(etatMediation)}
-                rappelReporte={
-                  etatMediation.reporteJusquA !== null && etatMediation.reporteJusquA > new Date()
-                }
-              />
+                  rappelReporte={
+                    etatMediation.reporteJusquA !== null && etatMediation.reporteJusquA > new Date()
+                  }
+                />
+              </CollapsibleSection>
             </div>
 
-            <div className="bg-white border border-line rounded-card p-5" id="numerotation">
-              <div className="text-[13.5px] font-semibold text-ink mb-1">Numérotation des factures</div>
-              <div className="text-[11.5px] text-slate mb-3">
-                Vos factures doivent porter des numéros qui se suivent, sans trou et sans doublon, toutes sources
-                confondues. Si vous en émettez déjà depuis un autre outil, reprenez ici votre propre séquence pour
-                qu&apos;elle reste continue.
-              </div>
-              <InvoiceNumberingForm
-                initialPrefix={organization.invoicePrefix}
-                initialNextNumber={organization.invoiceNextNumber}
-                exempleAutomatique={`FAC-${new Date().getFullYear()}-001`}
-              />
+            <div id="numerotation" className="scroll-mt-4">
+              <CollapsibleSection
+                title={titre("Numérotation des factures")}
+                header={etat(
+                  // Les deux champs sont nullables ET null signifie
+                  // « laisse Jalon numéroter » — il faut donc les traiter
+                  // ensemble : un préfixe sans compteur ne décrit aucune
+                  // séquence, et afficher la valeur brute donnerait
+                  // « nullnull ».
+                  organization.invoicePrefix && organization.invoiceNextNumber
+                    ? `Prochaine facture : ${organization.invoicePrefix}${String(organization.invoiceNextNumber).padStart(3, "0")}.`
+                    : `Numérotation automatique — prochaine facture : ${prochaineAutomatique}.`,
+                )}
+              >
+                <div className="text-[11.5px] text-slate mb-3">
+                  Vos factures doivent porter des numéros qui se suivent, sans trou et sans doublon, toutes sources
+                  confondues. Si vous en émettez déjà depuis un autre outil, reprenez ici votre propre séquence pour
+                  qu&apos;elle reste continue.
+                </div>
+                <InvoiceNumberingForm
+                  initialPrefix={organization.invoicePrefix}
+                  initialNextNumber={organization.invoiceNextNumber}
+                  exempleAutomatique={prochaineAutomatique}
+                />
+              </CollapsibleSection>
             </div>
           </div>
         )}
