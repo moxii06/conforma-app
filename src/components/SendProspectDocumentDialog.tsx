@@ -16,7 +16,14 @@ import { estPertinentPourProspect } from "@/lib/documentStage";
 type Template = ModeleChoisissable;
 type AttachMode = "none" | "library" | "quote" | "upload";
 
-type Devis = { id: string; reference: string; amountCents: number; status: string; createdAt: string };
+type Devis = {
+  id: string;
+  reference: string;
+  amountCents: number;
+  status: string;
+  createdAt: string;
+  description?: string | null;
+};
 type PendingQuestion = { key: QuestionKey; label: string; options: { value: string; label: string }[] };
 type Preview = {
   title: string;
@@ -104,7 +111,9 @@ export function SendProspectDocumentDialog({
   // créé il y a dix secondes est là sans recharger la page.
   const [devisList, setDevisList] = useState<Devis[] | null>(null);
   const [quoteId, setQuoteId] = useState("");
-  const [creation, setCreation] = useState(false);
+  const [devisChoisi, setDevisChoisi] = useState<Devis | null>(null);
+  const [editeur, setEditeur] = useState(false);
+  const [listeVisible, setListeVisible] = useState(false);
   const [creationEnCours, setCreationEnCours] = useState(false);
   const [refDevis, setRefDevis] = useState("");
   const [montantDevis, setMontantDevis] = useState("");
@@ -142,16 +151,59 @@ export function SendProspectDocumentDialog({
   );
   const aucunResultat = groupesFiltres.length === 0;
 
+  // Retour client : « quand je clique sur Devis, cela doit m'ouvrir
+  // l'éditeur ; je remplis, je valide, cela referme avec modifier/supprimer
+  // à côté, et je continue mon message. » L'éditeur est donc l'état
+  // d'arrivée, pas une liste suivie d'un lien — écrire un devis est le geste
+  // attendu ici, en réutiliser un est le cas particulier.
   async function ouvrirDevis() {
     setAttachMode("quote");
+    if (!quoteId) setEditeur(true);
     if (devisList !== null) return;
     const res = await fetch(`/api/crm/contacts/${contactId}/quotes`);
     const body = await res.json().catch(() => ({ quotes: [] }));
     setDevisList(body.quotes ?? []);
   }
 
+  function ouvrirEnModification() {
+    if (!devisChoisi) return;
+    setRefDevis(devisChoisi.reference);
+    setMontantDevis(String(devisChoisi.amountCents / 100));
+    setDesignationDevis(devisChoisi.description ?? "");
+    setEditeur(true);
+  }
+
+  async function supprimerDevis() {
+    if (!devisChoisi) return;
+    // Un devis déjà parti n'est pas supprimable — la route le refuse aussi,
+    // mais l'écran ne doit pas proposer un geste qui va échouer. On se
+    // contente alors de le détacher du message.
+    if (devisChoisi.status !== "DRAFT") {
+      setQuoteId("");
+      setDevisChoisi(null);
+      setEditeur(true);
+      return;
+    }
+    setCreationEnCours(true);
+    const res = await fetch(`/api/facturation/quotes/${devisChoisi.id}`, { method: "DELETE" });
+    setCreationEnCours(false);
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      setError(b.error ?? "Impossible de supprimer le devis.");
+      return;
+    }
+    setDevisList((prev) => (prev ?? []).filter((d) => d.id !== devisChoisi.id));
+    setQuoteId("");
+    setDevisChoisi(null);
+    setTitle("");
+    setEditeur(true);
+  }
+
   function choisirDevis(d: Devis) {
     setQuoteId(d.id);
+    setDevisChoisi(d);
+    setEditeur(false);
+    setListeVisible(false);
     // Le titre du document envoyé porte la référence : c'est sous ce nom
     // que le prospect le recevra et que vous le retrouverez.
     setTitle(`Devis ${d.reference}`);
@@ -173,32 +225,48 @@ export function SendProspectDocumentDialog({
     }
     setCreationEnCours(true);
     setError(null);
-    const res = await fetch("/api/facturation/quotes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contactId,
-        reference: refDevis.trim(),
-        description: designationDevis.trim() || undefined,
-        amountCents: cents,
-      }),
-    });
+    // Le même bouton crée ou corrige, selon qu'un devis est déjà choisi.
+    // « Modifier » rouvre cet éditeur pré-rempli : de l'endroit où on est,
+    // les deux gestes sont le même — poser le devis qu'on va envoyer.
+    const enModification = Boolean(devisChoisi);
+    const res = enModification
+      ? await fetch(`/api/facturation/quotes/${devisChoisi!.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reference: refDevis.trim(),
+            description: designationDevis.trim() || null,
+            amountCents: cents,
+          }),
+        })
+      : await fetch("/api/facturation/quotes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactId,
+            reference: refDevis.trim(),
+            description: designationDevis.trim() || undefined,
+            amountCents: cents,
+          }),
+        });
     const body = await res.json().catch(() => ({}));
     setCreationEnCours(false);
     if (!res.ok) {
-      setError(body.error ?? "Impossible de créer le devis.");
+      setError(body.error ?? (enModification ? "Impossible de modifier le devis." : "Impossible de créer le devis."));
       return;
     }
-    const nouveau: Devis = {
+    const devis: Devis = {
       id: body.id,
       reference: body.reference,
       amountCents: body.amountCents,
       status: body.status,
       createdAt: body.createdAt,
+      description: body.description ?? null,
     };
-    setDevisList((prev) => [nouveau, ...(prev ?? [])]);
-    choisirDevis(nouveau);
-    setCreation(false);
+    setDevisList((prev) =>
+      enModification ? (prev ?? []).map((d) => (d.id === devis.id ? devis : d)) : [devis, ...(prev ?? [])],
+    );
+    choisirDevis(devis);
     setRefDevis("");
     setMontantDevis("");
     setDesignationDevis("");
@@ -565,43 +633,41 @@ export function SendProspectDocumentDialog({
 
               {attachMode === "quote" && (
                 <div className="flex flex-col gap-2">
-                  {devisList === null && <div className="text-[12px] text-slate">Chargement des devis…</div>}
-                  {devisList?.length === 0 && !creation && (
-                    <div className="text-[12px] text-slate">Aucun devis pour ce prospect.</div>
-                  )}
-                  {devisList && devisList.length > 0 && (
-                    <div className="border border-line rounded-md max-h-40 overflow-y-auto">
-                      {devisList.map((d) => (
-                        <button
-                          key={d.id}
-                          type="button"
-                          onClick={() => choisirDevis(d)}
-                          className={`w-full text-left px-2.5 py-1.5 text-[12.5px] border-b border-line last:border-b-0 flex items-center gap-2 ${
-                            d.id === quoteId ? "bg-linen text-ink font-medium" : "text-ink hover:bg-mist"
-                          }`}
-                        >
-                          <span className="flex-1 min-w-0 truncate">{d.reference}</span>
-                          <span className="shrink-0 tabular-nums">
-                            {(d.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-slate">
-                            {new Date(d.createdAt).toLocaleDateString("fr-FR")}
-                          </span>
-                        </button>
-                      ))}
+                  {/* Un devis posé : l'éditeur s'efface au profit d'une ligne
+                      de résumé, pour rendre la place au message. C'est le
+                      cheminement demandé — remplir, valider, continuer à
+                      écrire — et non une liste qu'il faudrait re-parcourir. */}
+                  {devisChoisi && !editeur && (
+                    <div className="border border-line rounded-md px-2.5 py-2 bg-white flex items-center gap-2 flex-wrap">
+                      <span className="text-[12.5px] text-ink font-medium min-w-0 truncate">
+                        Devis {devisChoisi.reference}
+                      </span>
+                      <span className="text-[12.5px] text-slate tabular-nums">
+                        {(devisChoisi.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                      </span>
+                      <div className="flex-1" />
+                      <button
+                        type="button"
+                        onClick={ouvrirEnModification}
+                        className="shrink-0 text-[11.5px] text-slate underline decoration-line hover:text-ink"
+                      >
+                        Modifier
+                      </button>
+                      {/* « Supprimer » sur un brouillon, « Retirer » sur un
+                          devis déjà parti : celui-là, le client en détient une
+                          copie, l'effacer laisserait une étape sans cause. */}
+                      <button
+                        type="button"
+                        onClick={supprimerDevis}
+                        disabled={creationEnCours}
+                        className="shrink-0 text-[11.5px] text-slate underline decoration-line hover:text-rust"
+                      >
+                        {devisChoisi.status === "DRAFT" ? "Supprimer" : "Retirer"}
+                      </button>
                     </div>
                   )}
-                  {devisList !== null && !creation && (
-                    <button
-                      type="button"
-                      onClick={() => setCreation(true)}
-                      className="self-start text-[11.5px] text-slate underline decoration-line hover:text-ink"
-                    >
-                      Créer un devis pour ce prospect
-                    </button>
-                  )}
 
-                  {creation && (
+                  {editeur && (
                     <div className="border border-line rounded-md p-2.5 bg-mist flex flex-col gap-2">
                       <div className="grid grid-cols-2 gap-2">
                         <label className="flex flex-col gap-1">
@@ -633,17 +699,30 @@ export function SendProspectDocumentDialog({
                           className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
                         />
                       </label>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Button type="button" size="sm" onClick={creerDevis} disabled={creationEnCours}>
-                          {creationEnCours ? "…" : "Créer et joindre"}
+                          {creationEnCours ? "…" : devisChoisi ? "Enregistrer" : "Valider le devis"}
                         </Button>
-                        <button
-                          type="button"
-                          onClick={() => setCreation(false)}
-                          className="text-[11.5px] text-slate underline decoration-line hover:text-ink"
-                        >
-                          Annuler
-                        </button>
+                        {devisChoisi && (
+                          <button
+                            type="button"
+                            onClick={() => setEditeur(false)}
+                            className="text-[11.5px] text-slate underline decoration-line hover:text-ink"
+                          >
+                            Annuler
+                          </button>
+                        )}
+                        {!devisChoisi && (devisList?.length ?? 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setListeVisible((v) => !v)}
+                            className="text-[11.5px] text-slate underline decoration-line hover:text-ink"
+                          >
+                            {listeVisible
+                              ? "Masquer les devis existants"
+                              : `Joindre un devis existant (${devisList?.length})`}
+                          </button>
+                        )}
                       </div>
                       <p className="text-[11px] text-slate leading-relaxed">
                         Le détail ligne par ligne se complète ensuite depuis Facturation — ici on ne demande que ce
@@ -652,7 +731,30 @@ export function SendProspectDocumentDialog({
                     </div>
                   )}
 
-                  {quoteId && (
+                  {listeVisible && devisList && devisList.length > 0 && (
+                    <div className="border border-line rounded-md max-h-40 overflow-y-auto">
+                      {devisList.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => choisirDevis(d)}
+                          className={`w-full text-left px-2.5 py-1.5 text-[12.5px] border-b border-line last:border-b-0 flex items-center gap-2 ${
+                            d.id === quoteId ? "bg-linen text-ink font-medium" : "text-ink hover:bg-mist"
+                          }`}
+                        >
+                          <span className="flex-1 min-w-0 truncate">{d.reference}</span>
+                          <span className="shrink-0 tabular-nums">
+                            {(d.amountCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-slate">
+                            {new Date(d.createdAt).toLocaleDateString("fr-FR")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {quoteId && !editeur && (
                     <div className="text-[11.5px] text-slate leading-relaxed">
                       À l&apos;envoi, ce devis passera en « envoyé » et l&apos;affaire avancera à « Devis envoyé » — comme
                       depuis la Facturation.
