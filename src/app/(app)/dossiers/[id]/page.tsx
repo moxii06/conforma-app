@@ -287,7 +287,13 @@ export default async function DossierPage(
             sessionInfo={sessionInfo}
           />
         ) : activeTab === "emails" ? (
-          <EmailsTab contactId={dossier.contactId} dossierId={dossier.id} canManageEmail={canManageEmail} members={members} />
+          <EmailsTab
+            contactId={dossier.contactId}
+            dossierId={dossier.id}
+            canManageEmail={canManageEmail}
+            members={members}
+            signatureHtml={signatureHtml}
+          />
         ) : activeTab === "documents" ? (
           <DocumentsTab
             dossierId={dossier.id}
@@ -691,11 +697,13 @@ async function EmailsTab({
   dossierId,
   canManageEmail,
   members,
+  signatureHtml,
 }: {
   contactId: string;
   dossierId: string;
   canManageEmail: boolean;
   members: { id: string; name: string }[];
+  signatureHtml: string;
 }) {
   const emails = await prisma.emailMessage.findMany({ where: { contactId }, orderBy: { receivedAt: "desc" } });
 
@@ -719,7 +727,7 @@ async function EmailsTab({
               <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
             </div>
           )}
-          {canManageEmail && m.direction === "in" && <EmailReplyComposer messageId={m.id} />}
+          {canManageEmail && m.direction === "in" && <EmailReplyComposer messageId={m.id} signatureHtml={signatureHtml} />}
         </div>
       ))}
       {emails.length === 0 && <div className="text-[12.5px] text-slate">Aucun email rattaché à ce contact.</div>}

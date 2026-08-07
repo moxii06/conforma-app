@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { CONTACT_ONLY_MERGE_TAGS, insertTagAtCursor } from "@/lib/mergeTags";
 import { MergeTagButtons } from "@/components/MergeTagButtons";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
+import { plainTextToHtml } from "@/lib/plainTextToHtml";
 import { Button } from "@/components/ui";
 
-export function EmailReplyComposer({ messageId }: { messageId: string }) {
+export function EmailReplyComposer({ messageId, signatureHtml }: { messageId: string; signatureHtml: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -48,10 +49,17 @@ export function EmailReplyComposer({ messageId }: { messageId: string }) {
     setLoading(true);
     setError(null);
     setResult(null);
+    // The route expects multipart form data with a bodyHtml field (it also
+    // accepts files/existingDocumentIds/templateIds, unused here) — see
+    // InboxReplyDialog. text is plain (this composer has no rich editor),
+    // so it's turned into real paragraphs before going out, otherwise
+    // htmlToPlainText would collapse every line break into one long line.
+    const formData = new FormData();
+    const html = plainTextToHtml(text);
+    formData.set("bodyHtml", includeSignature ? html + signatureHtml : html);
     const res = await fetch(`/api/inbox/messages/${messageId}/reply`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: text, includeSignature }),
+      body: formData,
     });
     setLoading(false);
     if (!res.ok) {

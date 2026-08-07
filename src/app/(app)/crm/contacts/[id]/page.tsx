@@ -181,7 +181,7 @@ export default async function ContactRecordPage(
 
           <div className="flex flex-col gap-4">
         {activeTab === "emails" ? (
-          <EmailsTab contactId={contact.id} canManageEmail={canManageEmail} members={members} />
+          <EmailsTab contactId={contact.id} canManageEmail={canManageEmail} members={members} signatureHtml={signatureHtml} />
         ) : activeTab === "documents" ? (
           <DocumentsAndOutreachTab
             dossierIds={contact.dossiers.map((d) => d.id)}
@@ -414,10 +414,12 @@ async function EmailsTab({
   contactId,
   canManageEmail,
   members,
+  signatureHtml,
 }: {
   contactId: string;
   canManageEmail: boolean;
   members: { id: string; name: string }[];
+  signatureHtml: string;
 }) {
   const emails = await prisma.emailMessage.findMany({ where: { contactId }, orderBy: { receivedAt: "desc" } });
 
@@ -441,7 +443,7 @@ async function EmailsTab({
               <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
             </div>
           )}
-          {canManageEmail && m.direction === "in" && <EmailReplyComposer messageId={m.id} />}
+          {canManageEmail && m.direction === "in" && <EmailReplyComposer messageId={m.id} signatureHtml={signatureHtml} />}
         </div>
       ))}
       {emails.length === 0 && <div className="text-[12.5px] text-slate">Aucun email rattaché à ce contact.</div>}
