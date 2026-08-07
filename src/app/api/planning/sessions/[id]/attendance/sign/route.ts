@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { HalfDay } from "@prisma/client";
+import { HalfDay, Role } from "@prisma/client";
 
 const bodySchema = z.object({
   sessionDayId: z.string().min(1),
@@ -29,6 +29,17 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(auth.role, "planning") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+  // Un formateur ne signe que pour ses propres sessions — même règle que la
+  // fiche session et le relevé d'activité, appliquée ici pour que
+  // l'émargement ne soit pas une porte dérobée vers les apprenants d'un
+  // autre formateur.
+  if (auth.role === Role.TRAINER) {
+    const owns = await prisma.session.findFirst({
+      where: { id: params.id, organizationId: auth.organizationId, trainerId: auth.userId },
+      select: { id: true },
+    });
+    if (!owns) return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
