@@ -138,7 +138,13 @@ export default async function DashboardPage(props: { searchParams: Promise<{ pil
       // "in progress" here.
       where: { organizationId, mode: "FIXED_DATE", startsAt: { lte: new Date() }, endsAt: { gte: new Date() } },
     }),
-    prisma.nonConformity.count({ where: { organizationId, status: { not: "resolved" } } }),
+    // NonConformity n'est jamais écrit par aucun écran (seul le jeu de démo
+    // le remplit) — les vraies non-conformités viennent des constats
+    // d'audit (QualiopiAuditFinding, onglet Audits), "ouverte" étant le
+    // seul statut qui alerte (même règle que la tâche qualiopi_finding_open
+    // de dashboardTasks.ts ; "levée" est un repos normal jusqu'au prochain
+    // audit).
+    prisma.qualiopiAuditFinding.count({ where: { audit: { organizationId }, status: "ouverte" } }),
     prisma.opportunity.groupBy({ by: ["stage"], where: { organizationId }, _count: true }),
     // Audit P1 : les montants de la section « Argent » venaient des étapes
     // financières du pipeline CRM — le doublon que le client a signalé. Ils

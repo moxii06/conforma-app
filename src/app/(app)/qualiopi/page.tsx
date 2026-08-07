@@ -102,12 +102,18 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
 
 async function IndicatorsTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
   const activeVersion = await getActiveVersion(organizationId);
-  const [org, allIndicators, evidence, versions, autoEvidence] = await Promise.all([
+  const [org, allIndicators, checklistItems, versions, autoEvidence] = await Promise.all([
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
     activeVersion
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: activeVersion.id }, orderBy: { number: "asc" } })
       : Promise.resolve([]),
-    prisma.qualiopiIndicatorEvidence.findMany({ where: { organizationId } }),
+    // QualiopiIndicatorEvidence n'est jamais écrit par aucun écran (seul le
+    // jeu de démo le remplit) — la seule case que l'utilisateur coche
+    // réellement est ChecklistToggle, sur l'onglet Préparation audit, qui
+    // écrit AuditChecklistItem.gathered. Même source que ce que
+    // AuditPrepTab affiche déjà, pour que le score et la checklist
+    // racontent la même histoire.
+    prisma.auditChecklistItem.findMany({ where: { organizationId } }),
     prisma.qualiopiReferentielVersion.findMany({ where: { status: { not: "archive" } }, orderBy: { createdAt: "asc" } }),
     getAutomaticEvidence(organizationId),
   ]);
@@ -118,22 +124,23 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
   const indicators = applicableIndicators(allIndicators, org.deliversApprenticeship);
   const apprenticeshipCount = countApprenticeshipIndicators(allIndicators);
 
-  const coveredNumbers = new Set(evidence.map((e) => e.indicatorNumber));
+  const gatheredNumbers = new Set(checklistItems.filter((c) => c.gathered).map((c) => c.indicatorNumber));
   const criteria = Array.from({ length: 7 }, (_, i) => i + 1).map((num) => {
     const items = indicators.filter((ind) => ind.criterionNumber === num);
-    const covered = items.filter((ind) => coveredNumbers.has(ind.number)).length;
+    const covered = items.filter((ind) => gatheredNumbers.has(ind.number)).length;
     return { number: num, total: items.length, covered };
   });
 
   const totalCovered = criteria.reduce((sum, c) => sum + c.covered, 0);
   const totalIndicators = indicators.length;
   const overallScore = totalIndicators ? Math.round((totalCovered / totalIndicators) * 100) : 0;
-  // Audit UX S4 : le score manuel ("cases cochées par vous") affiché seul
+  // Audit UX S4 : le score manuel ("preuves validées par vous") affiché seul
   // et en premier laissait croire à une conformité quasi nulle, alors que
   // la couche de preuve automatique (qualiopiEvidence.ts) — invisible tant
   // qu'on n'a pas cliqué sur l'onglet Préparation audit — raconte une
   // histoire bien plus favorable. Les deux chiffres cohabitent maintenant
-  // ici, et la carte pointe directement vers le détail.
+  // ici, et la carte pointe directement vers le détail. Libellé harmonisé
+  // avec AuditPrepTab : c'est la même case (ChecklistToggle) des deux côtés.
   const autoCount = indicators.filter((ind) => (autoEvidence.get(ind.number)?.length ?? 0) > 0).length;
   const isAuditOverdue = Boolean(org.nextAuditDate && org.nextAuditDate < new Date());
 
@@ -143,7 +150,7 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
         <MetricCard
           label="Score de conformité"
           value={`${overallScore}%`}
-          hint={`${totalCovered}/${totalIndicators} cochés par vous · ${autoCount}/${totalIndicators} avec activité tracée automatiquement`}
+          hint={`${totalCovered}/${totalIndicators} preuves validées par vous · ${autoCount}/${totalIndicators} avec activité tracée automatiquement`}
           href="/qualiopi?tab=preparation-audit"
         />
         <div className="bg-white border border-line rounded-card p-4 flex-1">
@@ -256,9 +263,26 @@ const LEVEL_LABELS: Record<string, string> = { faible: "Faible", moyenne: "Moyen
 const STALL_THRESHOLD_DAYS = 21;
 const STALL_MIN_COUNT = 2;
 
+// Libellés du statut Complaint, alignés sur /support (même champ, même
+// vocabulaire des deux côtés de l'app).
+const COMPLAINT_STATUS_LABELS: Record<string, string> = { open: "Ouverte", investigating: "En cours d'examen", resolved: "Résolue" };
+const COMPLAINT_STATUS_TONE: Record<string, "warn" | "good" | "danger"> = { open: "danger", investigating: "warn", resolved: "good" };
+
 async function ContinuousImprovementTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
-  const [openItems, risks, courses, stalledProgress] = await Promise.all([
+  const [openItems, complaints, findings, risks, courses, stalledProgress] = await Promise.all([
+    // NonConformity n'est alimenté par aucun formulaire (seul le jeu de
+    // démo le remplit) : gardé ici uniquement parce que QualityRisk.
+    // sourceNonConformityId pointe dessus par clé étrangère (section
+    // Suggestions ci-dessous) — un changement de schéma hors périmètre de
+    // ce correctif. Le registre affiché plus bas ne s'appuie plus dessus,
+    // voir complaints/findings.
     prisma.nonConformity.findMany({ where: { organizationId }, orderBy: { dueDate: "asc" } }),
+    prisma.complaint.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }),
+    prisma.qualiopiAuditFinding.findMany({
+      where: { audit: { organizationId } },
+      include: { audit: { select: { auditDate: true } } },
+      orderBy: { audit: { auditDate: "desc" } },
+    }),
     prisma.qualityRisk.findMany({
       where: { organizationId },
       include: { course: true },
@@ -277,6 +301,46 @@ async function ContinuousImprovementTab({ organizationId, canEdit }: { organizat
 
   const linkedNonConformityIds = new Set(risks.map((r) => r.sourceNonConformityId).filter(Boolean));
   const unlinkedComplaints = openItems.filter((item) => item.status !== "resolved" && !linkedNonConformityIds.has(item.id));
+
+  // Le registre affiché plus bas : les vraies réclamations (Complaint,
+  // saisies depuis /support) et les vraies non-conformités (constats
+  // d'audit certificateur, QualiopiAuditFinding, saisis depuis l'onglet
+  // Audits) — pas la table NonConformity ci-dessus, que rien n'écrit.
+  // L'action corrective d'un constat vit déjà sur le constat lui-même
+  // (QualiopiAuditFinding.correctiveAction), affichée en détail sur
+  // l'onglet Audits ; ici c'est la synthèse chronologique des deux sources.
+  type RegisterItem = {
+    id: string;
+    at: Date;
+    subject: string;
+    meta: string;
+    statusLabel: string;
+    tone: "warn" | "good" | "danger" | "neutral";
+  };
+  const registerItems: RegisterItem[] = [
+    ...complaints.map(
+      (c): RegisterItem => ({
+        id: `complaint-${c.id}`,
+        at: c.createdAt,
+        subject: c.subject,
+        meta: `Réclamation · ${new Date(c.createdAt).toLocaleDateString("fr-FR")}`,
+        statusLabel: COMPLAINT_STATUS_LABELS[c.status] ?? c.status,
+        tone: COMPLAINT_STATUS_TONE[c.status] ?? "warn",
+      })
+    ),
+    ...findings.map(
+      (f): RegisterItem => ({
+        id: `finding-${f.id}`,
+        at: f.audit.auditDate,
+        subject: `Indicateur ${f.indicatorNumber} — ${f.description}`,
+        meta: `Non-conformité ${f.severity} · audit du ${new Date(f.audit.auditDate).toLocaleDateString("fr-FR")}${
+          f.correctiveAction ? ` · Action corrective : ${f.correctiveAction}` : ""
+        }`,
+        statusLabel: FINDING_STATUS[f.status]?.label ?? f.status,
+        tone: FINDING_STATUS[f.status]?.tone ?? "warn",
+      })
+    ),
+  ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
   const stalledByCourse = new Map<string, { title: string; count: number }>();
   for (const p of stalledProgress) {
@@ -374,18 +438,16 @@ async function ContinuousImprovementTab({ organizationId, canEdit }: { organizat
         <div className="text-[13.5px] font-semibold text-ink mb-3.5">
           Réclamations, non-conformités et actions correctives
         </div>
-        {openItems.map((item) => (
+        {registerItems.map((item) => (
           <div key={item.id} className="flex items-center gap-3.5 py-3 border-t border-line first:border-t-0">
             <div className="flex-1">
               <div className="text-[13px] text-ink font-medium">{item.subject}</div>
-              <div className="text-[11.5px] text-slate mt-0.5">
-                {item.type} · {item.origin}
-              </div>
+              <div className="text-[11.5px] text-slate mt-0.5">{item.meta}</div>
             </div>
-            <Pill tone={item.status === "resolved" ? "good" : "warn"}>{item.status}</Pill>
+            <Pill tone={item.tone}>{item.statusLabel}</Pill>
           </div>
         ))}
-        {openItems.length === 0 && <div className="text-[12.5px] text-slate">Aucun élément enregistré.</div>}
+        {registerItems.length === 0 && <div className="text-[12.5px] text-slate">Aucun élément enregistré.</div>}
       </div>
     </div>
   );
