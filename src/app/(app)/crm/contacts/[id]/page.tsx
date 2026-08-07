@@ -71,7 +71,7 @@ export default async function ContactRecordPage(
         include: { needsAssessmentRequests: { orderBy: { sentAt: "desc" }, take: 1 } },
       },
       quotes: { orderBy: { createdAt: "desc" } },
-      invoices: { orderBy: { createdAt: "desc" } },
+      invoices: { orderBy: { createdAt: "desc" }, include: { payments: true } },
       dossiers: { include: { session: { include: { course: true } } }, orderBy: { createdAt: "desc" } },
       clientOutreaches: { orderBy: { sentAt: "desc" } },
     },
@@ -122,8 +122,19 @@ export default async function ContactRecordPage(
 
   const hasUnpaidInvoice = contact.invoices.some((i) => i.status === "SENT" || i.status === "OVERDUE");
   const hasQuote = contact.quotes.length > 0;
-  const totalPaid = contact.invoices.filter((i) => i.status === "PAID").reduce((sum, i) => sum + i.amountCents, 0);
-  const totalDue = contact.invoices.filter((i) => i.status === "SENT" || i.status === "OVERDUE").reduce((sum, i) => sum + i.amountCents, 0);
+  // Comme sur /facturation (BankValidationTab, InvoicesTab) : dérivé des
+  // paiements réellement enregistrés (relation Invoice.payments), jamais du
+  // seul statut. Un règlement partiel confirmé par rapprochement bancaire
+  // crée un Payment sans faire passer la facture en PAID (voir
+  // recordInvoicePayment) — se fier au statut sous-comptait "Total payé" et
+  // affichait le montant TOTAL de la facture en "En attente" au lieu du solde.
+  const totalPaid = contact.invoices.reduce(
+    (sum, i) => sum + i.payments.reduce((s, p) => s + p.amountCents, 0),
+    0,
+  );
+  const totalDue = contact.invoices
+    .filter((i) => i.status === "SENT" || i.status === "OVERDUE")
+    .reduce((sum, i) => sum + (i.amountCents - i.payments.reduce((s, p) => s + p.amountCents, 0)), 0);
 
   const initials = `${contact.firstName[0] ?? ""}${contact.lastName[0] ?? ""}`.toUpperCase();
   const latestOpportunity = contact.opportunities[0] ?? null;

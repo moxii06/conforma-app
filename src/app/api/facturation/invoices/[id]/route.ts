@@ -16,6 +16,11 @@ const schema = z
     reference: z.string().min(1).max(60).optional(),
     description: z.string().max(300).nullable().optional(),
     amountCents: z.number().int().positive().optional(),
+    // BPF §5.13. Absent de cette route jusqu'ici : une facture créée sans
+    // cette information (p. ex. depuis le composeur du CRM, avant qu'il ne
+    // la demande aussi) restait marquée "Non renseigné" de façon permanente,
+    // faute de tout moyen de la corriger après coup.
+    fundingOrigin: z.enum(["company", "opco", "public", "individual"]).optional(),
     dueDate: z.string().optional(),
     // Le détail, quand il est envoyé, REMPLACE l'ancien en entier.
     lines: z
@@ -56,7 +61,20 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (!ok) return NextResponse.json({ error: "Facture introuvable." }, { status: 404 });
   }
 
-  // La correction du contenu, s'il y en a une.
+  // L'origine du financement se corrige quel que soit le statut de la
+  // facture, contrairement au reste du contenu ci-dessous. Ce n'est pas une
+  // mention de la pièce comptable elle-même — elle n'apparaît sur aucun PDF
+  // envoyé au client (voir bpfReport.ts, seul lecteur) — donc l'article
+  // L123-22 ne s'y applique pas : la corriger après émission ne réécrit rien
+  // que le client ou son expert-comptable détiendrait. Sans cette sortie du
+  // garde-fou DRAFT, une facture déjà envoyée sans origine renseignée (le
+  // défaut d'origine de ce correctif) resterait "Non renseigné" au BPF pour
+  // toujours, ce qui est précisément le défaut signalé.
+  if (parsed.data.fundingOrigin !== undefined) {
+    await prisma.invoice.update({ where: { id: invoice.id }, data: { fundingOrigin: parsed.data.fundingOrigin } });
+  }
+
+  // La correction du reste du contenu, s'il y en a une.
   //
   // Refusée dès que la facture a quitté le brouillon, et la règle est ici plus
   // dure que pour un devis : une facture émise est une pièce comptable. Le

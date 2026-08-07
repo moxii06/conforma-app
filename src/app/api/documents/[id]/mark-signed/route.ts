@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { notifyDocumentSigned, syncParcoursFromSignedDocument } from "@/lib/documentSending";
+import { notifyDocumentSigned, syncParcoursFromSignedDocument, materialiseScheduleFromSignedDocument } from "@/lib/documentSending";
 
 // Déclarer manuellement qu'un document a été signé (retour papier).
 //
 // Le pendant humain du webhook Yousign. Il appelle DÉLIBÉRÉMENT les mêmes
-// deux helpers que la voie automatique : « ce qui se passe quand un
+// trois helpers que la voie automatique : « ce qui se passe quand un
 // document est signé » doit exister à un seul endroit, sinon un contrat
-// signé sur papier n'avancerait pas le Parcours de l'apprenant alors qu'un
-// contrat signé en ligne le ferait — et personne ne comprendrait pourquoi.
+// signé sur papier n'avancerait pas le Parcours de l'apprenant, ni ne
+// matérialiserait son échéancier en factures, alors qu'un contrat signé
+// en ligne le ferait — et personne ne comprendrait pourquoi.
 export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await getSessionContext();
@@ -43,6 +44,7 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
 
   await notifyDocumentSigned(doc, session.organizationId);
   await syncParcoursFromSignedDocument(doc);
+  await materialiseScheduleFromSignedDocument(doc);
 
   return NextResponse.json({ ok: true });
 }

@@ -27,6 +27,17 @@ export const FUNDING_ORIGIN_LABELS: Record<string, string> = {
   unset: "Non renseigné",
 };
 
+// Choix proposés dans le sélecteur "Origine du financement" à la création
+// d'une facture — sans "unset", qui n'est jamais un choix qu'on fait mais
+// l'état d'une facture jamais renseignée. Partagé entre le composeur de
+// Facturation (NewInvoiceForm) et celui du CRM (PieceFinanciereTab) : mêmes
+// options, même ordre, pour que les deux écrans posent exactement la même
+// question — un audit BPF a trouvé qu'une facture créée depuis le CRM ne la
+// posait pas du tout.
+export const FUNDING_ORIGIN_SELECTABLE = Object.fromEntries(
+  Object.entries(FUNDING_ORIGIN_LABELS).filter(([key]) => key !== "unset"),
+);
+
 // Client feedback: at enrollment time (any entry point), staff should be
 // able to say which category a learner falls into and, when that implies an
 // employer is footing the bill, capture that employer's identity right

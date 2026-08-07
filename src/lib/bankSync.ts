@@ -8,9 +8,15 @@ import { fetchAccountTransactions } from "@/lib/bridge";
 // account, same idea as the CSV import's createMany (see
 // /api/import/bank-transactions) — re-syncing never double-counts a
 // payment already seen.
-export async function syncBankTransactions(organizationId?: string): Promise<{ accountsSynced: number; transactionsInserted: number; errors: string[] }> {
+//
+// `connectionId` narrows a run to one bank connection — the manual
+// "Synchroniser" button under a single bank passes its own connection id so
+// clicking it doesn't silently resync every other connected bank too; the
+// cron (no organizationId, no connectionId) and a bare manual "tout
+// resynchroniser" call (organizationId only) still sweep every connection.
+export async function syncBankTransactions(organizationId?: string, connectionId?: string): Promise<{ accountsSynced: number; transactionsInserted: number; errors: string[] }> {
   const connections = await prisma.bankConnection.findMany({
-    where: { status: "linked", ...(organizationId ? { organizationId } : {}) },
+    where: { status: "linked", ...(organizationId ? { organizationId } : {}), ...(connectionId ? { id: connectionId } : {}) },
     include: { accounts: true },
   });
 

@@ -13,7 +13,7 @@ import { Pagination } from "@/components/Pagination";
 import { RecordPaymentForm } from "@/components/RecordPaymentForm";
 import { CreatePaymentLinkButton } from "@/components/CreatePaymentLinkButton";
 import { BankStatementImportDialog } from "@/components/BankStatementImportDialog";
-import { BankTransactionReview } from "@/components/BankTransactionReview";
+import { BankTransactionReview, BankTransactionRestore } from "@/components/BankTransactionReview";
 import { BankConnectionPanel } from "@/components/BankConnectionPanel";
 import { isStripeConfigured } from "@/lib/stripe";
 import { isBridgeConfigured } from "@/lib/bridge";
@@ -62,7 +62,7 @@ const PAGE_SIZE = 30;
 
 export default async function FacturationPage(
   props: {
-    searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string; ref?: string; q?: string; page?: string }>;
+    searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string; ref?: string; q?: string; page?: string; banque?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -70,6 +70,12 @@ export default async function FacturationPage(
   if (can(role, "invoicing") === "none") redirect("/dashboard");
   const canWrite = can(role, "invoicing") !== "none";
   const activeTab = searchParams.tab ?? "devis";
+  // Sous-vue de l'onglet « À valider » : par défaut les transactions en
+  // attente, ou — sur le même modèle que les emails archivés de la boîte
+  // mail — les transactions qu'un membre de l'équipe a marquées « Ignorer ».
+  // Paramètre distinct de `status` (qui filtre les DocStatus devis/factures)
+  // pour ne jamais faire porter deux sens différents au même nom.
+  const bankView = searchParams.banque === "ignorees" ? "ignorees" : "attente";
   // Il n'existe pas de page par facture. Ce paramètre est ce qui donne une
   // destination aux résultats « facture » et « devis » de la recherche
   // globale : isoler la référence cherchée dans la liste, plutôt que d'y
@@ -99,8 +105,13 @@ export default async function FacturationPage(
   // de fetch de tous les dossiers non plus : le dossier lié se cherche
   // maintenant parmi ceux du client choisi (audit S7, P1 n°6) — c'était à
   // lui seul l'essentiel des 22 Mo de cette page.
-  const [pendingBankCount, fundingAlertCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
+  const [pendingBankCount, ignoredBankCount, fundingAlertCount, awaitingAgg, overdueAgg, paidAgg] = await Promise.all([
     prisma.bankTransaction.count({ where: { organizationId, status: "pending" } }),
+    // Le pendant du compteur « Archivés » de la boîte mail : combien de
+    // transactions un membre de l'équipe a marquées « Ignorer » (status
+    // dismissed) — jusqu'ici jamais relu nulle part, donc jamais compté ni
+    // affiché (voir le commentaire de BankTransaction dans schema.prisma).
+    prisma.bankTransaction.count({ where: { organizationId, status: "dismissed" } }),
     prisma.fundingCommitment.count({
       where: {
         organizationId,
@@ -206,7 +217,12 @@ export default async function FacturationPage(
           <FundingPipelineTab organizationId={organizationId} canWrite={canWrite} />
         ) : activeTab === "a-valider" ? (
           canWrite ? (
-            <BankValidationTab organizationId={organizationId} />
+            <BankValidationTab
+              organizationId={organizationId}
+              view={bankView}
+              pendingCount={pendingBankCount}
+              ignoredCount={ignoredBankCount}
+            />
           ) : null
         ) : (
           <>
@@ -293,31 +309,20 @@ async function FundingPipelineTab({ organizationId, canWrite }: { organizationId
   );
 }
 
-async function BankValidationTab({ organizationId }: { organizationId: string }) {
-  const [pending, openInvoices, connections] = await Promise.all([
-    prisma.bankTransaction.findMany({
-      where: { organizationId, status: "pending" },
-      orderBy: { bookedAt: "desc" },
-    }),
-    prisma.invoice.findMany({
-      where: { organizationId, status: { in: ["SENT", "OVERDUE", "SIGNED"] } },
-      // funder inclus : c'est lui qui vire sur une facture subrogée, donc
-      // c'est son nom qu'il faut chercher dans le libellé bancaire.
-      include: { contact: { include: { company: true } }, payments: true, funder: { select: { name: true } } },
-    }),
-    isBridgeConfigured() ? prisma.bankConnection.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } }) : Promise.resolve([]),
-  ]);
-
-  const invoiceCandidates = openInvoices.map((inv) => ({
-    id: inv.id,
-    reference: inv.reference,
-    amountCents: inv.amountCents,
-    paidCents: inv.payments.reduce((sum, p) => sum + p.amountCents, 0),
-    createdAt: inv.createdAt,
-    contact: { firstName: inv.contact.firstName, lastName: inv.contact.lastName, company: inv.contact.company },
-    funder: inv.funder,
-  }));
-  const invoiceById = new Map(openInvoices.map((inv) => [inv.id, inv]));
+async function BankValidationTab({
+  organizationId,
+  view,
+  pendingCount,
+  ignoredCount,
+}: {
+  organizationId: string;
+  view: "attente" | "ignorees";
+  pendingCount: number;
+  ignoredCount: number;
+}) {
+  const connections = isBridgeConfigured()
+    ? await prisma.bankConnection.findMany({ where: { organizationId }, orderBy: { createdAt: "desc" } })
+    : [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -340,40 +345,133 @@ async function BankValidationTab({ organizationId }: { organizationId: string })
           <BankStatementImportDialog />
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        {pending.map((tx) => {
-          const ranked = rankInvoiceMatches(
-            { amountCents: tx.amountCents, bookedAt: tx.bookedAt, label: tx.label, counterpartyName: tx.counterpartyName },
-            invoiceCandidates
-          );
-          const suggestions = ranked.map((m) => {
-            const inv = invoiceById.get(m.invoiceId)!;
-            const paidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
-            return {
-              id: inv.id,
-              reference: inv.reference,
-              contactName: `${inv.contact.firstName} ${inv.contact.lastName}`,
-              remainingCents: inv.amountCents - paidCents,
-              score: m.score,
-              reasons: m.reasons,
-            };
-          });
-          return (
-            <BankTransactionReview
-              key={tx.id}
-              transactionId={tx.id}
-              bookedAt={format(tx.bookedAt, "d MMM yyyy", { locale: fr })}
-              amountCents={tx.amountCents}
-              label={tx.label}
-              suggestions={suggestions}
-              confident={(ranked[0]?.score ?? 0) >= CONFIDENT_MATCH_THRESHOLD}
-            />
-          );
-        })}
-        {pending.length === 0 && (
-          <div className="text-[12.5px] text-slate">Aucune transaction en attente — importez un relevé pour commencer.</div>
-        )}
+
+      {/* Sous-vue « À valider » / « Ignorées » — même principe que l'onglet
+          Archivés de la boîte mail : une transaction ignorée reste
+          consultable et réversible (trace d'audit qui/quand), jamais
+          supprimée. Voir le commentaire de BankTransaction dans
+          schema.prisma. */}
+      <div className="flex items-center gap-1 border-b border-line">
+        <Link
+          href="/facturation?tab=a-valider"
+          className={`px-3 py-2 text-[12.5px] font-medium border-b-2 transition-colors -mb-px ${
+            view === "attente" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
+          }`}
+        >
+          À valider ({pendingCount})
+        </Link>
+        <Link
+          href="/facturation?tab=a-valider&banque=ignorees"
+          className={`px-3 py-2 text-[12.5px] font-medium border-b-2 transition-colors -mb-px ${
+            view === "ignorees" ? "border-ink text-ink" : "border-transparent text-slate hover:text-ink"
+          }`}
+        >
+          Ignorées ({ignoredCount})
+        </Link>
       </div>
+
+      {view === "ignorees" ? (
+        <IgnoredBankTransactions organizationId={organizationId} />
+      ) : (
+        <PendingBankTransactions organizationId={organizationId} />
+      )}
+    </div>
+  );
+}
+
+async function PendingBankTransactions({ organizationId }: { organizationId: string }) {
+  const [pending, openInvoices] = await Promise.all([
+    prisma.bankTransaction.findMany({
+      where: { organizationId, status: "pending" },
+      orderBy: { bookedAt: "desc" },
+    }),
+    prisma.invoice.findMany({
+      where: { organizationId, status: { in: ["SENT", "OVERDUE", "SIGNED"] } },
+      // funder inclus : c'est lui qui vire sur une facture subrogée, donc
+      // c'est son nom qu'il faut chercher dans le libellé bancaire.
+      include: { contact: { include: { company: true } }, payments: true, funder: { select: { name: true } } },
+    }),
+  ]);
+
+  const invoiceCandidates = openInvoices.map((inv) => ({
+    id: inv.id,
+    reference: inv.reference,
+    amountCents: inv.amountCents,
+    paidCents: inv.payments.reduce((sum, p) => sum + p.amountCents, 0),
+    createdAt: inv.createdAt,
+    contact: { firstName: inv.contact.firstName, lastName: inv.contact.lastName, company: inv.contact.company },
+    funder: inv.funder,
+  }));
+  const invoiceById = new Map(openInvoices.map((inv) => [inv.id, inv]));
+
+  return (
+    <div className="flex flex-col gap-2">
+      {pending.map((tx) => {
+        const ranked = rankInvoiceMatches(
+          { amountCents: tx.amountCents, bookedAt: tx.bookedAt, label: tx.label, counterpartyName: tx.counterpartyName },
+          invoiceCandidates
+        );
+        const suggestions = ranked.map((m) => {
+          const inv = invoiceById.get(m.invoiceId)!;
+          const paidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
+          return {
+            id: inv.id,
+            reference: inv.reference,
+            contactName: `${inv.contact.firstName} ${inv.contact.lastName}`,
+            remainingCents: inv.amountCents - paidCents,
+            score: m.score,
+            reasons: m.reasons,
+          };
+        });
+        return (
+          <BankTransactionReview
+            key={tx.id}
+            transactionId={tx.id}
+            bookedAt={format(tx.bookedAt, "d MMM yyyy", { locale: fr })}
+            amountCents={tx.amountCents}
+            label={tx.label}
+            suggestions={suggestions}
+            confident={(ranked[0]?.score ?? 0) >= CONFIDENT_MATCH_THRESHOLD}
+          />
+        );
+      })}
+      {pending.length === 0 && (
+        <div className="text-[12.5px] text-slate">Aucune transaction en attente — importez un relevé pour commencer.</div>
+      )}
+    </div>
+  );
+}
+
+// L'onglet Ignorées : ce que « Ignorer » a mis de côté, sur le même modèle
+// que l'onglet Archivés de la boîte mail — consultable (qui, quand) et
+// réversible, plutôt qu'un aller sans retour dont l'écran ne montrait même
+// pas le résultat.
+async function IgnoredBankTransactions({ organizationId }: { organizationId: string }) {
+  const dismissed = await prisma.bankTransaction.findMany({
+    where: { organizationId, status: "dismissed" },
+    orderBy: { reviewedAt: "desc" },
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      {dismissed.map((tx) => (
+        <div key={tx.id} className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[13.5px] font-semibold text-ink truncate">{tx.label}</div>
+            <div className="text-[12px] text-slate mt-1">
+              {format(tx.bookedAt, "d MMM yyyy", { locale: fr })}
+              {tx.reviewedByName && tx.reviewedAt && ` · ignorée par ${tx.reviewedByName} le ${format(tx.reviewedAt, "d MMM yyyy", { locale: fr })}`}
+            </div>
+          </div>
+          <div className="shrink-0 flex items-center gap-3.5">
+            <span className="text-[15px] font-mono tabular-nums text-slate font-semibold">+{formatAmount(tx.amountCents)}</span>
+            <BankTransactionRestore transactionId={tx.id} />
+          </div>
+        </div>
+      ))}
+      {dismissed.length === 0 && (
+        <div className="text-[12.5px] text-slate">Aucune transaction ignorée.</div>
+      )}
     </div>
   );
 }
@@ -632,11 +730,18 @@ async function InvoicesTab({
                     hasEmail={Boolean(inv.contact.email)}
                   />
                   {/* Encaissement : seulement une fois la facture partie —
-                      enregistrer un règlement sur un brouillon n'a pas de sens. */}
-                  {inv.status !== "DRAFT" && (
+                      enregistrer un règlement sur un brouillon n'a pas de sens.
+                      Et plus du tout une fois PAID : « Marquer payé » déclare un
+                      état sans passer par recordInvoicePayment() (voir
+                      appliquerStatutFacture dans lib/invoiceStatus.ts), donc le
+                      formulaire pouvait rester actif sous un badge « Payé » avec
+                      0 € encaissé en dessous — deux affichages contradictoires
+                      sur le même document. Par définition, une facture PAID n'a
+                      plus rien à encaisser. */}
+                  {inv.status !== "DRAFT" && inv.status !== "PAID" && (
                     <>
                       <RecordPaymentForm invoiceId={inv.id} amountCents={inv.amountCents} totalPaidCents={totalPaidCents} />
-                      {stripeConfigured && inv.status !== "PAID" && <CreatePaymentLinkButton invoiceId={inv.id} />}
+                      {stripeConfigured && <CreatePaymentLinkButton invoiceId={inv.id} />}
                     </>
                   )}
                 </div>

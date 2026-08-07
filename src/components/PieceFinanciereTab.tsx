@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { InvoiceLinesEditor, toDraftLines, LIGNE_VIDE, type EditableLine } from "@/components/InvoiceLinesEditor";
 import { linesTotalCents, formatEuros } from "@/lib/invoiceLines";
+import { FUNDING_ORIGIN_SELECTABLE } from "@/lib/bpfCategories";
 import {
   PIECES,
   echeanceParDefaut,
@@ -54,6 +55,10 @@ export function PieceFinanciereTab({
   const [montant, setMontant] = useState("");
   const [designation, setDesignation] = useState("");
   const [echeance, setEcheance] = useState(() => echeanceParDefaut(new Date()));
+  // Même défaut que la Facturation (NewInvoiceForm) — voir
+  // FUNDING_ORIGIN_SELECTABLE : les deux composeurs doivent poser la même
+  // question avec la même réponse de départ.
+  const [origineFinancement, setOrigineFinancement] = useState("company");
   // Le détail ligne à ligne, replié tant qu'on n'en demande pas.
   const [lignes, setLignes] = useState<EditableLine[]>([]);
 
@@ -106,6 +111,7 @@ export function PieceFinanciereTab({
     setMontant(String(pieceAttachee.amountCents / 100));
     setDesignation(pieceAttachee.description ?? "");
     if (pieceAttachee.dueDate) setEcheance(pieceAttachee.dueDate.slice(0, 10));
+    if (mots.champOrigineFinancement) setOrigineFinancement(pieceAttachee.fundingOrigin ?? "company");
     // Le détail existant est rechargé dans l'éditeur avant toute réécriture —
     // sans ça, enregistrer une simple correction de libellé effacerait la
     // grille de prestations sans que personne le voie.
@@ -172,6 +178,7 @@ export function PieceFinanciereTab({
       reference: reference.trim(),
       amountCents: cents,
       ...(mots.champEcheance ? { dueDate: echeance } : {}),
+      ...(mots.champOrigineFinancement ? { fundingOrigin: origineFinancement } : {}),
       // Envoyé même vide en modification : c'est ainsi qu'on retire un détail
       // devenu faux. À la création, un tableau vide n'a rien à dire.
       ...(montantPilotéParLesLignes || enModification ? { lines: lignesRemplies } : {}),
@@ -204,6 +211,7 @@ export function PieceFinanciereTab({
       createdAt: body.createdAt,
       description: body.description ?? null,
       dueDate: body.dueDate ?? null,
+      fundingOrigin: body.fundingOrigin ?? null,
       // Les routes de création/correction ne renvoient pas le détail ; on tient
       // celui qu'on vient d'écrire, et c'est lui qui fait foi.
       lines: lignesRemplies,
@@ -313,18 +321,43 @@ export function PieceFinanciereTab({
               className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
             />
           </label>
-          {/* L'échéance n'existe que sur une facture — c'est une mention
-              obligatoire (art. L441-9 du code de commerce), pas un confort. */}
-          {mots.champEcheance && (
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-slate uppercase tracking-wide">Échéance de paiement</span>
-              <input
-                type="date"
-                value={echeance}
-                onChange={(e) => setEcheance(e.target.value)}
-                className="self-start border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
-              />
-            </label>
+          {/* Échéance et origine du financement n'existent que sur une facture,
+              pour la même raison : deux mentions obligatoires (art. L441-9 du
+              code de commerce pour l'une, BPF §5.13 pour l'autre), pas un
+              confort. Sans le second sélecteur ici, une facture créée depuis
+              ce composeur restait marquée « Non renseigné » au rapport BPF de
+              façon permanente — rien ne permettait de le corriger après
+              coup. */}
+          {(mots.champEcheance || mots.champOrigineFinancement) && (
+            <div className="grid grid-cols-2 gap-2">
+              {mots.champEcheance && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-slate uppercase tracking-wide">Échéance de paiement</span>
+                  <input
+                    type="date"
+                    value={echeance}
+                    onChange={(e) => setEcheance(e.target.value)}
+                    className="self-start border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
+                  />
+                </label>
+              )}
+              {mots.champOrigineFinancement && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] text-slate uppercase tracking-wide">Origine du financement</span>
+                  <select
+                    value={origineFinancement}
+                    onChange={(e) => setOrigineFinancement(e.target.value)}
+                    className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
+                  >
+                    {Object.entries(FUNDING_ORIGIN_SELECTABLE).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
           )}
           {/* Plusieurs prestations sur une même pièce : le détail s'ouvre ici,
               plutôt que d'obliger à repasser par la Facturation au milieu d'un

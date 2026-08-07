@@ -6,12 +6,8 @@ import { InvoiceLinesEditor, toDraftLines, type EditableLine } from "@/component
 import { ContactSearchInput, type ContactHit } from "@/components/ContactSearchInput";
 import { DossierSearchSelect } from "@/components/DossierSearchSelect";
 import { Field, DialogShell } from "@/components/DialogShell";
-import { FUNDING_ORIGIN_LABELS } from "@/lib/bpfCategories";
+import { FUNDING_ORIGIN_SELECTABLE } from "@/lib/bpfCategories";
 import { Button } from "@/components/ui";
-
-const FUNDING_LABELS = Object.fromEntries(
-  Object.entries(FUNDING_ORIGIN_LABELS).filter(([key]) => key !== "unset")
-);
 
 // Pre-fills the standard 30-day payment term as an editable default rather
 // than leaving the field blank — staff can shorten/extend it per client,
@@ -178,7 +174,7 @@ export function NewInvoiceForm() {
         <div className="grid grid-cols-2 gap-2.5">
           <Field label="Origine du financement">
             <select value={fundingOrigin} onChange={(e) => setFundingOrigin(e.target.value)} className={inputClass}>
-              {Object.entries(FUNDING_LABELS).map(([value, label]) => (
+              {Object.entries(FUNDING_ORIGIN_SELECTABLE).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

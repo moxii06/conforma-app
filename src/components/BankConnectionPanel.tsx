@@ -35,7 +35,11 @@ export function BankConnectionPanel({ connections }: { connections: Connection[]
 
   async function sync(id: string) {
     setSyncing(id);
-    await fetch("/api/facturation/bank/sync", { method: "POST" });
+    await fetch("/api/facturation/bank/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connectionId: id }),
+    });
     setSyncing(null);
     router.refresh();
   }

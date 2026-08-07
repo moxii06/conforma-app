@@ -34,6 +34,19 @@ export function DocStatusSelect({ kind, id, status }: { kind: "quotes" | "invoic
   const [saving, setSaving] = useState(false);
   const labels = statusLabels(kind);
 
+  // PAID et OVERDUE n'ont aucune traduction dans le modèle d'un devis : seuls
+  // SENT et SIGNED déclenchent quelque chose (marquerDevisEnvoye/
+  // marquerDevisSigne, /api/facturation/quotes/[id]) et un devis n'a même pas
+  // de date d'échéance pour justifier « En retard ». Les proposer ici, c'est
+  // laisser l'écriture en base réussir sans que rien ne se passe. On garde
+  // la valeur courante si un devis existant les porte déjà (donnée
+  // historique) pour ne pas afficher un menu qui ne correspond pas à l'état
+  // réel.
+  const hiddenForQuotes: DocStatus[] = ["PAID", "OVERDUE"];
+  const options = (Object.entries(labels) as [DocStatus, string][]).filter(
+    ([value]) => kind === "invoices" || value === status || !hiddenForQuotes.includes(value)
+  );
+
   async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setSaving(true);
     await fetch(`/api/facturation/${kind}/${id}`, {
@@ -52,7 +65,7 @@ export function DocStatusSelect({ kind, id, status }: { kind: "quotes" | "invoic
       disabled={saving}
       className="text-[11.5px] border border-line rounded px-1.5 py-0.5 text-ink outline-none focus:border-seal disabled:opacity-60"
     >
-      {Object.entries(labels).map(([value, label]) => (
+      {options.map(([value, label]) => (
         <option key={value} value={value}>
           {label}
         </option>

@@ -8,6 +8,32 @@ function formatAmount(cents: number) {
   return (cents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
 
+// L'inverse de « Ignorer », depuis l'onglet Ignorées — même principe que
+// InboxRestoreButton pour un email archivé : une transaction ignorée par
+// erreur redevient une suggestion à valider, plutôt qu'un aller sans retour.
+export function BankTransactionRestore({ transactionId }: { transactionId: string }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  async function restaurer() {
+    setLoading(true);
+    const res = await fetch(`/api/facturation/bank/transactions/${transactionId}/restore`, { method: "POST" });
+    setLoading(false);
+    if (res.ok) router.refresh();
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={restaurer}
+      disabled={loading}
+      className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink shrink-0 disabled:opacity-50"
+    >
+      {loading ? "…" : "Réactiver"}
+    </button>
+  );
+}
+
 export type InvoiceOption = { id: string; reference: string; contactName: string; remainingCents: number };
 
 export function BankTransactionReview({

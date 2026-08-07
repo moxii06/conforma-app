@@ -32,9 +32,10 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
 
   const invoices = await prisma.invoice.findMany({
     where: { organizationId: session.organizationId, contactId: contact.id },
-    // description et dueDate comprises : le composeur rouvre une facture
-    // existante dans son éditeur, et un champ absent d'ici serait relu comme
-    // vide puis réenregistré vide.
+    // description, dueDate et fundingOrigin comprises : le composeur rouvre
+    // une facture existante dans son éditeur, et un champ absent d'ici serait
+    // relu comme vide puis réenregistré vide — c'est exactement ce qui
+    // laissait l'origine du financement à "Non renseigné" en permanence.
     select: {
       id: true,
       reference: true,
@@ -43,6 +44,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
       createdAt: true,
       description: true,
       dueDate: true,
+      fundingOrigin: true,
       lines: {
         select: { designation: true, quantity: true, unitPriceCents: true, unit: true },
         orderBy: { order: "asc" },
