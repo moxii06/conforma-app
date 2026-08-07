@@ -4,10 +4,13 @@ import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, canWriteRgpd, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
 import { AddProcessingActivityForm } from "@/components/AddProcessingActivityForm";
+import { ProcessingActivityControls } from "@/components/ProcessingActivityControls";
 import { InstallStarterRegisterButton } from "@/components/InstallStarterRegisterButton";
 import { labelForLegalBasis } from "@/lib/rgpdLegalBases";
 import { AddDpiaForm } from "@/components/AddDpiaForm";
+import { DpiaControls } from "@/components/DpiaControls";
 import { AddSubProcessorForm } from "@/components/AddSubProcessorForm";
+import { SubProcessorControls } from "@/components/SubProcessorControls";
 import { AddRightsRequestForm } from "@/components/AddRightsRequestForm";
 import { RightsRequestControls } from "@/components/RightsRequestControls";
 import { AddDataBreachDialog } from "@/components/AddDataBreachDialog";
@@ -159,7 +162,7 @@ async function RegisterTab({ organizationId, canWrite }: { organizationId: strin
         <div className="flex-[2]">Traitement</div>
         <div className="flex-[1.4]">Base légale</div>
         <div className="flex-1">Conservation</div>
-        <div className="flex-[0.6]">Statut</div>
+        <div className={canWrite ? "flex-[1.6]" : "flex-[0.6]"}>Statut</div>
       </div>
       {activities.map((a) => (
         <div key={a.id} className="text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
@@ -167,8 +170,12 @@ async function RegisterTab({ organizationId, canWrite }: { organizationId: strin
             <div className="flex-[2]">{a.name}</div>
             <div className="flex-[1.4] text-slate">{labelForLegalBasis(a.legalBasis)}</div>
             <div className="flex-1 text-slate">{a.retentionPeriod}</div>
-            <div className="flex-[0.6]">
-              <Pill tone={a.riskFlag === "ok" ? "good" : "warn"}>{a.riskFlag === "ok" ? "À jour" : "À revoir"}</Pill>
+            <div className={canWrite ? "flex-[1.6]" : "flex-[0.6]"}>
+              {canWrite ? (
+                <ProcessingActivityControls activityId={a.id} name={a.name} riskFlag={a.riskFlag} />
+              ) : (
+                <Pill tone={a.riskFlag === "ok" ? "good" : "warn"}>{a.riskFlag === "ok" ? "À jour" : "À revoir"}</Pill>
+              )}
             </div>
           </div>
           {a.purpose && <div className="text-[12px] text-slate mt-1">{a.purpose}</div>}
@@ -213,23 +220,37 @@ async function DpiaTab({ organizationId, canWrite }: { organizationId: string; c
       <div className="flex text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
         <div className="flex-[1.6]">Traitement lié</div>
         <div className="flex-[2]">Objet</div>
-        <div className="flex-1">Risque</div>
-        <div className="flex-1">Statut</div>
+        {canWrite ? (
+          <div className="flex-[2]">Risque &amp; statut</div>
+        ) : (
+          <>
+            <div className="flex-1">Risque</div>
+            <div className="flex-1">Statut</div>
+          </>
+        )}
       </div>
       {records.map((r) => (
         <div key={r.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
           <div className="flex-[1.6]">{r.processingActivity.name}</div>
           <div className="flex-[2] text-slate">{r.subject}</div>
-          <div className="flex-1">
-            <Pill tone={r.riskLevel === "high" ? "danger" : r.riskLevel === "moderate" ? "warn" : "good"}>
-              {RISK_LEVEL_LABELS[r.riskLevel] ?? r.riskLevel}
-            </Pill>
-          </div>
-          <div className="flex-1">
-            <Pill tone={r.status === "validated" ? "good" : r.status === "not_required" ? "neutral" : "warn"}>
-              {DPIA_STATUS_LABELS[r.status] ?? r.status}
-            </Pill>
-          </div>
+          {canWrite ? (
+            <div className="flex-[2]">
+              <DpiaControls dpiaId={r.id} status={r.status} riskLevel={r.riskLevel} />
+            </div>
+          ) : (
+            <>
+              <div className="flex-1">
+                <Pill tone={r.riskLevel === "high" ? "danger" : r.riskLevel === "moderate" ? "warn" : "good"}>
+                  {RISK_LEVEL_LABELS[r.riskLevel] ?? r.riskLevel}
+                </Pill>
+              </div>
+              <div className="flex-1">
+                <Pill tone={r.status === "validated" ? "good" : r.status === "not_required" ? "neutral" : "warn"}>
+                  {DPIA_STATUS_LABELS[r.status] ?? r.status}
+                </Pill>
+              </div>
+            </>
+          )}
         </div>
       ))}
       {records.length === 0 && <div className="text-[12.5px] text-slate py-3">Aucune DPIA enregistrée.</div>}
@@ -262,15 +283,19 @@ async function SubProcessorsTab({ organizationId, canWrite }: { organizationId: 
         <div className="flex-[1.4]">Prestataire</div>
         <div className="flex-[1.4]">Rôle</div>
         <div className="flex-1">Localisation</div>
-        <div className="flex-[0.8]">DPA</div>
+        <div className={canWrite ? "flex-[1.6]" : "flex-[0.8]"}>DPA</div>
       </div>
       {subProcessors.map((s) => (
         <div key={s.id} className="flex items-center text-[12.5px] text-ink py-2.5 border-b border-line last:border-b-0">
           <div className="flex-[1.4]">{s.name}</div>
           <div className="flex-[1.4] text-slate">{s.role}</div>
           <div className="flex-1 text-slate">{s.location}</div>
-          <div className="flex-[0.8]">
-            <Pill tone={s.dpaStatus === "signed" ? "good" : "warn"}>{s.dpaStatus === "signed" ? "Signé" : "En attente"}</Pill>
+          <div className={canWrite ? "flex-[1.6]" : "flex-[0.8]"}>
+            {canWrite ? (
+              <SubProcessorControls subProcessorId={s.id} name={s.name} dpaStatus={s.dpaStatus} />
+            ) : (
+              <Pill tone={s.dpaStatus === "signed" ? "good" : "warn"}>{s.dpaStatus === "signed" ? "Signé" : "En attente"}</Pill>
+            )}
           </div>
         </div>
       ))}
