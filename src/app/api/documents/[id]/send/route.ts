@@ -11,6 +11,7 @@ import { sanitizeRichText, richTextToPlainText } from "@/lib/richText";
 import { fillMergeTags } from "@/lib/mergeTags";
 import { planSend, invalidRecipients, type Recipient } from "@/lib/documentBatch";
 import { scopeOfCategory } from "@/lib/documentScope";
+import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
 
 // L'envoi unifié. C'est ici que le batchId est enfin rempli — le
 // regroupement « 5/8 signés » de l'espace Documents en dépend.
@@ -83,6 +84,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   const plan = planSend(patron.category, recipients as Recipient[], randomBytes(12).toString("hex"));
   const expéditeur = auth.name || auth.email;
+  // Une seule vérification pour tout le lot plutôt qu'une par exemplaire —
+  // même config Yousign pour tous les destinataires d'un même envoi.
+  const yousignConfigured = requestSignature ? await isYousignConfigured(auth.organizationId) : false;
 
   const créés: string[] = [];
   const échecs: { name: string; raison: string }[] = [];
@@ -155,6 +159,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       continue;
     }
 
+    // Même repli que la fiche dossier : un exemplaire lié à un dossier peut
+    // se signer depuis mon-espace si Yousign échoue ou n'est pas configuré
+    // (stub) ; un destinataire sans dossier (autre contact, sous-traitant)
+    // n'a pas cet accès, donc pas de repli — voir la tentative Yousign
+    // ci-dessous, même logique que /api/dossiers/[id]/documents/send.
     const doc = await prisma.document.create({
       data: {
         organizationId: auth.organizationId,
@@ -180,15 +189,59 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         batchId: plan.batchId,
         sentByUserId: auth.userId,
         sentByName: expéditeur,
-        signatureStatus: requestSignature ? "pending" : "none",
-        signatureProvider: requestSignature ? "yousign" : null,
+        signatureStatus: requestSignature && dossier ? "pending" : "none",
+        signatureProvider: requestSignature && dossier ? "stub" : null,
       },
       select: { id: true },
     });
     créés.push(doc.id);
 
+    // Le vrai envoi Yousign quand l'organisme a une clé configurée (la
+    // sienne ou celle de la plateforme — lib/yousign.ts) ; `provider` est
+    // alors "yousign_org" ou "yousign_platform", le vocabulaire que
+    // lib/signatureQuota.ts compte réellement — jamais le littéral "yousign"
+    // écrit ici avant, que le décompte de forfait ne reconnaissait pas.
+    let sentViaYousign = false;
+    if (requestSignature && yousignConfigured) {
+      // Le dossier donne prénom/nom exacts ; un destinataire sans dossier
+      // n'a qu'un nom affiché — même découpe au mieux que la route
+      // sous-traitant (/api/subcontractors/[id]/documents/send).
+      const [prénomDéduit, ...resteDéduit] = prévu.recipient.name.trim().split(/\s+/);
+      const signerFirstName = dossier ? dossier.contact.firstName : prénomDéduit || prévu.recipient.name;
+      const signerLastName = dossier ? dossier.contact.lastName : resteDéduit.join(" ") || signerFirstName;
+      const signerEmail = dossier ? dossier.contact.email : prévu.recipient.email;
+      try {
+        const { signatureRequestId, provider } = await sendDocumentForSignature(auth.organizationId, {
+          name: titre,
+          pdf: Buffer.from(pièce.contentBase64, "base64"),
+          filename: pièce.fileName,
+          signerFirstName,
+          signerLastName,
+          signerEmail,
+        });
+        await prisma.document.update({
+          where: { id: doc.id },
+          data: { yousignSignatureRequestId: signatureRequestId, signatureProvider: provider, signatureStatus: "pending" },
+        });
+        sentViaYousign = true;
+      } catch {
+        // Repli sur le stub (dossier) ou sur rien (pas de dossier) — non
+        // bloquant, comme partout ailleurs : le document part quand même.
+      }
+    }
+
+    // Sans cette phrase, l'email partait avec le PDF mais sans aucune
+    // mention de signature — cocher la case ne changeait rien pour le
+    // destinataire, contrairement à l'envoi depuis la fiche dossier.
+    const signatureNote = sentViaYousign
+      ? `<p><br></p><p>Ce document attend votre signature électronique — vous allez recevoir un email séparé de Yousign avec le lien pour signer.</p>`
+      : requestSignature && dossier
+        ? `<p><br></p><p>Ce document attend votre signature électronique — rendez-vous dans votre espace personnel, onglet « Mes documents », pour le signer.</p>`
+        : "";
+    const messageFinal = messagePersonnalisé + signatureNote;
+
     const texteBrut =
-      richTextToPlainText(messagePersonnalisé) ||
+      richTextToPlainText(messageFinal) ||
       `Bonjour,\n\nVous trouverez ci-joint : ${titre}.\n\nBien cordialement,\n${expéditeur}\n${organization.name}`;
 
     for (const destinataire of prévu.to) {
@@ -198,7 +251,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           toName: destinataire.name,
           subject: titre,
           text: texteBrut,
-          html: messagePersonnalisé || undefined,
+          html: messageFinal || undefined,
           senderName: organization.name,
           replyTo: auth.email,
           attachment: { name: pièce.fileName, contentBase64: pièce.contentBase64 },
