@@ -193,6 +193,9 @@ model Organization {
 
   users                   User[]
   conversations           Conversation[]
+  learnerThreads          LearnerThread[]
+  platformThread          PlatformThread?
+  subcontractorDocRequirements SubcontractorDocumentRequirement[]
   contacts                Contact[]
   companies               Company[]
   dossiers                Dossier[]
@@ -354,6 +357,19 @@ model Complaint {
   assignedToName   String?
   assigneeComment  String?
   assigneeDeadline DateTime?
+  // Niveau d'urgence, indépendant du statut ET de l'échéance : l'urgence dit
+  // à quel point ça passe devant le reste, l'échéance dit pour quand.
+  // "urgent" | "soon" | "info". Défaut "soon" — ni alarmiste, ni ignoré.
+  urgency          String    @default("soon")
+  // Destinataires SUPPLÉMENTAIRES, en plus de assignedToUserId qui reste le
+  // responsable unique (« à qui c'est »). Ceux-ci sont prévenus et peuvent
+  // suivre, sans que la responsabilité se dilue : une demande dont tout le
+  // monde est responsable n'est traitée par personne.
+  notifyUserIds    String[]  @default([])
+  // Preuve que le traitement a bien eu lieu — la note écrite existait déjà,
+  // il manquait la pièce jointe. Vercel Blob, comme partout ailleurs.
+  proofFileUrl     String?
+  proofFileName    String?
   // Manual, independent of status — client feedback: a resolved complaint
   // shouldn't just pile up in the main list forever; give staff an explicit
   // "Archivées" tab to move it out of the way once truly done with it.
@@ -393,6 +409,19 @@ model SecureReport {
   assignedToName   String?
   assigneeComment  String?
   assigneeDeadline DateTime?
+  // Niveau d'urgence, indépendant du statut ET de l'échéance : l'urgence dit
+  // à quel point ça passe devant le reste, l'échéance dit pour quand.
+  // "urgent" | "soon" | "info". Défaut "soon" — ni alarmiste, ni ignoré.
+  urgency          String    @default("soon")
+  // Destinataires SUPPLÉMENTAIRES, en plus de assignedToUserId qui reste le
+  // responsable unique (« à qui c'est »). Ceux-ci sont prévenus et peuvent
+  // suivre, sans que la responsabilité se dilue : une demande dont tout le
+  // monde est responsable n'est traitée par personne.
+  notifyUserIds    String[]  @default([])
+  // Preuve que le traitement a bien eu lieu — la note écrite existait déjà,
+  // il manquait la pièce jointe. Vercel Blob, comme partout ailleurs.
+  proofFileUrl     String?
+  proofFileName    String?
   archivedAt       DateTime?
 
   createdAt DateTime @default(now())
@@ -488,12 +517,59 @@ model Subcontractor {
   linkedUser   User?   @relation(fields: [linkedUserId], references: [id])
   linkedUserId String? @unique
 
+  // Reconduction tacite : un contrat qui se renouvelle tout seul sauf
+  // dénonciation avant un préavis. C'est la date de PRÉAVIS qui compte, pas
+  // celle de fin — passée la première, l'organisme est engagé pour un tour de
+  // plus qu'il l'ait voulu ou non. D'où l'alerte à un mois de ce préavis (et
+  // non de la fin de contrat), demandée explicitement.
+  tacitRenewal          Boolean   @default(false)
+  // Nombre de jours AVANT contractEndDate où la dénonciation doit être
+  // envoyée. 90 j est un préavis courant, mais rien de standard : le champ
+  // reste libre et null tant que l'organisme ne l'a pas renseigné.
+  renewalNoticeDays     Int?
+
   documents   Document[]
   evaluations IntervenantEvaluation[]
   courses     Course[]                @relation("CourseSubcontractors")
 
   createdAt DateTime @default(now())
 
+  @@index([organizationId])
+}
+
+// Les pièces attendues pour un type de sous-traitant donné — la checklist qui
+// se coche toute seule à mesure que les documents arrivent.
+//
+// Une ligne par (organisme, type de sous-traitant, pièce attendue). Le seed
+// pose une liste de départ raisonnable (contrat, qualification, attestation
+// RC pro...) ; l'organisme en ajoute ou en retire, d'où `isDefault` qui
+// distingue ce que Jalon a proposé de ce que l'OF a lui-même défini — sans
+// quoi un re-seed écraserait ses ajouts.
+//
+// Aucune référence au document lui-même : la checklist décrit ce qui est
+// ATTENDU, l'état « fourni ou pas » se calcule en regardant les Document liés
+// au sous-traitant dont la catégorie correspond. Stocker l'état l'aurait fait
+// diverger du jour où un document est supprimé.
+model SubcontractorDocumentRequirement {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+
+  // Même vocabulaire que Subcontractor.type — formateur_externe,
+  // sous_traitant_pedagogique, prestataire_technique, autre.
+  subcontractorType String
+  // La catégorie de Document attendue (voir DocumentCategory).
+  documentCategory  String
+  label             String
+  // Une pièce peut être attendue sans être bloquante : un CV est utile,
+  // une attestation de vigilance URSSAF est exigible.
+  required          Boolean @default(true)
+  isDefault         Boolean @default(false)
+  order             Int     @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([organizationId, subcontractorType, documentCategory])
   @@index([organizationId])
 }
 
@@ -640,6 +716,25 @@ model User {
   email                       String       @unique
   name                        String
   role                        Role
+  // Rôles CUMULÉS, en plus de `role` ci-dessus.
+  //
+  // `role` reste le rôle principal et la source de vérité de tout l'existant :
+  // aucun écran, aucune route n'a besoin de connaître ce champ pour continuer
+  // de fonctionner. Un tableau vide (le défaut) = exactement le comportement
+  // d'avant.
+  //
+  // Le besoin : un formateur qui est aussi commercial. Plutôt que d'inventer
+  // des rôles composites ("FORMATEUR_COMMERCIAL"), qui auraient dû être
+  // ajoutés un par un à la matrice de permissions et à chaque test, on
+  // additionne des rôles existants — pour chaque fonctionnalité, la personne
+  // obtient le MEILLEUR des niveaux de ses rôles (voir can() dans
+  // lib/tenant.ts). Impossible ainsi de créer une combinaison qui n'a de sens
+  // pour personne, contrairement à des permissions cochées une par une.
+  //
+  // LEARNER n'y a pas sa place et est refusé côté route : un apprenant est le
+  // client de l'organisme, pas un membre de son équipe qui cumulerait des
+  // casquettes.
+  additionalRoles             Role[]       @default([])
   status                      String       @default("active") // active | invited | disabled
   passwordHash                String? // null while status = "invited" — set once the member activates their account
   activationToken             String?      @unique // set alongside status="invited"; consumed by /activation/[token]
@@ -688,8 +783,113 @@ model User {
   conversationMemberships          ConversationMember[]
   conversationsCreees              Conversation[]          @relation("ConversationCreator")
   messagesInternes                 InternalMessage[]
+  messagesApprenant                LearnerMessage[]        @relation("LearnerMessageAuthor")
 
   @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Messagerie apprenant ↔ formateurs de sa session.
+//
+// Troisième canal, volontairement distinct des deux autres :
+//   - EmailMessage      : le courrier externe, synchronisé, tourné client.
+//   - Conversation      : l'équipe de l'organisme entre elle, sans apprenant.
+//   - LearnerThread     : ici — un apprenant et les formateurs de SA session.
+//
+// Pourquoi ne pas réutiliser Conversation : sa règle d'accès est « membre de
+// l'organisme », et un apprenant n'en est pas un. Y glisser des apprenants
+// aurait ouvert les fils internes de l'équipe à des clients — exactement ce
+// que la séparation EmailMessage/Conversation avait déjà écarté une fois.
+//
+// Le fil est attaché au DOSSIER, pas au contact : c'est l'inscription à cette
+// formation-là qui ouvre le droit d'écrire, et c'est elle qui le referme.
+// Voir closesAt : un mois après la fin de la session (retrait des accès),
+// cohérent avec le masquage des coordonnées côté formateur.
+// ---------------------------------------------------------------------------
+
+model LearnerThread {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String
+  dossier        Dossier      @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId      String       @unique
+
+  // Calculée à la création, recalculée si la session change de dates.
+  // Passée cette date, le fil est en lecture seule des deux côtés : ni
+  // l'apprenant ni le formateur n'écrit plus, l'historique reste consultable
+  // par l'organisme (obligation de traçabilité) mais plus par l'apprenant.
+  closesAt      DateTime?
+  lastMessageAt DateTime  @default(now())
+
+  messages LearnerMessage[]
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model LearnerMessage {
+  id       String        @id @default(cuid())
+  thread   LearnerThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId String
+
+  // L'auteur est toujours un User : l'apprenant a lui aussi un compte
+  // (role LEARNER) dès qu'il accède à son espace. Un fil sans compte
+  // apprenant actif ne peut tout simplement pas exister.
+  author   User   @relation("LearnerMessageAuthor", fields: [authorId], references: [id])
+  authorId String
+
+  corps     String
+  createdAt DateTime @default(now())
+  // Lu par le CAMP d'en face, pas par une personne : côté organisme
+  // plusieurs formateurs peuvent suivre le même fil, et « qui exactement l'a
+  // ouvert » n'apporte rien ici — seul « l'autre partie a-t-elle vu » compte.
+  luAt      DateTime?
+
+  @@index([threadId])
+}
+
+// ---------------------------------------------------------------------------
+// Messagerie plateforme ↔ organisme : l'éditeur de Jalon et l'admin d'un OF.
+//
+// Encore un canal distinct, et pour une raison de cloisonnement : tous les
+// modèles ci-dessus vivent DANS un organisme et sont filtrés par
+// organizationId. Celui-ci traverse la frontière — il est écrit depuis le
+// back-office plateforme (/plateforme) d'un côté, lu par l'admin d'un seul
+// organisme de l'autre. Le mélanger à Conversation aurait fait apparaître
+// l'éditeur comme un membre de l'équipe de chaque client.
+//
+// À ne pas confondre avec PlatformEmailMessage, qui est un e-mail RÉELLEMENT
+// envoyé (Brevo) vers l'extérieur ; ici rien ne sort, tout se lit dans Jalon.
+// ---------------------------------------------------------------------------
+
+model PlatformThread {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  organizationId String       @unique
+
+  lastMessageAt DateTime @default(now())
+
+  messages PlatformMessage[]
+
+  createdAt DateTime @default(now())
+}
+
+model PlatformMessage {
+  id       String         @id @default(cuid())
+  thread   PlatformThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  threadId String
+
+  // "platform" (l'éditeur, depuis /plateforme) | "organization" (l'admin de
+  // l'OF). Pas de User en clé étrangère côté plateforme : l'éditeur n'est pas
+  // un utilisateur de l'organisme et n'a pas de ligne dans sa table User.
+  emetteur     String
+  auteurNom    String
+  corps        String
+  createdAt    DateTime  @default(now())
+  luParDestAt  DateTime?
+
+  @@index([threadId])
 }
 
 // ---------------------------------------------------------------------------
@@ -998,6 +1198,8 @@ model Dossier {
   satisfactionSurveyResponses SatisfactionSurveyResponse[]
   needsAssessmentRequests     NeedsAssessmentRequest[]
   withdrawalWaiver            WithdrawalWaiver?
+  learnerThread               LearnerThread?
+  atelierParticipations       AtelierParticipant[]
 
   @@index([organizationId])
   @@index([contactId])
@@ -1330,6 +1532,31 @@ model Session {
   // can be tidied away too, and so "Archives" is an explicit place to look
   // rather than sessions silently vanishing.
   archivedAt     DateTime?
+  // Règles du parcours, au niveau SESSION plutôt que formation.
+  //
+  // `null` sur les trois = la session hérite de sa formation (Course), qui
+  // hérite elle-même de l'organisme pour la rétractation. Tout l'existant
+  // reste donc inchangé tant que personne ne règle quoi que ce soit ici.
+  //
+  // Pourquoi descendre d'un cran : une même formation peut être vendue en
+  // salle un mois et à distance le suivant, et ces deux sessions n'ont pas
+  // les mêmes contraintes. Surtout, le blocage pendant la rétractation ne
+  // dépend PAS du mode de la session (présentiel/distanciel) mais de la
+  // façon dont le CONTRAT a été conclu : signé en agence, il n'y a pas de
+  // droit de rétractation du tout ; signé à distance, les 14 jours courent
+  // même si la formation se déroule ensuite en salle (art. L221-18 et
+  // L221-28 du code de la consommation — la formation professionnelle ne
+  // figure dans aucune des 13 exceptions, et « loisirs à date déterminée »
+  // ne la couvre pas). D'où contractSigningMode, qui porte le vrai critère.
+  sequentialUnlock       Boolean?
+  allowVideoSkip         Boolean?
+  withdrawalAccessPolicy String?
+  // "remote" (conclu à distance : e-mail, signature électronique, téléphone)
+  // | "in_person" (signé en présence, dans les locaux de l'organisme).
+  // null = non renseigné, on retombe sur le comportement prudent (délai
+  // applicable). C'est ce champ, et non le format de la session, qui décide
+  // si un délai de rétractation existe.
+  contractSigningMode    String?
   // Heures d'enseignement de CETTE session, quand le détail par demi-journée
   // n'existe pas. C'est le cas de tout l'historique repris d'un ancien outil :
   // l'organisme connaît le total (c'est ce qu'il a déclaré au BPF), pas le
@@ -1353,6 +1580,7 @@ model Session {
   invitations SessionInvitation[]
   attendances VirtualClassAttendance[]
   days        SessionDay[]
+  ateliers    SessionAtelier[]
 
   @@index([organizationId])
   // courseId et trainerId : le filtre par propriétaire du formateur
@@ -1362,6 +1590,69 @@ model Session {
   @@index([courseId])
   @@index([trainerId])
   @@index([startsAt])
+}
+
+// Un rendez-vous ponctuel rattaché à une session — typiquement un atelier
+// collectif ou un live dans une session « en continu ».
+//
+// Pourquoi un modèle à part plutôt qu'une seconde Session : une session en
+// continu N'A PAS de date, c'est sa définition même (chacun avance à son
+// rythme, voir SessionMode.ROLLING). Créer une session datée pour un atelier
+// aurait dédoublé les inscriptions — l'apprenant se serait retrouvé dans deux
+// sessions pour une seule formation, avec deux dossiers, deux échéanciers et
+// un BPF qui compte deux fois le même stagiaire. L'atelier est donc un
+// ÉVÉNEMENT DANS la session, pas une session concurrente.
+//
+// Les inscrits ne sont pas tous les apprenants de la session : un atelier
+// s'adresse à ceux qui s'y inscrivent (d'où AtelierParticipant), ce qui est
+// tout l'intérêt quand la session compte 200 personnes en autonomie.
+model SessionAtelier {
+  id        String  @id @default(cuid())
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+
+  titre       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime
+  // Même vocabulaire que SessionFormat, en texte libre plutôt qu'en enum :
+  // un atelier n'a pas vocation à hériter des règles d'une session (statut,
+  // capacité, émargement légal) — seulement à dire où l'on se retrouve.
+  format      String   @default("REMOTE") // IN_PERSON | REMOTE | HYBRID
+  location    String?
+  meetingLink String?
+  // Plafond propre à l'atelier, indépendant de la capacité de la session :
+  // douze personnes dans une salle pour un atelier, deux cents dans la
+  // session en autonomie autour.
+  capacity    Int?
+  annuleeAt   DateTime?
+
+  participants AtelierParticipant[]
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([startsAt])
+}
+
+model AtelierParticipant {
+  id        String         @id @default(cuid())
+  atelier   SessionAtelier @relation(fields: [atelierId], references: [id], onDelete: Cascade)
+  atelierId String
+  // Le DOSSIER, pas le contact : c'est l'inscription à cette formation-là qui
+  // donne droit à l'atelier, pas la personne dans l'absolu.
+  dossier   Dossier        @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  dossierId String
+
+  // Présence effective, distincte de l'inscription — un atelier collectif
+  // n'est pas un émargement légal (voir AttendanceEntry pour ça), mais
+  // l'organisme veut savoir qui est venu.
+  presentAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([atelierId, dossierId])
+  @@index([dossierId])
 }
 
 // A session's actual teaching days. Additive on purpose: startsAt/endsAt
