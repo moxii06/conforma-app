@@ -286,6 +286,7 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                       format: session.format,
                       location: session.location,
                       capacity: session.capacity,
+                      mode: session.mode,
                     }}
                   />
                   <ValidateSessionButton sessionId={session.id} isValidated={isValidated} />

@@ -80,10 +80,14 @@ export function CreateSessionForm({
         endsAt,
         format,
         location: location || undefined,
-        // En bande passante il n'y a pas de places a remplir. Le schema
-        // exige un entier positif : on envoie 1, qui n'est jamais lu — les
-        // ecrans en continu comptent les inscrits, pas les places restantes.
-        capacity: mode === "FIXED_DATE" ? parseInt(capacity, 10) || 1 : 1,
+        // En bande passante il n'y a pas de places a remplir, mais la valeur
+        // EST lue (resolveEnrollmentSession, assertCourseHasRoom, les
+        // ecrans catalogue/planning qui comparent inscrits vs capacite) :
+        // envoyer 1 complétait la session des le deuxieme inscrit. On
+        // reprend le meme defaut genereux que l'autre chemin de creation
+        // silencieuse (DEFAULT_SESSION_CAPACITY dans lib/enrollment.ts),
+        // qui vaut pour une capacite volontairement illimitee ici.
+        capacity: mode === "FIXED_DATE" ? parseInt(capacity, 10) || 1 : 500,
       }),
     });
 

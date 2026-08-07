@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { SessionFormat } from "@prisma/client";
+import { SessionFormat, SessionMode } from "@prisma/client";
 import { format as formatDate } from "date-fns";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui";
@@ -37,6 +37,7 @@ export function EditSessionForm({
     format: SessionFormat;
     location: string | null;
     capacity: number;
+    mode: SessionMode;
   };
 }) {
   const router = useRouter();
@@ -51,21 +52,31 @@ export function EditSessionForm({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // En continu, startsAt/endsAt ne portent pas une cohorte datée mais une
+  // fenêtre "toujours ouverte" (voir resolveEnrollmentSession) : recomposer
+  // les deux bornes depuis un seul champ `date` + heure de début/fin les
+  // rendait identiques (même jour, et souvent même heure — startsAt et
+  // endsAt d'une session en continu partagent le même HH:mm puisque seule
+  // la date diffère), ce que la route refuse ("Dates invalides."). Ce mode
+  // n'a pas de date à éditer : on masque les champs et on ne les envoie pas.
+  const isRolling = initial.mode === "ROLLING";
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    const startsAt = new Date(`${date}T${startTime}`).toISOString();
-    const endsAt = new Date(`${date}T${endTime}`).toISOString();
 
     const res = await fetch(`/api/planning/sessions/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         trainerId: trainerId || null,
-        startsAt,
-        endsAt,
+        ...(isRolling
+          ? {}
+          : {
+              startsAt: new Date(`${date}T${startTime}`).toISOString(),
+              endsAt: new Date(`${date}T${endTime}`).toISOString(),
+            }),
         format: sessFormat,
         location: location || null,
         capacity: parseInt(capacity, 10) || 1,
@@ -141,21 +152,29 @@ export function EditSessionForm({
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <label className={labelClass} htmlFor="es-date">Date</label>
-        <input id="es-date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} />
-      </div>
+      {isRolling ? (
+        <div className="text-[11.5px] text-slate">
+          Formation en continu : pas de date de cohorte — chaque apprenant suit son propre délai.
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1">
+            <label className={labelClass} htmlFor="es-date">Date</label>
+            <input id="es-date" required type="date" value={date} onChange={(e) => setDate(e.target.value)} className={fieldClass} />
+          </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-1 min-w-0">
-          <label className={labelClass} htmlFor="es-start">Début</label>
-          <input id="es-start" required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={fieldClass} />
-        </div>
-        <div className="flex flex-col gap-1 min-w-0">
-          <label className={labelClass} htmlFor="es-end">Fin</label>
-          <input id="es-end" required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={fieldClass} />
-        </div>
-      </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1 min-w-0">
+              <label className={labelClass} htmlFor="es-start">Début</label>
+              <input id="es-start" required type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className={fieldClass} />
+            </div>
+            <div className="flex flex-col gap-1 min-w-0">
+              <label className={labelClass} htmlFor="es-end">Fin</label>
+              <input id="es-end" required type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={fieldClass} />
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="flex flex-col gap-1">
         <label className={labelClass} htmlFor="es-location">

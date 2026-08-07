@@ -282,7 +282,11 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
         // dire, plutôt que d'omettre le champ : la formation peut avoir eu
         // un avis qu'on repose.
         withdrawalAccessPolicy: withdrawalPolicy === "" ? null : withdrawalPolicy,
-        initialLearners: learners.map((l) => l.input),
+        // Les apprenants ne sont PAS envoyés ici : à cet instant la session
+        // voulue (étape 4) n'existe pas encore, donc resolveEnrollmentSession
+        // leur en créerait une par défaut ("Toujours ouverte", distanciel,
+        // brouillon) au lieu de celle qu'on est en train de configurer. Ils
+        // sont inscrits plus bas, une fois cette session réellement créée.
         outline: outline.length > 0 ? outline : undefined,
       }),
     });
@@ -316,6 +320,7 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
     // Personne ne l'a décidée, et elle apparaît telle quelle dans le
     // planning. La créer ici la rend explicite.
     let sessionEchouee = false;
+    let createdSessionId: string | undefined;
     if (course?.id && rythme === "FIXED_DATE" && sessionDate) {
       const r = await fetch("/api/planning/sessions", {
         method: "POST",
@@ -336,6 +341,29 @@ export function CreateCourseForm({ members, subcontractors }: { members: Member[
         }),
       });
       sessionEchouee = !r.ok;
+      if (r.ok) {
+        const createdSession = await r.json().catch(() => null);
+        createdSessionId = createdSession?.id;
+      }
+    }
+
+    // Les apprenants, une fois la session voulue posée (ou son échec connu).
+    // Inscrire avant l'aurait fait atterrir dans la session par défaut que
+    // resolveEnrollmentSession crée quand le cours n'en a encore aucune — la
+    // session « fantôme » de l'audit. On passe explicitement l'id créé
+    // ci-dessus ; sans lui (rythme en continu, ou pas de date renseignée),
+    // resolveEnrollmentSession garde son propre comportement par défaut.
+    if (course?.id && learners.length > 0) {
+      for (const learner of learners) {
+        await fetch(`/api/courses/${course.id}/enroll`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...learner.input,
+            ...(createdSessionId ? { sessionId: createdSessionId } : {}),
+          }),
+        }).catch(() => {});
+      }
     }
 
     setLoading(false);
