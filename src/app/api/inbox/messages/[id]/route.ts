@@ -25,7 +25,18 @@ const schema = z.discriminatedUnion("action", [
     })
     .merge(enrollmentCategorySchema),
   z.object({ action: z.literal("discard") }),
+  // L'inverse de « discard » — un message archivé par erreur redevient
+  // triable. « discard » posait déjà ignoredAt sans jamais offrir de retour ;
+  // ce n'était pas voulu comme un aller sans retour, seulement pas encore fait.
+  z.object({ action: z.literal("restore") }),
   z.object({ action: z.literal("assign"), userId: z.string().min(1).nullable() }),
+  // Confirmer ou écarter la suggestion de dossier calculée à la
+  // synchronisation (voir mailboxMatching.ts). Le dossier CIBLE n'est jamais
+  // pris depuis le corps de la requête — toujours relu depuis
+  // suggestedDossierId en base — pour qu'un identifiant deviné ne puisse pas
+  // rattacher un message au dossier de quelqu'un d'autre.
+  z.object({ action: z.literal("confirm-dossier") }),
+  z.object({ action: z.literal("reject-dossier") }),
 ]);
 
 // Manual triage actions on one unsorted inbox message — spec §5.11 point 4:
@@ -53,6 +64,35 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   if (parsed.data.action === "discard") {
     await prisma.emailMessage.update({ where: { id: message.id }, data: { ignoredAt: new Date() } });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "restore") {
+    await prisma.emailMessage.update({ where: { id: message.id }, data: { ignoredAt: null } });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "confirm-dossier") {
+    if (!message.suggestedDossierId) return NextResponse.json({ error: "Aucune suggestion à confirmer." }, { status: 400 });
+    const dossier = await prisma.dossier.findFirst({
+      where: { id: message.suggestedDossierId, organizationId: session.organizationId },
+    });
+    // La suggestion peut avoir été posée avant que le dossier ne soit
+    // supprimé ou clôturé entre-temps — mieux vaut refuser proprement que
+    // pointer sur un identifiant mort.
+    if (!dossier) return NextResponse.json({ error: "Le dossier suggéré n'existe plus." }, { status: 404 });
+    await prisma.emailMessage.update({
+      where: { id: message.id },
+      data: { dossierId: dossier.id, suggestedDossierId: null, matchBasis: null },
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "reject-dossier") {
+    await prisma.emailMessage.update({
+      where: { id: message.id },
+      data: { suggestedDossierId: null, matchBasis: null },
+    });
     return NextResponse.json({ ok: true });
   }
 

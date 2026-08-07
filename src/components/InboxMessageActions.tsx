@@ -231,8 +231,12 @@ export function InboxMessageActions({
       <button onClick={() => setMode("existing")} disabled={loading} className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink">
         Rattacher
       </button>
+      {/* « Archiver », pas « Ignorer » : le geste posait déjà ignoredAt sans
+          jamais supprimer le message — c'était un archivage qui se disait
+          comme un aller sans retour. Le nom suit maintenant ce qu'il fait
+          vraiment, et l'onglet Archivés en propose le retour. */}
       <button onClick={() => send({ action: "discard" })} disabled={loading} className="text-[12px] text-rust hover:underline">
-        Ignorer
+        Archiver
       </button>
     </div>
   );

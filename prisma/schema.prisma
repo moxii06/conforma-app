@@ -990,6 +990,8 @@ model Dossier {
   accommodationRequests       AccommodationRequest[]
   complaints                  Complaint[]
   invitations                 SessionInvitation[]
+  // Les e-mails rattachés à ce dossier — le lien confirmé, pas la suggestion.
+  emails                      EmailMessage[]
   quotes                      Quote[]
   invoices                    Invoice[]
   clientOutreaches            ClientOutreach[]
@@ -2742,7 +2744,32 @@ model EmailMessage {
   // nothing and the next sync (which only looks at the last 25 messages by
   // externalId) recreates it. Setting ignoredAt keeps the externalId around
   // for that dedupe check while dropping the row out of the "à trier" list.
+  //
+  // Rebaptisé « archivé » à l'écran : le champ faisait déjà exactement cela —
+  // sortir de la file sans rien effacer — mais s'appelait « Ignorer », un
+  // aller sans retour dont rien ne montrait le résultat. Un onglet
+  // « Archivés » le rend consultable et réversible. Un second champ
+  // `archivedAt` aurait dit la même chose deux fois.
   ignoredAt DateTime?
+
+  // Quand ce message a été ouvert dans le volet de lecture, par n'importe qui
+  // de l'organisme.
+  //
+  // Volontairement à l'échelle de l'ORGANISME et non par utilisateur : une
+  // boîte mail d'organisme est partagée, et « Marie l'a déjà lu » est
+  // précisément ce que l'équipe a besoin de savoir. Un lu par personne
+  // demanderait une table de lectures et répondrait à une autre question.
+  readAt DateTime?
+
+  // Le dossier de formation auquel ce message se rapporte, une fois CONFIRMÉ.
+  //
+  // À distinguer de suggestedDossierId juste au-dessus, qui n'est qu'une
+  // hypothèse calculée à la synchronisation. La suggestion était effacée dès
+  // qu'on rattachait le contact, si bien que le lien vers le dossier n'était
+  // jamais posé nulle part : le travail s'arrêtait à mi-chemin. Ici c'est une
+  // vraie relation, écrite par une action explicite.
+  dossier   Dossier? @relation(fields: [dossierId], references: [id])
+  dossierId String?
 
   attachments EmailAttachment[]
 

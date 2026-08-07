@@ -11,6 +11,8 @@ import { AssignEmailSelect } from "@/components/AssignEmailSelect";
 import { MailboxActions } from "@/components/MailboxActions";
 import { MailboxFilterSelect } from "@/components/MailboxFilterSelect";
 import { RgpdSuggestionActions } from "@/components/RgpdSuggestionActions";
+import { InboxDossierSuggestionActions } from "@/components/InboxDossierSuggestionActions";
+import { InboxRestoreButton } from "@/components/InboxArchiveActions";
 import { Pagination } from "@/components/Pagination";
 import { Role } from "@prisma/client";
 
@@ -41,7 +43,8 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   // l'onglet RGPD est vraiment nécessaire ? »). Un lien ou un signet qui
   // pointe encore dessus retombe sur le triage, où le bandeau se trouve
   // désormais, plutôt que sur un onglet vide.
-  const activeTab = searchParams.tab === "rattachements" ? "rattachements" : "a-trier";
+  const activeTab =
+    searchParams.tab === "rattachements" ? "rattachements" : searchParams.tab === "archives" ? "archives" : "a-trier";
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
 
@@ -89,11 +92,19 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
     ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
   };
   const rgpdWhere = { organizationId, rgpdSuggestedType: { not: null } };
+  // Ce que « Archiver » (ex-Ignorer) a mis de côté — consultable et
+  // réversible, plutôt qu'un aller sans retour dont l'écran ne montrait
+  // même pas le résultat.
+  const archivedWhere = {
+    organizationId,
+    ignoredAt: { not: null },
+    ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
+  };
 
   // Les compteurs d'onglets viennent d'un `count`, plus de la longueur de la
   // liste chargée : depuis qu'elle est paginée, « À trier (30) » aurait été
   // faux à chaque fois qu'il y en a plus de trente.
-  const [unsorted, unsortedCount, suggested, suggestedCount, rgpdSuggested, rgpdCount] = await Promise.all([
+  const [unsorted, unsortedCount, suggested, suggestedCount, archived, archivedCount, rgpdSuggested, rgpdCount] = await Promise.all([
     prisma.emailMessage.findMany({
       where: unsortedWhere,
       include: { attachments: { orderBy: { createdAt: "asc" } } },
@@ -110,6 +121,14 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
       take: PAGE_SIZE,
     }),
     prisma.emailMessage.count({ where: suggestedWhere }),
+    prisma.emailMessage.findMany({
+      where: archivedWhere,
+      include: { contact: true },
+      orderBy: { receivedAt: "desc" },
+      skip: activeTab === "archives" ? (page - 1) * PAGE_SIZE : 0,
+      take: PAGE_SIZE,
+    }),
+    prisma.emailMessage.count({ where: archivedWhere }),
     canHandleRgpd
       ? prisma.emailMessage.findMany({
           where: rgpdWhere,
@@ -121,13 +140,31 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
     canHandleRgpd ? prisma.emailMessage.count({ where: rgpdWhere }) : Promise.resolve(0),
   ]);
 
+  // Le libellé du dossier suggéré — sans lui, l'onglet Rattachements
+  // montrait un contact et une date, jamais VERS QUOI le rattachement se
+  // proposait. suggestedDossierId est un identifiant nu, sans relation
+  // Prisma dédiée (voir le commentaire du schéma) : une seconde requête,
+  // bornée à la page affichée.
+  const dossierIds = [...new Set(suggested.map((m) => m.suggestedDossierId).filter((id): id is string => !!id))];
+  const suggestedDossiers = dossierIds.length
+    ? await prisma.dossier.findMany({
+        where: { id: { in: dossierIds }, organizationId },
+        select: { id: true, session: { select: { course: { select: { title: true } } } } },
+      })
+    : [];
+  const dossierLabelById = new Map(suggestedDossiers.map((d) => [d.id, d.session.course.title]));
+
   const tabs = [
     { key: "a-trier", label: `À trier (${unsortedCount})` },
     { key: "rattachements", label: `Rattachements (${suggestedCount})` },
+    { key: "archives", label: `Archivés (${archivedCount})` },
   ];
   const totalPages = Math.max(
     1,
-    Math.ceil((activeTab === "rattachements" ? suggestedCount : unsortedCount) / PAGE_SIZE)
+    Math.ceil(
+      (activeTab === "rattachements" ? suggestedCount : activeTab === "archives" ? archivedCount : unsortedCount) /
+        PAGE_SIZE
+    )
   );
 
   // Sans boîte connectée ET sans le moindre email, l'écran de triage est une
@@ -136,7 +173,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   // ci-dessous » qu'un organisme réel n'a jamais eus. On explique plutôt ce
   // que la connexion apporte, une fois. Le jeu de démo, lui, a des emails
   // sans connexion : il continue de montrer le triage, ce qui est le but.
-  if (connections.length === 0 && unsortedCount + suggestedCount + rgpdCount === 0) {
+  if (connections.length === 0 && unsortedCount + suggestedCount + archivedCount + rgpdCount === 0) {
     const peutConnecter = can(role, "integrations") === "full";
     return (
       <>
@@ -223,19 +260,48 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
                     <div className="text-[12.5px] text-ink font-medium">
                       {m.contact?.firstName} {m.contact?.lastName} — {m.subject}
                     </div>
-                    <div className="text-[11.5px] text-slate mt-0.5">{format(m.receivedAt, "d MMM yyyy", { locale: fr })}</div>
+                    <div className="text-[11.5px] text-slate mt-0.5">
+                      {format(m.receivedAt, "d MMM yyyy", { locale: fr })}
+                      {m.suggestedDossierId && (
+                        <>
+                          {" · vers "}
+                          <span className="text-ink font-medium">
+                            {dossierLabelById.get(m.suggestedDossierId) ?? "dossier inconnu"}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Pill tone="neutral">{m.matchBasis === "thread" ? "Suggéré par fil de discussion" : "Suggéré par référence"}</Pill>
                     {canWrite && (
                       <AssignEmailSelect messageId={m.id} members={members} assignedToUserId={m.assignedToUserId} />
                     )}
+                    {canWrite && <InboxDossierSuggestionActions messageId={m.id} />}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
             <div className="text-[12.5px] text-slate">Aucune suggestion en attente.</div>
+          )
+        ) : activeTab === "archives" ? (
+          archived.length > 0 ? (
+            <div className="bg-white border border-line rounded-card p-4">
+              {archived.map((m) => (
+                <div key={m.id} className="py-3 border-t border-line first:border-t-0 flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-[12.5px] text-ink font-medium">
+                      {m.contact ? `${m.contact.firstName} ${m.contact.lastName}` : m.fromName || m.fromAddress} — {m.subject}
+                    </div>
+                    <div className="text-[11.5px] text-slate mt-0.5">{format(m.receivedAt, "d MMM yyyy", { locale: fr })}</div>
+                  </div>
+                  {canWrite && <InboxRestoreButton messageId={m.id} />}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[12.5px] text-slate">Aucun message archivé.</div>
           )
         ) : (
           <>

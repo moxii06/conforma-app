@@ -22,6 +22,7 @@ type Message = {
   body: string | null;
   bodyHtml: string | null;
   receivedAt: Date;
+  readAt: Date | null;
   externalThreadId: string | null;
   assignedToUserId: string | null;
   contactId: string | null;
@@ -71,6 +72,26 @@ export function InboxTriageSplitView({
   signatureHtml: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(messages[0]?.id ?? null);
+  // Ce qui a été lu PENDANT cette visite de la page, en plus de ce que le
+  // serveur savait déjà lu (message.readAt). Un état local et non un
+  // router.refresh() à chaque sélection : rafraîchir toute la liste server
+  // component pour un geste aussi fréquent que « cliquer sur un message »
+  // rechargerait le volet entier à chaque clic, pour un gain qui ne sert
+  // qu'à soi-même — les autres écrans (compteurs, autres onglets) n'ont pas
+  // besoin de savoir en temps réel qu'on vient de lire un message.
+  const [lus, setLus] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!selectedId || lus.has(selectedId)) return;
+    const message = messages.find((m) => m.id === selectedId);
+    if (message?.readAt) return; // déjà lu côté serveur, rien à marquer
+    setLus((prev) => new Set(prev).add(selectedId));
+    void fetch(`/api/inbox/messages/${selectedId}/read`, { method: "POST" }).catch(() => {
+      // Non bloquant : au pire le message reste marqué non lu, ce qui est
+      // le défaut le plus sûr — jamais l'inverse (lu à tort).
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   // A rattachement/ignorer action refreshes the parent server component,
   // which drops the acted-on message from `messages` — fall back to
@@ -93,7 +114,13 @@ export function InboxTriageSplitView({
           const [latest, ...earlier] = thread;
           return (
             <div key={latest.externalThreadId ?? latest.id}>
-              <ThreadRow message={latest} active={latest.id === selectedId} onSelect={() => setSelectedId(latest.id)} threadCount={thread.length} />
+              <ThreadRow
+                message={latest}
+                active={latest.id === selectedId}
+                onSelect={() => setSelectedId(latest.id)}
+                threadCount={thread.length}
+                nonLu={!latest.readAt && !lus.has(latest.id)}
+              />
               {earlier.map((m) => (
                 <button
                   key={m.id}
@@ -188,11 +215,16 @@ function ThreadRow({
   active,
   threadCount,
   onSelect,
+  nonLu,
 }: {
   message: Message;
   active: boolean;
   threadCount: number;
   onSelect: () => void;
+  // Un pastille, pas un poids de police : la distinction automatisé /
+  // véritable expéditeur ci-dessous utilise déjà le gras, se superposer sur
+  // le même signal aurait rendu les deux illisibles ensemble.
+  nonLu: boolean;
 }) {
   const automated = AUTOMATED_SENDER_RE.test(message.fromAddress);
   return (
@@ -205,14 +237,19 @@ function ThreadRow({
       style={{ borderRadius: 0 }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className={`text-[12px] truncate ${automated ? "font-medium text-slate" : "font-semibold text-ink"}`}>
-          {message.fromName || message.fromAddress}
+        <span className="flex items-center gap-1.5 min-w-0">
+          {nonLu && (
+            <span className="w-1.5 h-1.5 rounded-full bg-seal shrink-0" aria-label="Non lu" title="Non lu" />
+          )}
+          <span className={`text-[12px] truncate ${automated ? "font-medium text-slate" : "font-semibold text-ink"}`}>
+            {message.fromName || message.fromAddress}
+          </span>
         </span>
         <span className={`text-[10.5px] shrink-0 ${automated ? "text-ash" : "text-slate"}`}>
           {format(message.receivedAt, "d MMM", { locale: fr })}
         </span>
       </div>
-      <div className={`text-[11.5px] truncate mt-0.5 flex items-center gap-1 ${automated ? "text-ash" : "text-ink"}`}>
+      <div className={`text-[11.5px] truncate mt-0.5 flex items-center gap-1 ${automated ? "text-ash" : "text-ink"} ${nonLu ? "pl-3" : ""}`}>
         {message.attachments.length > 0 && <Paperclip size={11} className="shrink-0 text-seal" />}
         {message.subject}
         {threadCount > 1 && <span className="text-ash shrink-0">· {threadCount}</span>}
