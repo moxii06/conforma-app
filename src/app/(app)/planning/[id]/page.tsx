@@ -20,6 +20,9 @@ import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
 import { buildSessionClosing, closingTitle } from "@/lib/sessionClosing";
 import { SendBulkDocumentDialog } from "@/components/SendBulkDocumentDialog";
 import { CloreDossiersButton } from "@/components/CloreDossiersButton";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
+import { SessionParcoursRules } from "@/components/SessionParcoursRules";
+import { SessionAteliersPanel } from "@/components/SessionAteliersPanel";
 
 const FORMAT_LABELS: Record<string, string> = {
   IN_PERSON: "Présentiel",
@@ -32,6 +35,15 @@ function formatAttendanceDuration(seconds: number) {
   const m = Math.round((seconds % 3600) / 60);
   if (h === 0) return `${m} min`;
   return `${h} h ${String(m).padStart(2, "0")} min`;
+}
+
+/** Un atelier tient sur une journée dans l'immense majorité des cas ; on ne
+ *  répète la date de fin que lorsqu'elle diffère vraiment. */
+function libelleCreneauAtelier(debut: Date, fin: Date) {
+  if (debut.toDateString() === fin.toDateString()) {
+    return `${format(debut, "EEEE d MMMM yyyy", { locale: fr })} · ${format(debut, "HH:mm")}–${format(fin, "HH:mm")}`;
+  }
+  return `${format(debut, "d MMM yyyy HH:mm", { locale: fr })} → ${format(fin, "d MMM yyyy HH:mm", { locale: fr })}`;
 }
 
 function mapLinkFor(location: string | null) {
@@ -64,6 +76,13 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
       days: {
         orderBy: { order: "asc" },
         select: { id: true, date: true, morningHours: true, afternoonHours: true, attendance: { select: { id: true } } },
+      },
+      // Les rendez-vous ponctuels de la session. Les annulés restent de la
+      // partie : des gens s'y étaient inscrits, ils doivent continuer à les
+      // voir barrés plutôt que de les voir disparaître.
+      ateliers: {
+        orderBy: { startsAt: "asc" },
+        include: { participants: { select: { dossierId: true, presentAt: true } } },
       },
     },
   });
@@ -98,6 +117,16 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   // nombre que porte le bouton de clôture, pour qu'il dise exactement ce
   // qu'il va faire plutôt qu'un « Clôturer » ambigu.
   const dossiersOuverts = session.dossiers.filter((d) => d.archivedAt === null).length;
+  // Combien de règles du parcours sont réglées POUR CETTE SESSION plutôt
+  // qu'héritées de la formation. Le nombre est porté par la section repliée :
+  // sans lui, rien ne distingue une session aux réglages standards d'une
+  // session où quelqu'un a bloqué l'accès pendant la rétractation.
+  const reglagesPropresSession = [
+    session.sequentialUnlock,
+    session.allowVideoSkip,
+    session.withdrawalAccessPolicy,
+    session.contractSigningMode,
+  ].filter((valeur) => valeur !== null).length;
 
   // QW6 — les preuves du parcours, apprenant par apprenant. Le calcul vit
   // dans src/lib/sessionClosing.ts (testé) : c'est lui qui sait qu'une
@@ -164,7 +193,12 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
       })
     : [];
 
-  const organization = canManage ? await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } }) : null;
+  // Chargée aussi pour `canEdit` (et plus seulement `canManage`) : les règles
+  // du parcours ci-dessous ont besoin du réglage de rétractation de
+  // l'organisme, dernier échelon d'héritage quand ni la session ni la
+  // formation ne disent rien. Une seule requête pour les deux usages.
+  const organization =
+    canManage || canEdit ? await prisma.organization.findUniqueOrThrow({ where: { id: auth.organizationId } }) : null;
   // Les modèles propres à la formation de cette session passent devant, et
   // ceux d'une autre formation ne sont pas proposés du tout — voir
   // lib/templateScope.ts.
@@ -218,11 +252,11 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         </ContextBanner>
       ) : !isValidated && !isPast ? (
         <ContextBanner tone="warn">
-          <strong className="font-semibold">Session en brouillon</strong> — validez-la pour activer l&apos;envoi des convocations.
+          <strong className="font-semibold">Session en brouillon</strong>{" "}— validez-la pour activer l&apos;envoi des convocations.
         </ContextBanner>
       ) : isPast && !isManuallyArchived ? (
         <ContextBanner tone="warn">
-          <strong className="font-semibold">Session terminée</strong> — vérifiez la clôture ci-dessous avant d&apos;archiver.
+          <strong className="font-semibold">Session terminée</strong>{" "}— vérifiez la clôture ci-dessous avant d&apos;archiver.
         </ContextBanner>
       ) : null}
       <div className="p-8 max-w-5xl">
@@ -329,6 +363,44 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
         </div>
 
         <div className="flex flex-col gap-5">
+        {/* Les règles du parcours, réglées pour CETTE session et non pour
+            toute la formation — une même formation se vend en salle un mois
+            et à distance le suivant, et le droit de rétractation ne dépend
+            pas du format mais de la façon dont le contrat a été conclu.
+            Repliées par défaut : on n'y touche pas à chaque ouverture de la
+            fiche, mais quand on y touche il faut tout le contexte. */}
+        {canEdit && organization && (
+          <CollapsibleSection
+            title="Règles du parcours"
+            badge={
+              reglagesPropresSession > 0 ? (
+                <Pill tone="warn">
+                  {reglagesPropresSession} réglage{reglagesPropresSession > 1 ? "s" : ""} propre
+                  {reglagesPropresSession > 1 ? "s" : ""} à la session
+                </Pill>
+              ) : (
+                <Pill tone="neutral">Tout hérité de la formation</Pill>
+              )
+            }
+          >
+            <SessionParcoursRules
+              sessionId={session.id}
+              session={{
+                sequentialUnlock: session.sequentialUnlock,
+                allowVideoSkip: session.allowVideoSkip,
+                withdrawalAccessPolicy: session.withdrawalAccessPolicy,
+                contractSigningMode: session.contractSigningMode,
+              }}
+              formation={{
+                sequentialUnlock: session.course.sequentialUnlock,
+                allowVideoSkip: session.course.allowVideoSkip,
+                withdrawalAccessPolicy: session.course.withdrawalAccessPolicy,
+              }}
+              organisme={{ withdrawalAccessPolicy: organization.withdrawalAccessPolicy }}
+            />
+          </CollapsibleSection>
+        )}
+
         {/* Vivait uniquement sur l'écran d'émargement — donc il fallait
             ouvrir l'écran de signature tactile, pensé pour la salle, pour
             simplement déclarer une deuxième journée. Toujours présent là-bas
@@ -351,6 +423,58 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
             }))}
             defaultDate={session.startsAt.toISOString().slice(0, 10)}
             canEdit={canEditDays}
+          />
+        </div>
+        )}
+
+        {/* Les ateliers ponctuels. Visibles sur toute session — un parcours
+            daté peut avoir sa soutenance — mais c'est en formation continue
+            qu'ils règlent un vrai manque : réunir une fois des apprenants
+            qui n'ont, par construction, aucune date commune.
+
+            Le bloc disparaît pour qui ne peut ni en créer ni en voir un :
+            une carte vide n'apprend rien à un formateur. */}
+        {(canEdit || session.ateliers.length > 0) && (
+        <div className="bg-white border border-line rounded-card p-5">
+          <div className="text-[13.5px] font-semibold text-ink mb-3.5">
+            Ateliers ponctuels ({session.ateliers.length})
+          </div>
+          <SessionAteliersPanel
+            sessionId={session.id}
+            // Session annulée = tout est figé, comme les convocations et la
+            // liste des inscrits plus haut. Une session simplement TERMINÉE
+            // reste modifiable ici : c'est souvent après coup qu'on pointe
+            // qui est réellement venu.
+            canEdit={canEdit && !isCancelled}
+            ateliers={session.ateliers.map((a) => ({
+              id: a.id,
+              titre: a.titre,
+              description: a.description,
+              startsAt: a.startsAt.toISOString(),
+              endsAt: a.endsAt.toISOString(),
+              // Le libellé est composé ici, comme toutes les dates de cette
+              // page : une date mise en forme dans un composant client sort
+              // dans le fuseau du serveur au premier rendu puis dans celui du
+              // visiteur à l'hydratation, et les deux ne concordent pas.
+              creneauLabel: libelleCreneauAtelier(a.startsAt, a.endsAt),
+              format: a.format,
+              location: a.location,
+              meetingLink: a.meetingLink,
+              capacity: a.capacity,
+              annuleeAt: a.annuleeAt ? a.annuleeAt.toISOString() : null,
+              // « Passé » est décidé ici et non au rendu du composant :
+              // la même comparaison faite au rendu serveur puis à
+              // l'hydratation peut donner deux résultats.
+              passe: a.endsAt < new Date(),
+              participants: a.participants.map((p) => ({
+                dossierId: p.dossierId,
+                presentAt: p.presentAt ? p.presentAt.toISOString() : null,
+              })),
+            }))}
+            dossiers={session.dossiers.map((d) => ({
+              id: d.id,
+              nom: `${d.contact.firstName} ${d.contact.lastName}`,
+            }))}
           />
         </div>
         )}

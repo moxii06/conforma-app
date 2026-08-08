@@ -12,6 +12,18 @@ const schema = z.object({
   location: z.string().nullable().optional(),
   capacity: z.number().int().positive().optional(),
   status: z.nativeEnum(SessionStatus).optional(),
+  // Règles du parcours portées par la session. `null` est une valeur à part
+  // entière et non « champ absent » : c'est le retour à l'héritage de la
+  // formation, et c'est ce que fait le bouton « Revenir à l'héritage ».
+  // D'où `.nullable().optional()` et non `.optional()` seul.
+  sequentialUnlock: z.boolean().nullable().optional(),
+  allowVideoSkip: z.boolean().nullable().optional(),
+  withdrawalAccessPolicy: z.enum(["closed", "partial"]).nullable().optional(),
+  // Le mode de conclusion du contrat — le vrai critère du droit de
+  // rétractation (voir lib/withdrawalGate.ts). Volontairement borné à
+  // l'énumération : une chaîne libre ici ferait silencieusement retomber
+  // delaiRetractationApplicable() sur « délai applicable ».
+  contractSigningMode: z.enum(["remote", "in_person"]).nullable().optional(),
 });
 
 // Single PATCH for both "edit the session's details" (date/trainer/format/
@@ -56,6 +68,10 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(data.location !== undefined ? { location: data.location } : {}),
       ...(data.capacity ? { capacity: data.capacity } : {}),
       ...(data.status ? { status: data.status } : {}),
+      ...(data.sequentialUnlock !== undefined ? { sequentialUnlock: data.sequentialUnlock } : {}),
+      ...(data.allowVideoSkip !== undefined ? { allowVideoSkip: data.allowVideoSkip } : {}),
+      ...(data.withdrawalAccessPolicy !== undefined ? { withdrawalAccessPolicy: data.withdrawalAccessPolicy } : {}),
+      ...(data.contractSigningMode !== undefined ? { contractSigningMode: data.contractSigningMode } : {}),
     },
     include: { course: true, trainer: true },
   });

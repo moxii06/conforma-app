@@ -1,18 +1,29 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin, Video } from "lucide-react";
+import { format as formatDate } from "date-fns";
+import { fr } from "date-fns/locale";
 import { LmsModulePlayer } from "@/components/LmsModulePlayer";
 import { QuizTaker } from "@/components/QuizTaker";
 import { CourseModulesList, type ModuleRow } from "@/components/CourseModulesList";
 import { CourseCertificateButton } from "@/components/CourseCertificateButton";
-import { buildCourseProgress, unlockNextModuleIfNeeded } from "@/lib/lms";
+import { buildCourseProgress, resolveRegleParcours, unlockNextModuleIfNeeded } from "@/lib/lms";
 import { loadWithdrawalGate, moduleAccessibleUnderGate } from "@/lib/withdrawalGate";
 import { WithdrawalGatePanel } from "@/components/WithdrawalGatePanel";
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
+
+/** Un atelier tient sur une journée dans l'immense majorité des cas ; on ne
+ *  répète la date de fin que lorsqu'elle diffère vraiment. */
+function libelleCreneau(debut: Date, fin: Date) {
+  if (debut.toDateString() === fin.toDateString()) {
+    return `${formatDate(debut, "EEEE d MMMM yyyy", { locale: fr })} · ${formatDate(debut, "HH:mm")}–${formatDate(fin, "HH:mm")}`;
+  }
+  return `${formatDate(debut, "d MMM yyyy HH:mm", { locale: fr })} → ${formatDate(fin, "d MMM yyyy HH:mm", { locale: fr })}`;
+}
 
 function formatCourseDuration(session: { mode: string; startsAt: Date; endsAt: Date }, accessDurationDays: number | null) {
   if (session.mode === "ROLLING") {
@@ -64,6 +75,34 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
   });
   if (!dossier) notFound();
 
+  // Les ateliers de la session auxquels CE dossier est inscrit. En lecture
+  // seule : c'est l'organisme qui constitue le groupe, l'apprenant ne
+  // s'inscrit pas lui-même. Les annulés restent affichés (barrés) — voir
+  // disparaître un rendez-vous noté dans son agenda est pire que le voir
+  // annulé.
+  //
+  // Le cloisonnement passe par la session parente : SessionAtelier ne porte
+  // pas d'organizationId.
+  const ateliers = await prisma.sessionAtelier.findMany({
+    where: {
+      session: { id: dossier.sessionId, organizationId: session.organizationId },
+      participants: { some: { dossierId: dossier.id } },
+    },
+    orderBy: { startsAt: "asc" },
+    select: {
+      id: true,
+      titre: true,
+      description: true,
+      startsAt: true,
+      endsAt: true,
+      format: true,
+      location: true,
+      meetingLink: true,
+      annuleeAt: true,
+    },
+  });
+  const maintenant = new Date();
+
   // While the learner's withdrawal period runs (signed contrat_formation,
   // no express waiver yet), the module list below is filtered to what the
   // organisation chose to open early — possibly nothing. The real
@@ -85,6 +124,13 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
 
   const progress = buildCourseProgress(modules, progressRows, dossier.quizAttempts);
   const progressByModule = new Map(progressRows.map((p) => [p.moduleId, p]));
+
+  // Le « Passer cette vidéo » se règle désormais aussi au niveau de la
+  // session (null = hérite de la formation) — voir resolveRegleParcours.
+  const autoriserSautVideo = resolveRegleParcours(
+    dossier.session.allowVideoSkip,
+    dossier.session.course.allowVideoSkip,
+  );
 
   const rows: ModuleRow[] = modules.map((m, i) => {
     const state = progress.states.get(m.id)!;
@@ -129,7 +175,7 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
             hasFile={Boolean(m.fileUrl)}
             percentComplete={p?.percentComplete ?? 0}
             lastPositionSeconds={p?.lastPositionSeconds ?? null}
-            allowSkip={dossier.session.course.allowVideoSkip}
+            allowSkip={autoriserSautVideo}
             skippedAt={p?.skippedAt ? p.skippedAt.toISOString() : null}
           />
         );
@@ -166,6 +212,62 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
             waiverText={gate.waiverText}
             partial={gate.policy === "partial" && modules.length > 0}
           />
+        )}
+
+        {/* Placé AVANT le contenu de la formation : un rendez-vous daté est
+            la seule chose de cette page qui se rate. Les modules, eux,
+            attendent. */}
+        {ateliers.length > 0 && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink">Vos rendez-vous</div>
+            <div className="text-[11.5px] text-slate mt-0.5 mb-3">
+              Les ateliers auxquels votre organisme vous a inscrit(e) pour cette formation.
+            </div>
+            <div className="flex flex-col gap-2">
+              {ateliers.map((atelier) => {
+                const annule = Boolean(atelier.annuleeAt);
+                const passe = atelier.endsAt < maintenant;
+                return (
+                  <div key={atelier.id} className="border border-line rounded-md px-3.5 py-2.5 flex flex-col gap-1">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className={`text-[13px] font-medium ${annule ? "text-slate line-through" : "text-ink"}`}>
+                        {atelier.titre}
+                      </div>
+                      <Pill tone={annule ? "danger" : passe ? "neutral" : "good"}>
+                        {annule ? "Annulé" : passe ? "Passé" : "À venir"}
+                      </Pill>
+                    </div>
+                    <div className="text-[11.5px] text-slate">{libelleCreneau(atelier.startsAt, atelier.endsAt)}</div>
+                    {atelier.description && (
+                      <div className="text-[12px] text-slate leading-relaxed">{atelier.description}</div>
+                    )}
+                    <div className="flex items-center gap-3 flex-wrap text-[11.5px] text-slate">
+                      <span>{FORMAT_LABELS[atelier.format] ?? atelier.format}</span>
+                      {atelier.location && (
+                        <span className="inline-flex items-center gap-1 min-w-0">
+                          <MapPin size={12} className="shrink-0" />
+                          <span className="truncate">{atelier.location}</span>
+                        </span>
+                      )}
+                      {/* Le lien reste masqué sur un atelier annulé : le
+                          proposer, c'est envoyer quelqu'un dans une salle
+                          vide. */}
+                      {atelier.meetingLink && !annule && (
+                        <a
+                          href={atelier.meetingLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 underline decoration-line hover:text-ink"
+                        >
+                          <Video size={12} /> Rejoindre en visio
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         <div className="bg-white border border-line rounded-card p-5">
