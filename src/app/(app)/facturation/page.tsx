@@ -159,17 +159,19 @@ export default async function FacturationPage(
         ],
       },
     }),
-    // Strip totals — "en attente" excludes anything the overdue card counts,
-    // so the two never double-comptent une même facture.
+    // Les deux cartes du bandeau, tirées des mêmes fonctions que la liste
+    // sur laquelle elles envoient (voir factureEnAttente/factureEnRetard en
+    // tête de fichier) : c'est ce partage, et lui seul, qui garantit que le
+    // nombre annoncé et le nombre de lignes affichées après le clic sont le
+    // même. « En attente » exclut donc l'échu, que compte « En retard », et
+    // aucune facture n'est comptée deux fois.
     prisma.invoice.aggregate({
-      where: { organizationId, status: "SENT", OR: [{ dueDate: null }, { dueDate: { gte: new Date() } }] },
+      where: { organizationId, ...factureEnAttente(now) },
       _sum: { amountCents: true },
       _count: true,
     }),
-    // Same auto-detection as the dashboard: dueDate passed counts as late
-    // even if staff hasn't flipped the status yet.
     prisma.invoice.aggregate({
-      where: { organizationId, status: { notIn: ["PAID", "DRAFT"] }, OR: [{ status: "OVERDUE" }, { dueDate: { lt: new Date() } }] },
+      where: { organizationId, ...factureEnRetard(now) },
       _sum: { amountCents: true },
       _count: true,
     }),
@@ -672,6 +674,11 @@ async function InvoicesTab({
   page: number;
   searchParams: Record<string, string | undefined>;
 }) {
+  // Un seul instant de référence pour toute la fonction : le filtre, le
+  // comptage et la pastille « En retard » de chaque ligne doivent trancher
+  // sur la même seconde, sinon une facture dont l'échéance tombe pendant le
+  // rendu sort du filtre tout en étant affichée sans pastille.
+  const now = new Date();
   // Le filtre « en retard » et la recherche libre posent tous deux un OR :
   // les juxtaposer à la racine ferait que l'un écrase l'autre en silence.
   // AND les garde indépendants — « en retard » ET « qui parle de Dupont ».
@@ -681,8 +688,19 @@ async function InvoicesTab({
   // dashboard total, not a strict status match — otherwise an invoice
   // overdue by dueDate but still status SENT would show in the dashboard
   // count but vanish from this filtered list.
+  //
+  // « Envoyé » porte exactement la même dette, et c'est ce qui manquait : ce
+  // n'est pas non plus un `status =` brut. La carte « En attente de
+  // paiement » retire déjà les échues — pour ne pas compter deux fois ce que
+  // la carte voisine annonce — mais son lien retombait ici sur un SENT
+  // littéral. Sur 5 factures envoyées dont 2 échues, la carte disait « 3
+  // factures » et le clic en montrait 5, dont 2 en rouge « En retard ». Les
+  // deux filtres viennent maintenant des mêmes fonctions que les deux
+  // cartes, donc les ensembles sont disjoints des deux côtés.
   if (statusFilter === "OVERDUE") {
-    conditions.push({ status: { notIn: ["PAID", "DRAFT"] }, OR: [{ status: "OVERDUE" }, { dueDate: { lt: new Date() } }] });
+    conditions.push(factureEnRetard(now));
+  } else if (statusFilter === "SENT") {
+    conditions.push(factureEnAttente(now));
   } else if (statusFilter) {
     conditions.push({ status: statusFilter });
   }
@@ -723,7 +741,6 @@ async function InvoicesTab({
     libelle: `${i.reference} — ${i.contact.firstName} ${i.contact.lastName}`,
     detail: formatAmount(i.amountCents),
   }));
-  const now = new Date();
 
   return (
     <div className="flex flex-col gap-4">
@@ -739,8 +756,16 @@ async function InvoicesTab({
             </>
           )}
         </div>
-        <div className="text-[12px] text-slate">
+        <div className="text-[12px] text-slate text-right">
           {total} facture{total > 1 ? "s" : ""}
+          {/* Le filtre « Envoyé » ne montre plus les échues, pour rester le
+              complément exact de « En retard ». Une liste qui se raccourcit
+              sans le dire se lit comme une liste complète — même règle que
+              le bandeau du filtre par référence, en plus discret puisque
+              c'est un choix explicite du sélecteur. */}
+          {statusFilter === "SENT" && (
+            <div className="text-[11px]">Hors échues — celles-ci sont sous « En retard ».</div>
+          )}
         </div>
       </div>
       <div className="flex flex-col gap-2">
@@ -820,6 +845,18 @@ async function InvoicesTab({
         {invoices.length === 0 &&
           (q ? (
             <div className="text-[12.5px] text-slate">Aucune facture ne correspond à cette recherche.</div>
+          ) : statusFilter || refFilter ? (
+            // Un filtre actif et zéro ligne, ce n'est pas « aucune facture
+            // enregistrée » : inviter un organisme qui en a trois cents à
+            // « créer la première » se lit comme une perte de données. Le cas
+            // est devenu courant avec « Envoyé », qui n'inclut plus les
+            // échues : toutes les factures envoyées peuvent être en retard.
+            <div className="text-[12.5px] text-slate">
+              Aucune facture ne correspond à ce filtre.{" "}
+              <Link href="/facturation?tab=factures" className="underline decoration-line hover:text-ink">
+                Voir toutes les factures
+              </Link>
+            </div>
           ) : (
             <EmptyState
               title="Aucune facture enregistrée"

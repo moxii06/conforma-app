@@ -232,7 +232,15 @@ export function SendProspectDocumentDialog({
     setResult(null);
 
     if (isNeedsAssessment) {
-      const res = await fetch(`/api/crm/opportunities/${opportunityId}/send-needs-assessment`, { method: "POST" });
+      // Le message part avec la demande, et ouvre l'email : c'est la route
+      // qui y ajoute ensuite le lien du formulaire et la formule de
+      // politesse. Aplati en texte brut parce que cet email-là n'a pas de
+      // partie HTML — même traitement que la branche « email simple ».
+      const res = await fetch(`/api/crm/opportunities/${opportunityId}/send-needs-assessment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: htmlToPlain(message) }),
+      });
       setSending(false);
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
@@ -352,22 +360,28 @@ export function SendProspectDocumentDialog({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-            {/* 1. Le message d'abord — c'est un envoi d'email avant tout. */}
-            {!isNeedsAssessment && (
-              <div className="flex flex-col gap-1">
-                <div className="text-[11px] text-slate uppercase tracking-wide">Votre message</div>
-                {attachMode === "none" && (
-                  <input
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="Objet de l'email"
-                    className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal mb-1"
-                  />
-                )}
-                <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={CONTACT_ONLY_MERGE_TAGS} />
-                <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
-              </div>
-            )}
+            {/* 1. Le message d'abord — c'est un envoi d'email avant tout.
+                Le recueil des besoins ne fait plus exception : l'éditeur
+                disparaissait à la sélection du modèle et le texte déjà
+                rédigé était jeté sans un mot, le prospect recevant un envoi
+                générique. La route transmet maintenant ce message, donc
+                l'éditeur reste à l'écran. */}
+            <div className="flex flex-col gap-1">
+              <div className="text-[11px] text-slate uppercase tracking-wide">Votre message</div>
+              {attachMode === "none" && (
+                <input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Objet de l'email"
+                  className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal mb-1"
+                />
+              )}
+              <RichTextEditor html={message} onChange={setMessage} resetKey={messageResetKey} placeholder="Votre message…" mergeTags={CONTACT_ONLY_MERGE_TAGS} />
+              {/* Pas de case signature en mode recueil : cet email part en
+                  texte brut et la route y écrit déjà sa formule de
+                  politesse — une signature HTML y afficherait ses balises. */}
+              {!isNeedsAssessment && <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />}
+            </div>
 
             {/* 2. La pièce jointe — aucune, bibliothèque, ou ordinateur. */}
             <div className="flex flex-col gap-2">
@@ -445,11 +459,17 @@ export function SendProspectDocumentDialog({
                     </button>
                   )}
 
+                  {/* Ce que l'envoi va faire du message, dit AVANT de cliquer.
+                      L'ancienne phrase n'annonçait que l'absence de pièce
+                      jointe ; ce qu'elle taisait, c'était le sort du texte
+                      rédigé juste au-dessus. */}
                   {isNeedsAssessment && (
-                    <div className="text-[12px] text-slate">
+                    <div className="text-[12px] text-slate leading-relaxed">
                       {alreadySentNeedsAssessment
                         ? "Un recueil a déjà été envoyé — ceci renverra un nouveau lien."
-                        : "Envoie un lien vers un formulaire en ligne que le prospect complète lui-même — pas de pièce jointe."}
+                        : "Envoie un lien vers un formulaire en ligne que le prospect complète lui-même — pas de pièce jointe."}{" "}
+                      Votre message ci-dessus ouvre l&apos;email ; le lien du formulaire et la formule de politesse sont
+                      ajoutés ensuite. Il part en texte brut : le gras et les listes ne seront pas conservés.
                     </div>
                   )}
 
