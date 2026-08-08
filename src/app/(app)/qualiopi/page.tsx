@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, MetricCard, FaqHelpLink } from "@/components/ui";
-import { getAutomaticEvidence } from "@/lib/qualiopiEvidence";
+import {
+  getAutomaticEvidence,
+  getEvidenceGaps,
+  diagnoseIndicators,
+  censusByStatus,
+  sortByUrgency,
+} from "@/lib/qualiopiEvidence";
 import { applicableIndicators, countApprenticeshipIndicators } from "@/lib/qualiopiScope";
+import { QualiopiActionPlan } from "@/components/QualiopiActionPlan";
+import { QualiopiCriteriaBreakdown } from "@/components/QualiopiCriteriaBreakdown";
 import { ApprenticeshipScopeControl } from "@/components/ApprenticeshipScopeControl";
 import { Tabs } from "@/components/Tabs";
 import { requireSessionContext, can } from "@/lib/tenant";
@@ -102,7 +110,7 @@ export default async function QualiopiPage(props: { searchParams: Promise<{ tab?
 
 async function IndicatorsTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
   const activeVersion = await getActiveVersion(organizationId);
-  const [org, allIndicators, checklistItems, versions, autoEvidence] = await Promise.all([
+  const [org, allIndicators, checklistItems, versions, autoEvidence, evidenceGaps] = await Promise.all([
     prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
     activeVersion
       ? prisma.qualiopiIndicator.findMany({ where: { versionId: activeVersion.id }, orderBy: { number: "asc" } })
@@ -116,6 +124,7 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
     prisma.auditChecklistItem.findMany({ where: { organizationId } }),
     prisma.qualiopiReferentielVersion.findMany({ where: { status: { not: "archive" } }, orderBy: { createdAt: "asc" } }),
     getAutomaticEvidence(organizationId),
+    getEvidenceGaps(organizationId),
   ]);
 
   // Un organisme sans apprentissage ne peut pas couvrir les indicateurs qui
@@ -125,27 +134,40 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
   const apprenticeshipCount = countApprenticeshipIndicators(allIndicators);
 
   const gatheredNumbers = new Set(checklistItems.filter((c) => c.gathered).map((c) => c.indicatorNumber));
-  const criteria = Array.from({ length: 7 }, (_, i) => i + 1).map((num) => {
-    const items = indicators.filter((ind) => ind.criterionNumber === num);
-    const covered = items.filter((ind) => gatheredNumbers.has(ind.number)).length;
-    return { number: num, total: items.length, covered };
-  });
 
-  const totalCovered = criteria.reduce((sum, c) => sum + c.covered, 0);
+  // Le diagnostic à trois états est calculé UNE fois et alimente les deux
+  // lectures de la page : le plan d'action en haut (ce qui reste à faire) et
+  // le détail par critère en bas (où en est chaque indicateur). Deux calculs
+  // séparés, et l'organisme lirait deux verdicts pour la même ligne.
+  const diagnoses = diagnoseIndicators(indicators, gatheredNumbers, autoEvidence, evidenceGaps);
+  const census = censusByStatus(diagnoses);
+  const todo = sortByUrgency(diagnoses.filter((d) => d.status !== "conforme"));
+
+  const criteria = Array.from({ length: 7 }, (_, i) => i + 1).map((num) => ({
+    number: num,
+    label: CRITERION_LABELS[num],
+    diagnoses: diagnoses.filter((d) => d.criterionNumber === num),
+  }));
+
   const totalIndicators = indicators.length;
+  // Compté sur les indicateurs APPLICABLES seulement, pas sur toutes les
+  // cases cochées : un CFA qui repasse `deliversApprenticeship` à faux garde
+  // des cases cochées sur des indicateurs désormais hors périmètre.
+  const totalCovered = indicators.filter((ind) => gatheredNumbers.has(ind.number)).length;
+  // Score volontairement INCHANGÉ : c'est le nombre de cases que
+  // l'organisme a cochées lui-même, celui qu'imprime le dossier d'audit
+  // (/api/qualiopi/export) et celui qu'affiche l'onglet Préparation audit.
+  // Le recalculer sur les trois états ferait dire deux choses différentes au
+  // même mot « score » selon l'écran, la veille d'un audit. L'état réel des
+  // 32 indicateurs se lit maintenant dans le plan d'action, au-dessus.
   const overallScore = totalIndicators ? Math.round((totalCovered / totalIndicators) * 100) : 0;
-  // Audit UX S4 : le score manuel ("preuves validées par vous") affiché seul
-  // et en premier laissait croire à une conformité quasi nulle, alors que
-  // la couche de preuve automatique (qualiopiEvidence.ts) — invisible tant
-  // qu'on n'a pas cliqué sur l'onglet Préparation audit — raconte une
-  // histoire bien plus favorable. Les deux chiffres cohabitent maintenant
-  // ici, et la carte pointe directement vers le détail. Libellé harmonisé
-  // avec AuditPrepTab : c'est la même case (ChecklistToggle) des deux côtés.
   const autoCount = indicators.filter((ind) => (autoEvidence.get(ind.number)?.length ?? 0) > 0).length;
   const isAuditOverdue = Boolean(org.nextAuditDate && org.nextAuditDate < new Date());
 
   return (
     <div className="flex flex-col gap-6">
+      <QualiopiActionPlan todo={todo} census={census} nextAuditDate={org.nextAuditDate} />
+
       <div className="flex gap-3.5">
         <MetricCard
           label="Score de conformité"
@@ -184,27 +206,7 @@ async function IndicatorsTab({ organizationId, canEdit }: { organizationId: stri
         <ApprenticeshipScopeControl current={org.deliversApprenticeship} affectedCount={apprenticeshipCount} />
       )}
 
-      <div className="bg-white border border-line rounded-card p-5">
-        <div className="text-[13.5px] font-semibold text-ink mb-3.5">Progression par critère</div>
-        {criteria.map((c) => {
-          const pct = c.total ? Math.round((c.covered / c.total) * 100) : 0;
-          return (
-            <div key={c.number} className="py-2.5 border-t border-line first:border-t-0">
-              <div className="flex items-center justify-between text-[12.5px] mb-1.5">
-                <div className="text-ink font-medium">
-                  Critère {c.number} — {CRITERION_LABELS[c.number]}
-                </div>
-                <div className="text-slate">
-                  {c.covered}/{c.total}
-                </div>
-              </div>
-              <div className="h-1.5 bg-pebble rounded-full overflow-hidden">
-                <div className="h-full bg-sage" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <QualiopiCriteriaBreakdown criteria={criteria} />
 
       <div className="bg-white border border-line rounded-card p-5">
         <div className="text-[13.5px] font-semibold text-ink mb-3">Veille réglementaire</div>
@@ -506,7 +508,12 @@ async function AuditPrepTab({ organizationId, canEdit }: { organizationId: strin
           const showHeader = ind.criterionNumber !== currentCriterion;
           currentCriterion = ind.criterionNumber;
           return (
-            <div key={ind.id}>
+            // L'ancre est la cible de « Voir comment corriger → » depuis le
+            // plan d'action et le détail par critère : elle amène l'organisme
+            // sur SON indicateur, résumé personnalisé compris, plutôt qu'en
+            // haut d'une liste de 32 lignes. scroll-mt dégage la barre
+            // d'onglets, sinon la ligne visée finit dessous.
+            <div key={ind.id} id={`indicateur-${ind.number}`} className="scroll-mt-24">
               {showHeader && (
                 <div className="text-[11.5px] font-semibold text-slate uppercase tracking-wide pt-4 pb-1.5 first:pt-0">
                   Critère {ind.criterionNumber} — {CRITERION_LABELS[ind.criterionNumber]}
@@ -589,7 +596,7 @@ async function ReformeTab({ organizationId }: { organizationId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-[#EDDFC6] rounded-card px-4 py-3 text-[12.5px] text-seal-dark leading-relaxed">
-        <strong>Texte non publié au Journal officiel.</strong> Le référentiel applicable reste celui du décret
+        <strong>Texte non publié au Journal officiel.</strong>{" "}Le référentiel applicable reste celui du décret
         n° 2019-565 du 6 juin 2019, avec ses 32 indicateurs. Ce qui suit reconstitue le projet de décret
         NOR TRSD2609875D à partir d&apos;analyses publiques concordantes, pour vous laisser prendre de
         l&apos;avance — pas pour servir de référence en audit. Les libellés officiels devront être repris à la
