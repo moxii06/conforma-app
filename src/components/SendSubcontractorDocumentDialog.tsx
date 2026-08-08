@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { plainTextToHtml } from "@/lib/plainTextToHtml";
@@ -9,7 +10,7 @@ import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
-import type { QuestionKey } from "@/lib/documentQuestionnaire";
+import { QUESTION_BY_KEY, SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
 import { DialogShell } from "@/components/DialogShell";
 
@@ -62,6 +63,10 @@ export function SendSubcontractorDocumentDialog({
   // haven't resolved yet — mirrors GenerateDocumentButton's own flow.
   const [pending, setPending] = useState<PendingQuestion[] | null>(null);
   const [answers, setAnswers] = useState<Partial<Record<QuestionKey, string>>>({});
+  // Variantes que le modèle conditionnel a résolues — auto ou saisi, sans
+  // distinction (voir le commentaire d'`applied` côté route). Affichées en
+  // badges, et ce qui permet de rouvrir le questionnaire sans tout reprendre.
+  const [applied, setApplied] = useState<{ key: string; value: string }[]>([]);
 
   async function loadPreview(id: string, withAnswers: Partial<Record<QuestionKey, string>>) {
     const query = new URLSearchParams({ templateId: id });
@@ -81,6 +86,7 @@ export function SendSubcontractorDocumentDialog({
     setBodyHtml(plainTextToHtml(data.bodyText));
     setBodyResetKey((k) => k + 1);
     setCategory(data.category);
+    setApplied(data.applied ?? []);
   }
 
   async function handlePickTemplate(id: string) {
@@ -88,6 +94,7 @@ export function SendSubcontractorDocumentDialog({
     setError(null);
     setAnswers({});
     setPending(null);
+    setApplied([]);
     if (!id) {
       setTitle("");
       setBodyHtml("");
@@ -100,6 +107,13 @@ export function SendSubcontractorDocumentDialog({
   async function handleAnswerAndContinue() {
     setError(null);
     await loadPreview(templateId, answers);
+  }
+
+  // Rouvre le questionnaire à partir de ce que l'aperçu a déjà résolu (auto
+  // ou saisi, sans distinction) plutôt que de tout recommencer.
+  function handleEditAnswers() {
+    setAnswers(Object.fromEntries(applied.map((a) => [a.key, a.value])));
+    setPending(applied.map((a) => QUESTION_BY_KEY[a.key as QuestionKey]).filter((q): q is PendingQuestion => q != null));
   }
 
   function reset() {
@@ -116,6 +130,7 @@ export function SendSubcontractorDocumentDialog({
     setFile(null);
     setPending(null);
     setAnswers({});
+    setApplied([]);
     setResult(null);
     setError(null);
   }
@@ -271,6 +286,26 @@ export function SendSubcontractorDocumentDialog({
                     required
                     className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
                   />
+
+                  {mode === "template" && applied.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleEditAnswers}
+                        className="inline-flex items-center gap-1 text-[11px] text-slate hover:text-ink shrink-0"
+                      >
+                        <ArrowLeft size={11} /> Modifier les réponses
+                      </button>
+                      {applied.map((a) => (
+                        <span
+                          key={a.key}
+                          className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sage bg-[#DEE5E0] rounded-md px-1.5 py-0.5"
+                        >
+                          ✓ {SHORT_OPTION_LABELS[a.key]?.[a.value] ?? a.value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {mode === "template" ? (
                     <div className="flex flex-col gap-1">

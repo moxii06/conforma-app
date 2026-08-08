@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Paperclip, CheckCircle2 } from "lucide-react";
+import { Search, Paperclip, CheckCircle2, ArrowLeft } from "lucide-react";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { CONTACT_ONLY_MERGE_TAGS } from "@/lib/mergeTags";
-import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { SHORT_OPTION_LABELS, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { SignatureCheckbox } from "@/components/SignatureCheckbox";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
@@ -191,6 +191,15 @@ export function SendProspectDocumentDialog({
     setPreview({ title: data.title, bodyText: data.bodyText, applied: data.applied ?? [], missingFields: data.missingFields ?? [] });
     setTitle(data.title);
     setCategory(data.category);
+  }
+
+  // Rouvre le questionnaire à partir de ce que l'aperçu a déjà résolu (auto
+  // ou saisi, sans distinction) plutôt que de tout recommencer.
+  function handleEditAnswers() {
+    if (!preview) return;
+    setAnswers(Object.fromEntries(preview.applied.map((a) => [a.key, a.value])));
+    setPendingQuestions(preview.applied.map((a) => QUESTION_BY_KEY[a.key as QuestionKey]).filter((q): q is PendingQuestion => q != null));
+    setPreview(null);
   }
 
   function handlePickTemplate(id: string) {
@@ -518,7 +527,14 @@ export function SendProspectDocumentDialog({
                         className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal"
                       />
                       {preview.applied.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={handleEditAnswers}
+                            className="inline-flex items-center gap-1 text-[10.5px] text-slate hover:text-ink shrink-0"
+                          >
+                            <ArrowLeft size={10} /> Modifier les réponses
+                          </button>
                           {preview.applied.map((a) => (
                             <span key={a.key} className="inline-flex items-center gap-1 text-[10.5px] text-sage bg-linen rounded px-1.5 py-0.5">
                               <CheckCircle2 size={10} /> {SHORT_OPTION_LABELS[a.key as QuestionKey]?.[a.value] ?? a.value}

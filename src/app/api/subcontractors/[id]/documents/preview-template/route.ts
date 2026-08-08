@@ -45,6 +45,12 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });
 
   let bodyTextSource = template.bodyText;
+  // Comme la route dossier : la variante retenue pour chaque question
+  // référencée, pour que l'écran puisse afficher « ✓ … » ET proposer de
+  // rouvrir le questionnaire pour la changer sans tout recommencer. Ici,
+  // faute de dossier, tout est structurellement « saisi » — il n'existe pas
+  // de donnée de fond dont une réponse pourrait diverger.
+  let applied: { key: string; value: string }[] = [];
   if (template.blocks.length > 0) {
     // No dossier/session/course exists for a subcontractor document — every
     // question that depends on one (statutApprenant, modalite, subrogation...)
@@ -68,6 +74,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       return NextResponse.json({ unresolved: stillMissing.map((k) => QUESTION_BY_KEY[k]), category: template.category });
     }
     bodyTextSource = assembleBlocks(template.blocks, answers);
+    applied = referenced.flatMap((k) => (answers[k] != null ? [{ key: k, value: answers[k] }] : []));
   }
 
   const bodyText = mergeTemplate(bodyTextSource, {

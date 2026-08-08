@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { QuestionKey } from "@/lib/documentQuestionnaire";
+import { ArrowLeft } from "lucide-react";
+import { QUESTION_BY_KEY, SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { SearchableDossierSelect } from "@/components/SearchableDossierSelect";
 import { DossierSearchSelect } from "@/components/DossierSearchSelect";
 import { ReporterSurFormationDialog, type ReportFormationPropose } from "@/components/ReporterSurFormationDialog";
@@ -23,6 +24,10 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
   const [dossierId, setDossierId] = useState(dossiers?.[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ id: string; title: string; missingFields: { key: string; label: string; fixHref: string }[] } | null>(null);
+  // Variantes que le modèle conditionnel a résolues pour ce document — auto
+  // ou saisi, sans distinction (voir le commentaire d'`applied` côté route).
+  // Sert à la fois à afficher les badges et à rouvrir le questionnaire.
+  const [applied, setApplied] = useState<{ key: string; value: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Set only when the template has conditional blocks and the dossier's own
   // data couldn't resolve every question they reference — see
@@ -57,6 +62,7 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
     }
     const doc = await res.json();
     setResult({ id: doc.id, title: doc.title, missingFields: doc.missingFields ?? [] });
+    setApplied(doc.applied ?? []);
     setPending(null);
     const reports: ReportFormationPropose[] = doc.reportsFormation ?? [];
     setReport(reports.length > 0 ? { reports, courseTitle: doc.courseTitle ?? "", answers: envoyees } : null);
@@ -66,6 +72,7 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
     e.preventDefault();
     setPending(null);
     setAnswers({});
+    setApplied([]);
     setReport(null);
     submit({});
   }
@@ -73,6 +80,16 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
   function handleAnswerAndContinue(e: React.MouseEvent) {
     e.preventDefault();
     submit(answers);
+  }
+
+  // Rouvre le questionnaire à partir de ce que le document généré a résolu,
+  // pour créer une version corrigée sans tout ressaisir — le document déjà
+  // créé reste tel quel (générer n'écrase jamais, voir /api/documents/generate) ;
+  // valider ce formulaire en crée un second, à jour.
+  function handleEditAnswers(e: React.MouseEvent) {
+    e.preventDefault();
+    setAnswers(Object.fromEntries(applied.map((a) => [a.key, a.value])));
+    setPending(applied.map((a) => QUESTION_BY_KEY[a.key as QuestionKey]).filter((q): q is PendingQuestion => q != null));
   }
 
   // Liste pré-calculée et vide : il n'y a personne pour qui générer, le
@@ -143,6 +160,25 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
           <div className="text-[11.5px] text-sage">
             Document créé : <a href={`/api/documents/generated/${result.id}`} target="_blank" rel="noreferrer" className="underline">{result.title}</a>
           </div>
+          {applied.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleEditAnswers}
+                className="inline-flex items-center gap-1 text-[11px] text-slate hover:text-ink shrink-0"
+              >
+                <ArrowLeft size={11} /> Modifier les réponses
+              </button>
+              {applied.map((a) => (
+                <span
+                  key={a.key}
+                  className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sage bg-[#DEE5E0] rounded-md px-1.5 py-0.5"
+                >
+                  ✓ {SHORT_OPTION_LABELS[a.key]?.[a.value] ?? a.value}
+                </span>
+              ))}
+            </div>
+          )}
           {result.missingFields.length > 0 && (
             <div className="text-[11px] bg-linen rounded-md px-2 py-1.5 flex flex-col gap-1 max-w-xs">
               <div className="text-seal-dark font-medium">

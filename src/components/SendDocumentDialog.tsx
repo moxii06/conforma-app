@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { DialogShell } from "@/components/DialogShell";
 import { useRouter } from "next/navigation";
 import { DOCUMENT_CATEGORIES, CATEGORY_LABELS } from "@/lib/documentCategories";
@@ -13,7 +14,7 @@ import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
 // SCHEDULED_CATEGORIES vit dans lib/paymentSchedule.ts : l'écran de création
 // pose la même question et doit y répondre pareil.
 import { SCHEDULED_CATEGORIES, type Instalment } from "@/lib/paymentSchedule";
-import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { SHORT_OPTION_LABELS, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
 import { ReporterSurFormationDialog, type ReportFormationPropose } from "@/components/ReporterSurFormationDialog";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
@@ -297,6 +298,16 @@ export function SendDocumentDialog({
     await loadPreview(templateId, pendingAnswers);
   }
 
+  // Rouvre le questionnaire à partir de ce que l'aperçu a déjà résolu
+  // (auto ou saisi, sans distinction — voir le commentaire d'`applied` côté
+  // route) plutôt que de tout recommencer : chaque clé revient dans le
+  // formulaire avec sa valeur actuelle, prête à être changée puis revalidée
+  // par le même bouton « Continuer » que le premier passage.
+  function handleEditAnswers() {
+    setPendingAnswers(Object.fromEntries(applied.map((a) => [a.key, a.value])));
+    setPending(applied.map((a) => QUESTION_BY_KEY[a.key as QuestionKey]).filter((q): q is PendingQuestion => q != null));
+  }
+
   function reset() {
     setMode("template");
     setTemplateId("");
@@ -572,7 +583,14 @@ export function SendDocumentDialog({
                   <div className="text-[11px] text-slate uppercase tracking-wide">Document</div>
                   {titleInput}
                   {applied.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleEditAnswers}
+                        className="inline-flex items-center gap-1 text-[11px] text-slate hover:text-ink shrink-0"
+                      >
+                        <ArrowLeft size={11} /> Modifier les réponses
+                      </button>
                       {applied.map((a) => (
                         <span
                           key={a.key}

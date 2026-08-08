@@ -82,6 +82,12 @@ export async function POST(request: Request) {
   // (GenerateDocumentButton) re-POSTs with `answers` once staff has filled
   // them in.
   let bodyTextSource = template.bodyText;
+  // Quelle variante chaque question référencée a résolue — auto ou saisie,
+  // sans distinction ici, exactement comme preview-template. C'est ce qui
+  // permet à l'écran de proposer « Modifier les réponses » après coup : les
+  // mêmes clés, rejouées comme réponses manuelles, régénèrent un document
+  // corrigé sans qu'il faille deviner lesquelles avaient été demandées.
+  let applied: { key: string; value: string }[] = [];
   if (template.blocks.length > 0) {
     const { answers, unresolved } = resolveAnswers(
       {
@@ -103,11 +109,13 @@ export async function POST(request: Request) {
       },
       parsed.data.answers as Partial<Record<QuestionKey, string>> | undefined,
     );
-    const stillMissing = collectQuestionKeys(template.blocks).filter((k) => unresolved.includes(k));
+    const referenced = collectQuestionKeys(template.blocks);
+    const stillMissing = referenced.filter((k) => unresolved.includes(k));
     if (stillMissing.length > 0) {
       return NextResponse.json({ unresolved: stillMissing.map((k) => QUESTION_BY_KEY[k]) }, { status: 409 });
     }
     bodyTextSource = assembleBlocks(template.blocks, answers);
+    applied = referenced.flatMap((k) => (answers[k] != null ? [{ key: k, value: answers[k] }] : []));
   }
 
   const fundingSummary = computeFundingSummary(
@@ -164,7 +172,7 @@ export async function POST(request: Request) {
       : [];
 
   return NextResponse.json(
-    { ...document, missingFields, reportsFormation, courseTitle: dossier.session.course.title },
+    { ...document, missingFields, reportsFormation, courseTitle: dossier.session.course.title, applied },
     { status: 201 },
   );
 }
