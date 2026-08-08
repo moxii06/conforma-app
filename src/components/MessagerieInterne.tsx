@@ -163,7 +163,7 @@ export function MessagerieInterne({ moi }: { moi: { id: string; name: string } }
           {conversations === null && <div className="px-3 py-3 text-[12px] text-slate">Chargement…</div>}
           {conversations?.length === 0 && (
             <div className="px-3 py-3 text-[12px] text-slate leading-relaxed">
-              Aucune conversation. Le <span className="text-ink">+</span> ci-dessus en ouvre une avec un membre de
+              Aucune conversation. Le <span className="text-ink">+</span>{" "}ci-dessus en ouvre une avec un membre de
               l&apos;équipe.
             </div>
           )}

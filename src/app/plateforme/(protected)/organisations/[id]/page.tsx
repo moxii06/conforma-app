@@ -4,7 +4,8 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
-import { Pill, InfoRow, PhoneLink } from "@/components/ui";
+import { Pill, InfoRow, PhoneLink, initialsOf } from "@/components/ui";
+import { PlateformeMessagerie } from "@/components/PlateformeMessagerie";
 import { OrganizationAccessActions } from "@/components/OrganizationAccessActions";
 import { OrganizationCgvControl } from "@/components/OrganizationCgvControl";
 import { PlatformEmailComposer } from "@/components/PlatformEmailComposer";
@@ -217,6 +218,31 @@ export default async function PlatformAdminOrganizationDetailPage(props: { param
               </InfoRow>
             </div>
           )}
+        </div>
+
+        {/* Le fil de discussion dans Jalon, distinct du composeur d'e-mails
+            ci-dessous : ici rien ne part par Brevo, l'admin de l'organisme lit
+            dans son application. C'est le canal des questions courantes — un
+            e-mail programmé reste ce qu'on utilise pour une relance
+            commerciale ou une annonce, qui doit atteindre quelqu'un même s'il
+            ne se connecte pas. */}
+        <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">
+          <div>
+            <div className="text-[13.5px] font-semibold text-ink">Discussion avec l&apos;organisme</div>
+            <div className="text-[11.5px] text-slate mt-0.5 leading-relaxed">
+              Visible par le compte administrateur de l&apos;organisme, dans son espace Abonnement. Aucun e-mail
+              n&apos;est envoyé.
+            </div>
+          </div>
+          <PlateformeMessagerie
+            endpoint={`/api/plateforme/messages/editeur/${organization.id}`}
+            moiCamp="platform"
+            titre={organization.name}
+            sousTitre={admin?.email ?? "Aucun compte administrateur"}
+            initiales={initialsOf(organization.name)}
+            placeholder="Votre message à cet organisme… (Entrée pour envoyer)"
+            vide="Aucun message. Le premier message ouvre le fil ; il apparaîtra dans l'espace de l'organisme, sans e-mail."
+          />
         </div>
 
         <div className="bg-white border border-line rounded-card p-5 flex flex-col gap-3">

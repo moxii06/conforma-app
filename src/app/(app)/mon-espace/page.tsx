@@ -10,6 +10,7 @@ import { buildCourseProgress } from "@/lib/lms";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { Tabs } from "@/components/Tabs";
 import { SignDocumentButton } from "@/components/SignDocumentButton";
+import { LearnerMessagesEspace } from "@/components/LearnerMessagesEspace";
 
 const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE: "Distanciel", HYBRID: "Mixte" };
 // « Parcours » est le mot du référentiel Qualiopi, pas celui d'un stagiaire
@@ -18,14 +19,22 @@ const FORMAT_LABELS: Record<string, string> = { IN_PERSON: "Présentiel", REMOTE
 const LEARNER_TABS = [
   { key: "parcours", label: "Où j'en suis" },
   { key: "documents", label: "Mes documents" },
+  // Le canal vers les formateurs de sa session. Un onglet plutôt qu'un bloc
+  // en bas de « Où j'en suis » : on n'y vient pas pour se situer dans son
+  // parcours mais pour poser une question, et le fil a besoin de la page
+  // entière pour respirer.
+  { key: "echanges", label: "Mes échanges" },
 ];
+
+type LearnerTabKey = "parcours" | "documents" | "echanges";
 
 export default async function MonEspacePage(props: { searchParams: Promise<{ tab?: string }> }) {
   const searchParams = await props.searchParams;
   const session = await requireSessionContext();
   if (can(session.role, "portal") === "none") redirect("/dashboard");
   const isLearner = session.role === "LEARNER";
-  const activeTab = searchParams.tab === "documents" ? "documents" : "parcours";
+  const activeTab: LearnerTabKey =
+    searchParams.tab === "documents" || searchParams.tab === "echanges" ? searchParams.tab : "parcours";
 
   return (
     <>
@@ -34,10 +43,14 @@ export default async function MonEspacePage(props: { searchParams: Promise<{ tab
         subtitle={isLearner ? "Vos dossiers et votre progression" : "Vos sessions à animer"}
       />
       {isLearner && <Tabs basePath="/mon-espace" tabs={LEARNER_TABS} active={activeTab} />}
-      <div className="p-8 max-w-3xl">
+      {/* Le fil a besoin de ses deux volets : 260 px de liste plus la place de
+          lire une phrase entière sans revenir à la ligne tous les cinq mots. */}
+      <div className={activeTab === "echanges" && isLearner ? "p-8 max-w-4xl" : "p-8 max-w-3xl"}>
         {isLearner ? (
           activeTab === "documents" ? (
             <LearnerDocumentsTab userId={session.userId} organizationId={session.organizationId} />
+          ) : activeTab === "echanges" ? (
+            <LearnerMessagesEspace moiId={session.userId} />
           ) : (
             <>
               <LearnerPortal userId={session.userId} organizationId={session.organizationId} />
