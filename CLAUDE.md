@@ -66,6 +66,17 @@ for this specific environment, not a project convention.
 read via `can(role, feature)`. The Sidebar, page-level redirects, and UI feature-gating
 all read from it directly — it should stay the only place that matrix is defined.
 
+A person can hold several roles: `User.additionalRoles` (a formateur who is also
+commercial), edited from /team. `can()` therefore accepts `Role | Role[]` and returns the
+**best** level across the list (`full` > `limited` > `none`) — no composite role is ever
+invented. `SessionContext` carries both `role` (the primary one, still what the
+query-level ownership filters below key off) and `roles` (the effective list, always
+`[role, ...]`). **Passing `session.roles` instead of `session.role` is what makes a screen
+honour the cumul**; with an empty `additionalRoles` the two are indistinguishable, which is
+why the migration is safe to do screen by screen. `LEARNER` and `ADMIN_OF` cannot be
+cumulated (see `NON_CUMULABLE_ROLES`): the first is the OF's customer, the second would
+mint a second owner around the "Admin OF can't be reassigned" rule.
+
 That flat matrix can only express "does this role see this section at all," not "their
 own records only." Several pages layer a second, query-level ownership filter on top —
 the repeated pattern:

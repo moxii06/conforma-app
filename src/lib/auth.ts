@@ -94,6 +94,7 @@ export const authOptions: AuthOptions = {
           name: user.name,
           organizationId: user.organizationId,
           role: user.role,
+          additionalRoles: user.additionalRoles,
           passwordChangedAt: user.passwordChangedAt,
         };
       },
@@ -150,6 +151,7 @@ export const authOptions: AuthOptions = {
         token.id = staff.id;
         token.organizationId = staff.organizationId;
         token.role = staff.role;
+        token.additionalRoles = staff.additionalRoles;
         token.name = staff.name;
         token.email = staff.email;
         token.passwordChangedAt = staff.passwordChangedAt ? staff.passwordChangedAt.getTime() : null;
@@ -160,6 +162,12 @@ export const authOptions: AuthOptions = {
         token.id = user.id;
         token.organizationId = user.organizationId;
         token.role = user.role;
+        // Les rôles cumulés voyagent avec le rôle principal, exactement de
+        // la même façon. À noter cependant : ce jeton vit 30 jours, donc
+        // getSessionContext() relit additionalRoles en base à chaque
+        // requête plutôt que de faire confiance à cette copie figée — une
+        // casquette retirée doit l'être tout de suite (src/lib/tenant.ts).
+        token.additionalRoles = user.additionalRoles ?? [];
         token.passwordChangedAt = user.passwordChangedAt ? user.passwordChangedAt.getTime() : null;
       }
       return token;
@@ -169,6 +177,7 @@ export const authOptions: AuthOptions = {
         session.user.id = token.id;
         session.user.organizationId = token.organizationId;
         session.user.role = token.role;
+        session.user.additionalRoles = token.additionalRoles ?? [];
         session.user.passwordChangedAt = token.passwordChangedAt;
       }
       return session;

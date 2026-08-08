@@ -1,44 +1,45 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, Avatar, initialsOf } from "@/components/ui";
-import { requireSessionContext, can, PERMISSIONS, FEATURE_LABELS, ROLE_LABELS } from "@/lib/tenant";
+import { requireSessionContext, can, PERMISSIONS, FEATURE_LABELS, ROLE_LABELS, ACCESS_LABELS } from "@/lib/tenant";
 import { InviteMemberForm } from "@/components/InviteMemberForm";
 import { ReferentHandicapSelect } from "@/components/ReferentHandicapSelect";
 import { SubcontractorForm } from "@/components/SubcontractorForm";
 import { SubcontractorStatusSelect } from "@/components/SubcontractorStatusSelect";
 import { MemberRoleSelect } from "@/components/MemberRoleSelect";
+import { MemberAdditionalRoles } from "@/components/MemberAdditionalRoles";
 import { IntervenantEvaluationForm } from "@/components/IntervenantEvaluationForm";
 import { PrintButton } from "@/components/PrintButton";
 import { ArchiveOrgChartButton } from "@/components/ArchiveOrgChartButton";
 import { OrgChartView } from "@/components/OrgChartView";
-import { CATEGORY_LABELS } from "@/lib/documentCategories";
+import { SubcontractorRequirementsPanel } from "@/components/SubcontractorRequirementsPanel";
 import { buildOrgChartGroups, SUBCONTRACTOR_TYPE_LABELS } from "@/lib/orgChart";
+import {
+  chargerExigences,
+  exigencesDuType,
+  construireChecklist,
+  piecesManquantes,
+  type ExigencePiece,
+} from "@/lib/subcontractorRequirements";
 import { Tabs } from "@/components/Tabs";
 import { Role } from "@prisma/client";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 
 const ACCESS_TONE = { full: "good", limited: "warn", none: "neutral" } as const;
-const ACCESS_LABEL = { full: "Complet", limited: "Limité", none: "Aucun" } as const;
 const SUBCONTRACTOR_STATUS_LABELS: Record<string, string> = { active: "Actif", expired: "Expiré", terminated: "Terminé" };
 
-// Client feedback: a formateur specifically needs contrat/CV/diplôme/NDA
-// tracked — other subcontractor types just need a contrat. Drives the
-// tracking table's "pièces manquantes" column below. rnq_engagement only
-// applies to the two types actually delivering the certified pedagogical
-// action (indicator 27) — a pure technical provider isn't substituting for
-// the OF on the referential's scope.
-const REQUIRED_DOCS_BY_TYPE: Record<string, string[]> = {
-  formateur_externe: ["subcontractor_contract", "cv", "diploma", "nda", "rnq_engagement"],
-  sous_traitant_pedagogique: ["subcontractor_contract", "rnq_engagement"],
-  prestataire_technique: ["subcontractor_contract"],
-  autre: ["subcontractor_contract"],
-};
+// La liste des pièces attendues par type était écrite en dur ici — donc
+// identique pour tous les organismes et modifiable par personne. Elle vit
+// maintenant en base (SubcontractorDocumentRequirement), avec la liste de
+// départ de Jalon en repli : voir lib/subcontractorRequirements.ts et
+// l'onglet « Pièces attendues » ci-dessous.
 
 const TABS = [
   { key: "membres", label: "Membres" },
   { key: "prestataires", label: "Sous-traitants & intervenants" },
+  { key: "pieces", label: "Pièces attendues" },
   { key: "evaluations", label: "Évaluations" },
   { key: "organigramme", label: "Organigramme" },
   { key: "permissions", label: "Permissions" },
@@ -52,10 +53,14 @@ function isExpiringSoon(date: Date | null) {
 export default async function TeamPage(props: { searchParams: Promise<{ tab?: string }> }) {
   const searchParams = await props.searchParams;
   const session = await requireSessionContext();
-  if (can(session.role, "team") !== "full") redirect("/dashboard");
+  // `session.roles` et non `session.role` : c'est la forme qui tient compte
+  // des rôles cumulés. Ici les deux donnent le même résultat (seul l'Admin OF
+  // a « team: full », et ce rôle ne se cumule pas), mais l'écran qui installe
+  // le cumul est le dernier qui devrait l'ignorer.
+  if (can(session.roles, "team") !== "full") redirect("/dashboard");
   const activeTab = searchParams.tab ?? TABS[0].key;
 
-  const [allMembers, organization, subcontractors, orgChartSnapshots] = await Promise.all([
+  const [allMembers, organization, subcontractors, orgChartSnapshots, exigences] = await Promise.all([
     prisma.user.findMany({ where: { organizationId: session.organizationId }, orderBy: { createdAt: "asc" } }),
     prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } }),
     prisma.subcontractor.findMany({
@@ -68,6 +73,7 @@ export default async function TeamPage(props: { searchParams: Promise<{ tab?: st
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
+    chargerExigences(session.organizationId),
   ]);
 
   // Client feedback: no need to itemize every single learner's access here —
@@ -82,7 +88,9 @@ export default async function TeamPage(props: { searchParams: Promise<{ tab?: st
       <Tabs basePath="/team" tabs={TABS} active={activeTab} />
       <div className="p-8 flex flex-col gap-6">
         {activeTab === "prestataires" ? (
-          <SubcontractorsTab subcontractors={subcontractors} />
+          <SubcontractorsTab subcontractors={subcontractors} exigences={exigences} />
+        ) : activeTab === "pieces" ? (
+          <SubcontractorRequirementsPanel exigences={exigences} typeLabels={SUBCONTRACTOR_TYPE_LABELS} />
         ) : activeTab === "evaluations" ? (
           <EvaluationsTab organizationId={session.organizationId} />
         ) : activeTab === "organigramme" ? (
@@ -105,8 +113,9 @@ export default async function TeamPage(props: { searchParams: Promise<{ tab?: st
             )}
             <div className="flex items-center text-[11.5px] text-slate font-semibold uppercase tracking-wide pb-2 border-b border-line">
               <div className="flex-[1.5]">Nom</div>
-              <div className="flex-[2]">Email</div>
-              <div className="flex-1">Rôle</div>
+              <div className="flex-[1.7]">Email</div>
+              <div className="flex-1">Rôle principal</div>
+              <div className="flex-[1.4]">Rôles cumulés</div>
               <div className="flex-[0.6]">Statut</div>
             </div>
             {members.map((m) => (
@@ -117,9 +126,25 @@ export default async function TeamPage(props: { searchParams: Promise<{ tab?: st
                     {m.name}
                   </Link>
                 </div>
-                <div className="flex-[2] text-slate">{m.email}</div>
+                <div className="flex-[1.7] text-slate truncate">{m.email}</div>
                 <div className="flex-1">
                   {m.role === Role.ADMIN_OF ? ROLE_LABELS[m.role] : <MemberRoleSelect memberId={m.id} role={m.role} />}
+                </div>
+                <div className="flex-[1.4]">
+                  {/* Rien à cumuler pour l'Admin OF : il a déjà l'accès le plus
+                      complet sur chaque fonctionnalité, une casquette de plus
+                      ne changerait aucune ligne de la matrice. Proposer la
+                      case aurait été promettre un effet inexistant. */}
+                  {m.role === Role.ADMIN_OF ? (
+                    <span className="text-[11.5px] text-ash">—</span>
+                  ) : (
+                    <MemberAdditionalRoles
+                      memberId={m.id}
+                      memberName={m.name}
+                      role={m.role}
+                      additionalRoles={m.additionalRoles}
+                    />
+                  )}
                 </div>
                 <div className="flex-[0.6]">
                   <Pill tone={m.status === "active" ? "good" : "warn"}>{m.status === "active" ? "Actif" : "Invité"}</Pill>
@@ -170,11 +195,27 @@ type SubcontractorRow = {
   contractEndDate: Date | null;
   qualificationExpiryDate: Date | null;
   status: string;
-  documents: { id: string; title: string; category: string; fileUrl: string | null }[];
+  tacitRenewal: boolean;
+  renewalNoticeDays: number | null;
+  documents: {
+    id: string;
+    title: string;
+    category: string;
+    fileUrl: string | null;
+    status: string;
+    archivedAt: Date | null;
+    createdAt: Date;
+  }[];
   linkedUser: { id: string; name: string; status: string } | null;
 };
 
-function SubcontractorsTab({ subcontractors }: { subcontractors: SubcontractorRow[] }) {
+function SubcontractorsTab({
+  subcontractors,
+  exigences,
+}: {
+  subcontractors: SubcontractorRow[];
+  exigences: ExigencePiece[];
+}) {
   return (
     <>
       {subcontractors.length > 0 && (
@@ -194,8 +235,12 @@ function SubcontractorsTab({ subcontractors }: { subcontractors: SubcontractorRo
               </thead>
               <tbody>
                 {subcontractors.map((s) => {
-                  const required = REQUIRED_DOCS_BY_TYPE[s.type] ?? ["subcontractor_contract"];
-                  const missing = required.filter((cat) => !s.documents.some((d) => d.category === cat));
+                  // Même calcul que la fiche de l'intervenant, même fonction :
+                  // deux écrans qui répondent « il manque quoi ? » ne peuvent
+                  // pas répondre deux choses différentes.
+                  const missing = piecesManquantes(
+                    construireChecklist(exigencesDuType(exigences, s.type), s.documents),
+                  );
                   const contractExpiring = isExpiringSoon(s.contractEndDate);
                   return (
                     <tr key={s.id} className="border-b border-line last:border-b-0">
@@ -207,12 +252,22 @@ function SubcontractorsTab({ subcontractors }: { subcontractors: SubcontractorRo
                       <td className="py-2 pr-3 text-slate">{SUBCONTRACTOR_TYPE_LABELS[s.type] ?? s.type}</td>
                       <td className={`py-2 pr-3 ${contractExpiring ? "text-rust font-medium" : "text-slate"}`}>
                         {s.contractEndDate ? format(s.contractEndDate, "d MMM yyyy", { locale: fr }) : "—"}
+                        {/* La date qui engage n'est pas celle-là mais celle du
+                            préavis : la donner ici évite de rassurer avec une
+                            échéance encore lointaine alors que la dénonciation,
+                            elle, est peut-être pour la semaine prochaine. */}
+                        {s.tacitRenewal && s.contractEndDate && s.renewalNoticeDays != null && (
+                          <div className="text-[11px] text-slate font-normal">
+                            Reconduction tacite — dénoncer avant le{" "}
+                            {format(subDays(s.contractEndDate, s.renewalNoticeDays), "d MMM yyyy", { locale: fr })}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 pr-3">
                         {missing.length === 0 ? (
                           <Pill tone="good">Complet</Pill>
                         ) : (
-                          <span className="text-rust">{missing.map((c) => CATEGORY_LABELS[c] ?? c).join(", ")}</span>
+                          <span className="text-rust">{missing.join(", ")}</span>
                         )}
                       </td>
                       <td className="py-2 pr-3 text-slate">
@@ -411,7 +466,15 @@ async function EvaluationsTab({ organizationId }: { organizationId: string }) {
 async function PermissionsTab() {
   return (
     <div className="bg-white border border-line rounded-card p-5">
-      <div className="text-[13.5px] font-semibold text-ink mb-3.5">Matrice de permissions</div>
+      <div className="text-[13.5px] font-semibold text-ink mb-1">Matrice de permissions</div>
+      {/* Le tableau se lit par rôle, mais une personne peut en porter
+          plusieurs. Sans cette phrase, un lecteur conclut de la colonne
+          « Formateur » que son formateur-commercial n'a pas le CRM. */}
+      <div className="text-[11.5px] text-slate mb-3.5">
+        Un membre peut cumuler plusieurs rôles (onglet Membres). Il obtient alors, pour chaque fonctionnalité, le
+        <strong className="text-ink font-medium"> meilleur</strong>{" "}niveau de ses rôles : un formateur également
+        commercial garde ses dossiers et gagne le CRM. Cumuler n&apos;enlève jamais un accès.
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]">
           <thead>
@@ -435,7 +498,7 @@ async function PermissionsTab() {
                 <td className="py-2 pr-3 text-ink font-medium">{FEATURE_LABELS[feature] ?? feature}</td>
                 {Object.values(Role).map((r) => (
                   <td key={r} className="py-2 px-2">
-                    <Pill tone={ACCESS_TONE[roles[r]]}>{ACCESS_LABEL[roles[r]]}</Pill>
+                    <Pill tone={ACCESS_TONE[roles[r]]}>{ACCESS_LABELS[roles[r]]}</Pill>
                   </td>
                 ))}
               </tr>
