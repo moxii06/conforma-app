@@ -1,70 +1,29 @@
 import Stripe from "stripe";
+import { FORMULES, trouverFormule, type CleFormule } from "@/lib/tarifs";
 
 // Jalon's OWN subscription billing — deliberately separate from
 // src/lib/stripe.ts, which handles each OF charging THEIR clients on THEIR
 // own Stripe account. Two different accounts, two different money flows,
 // two different sets of credentials; merging them would be one refactor
 // away from an OF's training revenue landing in Jalon's account.
+//
+// Ce fichier ne décrit plus les offres : il ne fait plus que la plomberie
+// Stripe. Le catalogue (libellés, prix public, limites, contenu) vit dans
+// lib/tarifs.ts, importé ici pour la seule chose dont Stripe a besoin — le nom
+// de la variable d'environnement portant l'id de Price. `PlanKey` reste
+// exporté sous ce nom parce que /plateforme et la route checkout l'importent
+// d'ici ; c'est désormais un alias de `CleFormule`.
 
-export type PlanKey = "solo" | "team" | "growth";
-
-export const PLANS: {
-  key: PlanKey;
-  label: string;
-  tagline: string;
-  features: string[];
-  /** Env var holding the Stripe Price id. Prices live in Stripe, not here. */
-  priceEnvVar: string;
-}[] = [
-  {
-    key: "solo",
-    label: "Solo",
-    tagline: "Pour un formateur indépendant ou un organisme d'une personne.",
-    features: [
-      "Catalogue, sessions et dossiers illimités",
-      "LMS intégré : vidéos, quiz, attestations",
-      "Facturation, devis et relances",
-      "Conformité Qualiopi et registre RGPD",
-      "10 signatures électroniques incluses par mois",
-    ],
-    priceEnvVar: "STRIPE_PRICE_SOLO",
-  },
-  {
-    key: "team",
-    label: "Team",
-    tagline: "Pour un organisme avec plusieurs formateurs et un commercial.",
-    features: [
-      "Tout ce que contient Solo",
-      "Comptes d'équipe et rôles",
-      "Boîte mail intégrée et triage",
-      "Automatisations de relance par formation",
-      "Signatures électroniques illimitées",
-    ],
-    priceEnvVar: "STRIPE_PRICE_TEAM",
-  },
-  {
-    key: "growth",
-    label: "Growth",
-    tagline: "Pour un organisme structuré, avec son propre système d'information.",
-    features: [
-      "Tout ce que contient Team",
-      "API publique et webhooks",
-      "Rapprochement bancaire",
-      "Marque blanche complète",
-      "Accompagnement à la migration des données",
-    ],
-    priceEnvVar: "STRIPE_PRICE_GROWTH",
-  },
-];
+export type PlanKey = CleFormule;
 
 export function billingConfigured(): boolean {
   return Boolean(process.env.STRIPE_PLATFORM_SECRET_KEY);
 }
 
 export function priceIdForPlan(plan: PlanKey): string | null {
-  const entry = PLANS.find((p) => p.key === plan);
-  if (!entry) return null;
-  return process.env[entry.priceEnvVar] || null;
+  const formule = trouverFormule(plan);
+  if (!formule) return null;
+  return process.env[formule.variablePrixStripe] || null;
 }
 
 function client(): Stripe {
@@ -77,7 +36,13 @@ function client(): Stripe {
  * Prices are read from Stripe rather than duplicated in code, on purpose:
  * two sources of truth for an amount means the page eventually advertises
  * 49 € while the card is debited 59 €. Returns null when billing isn't
- * configured or the price is missing, and the UI degrades to "sur devis".
+ * configured or the price is missing.
+ *
+ * Ce null n'est PAS « prix inconnu, n'affiche rien » : /abonnement retombe
+ * alors sur le tarif public de lib/tarifs.ts, explicitement étiqueté
+ * « indicatif » à l'écran (voir `resoudrePrixMensuelCents`). La règle du
+ * paragraphe ci-dessus tient quand même — dès qu'un Price Stripe existe, c'est
+ * LUI qui s'affiche, jamais la valeur du catalogue.
  */
 export async function fetchPlanPrices(): Promise<Record<PlanKey, { amountCents: number; currency: string } | null>> {
   const empty = { solo: null, team: null, growth: null } as Record<
@@ -88,12 +53,12 @@ export async function fetchPlanPrices(): Promise<Record<PlanKey, { amountCents: 
 
   const stripe = client();
   const results = await Promise.allSettled(
-    PLANS.map(async (p) => {
-      const id = priceIdForPlan(p.key);
-      if (!id) return { key: p.key, value: null };
+    FORMULES.map(async (f) => {
+      const id = priceIdForPlan(f.cle);
+      if (!id) return { key: f.cle, value: null };
       const price = await stripe.prices.retrieve(id);
       return {
-        key: p.key,
+        key: f.cle,
         value: price.unit_amount != null ? { amountCents: price.unit_amount, currency: price.currency } : null,
       };
     }),

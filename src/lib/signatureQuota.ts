@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { PRIX_SIGNATURE_SUPP_CENTS, SIGNATURES_INCLUSES_SOLO } from "@/lib/tarifs";
 
 // Re-billing model for e-signatures running on JALON's Yousign partner
-// account (see lib/yousign.ts): the Solo plan (39€/mois) includes 10 such
+// account (see lib/yousign.ts): the Solo plan includes a set number of such
 // signatures per calendar month; beyond that nothing is blocked — each
 // extra one is counted here and re-billed at OVERAGE_PRICE_CENTS on the
 // org's monthly invoice (manually for now: Jalon's own billing isn't wired
@@ -9,8 +10,13 @@ import { prisma } from "@/lib/prisma";
 // Signatures via an org's OWN Yousign key ("yousign_org") or the free
 // internal stub are never metered — the org pays Yousign directly, or
 // nobody pays anything.
-export const SOLO_INCLUDED_SIGNATURES = 10;
-export const OVERAGE_PRICE_CENTS = 100;
+//
+// Les deux nombres viennent de lib/tarifs.ts : ce sont des caractéristiques
+// de l'offre, annoncées sur la grille comparative de /abonnement, et le
+// compteur ci-dessous doit facturer exactement ce que la grille promet. Les
+// alias gardent les noms historiques pour les appelants existants.
+export const SOLO_INCLUDED_SIGNATURES = SIGNATURES_INCLUSES_SOLO;
+export const OVERAGE_PRICE_CENTS = PRIX_SIGNATURE_SUPP_CENTS;
 
 export type SignatureQuota = {
   // false = unlimited plan (Team/Growth) or no subscription row — nothing
