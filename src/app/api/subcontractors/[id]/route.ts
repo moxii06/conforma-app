@@ -18,6 +18,12 @@ const schema = z.object({
   contractEndDate: z.string().nullable().optional(),
   qualificationExpiryDate: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  // Reconduction tacite : le préavis est un NOMBRE DE JOURS avant la fin de
+  // contrat, borné à un an. Au-delà, ce n'est plus un préavis mais une
+  // erreur de saisie (« 3650 » pour 90), et l'alerte du tableau de bord
+  // s'ouvrirait immédiatement pour ne plus jamais se refermer.
+  tacitRenewal: z.boolean().optional(),
+  renewalNoticeDays: z.number().int().min(0).max(365).nullable().optional(),
 });
 
 // Single PATCH for both the quick status dropdown and full field edits
@@ -59,6 +65,16 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ...(data.qualificationExpiryDate !== undefined
         ? { qualificationExpiryDate: data.qualificationExpiryDate ? new Date(data.qualificationExpiryDate) : null }
         : {}),
+      ...(data.tacitRenewal !== undefined ? { tacitRenewal: data.tacitRenewal } : {}),
+      // Décocher la reconduction tacite efface le préavis : un nombre de
+      // jours de dénonciation sur un contrat qui ne se reconduit pas ne veut
+      // rien dire, et le laisser en base ferait revenir l'alerte le jour où
+      // quelqu'un recoche la case sans y penser.
+      ...(data.tacitRenewal === false
+        ? { renewalNoticeDays: null }
+        : data.renewalNoticeDays !== undefined
+          ? { renewalNoticeDays: data.renewalNoticeDays }
+          : {}),
     },
   });
   return NextResponse.json(updated);

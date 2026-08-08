@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { seedStarterTemplates } from "./lib/starter-templates";
+import { seedSubcontractorRequirements } from "./lib/subcontractor-requirements";
 
 const prisma = new PrismaClient();
 
@@ -205,8 +206,15 @@ async function main() {
   // copies can no longer drift (see prisma/lib/starter-templates.ts).
   const templateCount = await seedStarterTemplates(prisma);
 
+  // La seule écriture de ce script qui porte un organizationId, et c'est
+  // contraint : SubcontractorDocumentRequirement n'accepte pas de ligne
+  // globale. Elle ne touche QUE les organismes dont la table est vide, donc
+  // elle ne peut pas ressusciter une pièce qu'un OF a retirée — voir le
+  // commentaire d'en-tête de prisma/lib/subcontractor-requirements.ts.
+  const orgsPourvus = await seedSubcontractorRequirements(prisma);
+
   console.log(
-    `Reference data seeded: ${QUALIOPI_INDICATORS.length} Qualiopi indicators (RNQ 2022) + ${REFORME_2026_INDICATORS.length} (réforme 2026, projet), ${templateCount} document templates.`
+    `Reference data seeded: ${QUALIOPI_INDICATORS.length} Qualiopi indicators (RNQ 2022) + ${REFORME_2026_INDICATORS.length} (réforme 2026, projet), ${templateCount} document templates, pièces attendues posées chez ${orgsPourvus} organisme(s).`
   );
 }
 

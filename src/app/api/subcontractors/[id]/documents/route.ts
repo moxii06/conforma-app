@@ -8,12 +8,26 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "team") !== "full") {
-    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
-  }
 
   const subcontractor = await prisma.subcontractor.findFirst({ where: { id: params.id, organizationId: session.organizationId } });
   if (!subcontractor) return NextResponse.json({ error: "Introuvable." }, { status: 404 });
+
+  // Deux dépositaires légitimes, et un seul chemin d'écriture pour les deux.
+  //
+  // L'organisme, comme avant. Et l'intervenant lui-même quand il a un compte
+  // (Subcontractor.linkedUserId), qui dépose ses propres pièces depuis
+  // /team/mes-pieces : c'est LUI qui détient son attestation URSSAF, et la
+  // lui réclamer par email pour la téléverser à sa place était le trajet le
+  // plus long possible.
+  //
+  // Le rattachement est relu depuis la base, jamais déduit d'un identifiant
+  // envoyé par le client : `linkedUserId` doit être exactement la session en
+  // cours, sans quoi n'importe quel formateur de l'organisme pourrait
+  // déposer sur la fiche d'un autre.
+  const estLeSousTraitant = subcontractor.linkedUserId !== null && subcontractor.linkedUserId === session.userId;
+  if (can(session.roles, "team") !== "full" && !estLeSousTraitant) {
+    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
 
   const formData = await request.formData().catch(() => null);
   if (!formData) return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
