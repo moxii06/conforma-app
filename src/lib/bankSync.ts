@@ -1,20 +1,43 @@
 import { prisma } from "@/lib/prisma";
 import { fetchAccountTransactions } from "@/lib/bridge";
 
-// Pulls fresh transactions for every linked BankAccount of one org (or, with
-// no argument, every org that has one — see /api/cron/bank-sync) and stores
-// new credits as pending BankTransaction rows. createMany + skipDuplicates
-// does the dedup against Bridge's own transaction id in one query per
-// account, same idea as the CSV import's createMany (see
-// /api/import/bank-transactions) — re-syncing never double-counts a
-// payment already seen.
+export type BankSyncResult = { accountsSynced: number; transactionsInserted: number; errors: string[] };
+
+// Récupère les opérations fraîches de chaque BankAccount lié, puis enregistre
+// les crédits nouveaux en BankTransaction « pending ». createMany +
+// skipDuplicates fait la déduplication contre l'identifiant d'opération de
+// Bridge en une seule requête par compte, même principe que le createMany de
+// l'import CSV (voir /api/import/bank-transactions) : une resynchronisation
+// ne compte jamais deux fois un paiement déjà vu.
 //
-// `connectionId` narrows a run to one bank connection — the manual
-// "Synchroniser" button under a single bank passes its own connection id so
-// clicking it doesn't silently resync every other connected bank too; the
-// cron (no organizationId, no connectionId) and a bare manual "tout
-// resynchroniser" call (organizationId only) still sweep every connection.
-export async function syncBankTransactions(organizationId?: string, connectionId?: string): Promise<{ accountsSynced: number; transactionsInserted: number; errors: string[] }> {
+// Deux appels seulement, et les surcharges ci-dessous n'en autorisent pas
+// d'autre :
+//   - sans argument : le cron quotidien (/api/cron/bank-sync) balaie toutes
+//     les connexions liées de tous les organismes ;
+//   - avec organizationId, éventuellement suivi de connectionId : l'appel
+//     manuel. Le bouton « Synchroniser » de BankConnectionPanel est placé
+//     sous une banque précise et transmet donc son identifiant de connexion,
+//     pour qu'un clic ne resynchronise pas silencieusement les autres
+//     banques. Il n'existe aujourd'hui aucun bouton « tout resynchroniser »
+//     dans l'interface : l'appel organizationId seul reste possible et
+//     balaierait toutes les connexions de l'organisme, mais personne ne
+//     l'émet.
+//
+// Ce qui est fermé, en revanche : un connectionId sans organizationId. Le
+// filtre porterait alors sur `id` sans aucune clause de cloisonnement, donc
+// sur la connexion bancaire d'un autre organisme. Aucun appelant ne le fait,
+// mais la signature l'autorisait ; les surcharges l'interdisent au typage et
+// la garde ci-dessous au runtime (voir CLAUDE.md : le multi-tenant ne tient
+// qu'au `where` applicatif).
+export function syncBankTransactions(): Promise<BankSyncResult>;
+export function syncBankTransactions(organizationId: string, connectionId?: string): Promise<BankSyncResult>;
+export async function syncBankTransactions(organizationId?: string, connectionId?: string): Promise<BankSyncResult> {
+  if (connectionId && !organizationId) {
+    throw new Error(
+      "syncBankTransactions : un connectionId sans organizationId synchroniserait la connexion bancaire d'un autre organisme."
+    );
+  }
+
   const connections = await prisma.bankConnection.findMany({
     where: { status: "linked", ...(organizationId ? { organizationId } : {}), ...(connectionId ? { id: connectionId } : {}) },
     include: { accounts: true },

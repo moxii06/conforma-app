@@ -31,12 +31,15 @@ export function CreatePaymentLinkButton({ invoiceId }: { invoiceId: string }) {
     );
   }
 
+  // flex-wrap + items-start : le refus « solde trop faible » est une phrase
+  // complète, pas un mot — sur une ligne rigide elle débordait de la carte
+  // facture.
   return (
-    <div className="flex items-center gap-2">
-      <button onClick={handleClick} disabled={loading} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+    <div className="flex items-start gap-2 flex-wrap">
+      <button onClick={handleClick} disabled={loading} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60 shrink-0">
         {loading ? "…" : "Créer un lien de paiement Stripe"}
       </button>
-      {error && <span className="text-[11px] text-rust">{error}</span>}
+      {error && <span className="text-[11px] text-rust max-w-full">{error}</span>}
     </div>
   );
 }

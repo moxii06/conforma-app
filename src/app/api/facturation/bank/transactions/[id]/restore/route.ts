@@ -2,17 +2,22 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 
-// The inverse of "dismiss" — a transaction ignored by mistake goes back to
-// the "à valider" queue, from the "Ignorées" tab. Same idea as
-// InboxRestoreButton for an archived email: the status carried the audit
-// trail already (reviewedByUserId/reviewedByName/reviewedAt from the
-// dismiss), that part is cleared here since the transaction is, once again,
-// unreviewed.
+// L'inverse de « dismiss » : une transaction ignorée par erreur repart dans
+// la file « À valider », depuis l'onglet « Ignorées ». Même principe que le
+// désarchivage d'un email — InboxRestoreButton, exporté par
+// src/components/InboxArchiveActions.tsx et non par un fichier à son nom.
+// Le statut portait déjà la trace d'audit (reviewedByUserId /
+// reviewedByName / reviewedAt posés par le dismiss) : elle est effacée ici,
+// puisque la transaction redevient non revue.
+//
+// Le 409 ci-dessous n'est pas théorique : deux personnes sur le même onglet
+// « Ignorées », la seconde arrive après la bascule. BankTransactionRestore
+// affiche ce message plutôt que de ne rien faire.
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.role, "invoicing") === "none") {
+  if (can(auth.roles, "invoicing") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

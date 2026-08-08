@@ -9,28 +9,45 @@ function formatAmount(cents: number) {
 }
 
 // L'inverse de « Ignorer », depuis l'onglet Ignorées — même principe que
-// InboxRestoreButton pour un email archivé : une transaction ignorée par
+// InboxRestoreButton (exporté par InboxArchiveActions.tsx, il n'y a pas de
+// fichier à son nom) pour un email archivé : une transaction ignorée par
 // erreur redevient une suggestion à valider, plutôt qu'un aller sans retour.
+//
+// Les deux refus que la route sait renvoyer sont tous les deux plausibles à
+// l'écran : 403 pour un rôle sans accès facturation, 409 quand deux
+// personnes réactivent la même ligne et que la seconde arrive après la
+// bascule. Sans le message, le bouton se dé-chargeait et il ne se passait
+// rien — on affiche donc la raison, comme BankTransactionReview plus bas.
 export function BankTransactionRestore({ transactionId }: { transactionId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function restaurer() {
     setLoading(true);
+    setError(null);
     const res = await fetch(`/api/facturation/bank/transactions/${transactionId}/restore`, { method: "POST" });
     setLoading(false);
-    if (res.ok) router.refresh();
+    if (!res.ok) {
+      const b = await res.json().catch(() => ({}));
+      setError(b.error ?? "Échec de la réactivation.");
+      return;
+    }
+    router.refresh();
   }
 
   return (
-    <button
-      type="button"
-      onClick={restaurer}
-      disabled={loading}
-      className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink shrink-0 disabled:opacity-50"
-    >
-      {loading ? "…" : "Réactiver"}
-    </button>
+    <div className="shrink-0 flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={restaurer}
+        disabled={loading}
+        className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-50"
+      >
+        {loading ? "…" : "Réactiver"}
+      </button>
+      {error && <div className="text-[11.5px] text-rust text-right max-w-[220px]">{error}</div>}
+    </div>
   );
 }
 

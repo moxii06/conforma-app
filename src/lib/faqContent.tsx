@@ -329,6 +329,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
           "Onglet « À valider ». Alimentez-le en important un relevé au format CSV, ou en connectant votre banque si ce connecteur est actif sur votre compte.",
           "Jalon classe les transactions et propose un rapprochement avec vos factures, en s'appuyant sur le montant restant dû et le nom du payeur.",
           "Rien n'est jamais associé automatiquement : vous cliquez « Confirmer la suggestion » ou « Ignorer ». Un libellé bancaire ne porte pas de référence de facture — une association automatique se tromperait tôt ou tard.",
+          "« Ignorer » ne supprime rien : la transaction bascule dans l'onglet « Ignorées », avec qui l'a écartée et quand. « Réactiver » la renvoie dans « À valider » si vous vous êtes trompé.",
         ],
       },
       {
@@ -385,7 +386,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
         steps: [
           "Il apparaît dans « À trier ».",
           "« Rattacher » l'associe à un contact existant ; « Nouveau prospect » en crée un, avec la possibilité de pré-remplir téléphone et société à partir du corps du message.",
-          "« Ignorer » le retire de la liste sans le supprimer.",
+          "« Ignorer » le retire de « À trier » sans le supprimer : il rejoint l'onglet « Archivés », d'où « Désarchiver » le fait revenir.",
         ],
       },
       {
