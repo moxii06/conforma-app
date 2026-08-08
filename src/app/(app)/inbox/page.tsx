@@ -90,6 +90,12 @@ export default async function InboxPage(props: {
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const q = searchParams.q?.trim() || undefined;
   const rechercheWhere = filtreRecherche(q);
+  // « Rien à trier » sur une recherche infructueuse fait croire que la boîte
+  // est vide alors qu'elle est seulement filtrée — et l'onglet affiche « À
+  // trier (0) » pour la même raison. Le vide d'une recherche et le vide d'un
+  // onglet ne se disent donc pas de la même façon.
+  const videParRecherche = (message: string) =>
+    q ? `Aucun message ne correspond à « ${q} » dans cet onglet.` : message;
 
   // Plus de chargement de tous les contacts : « rattacher à un contact
   // existant » passe par la recherche serveur (ContactSearchInput), comme
@@ -354,7 +360,7 @@ export default async function InboxPage(props: {
               ))}
             </div>
           ) : (
-            <div className="text-[12.5px] text-slate">Aucune suggestion en attente.</div>
+            <div className="text-[12.5px] text-slate">{videParRecherche("Aucune suggestion en attente.")}</div>
           )
         ) : activeTab === "archives" ? (
           archived.length > 0 ? (
@@ -372,14 +378,10 @@ export default async function InboxPage(props: {
               ))}
             </div>
           ) : (
-            <div className="text-[12.5px] text-slate">Aucun message archivé.</div>
+            <div className="text-[12.5px] text-slate">{videParRecherche("Aucun message archivé.")}</div>
           )
         ) : (
           <>
-            <div className="flex justify-end">
-              <MailboxFilterSelect connections={connections.map((c) => ({ id: c.id, provider: c.provider, accountEmail: c.accountEmail }))} />
-            </div>
-
             {/* Ex-onglet RGPD, désormais replié au-dessus du triage : un
                 organisme croise une demande de droits quelques fois par an,
                 un onglet permanent à zéro pour ça était disproportionné.
@@ -435,13 +437,16 @@ export default async function InboxPage(props: {
                 signatureHtml={signatureHtml}
               />
             ) : (
-              <div className="text-[12.5px] text-slate">Rien à trier.</div>
+              <div className="text-[12.5px] text-slate">{videParRecherche("Rien à trier.")}</div>
             )}
           </>
         )}
+        {/* `q` fait partie des paramètres reportés : sans lui, « Suivant »
+            renvoyait la page 2 de la liste NON filtrée, alors que le nombre
+            de pages affiché, lui, est celui du résultat de recherche. */}
         <Pagination
           basePath="/inbox"
-          searchParams={{ tab: searchParams.tab, mailbox: searchParams.mailbox, page: searchParams.page }}
+          searchParams={{ tab: searchParams.tab, mailbox: searchParams.mailbox, page: searchParams.page, q }}
           page={page}
           totalPages={totalPages}
         />
