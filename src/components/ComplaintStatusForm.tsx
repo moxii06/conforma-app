@@ -2,17 +2,23 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
+import { SupportProofUpload } from "@/components/SupportProofUpload";
 
 export function ComplaintStatusForm({
   complaintId,
   status,
   resolutionNotes,
   subject,
+  proofFileName,
+  hasProof,
 }: {
   complaintId: string;
   status: string;
   resolutionNotes: string | null;
   subject: string;
+  proofFileName: string | null;
+  hasProof: boolean;
 }) {
   const router = useRouter();
   const [nextStatus, setNextStatus] = useState(status);
@@ -73,9 +79,9 @@ export function ComplaintStatusForm({
           <option value="investigating">En cours d&apos;examen</option>
           <option value="resolved">Résolue</option>
         </select>
-        <button onClick={handleSave} disabled={saving} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+        <Button type="button" variant="secondary" size="sm" onClick={handleSave} disabled={saving}>
           {saving ? "…" : "Enregistrer"}
-        </button>
+        </Button>
       </div>
       <input
         value={notes}
@@ -83,15 +89,21 @@ export function ComplaintStatusForm({
         placeholder="Notes de résolution"
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-ink-soft"
       />
+      {/* La pièce justificative n'apparaît qu'au moment où elle a un sens : on
+          clôt la réclamation. Elle reste visible ensuite tant qu'un fichier est
+          attaché, sinon on ne pourrait plus ni le relire ni le remplacer. */}
+      {(nextStatus === "resolved" || hasProof) && (
+        <SupportProofUpload kind="complaints" itemId={complaintId} proofFileName={proofFileName} hasProof={hasProof} />
+      )}
       {offerAction && (
         <div className="flex items-center gap-2.5 flex-wrap bg-linen border border-line rounded-md px-2.5 py-2">
           <span className="text-[11.5px] text-ink">Réclamation résolue — en tirer une action d&apos;amélioration ?</span>
-          <button onClick={createImprovementAction} disabled={saving} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+          <Button type="button" variant="tertiary" size="sm" onClick={createImprovementAction} disabled={saving}>
             {saving ? "…" : "Créer l'action"}
-          </button>
-          <button onClick={() => setOfferAction(false)} className="text-[11.5px] text-slate hover:text-ink">
+          </Button>
+          <Button type="button" variant="tertiary" size="sm" onClick={() => setOfferAction(false)}>
             Non merci
-          </button>
+          </Button>
           {actionError && <span className="text-[11px] text-rust">{actionError}</span>}
         </div>
       )}

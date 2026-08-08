@@ -2,8 +2,22 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui";
+import { SupportProofUpload } from "@/components/SupportProofUpload";
 
-export function SecureReportStatusForm({ reportId, status, escalationNotes }: { reportId: string; status: string; escalationNotes: string | null }) {
+export function SecureReportStatusForm({
+  reportId,
+  status,
+  escalationNotes,
+  proofFileName,
+  hasProof,
+}: {
+  reportId: string;
+  status: string;
+  escalationNotes: string | null;
+  proofFileName: string | null;
+  hasProof: boolean;
+}) {
   const router = useRouter();
   const [nextStatus, setNextStatus] = useState(status);
   const [notes, setNotes] = useState(escalationNotes ?? "");
@@ -29,9 +43,9 @@ export function SecureReportStatusForm({ reportId, status, escalationNotes }: { 
           <option value="escalated">Escaladé</option>
           <option value="closed">Clos</option>
         </select>
-        <button onClick={handleSave} disabled={saving} className="text-[11.5px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60">
+        <Button type="button" variant="secondary" size="sm" onClick={handleSave} disabled={saving}>
           {saving ? "…" : "Enregistrer"}
-        </button>
+        </Button>
       </div>
       <input
         value={notes}
@@ -39,6 +53,11 @@ export function SecureReportStatusForm({ reportId, status, escalationNotes }: { 
         placeholder="Notes d'escalade / suivi"
         className="bg-white border border-line rounded-md px-2.5 py-1.5 text-[12px] text-ink focus:outline-none focus:border-ink-soft"
       />
+      {/* Comme pour une réclamation : la pièce justificative apparaît quand on
+          clôt le signalement, et reste ensuite si un fichier est attaché. */}
+      {(nextStatus === "closed" || hasProof) && (
+        <SupportProofUpload kind="secure-reports" itemId={reportId} proofFileName={proofFileName} hasProof={hasProof} />
+      )}
     </div>
   );
 }
