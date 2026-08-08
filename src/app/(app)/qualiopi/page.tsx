@@ -270,6 +270,18 @@ const STALL_MIN_COUNT = 2;
 const COMPLAINT_STATUS_LABELS: Record<string, string> = { open: "Ouverte", investigating: "En cours d'examen", resolved: "Résolue" };
 const COMPLAINT_STATUS_TONE: Record<string, "warn" | "good" | "danger"> = { open: "danger", investigating: "warn", resolved: "good" };
 
+// Complaint.category — la même table porte les vraies réclamations et les
+// questions posées au support (voir SupportRequestDialog, « Je veux… »). Le
+// registre les rangeait toutes sous « Réclamation », ce qu'un certificateur
+// qui ouvre le dossier constate en une lecture. Les deux ont leur place au
+// registre (l'indicateur 31 couvre aussi les difficultés rencontrées), mais
+// pas sous le même nom.
+const COMPLAINT_CATEGORY_LABELS: Record<string, string> = {
+  complaint: "Réclamation",
+  question: "Question au support",
+  other: "Demande au support",
+};
+
 async function ContinuousImprovementTab({ organizationId, canEdit }: { organizationId: string; canEdit: boolean }) {
   const [openItems, complaints, findings, risks, courses, stalledProgress] = await Promise.all([
     // NonConformity n'est alimenté par aucun formulaire (seul le jeu de
@@ -325,7 +337,7 @@ async function ContinuousImprovementTab({ organizationId, canEdit }: { organizat
         id: `complaint-${c.id}`,
         at: c.createdAt,
         subject: c.subject,
-        meta: `Réclamation · ${new Date(c.createdAt).toLocaleDateString("fr-FR")}`,
+        meta: `${COMPLAINT_CATEGORY_LABELS[c.category] ?? "Demande au support"} · ${new Date(c.createdAt).toLocaleDateString("fr-FR")}`,
         statusLabel: COMPLAINT_STATUS_LABELS[c.status] ?? c.status,
         tone: COMPLAINT_STATUS_TONE[c.status] ?? "warn",
       })

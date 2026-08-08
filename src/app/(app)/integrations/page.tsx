@@ -85,6 +85,10 @@ export default async function IntegrationsPage(props: {
   const searchParams = await props.searchParams;
   const { organizationId, roles } = await requireSessionContext();
   if (can(roles, "integrations") === "none") redirect("/dashboard");
+  // Pause et déconnexion d'une boîte exigent le niveau « full » (voir
+  // MailboxActions) : la garde ci-dessus laisse passer un éventuel niveau
+  // « limited », qui verrait alors des contrôles refusés par les routes.
+  const peutGererLesBoites = can(roles, "integrations") === "full";
 
   const activeTab = TABS.some((t) => t.key === searchParams.tab) ? searchParams.tab! : "messagerie";
 
@@ -155,7 +159,12 @@ export default async function IntegrationsPage(props: {
                           `, dernière synchro le ${format(conn.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
                       </span>
                     </div>
-                    <MailboxActions provider="gmail" connectionId={conn.id} syncEnabled={conn.syncEnabled} />
+                    <MailboxActions
+                      provider="gmail"
+                      connectionId={conn.id}
+                      syncEnabled={conn.syncEnabled}
+                      canManage={peutGererLesBoites}
+                    />
                   </div>
                 ))}
                 <Button href="/api/integrations/google/connect" size="sm" className="self-start">
@@ -186,7 +195,12 @@ export default async function IntegrationsPage(props: {
                           `, dernière synchro le ${format(conn.lastSyncedAt, "d MMM yyyy à HH:mm", { locale: fr })}`}
                       </span>
                     </div>
-                    <MailboxActions provider="imap" connectionId={conn.id} syncEnabled={conn.syncEnabled} />
+                    <MailboxActions
+                      provider="imap"
+                      connectionId={conn.id}
+                      syncEnabled={conn.syncEnabled}
+                      canManage={peutGererLesBoites}
+                    />
                   </div>
                 ))}
                 <ImapMailboxForm />

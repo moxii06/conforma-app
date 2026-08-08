@@ -53,7 +53,16 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
   const estPieceFinanciere = mode === "quote" || mode === "invoice";
 
-  const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
+  // Le référent handicap est une RELATION (Organization.referentHandicapUserId),
+  // pas un champ texte : sans cet include, {{organization.referentHandicapName}}
+  // se résout en chaîne vide et l'article « Accessibilité et situation de
+  // handicap » du contrat comme de la convention part avec un trou, alors que
+  // l'aperçu de la même fenêtre, lui, affiche le nom. Voir la route voisine
+  // preview-template, qui charge l'organisme exactement de la même façon.
+  const organization = await prisma.organization.findUniqueOrThrow({
+    where: { id: session.organizationId },
+    include: { referentHandicapUser: { select: { name: true } } },
+  });
 
   let templateOrigin: string | undefined;
   let resolvedCategory = category;
@@ -102,7 +111,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     const bodyText = mergeTemplate(bodyTextSource, {
       contact: opportunity.contact,
-      organization,
+      organization: { ...organization, referentHandicapName: organization.referentHandicapUser?.name ?? null },
       session: null,
       course,
       company: opportunity.contact.company

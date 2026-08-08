@@ -120,7 +120,12 @@ export default async function CrmPage(
   const where: Prisma.OpportunityWhereInput = {
     organizationId,
     ...ownerFilter,
-    ...(view === "table" && stageFilter ? { stage: stageFilter } : {}),
+    // Le filtre d'étape vaut AUSSI dans les Archives, et pas seulement dans
+    // le tableau : la carte « Conclu » y renvoie, puisqu'atteindre l'étape
+    // « Terminé » archive le contact dans la foulée. Sans cela, son lien
+    // menait à une vue où le filtre était ignoré. La vue « Contacts »
+    // reste à l'écart : elle interroge des personnes, pas des affaires.
+    ...(view !== "contacts" && stageFilter ? { stage: stageFilter } : {}),
     contact: { archivedAt: view === "archives" ? { not: null } : null },
     ...(q
       ? {
@@ -156,7 +161,17 @@ export default async function CrmPage(
       : {}),
   };
 
-  const [opportunities, total, candidatsLot, contacts, courses, templates, pipelineTotals] = await Promise.all([
+  const [
+    opportunities,
+    total,
+    candidatsLot,
+    totalPersonnesLot,
+    contacts,
+    courses,
+    templates,
+    pipelineTotals,
+    concluAgg,
+  ] = await Promise.all([
     prisma.opportunity.findMany({
       where,
       include: {
@@ -189,6 +204,18 @@ export default async function CrmPage(
           take: MAX_CONTACTS_PAR_LOT,
         })
       : Promise.resolve([]),
+    // Le total que verra le dialogue de masse, exprimé en PERSONNES.
+    //
+    // `candidatsLot` est `distinct` sur le contact ; lui passer le nombre
+    // d'AFFAIRES faisait annoncer un reliquat imaginaire — « 40 lignes
+    // correspondent à ce filtre, les 25 premières sont proposées, relancez
+    // pour les 15 suivantes » alors que les 25 étaient la totalité, et que
+    // les archiver vidait l'ensemble filtré (donc plus de bouton, donc
+    // jamais de « 15 suivantes »). Même filtre, comptée du bon côté de la
+    // relation.
+    canWrite
+      ? prisma.contact.count({ where: { organizationId, opportunities: { some: where } } })
+      : Promise.resolve(0),
     // Le choix d'un contact existant passe désormais par la recherche
     // serveur (ContactSearchInput) — il ne reste à charger qu'UN contact,
     // juste pour savoir si l'onglet « Contact existant » a un sens.
@@ -222,6 +249,19 @@ export default async function CrmPage(
       by: ["stage"],
       where: { organizationId, ...ownerFilter, contact: { archivedAt: null } },
       _count: true,
+      _sum: { amountCents: true },
+    }),
+    // « Conclu » se compte SANS le filtre d'archive, contrairement à tout le
+    // reste du bandeau — et ce n'est pas une inconséquence.
+    //
+    // Les deux seuls chemins qui posent l'étape « Terminé » archivent le
+    // contact dans la foulée (/api/crm/opportunities/[id] pour le
+    // changement manuel, advanceOpportunityStage pour l'encaissement).
+    // Tirée du même agrégat que les autres cartes, celle-ci retombait donc
+    // à 0,00 € à l'instant même où l'affaire était conclue : elle ne
+    // pouvait afficher un montant que pour un contact réactivé à la main.
+    prisma.opportunity.aggregate({
+      where: { organizationId, ...ownerFilter, stage: PipelineStage.COMPLETED },
       _sum: { amountCents: true },
     }),
   ]);
@@ -262,7 +302,7 @@ export default async function CrmPage(
   // Audit P1 : deux montants commerciaux, plus trois cases financières —
   // « en cours » (tout ce qui n'est pas clos) et « conclu ».
   const inProgressCents = stageSum(STAGES_BEFORE_COMPLETION);
-  const completedCents = stageSum([PipelineStage.COMPLETED]);
+  const completedCents = concluAgg._sum.amountCents ?? 0;
 
   return (
     <>
@@ -311,7 +351,15 @@ export default async function CrmPage(
           <div className="flex gap-3.5">
             <MetricCard label="Prospects actifs" value={activeCount} />
             <MetricCard label="En cours" value={formatAmount(inProgressCents)} hint="du premier contact à la formation en cours" />
-            <MetricCard label="Conclu" value={formatAmount(completedCents)} tone="good" href="/crm?stage=COMPLETED" />
+            {/* Vers les Archives, et non vers le tableau : une affaire
+                « Terminé » a archivé son contact, donc le tableau — qui
+                exclut les archivés — n'en montrerait aucune. */}
+            <MetricCard
+              label="Conclu"
+              value={formatAmount(completedCents)}
+              tone="good"
+              href="/crm?view=archives&stage=COMPLETED"
+            />
             <MetricCard label="Suivi des règlements" value="Facturation" hint="factures émises, payées, en retard" href="/facturation?tab=factures" />
           </div>
         )}
@@ -349,7 +397,7 @@ export default async function CrmPage(
                 id: o.contactId,
                 libelle: `${o.contact.firstName} ${o.contact.lastName}`,
               }))}
-              total={total}
+              total={totalPersonnesLot}
               archiver={view !== "archives"}
             />
           )}
@@ -413,6 +461,21 @@ export default async function CrmPage(
           </div>
         ) : view === "archives" ? (
           <div className="bg-white border border-line rounded-card overflow-x-auto">
+            {/* Les Archives n'ont pas de barre de filtres : sans ce bandeau,
+                on arrive de la carte « Conclu » sur une liste raccourcie
+                sans savoir pourquoi les autres lignes ont disparu — même
+                traitement que le filtre par référence de /facturation. */}
+            {stageFilter && (
+              <div className="flex items-center justify-between gap-3 bg-linen border-b border-line px-4 py-2.5 text-[12.5px] text-ink">
+                <span>
+                  Filtré sur l&apos;étape{" "}
+                  <span className="font-medium">{STAGE_LABELS[stageFilter]}</span>
+                </span>
+                <Link href="/crm?view=archives" className="text-slate hover:text-ink underline decoration-line">
+                  Voir tout
+                </Link>
+              </div>
+            )}
             <table className="w-full border-collapse text-[12.5px]">
               <thead>
                 <tr className="border-b border-line">

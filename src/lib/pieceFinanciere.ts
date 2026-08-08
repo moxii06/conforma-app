@@ -72,6 +72,24 @@ export type VocabulairePiece = {
    */
   champOrigineFinancement: boolean;
   /**
+   * Faut-il exiger une référence saisie à la main ?
+   *
+   * Devis : oui. Rien ne numérote un devis côté serveur
+   * (/api/facturation/quotes exige une `reference` non vide), donc le
+   * laisser partir sans donnerait un document sans identifiant.
+   *
+   * Facture : NON, et ce n'est pas une facilité de saisie. La référence est
+   * allouée par `nextInvoiceReference`, qui incrémente atomiquement le
+   * compteur de l'organisme ; une référence tapée à la main, elle,
+   * n'incrémente rien. Obliger à en saisir une ici — alors que la
+   * Facturation annonce « vide = numéro suivant » — faisait donc réémettre
+   * le même numéro à la facture suivante : un doublon dans la séquence que
+   * l'article 242 nonies A du CGI exige chronologique et continue. Laisser
+   * le champ vide doit rester le chemin normal, identique aux deux points
+   * d'entrée.
+   */
+  referenceObligatoire: boolean;
+  /**
    * Un brouillon peut-il être effacé ?
    *
    * Devis : oui. Rien ne le numérote, rien ne l'a quitté, et un devis créé
@@ -102,6 +120,7 @@ export const PIECES: Record<PieceKind, VocabulairePiece> = {
     mode: "quote",
     champEcheance: false,
     champOrigineFinancement: false,
+    referenceObligatoire: true,
     supprimable: true,
     effetEnvoi:
       "À l'envoi, ce devis passera en « envoyé » et l'affaire avancera à « Devis envoyé » — comme depuis la Facturation.",
@@ -118,6 +137,7 @@ export const PIECES: Record<PieceKind, VocabulairePiece> = {
     mode: "invoice",
     champEcheance: true,
     champOrigineFinancement: true,
+    referenceObligatoire: false,
     supprimable: false,
     effetEnvoi:
       "À l'envoi, cette facture passera en « envoyée ». L'affaire commerciale ne bouge pas : c'est l'encaissement qui la clôt, pas l'émission.",

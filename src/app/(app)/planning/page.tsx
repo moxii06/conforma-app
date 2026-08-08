@@ -112,7 +112,14 @@ async function ListTab({
   // formations en continu affichées en dessous.
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const pageContinu = Math.max(1, parseInt(searchParams.continu ?? "1", 10) || 1);
-  const whereDatees = { organizationId, mode: "FIXED_DATE" as const, startsAt: { gte: new Date() }, archivedAt: null, ...ownerFilter };
+  // La borne porte sur la FIN de la session, pas sur son début. Avec
+  // `startsAt >= maintenant`, une session du 8 au 10 août consultée le 9
+  // sortait de cette liste sans entrer dans les Archives (qui prennent
+  // `endsAt < maintenant`) : elle n'était donc dans aucune des deux listes
+  // le jour même où on l'ouvre pour lancer l'émargement. Sur la fin, les
+  // deux ensembles se complètent exactement, sans trou ni doublon — c'est
+  // déjà la borne du portail formateur (mon-espace/page.tsx).
+  const whereDatees = { organizationId, mode: "FIXED_DATE" as const, endsAt: { gte: new Date() }, archivedAt: null, ...ownerFilter };
   const whereContinu = { organizationId, mode: "ROLLING" as const, archivedAt: null, ...ownerFilter };
 
   const [sessions, total, rolling, totalContinu] = await Promise.all([
@@ -142,7 +149,7 @@ async function ListTab({
     <div className="flex flex-col gap-2.5">
       {total > 0 && (
         <div className="text-[12px] text-slate">
-          {total} session{total > 1 ? "s" : ""} à venir
+          {total} session{total > 1 ? "s" : ""} en cours ou à venir
         </div>
       )}
       {sessions.map((s) => {
@@ -185,7 +192,7 @@ async function ListTab({
       })}
       {sessions.length === 0 && (
         <EmptyState
-          title="Aucune session à venir"
+          title="Aucune session en cours ou à venir"
           description={
             canCreate
               ? "Une session planifiée apparaît ici avec ses inscrits, son formateur et son statut — créez la première avec le formulaire ci-dessus."
@@ -299,8 +306,19 @@ async function ArchivesTab({
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const where = {
     organizationId,
-    mode: "FIXED_DATE" as const,
-    OR: [{ archivedAt: { not: null } }, { endsAt: { lt: new Date() } }],
+    OR: [
+      // Archivée à la main, quel que soit le mode. Le `mode: "FIXED_DATE"`
+      // qui coiffait tout ce `where` faisait disparaître une formation en
+      // continu des TROIS onglets dès qu'on l'archivait : la Liste ne montre
+      // que celles qui ne le sont pas, le Calendrier ignore ce mode, et cet
+      // onglet-ci l'excluait aussi — plus aucun chemin vers « Désarchiver ».
+      { archivedAt: { not: null } },
+      // Terminée d'elle-même : réservé à une cohorte datée. Le `endsAt` d'une
+      // session en continu est un remplissage (aujourd'hui + 10 ans, voir
+      // api/planning/sessions/route.ts), pas une vraie fin — l'appliquer aux
+      // deux modes rangerait ici des formations toujours ouvertes.
+      { mode: "FIXED_DATE" as const, endsAt: { lt: new Date() } },
+    ],
     ...ownerFilter,
   };
   const [sessions, total] = await Promise.all([
@@ -322,45 +340,57 @@ async function ArchivesTab({
           {total} session{total > 1 ? "s" : ""} terminée{total > 1 ? "s" : ""} ou archivée{total > 1 ? "s" : ""}
         </div>
       )}
-      {sessions.map((s) => (
-        <div key={s.id} className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6">
-          <Link href={`/planning/${s.id}`} className="flex items-center gap-6 flex-1 min-w-0 hover:opacity-80">
-            <div className="w-24 shrink-0">
-              <div className="text-[12.5px] font-semibold text-ink">
-                {format(s.startsAt, "EEE d MMM yyyy", { locale: fr })}
+      {sessions.map((s) => {
+        // Une formation en continu archivée arrive ici sans rien de ce que la
+        // colonne de gauche affiche : ses dates sont un remplissage et sa
+        // capacité ne borne aucune cohorte. On l'annonce pour ce qu'elle est
+        // plutôt que d'imprimer une fausse date de cohorte.
+        const estContinu = s.mode === "ROLLING";
+        return (
+          <div key={s.id} className="bg-white border border-line rounded-card px-5 py-4 flex items-center gap-6">
+            <Link href={`/planning/${s.id}`} className="flex items-center gap-6 flex-1 min-w-0 hover:opacity-80">
+              <div className="w-24 shrink-0">
+                <div className="text-[12.5px] font-semibold text-ink">
+                  {estContinu ? "En continu" : format(s.startsAt, "EEE d MMM yyyy", { locale: fr })}
+                </div>
+                {/* Une session reprise d'un ancien outil n'a que des dates :
+                    le fichier ne porte pas d'horaires. Afficher « 01:00–01:00 »
+                    la ferait passer pour une session de durée nulle, à côté
+                    des 21 heures qu'elle déclare au BPF. On montre la période
+                    réelle, ou rien quand elle tient sur un jour. */}
+                <div className="text-[11.5px] text-slate">
+                  {estContinu
+                    ? "Sans cohorte"
+                    : s.importedAt
+                      ? format(s.startsAt, "yyyy-MM-dd") === format(s.endsAt, "yyyy-MM-dd")
+                        ? "Reprise"
+                        : `→ ${format(s.endsAt, "d MMM", { locale: fr })}`
+                      : `${format(s.startsAt, "HH:mm")}–${format(s.endsAt, "HH:mm")}`}
+                </div>
               </div>
-              {/* Une session reprise d'un ancien outil n'a que des dates :
-                  le fichier ne porte pas d'horaires. Afficher « 01:00–01:00 »
-                  la ferait passer pour une session de durée nulle, à côté
-                  des 21 heures qu'elle déclare au BPF. On montre la période
-                  réelle, ou rien quand elle tient sur un jour. */}
-              <div className="text-[11.5px] text-slate">
-                {s.importedAt
-                  ? format(s.startsAt, "yyyy-MM-dd") === format(s.endsAt, "yyyy-MM-dd")
-                    ? "Reprise"
-                    : `→ ${format(s.endsAt, "d MMM", { locale: fr })}`
-                  : `${format(s.startsAt, "HH:mm")}–${format(s.endsAt, "HH:mm")}`}
+              <div className="flex-1 min-w-0">
+                <div className="text-[13.5px] font-semibold text-ink truncate">{s.course.title}</div>
+                <div className="text-[11.5px] text-slate mt-0.5 truncate">
+                  {s.location ? `${s.location} · ` : ""}
+                  {FORMAT_LABELS[s.format]}
+                </div>
               </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13.5px] font-semibold text-ink truncate">{s.course.title}</div>
-              <div className="text-[11.5px] text-slate mt-0.5 truncate">
-                {s.location} · {FORMAT_LABELS[s.format]}
+              <div className="text-[12.5px] text-ink w-28 shrink-0 truncate">{s.trainer ? s.trainer.name : "À assigner"}</div>
+              <div className="text-[12.5px] text-slate w-14 shrink-0 text-right">
+                {estContinu
+                  ? `${s.dossiers.length} inscrit${s.dossiers.length > 1 ? "s" : ""}`
+                  : `${s.dossiers.length}/${s.capacity}`}
               </div>
-            </div>
-            <div className="text-[12.5px] text-ink w-28 shrink-0 truncate">{s.trainer ? s.trainer.name : "À assigner"}</div>
-            <div className="text-[12.5px] text-slate w-14 shrink-0 text-right">
-              {s.dossiers.length}/{s.capacity}
-            </div>
-            <div className="shrink-0">
-              <Pill tone={s.status === "CANCELLED" ? "danger" : s.archivedAt ? "neutral" : "warn"}>
-                {s.status === "CANCELLED" ? "Annulée" : s.archivedAt ? "Archivée" : "Terminée"}
-              </Pill>
-            </div>
-          </Link>
-          {canEdit && <ArchiveSessionButton sessionId={s.id} archived={Boolean(s.archivedAt)} />}
-        </div>
-      ))}
+              <div className="shrink-0">
+                <Pill tone={s.status === "CANCELLED" ? "danger" : s.archivedAt ? "neutral" : "warn"}>
+                  {s.status === "CANCELLED" ? "Annulée" : s.archivedAt ? "Archivée" : "Terminée"}
+                </Pill>
+              </div>
+            </Link>
+            {canEdit && <ArchiveSessionButton sessionId={s.id} archived={Boolean(s.archivedAt)} />}
+          </div>
+        );
+      })}
       {sessions.length === 0 && <div className="text-[12.5px] text-slate">Aucune session archivée.</div>}
       <Pagination basePath="/planning" searchParams={searchParams} page={page} totalPages={totalPages} />
     </div>

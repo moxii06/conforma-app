@@ -46,6 +46,18 @@ export function InboxReplyDialog({
   messageId: string;
   fromName: string | null;
   contactFirstName: string | null;
+  /**
+   * Ouvre la moitié « documents » (pièces déjà au dossier du contact +
+   * génération depuis un modèle).
+   *
+   * Vaut false chez l'unique appelant actuel, InboxTriageSplitView : le
+   * triage ne liste par construction que les messages SANS contact. Cette
+   * moitié n'est donc pas encore atteignable — elle le deviendra le jour où
+   * cette fenêtre remplacera EmailReplyComposer sur la fiche contact et la
+   * fiche dossier, qui répondent aujourd'hui sans aucune pièce jointe.
+   * Gardée plutôt que supprimée pour cette raison, et parce que la route
+   * qu'elle appelle (/api/inbox/messages/[id]/documents) est écrite.
+   */
   hasContact: boolean;
   signatureHtml: string;
 }) {
@@ -130,10 +142,14 @@ export function InboxReplyDialog({
   }
 
   return (
-    <DialogShell title={"Répondre {fromName ? `à ${fromName}` : &quot;&quot;}"} onClose={() => {
-              setOpen(false);
-              reset();
-            }} maxWidth="max-w-2xl">
+    <DialogShell
+      title={fromName ? `Répondre à ${fromName}` : "Répondre"}
+      onClose={() => {
+        setOpen(false);
+        reset();
+      }}
+      maxWidth="max-w-2xl"
+    >
 
         {result ? (
           <div className="flex flex-col gap-2">
@@ -202,10 +218,19 @@ export function InboxReplyDialog({
                 )}
               </div>
 
+              {/* Le texte disait « rattachez ce message à un contact pour
+                  joindre un document » — un parcours qui se referme sur
+                  lui-même : rattacher fait sortir le message du triage
+                  (contactId n'est plus nul, voir le where de /inbox), donc
+                  cette fenêtre devient inatteignable, et la réponse se fait
+                  ensuite depuis la fiche du contact, où le composeur n'offre
+                  aucune pièce jointe. On dit maintenant ce qui est possible
+                  ici et ce qui ne l'est pas, sans envoyer dans une impasse. */}
               {!hasContact && (
                 <div className="text-[11px] text-slate">
-                  Rattachez ce message à un contact (« Rattacher » ou « Nouveau prospect » ci-dessus) pour joindre un
-                  document déjà existant ou en générer un depuis un modèle.
+                  Ce message n&apos;est rattaché à aucun contact : seuls des fichiers de votre ordinateur peuvent être
+                  joints ici. Un document déjà au dossier, ou généré depuis un modèle, s&apos;envoie depuis la fiche du
+                  contact ou du dossier.
                 </div>
               )}
 

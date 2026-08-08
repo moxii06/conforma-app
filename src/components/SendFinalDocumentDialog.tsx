@@ -267,17 +267,31 @@ export function SendFinalDocumentDialog({
               <SignatureCheckbox checked={includeSignature} onChange={setIncludeSignature} />
             </div>
 
-            {signatureAvailable && (
-              <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
-                <input type="checkbox" checked={signature} onChange={(e) => setSignature(e.target.checked)} className="w-4 h-4 mt-0.5 accent-sage" />
-                <span>
-                  <span className="text-[12.5px] text-ink block">Demander une signature électronique</span>
-                  <span className="text-[11px] text-slate block">
-                    {sélection.length} signature{sélection.length > 1 ? "s" : ""} décomptée{sélection.length > 1 ? "s" : ""} de votre forfait.
-                  </span>
+            {/* La case reste TOUJOURS à l'écran, grisée quand la signature
+                n'est pas configurée — comme dans les deux autres dialogues
+                d'envoi (prospect, sous-traitant). La masquer laissait croire
+                que Jalon ne sait pas faire signer, alors qu'il manque une
+                clé : une possibilité absente ne se remarque pas, une
+                possibilité grisée dit ce qu'il faut faire. */}
+            <label
+              className={`flex items-start gap-2.5 mt-3 ${signatureAvailable ? "cursor-pointer" : "opacity-50"}`}
+            >
+              <input
+                type="checkbox"
+                checked={signature}
+                disabled={!signatureAvailable}
+                onChange={(e) => setSignature(e.target.checked)}
+                className="w-4 h-4 mt-0.5 accent-sage"
+              />
+              <span>
+                <span className="text-[12.5px] text-ink block">Demander une signature électronique</span>
+                <span className="text-[11px] text-slate block">
+                  {signatureAvailable
+                    ? `${sélection.length} signature${sélection.length > 1 ? "s" : ""} décomptée${sélection.length > 1 ? "s" : ""} de votre forfait.`
+                    : "Nécessite une clé API Yousign — à configurer sur la page Intégrations."}
                 </span>
-              </label>
-            )}
+              </span>
+            </label>
 
             <div className="border-t border-line mt-3 pt-2.5 text-[12px] text-slate">
               <div>

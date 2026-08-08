@@ -143,6 +143,19 @@ describe("champs manquants", () => {
     ]);
   });
 
+  it("signale le référent handicap manquant, avec l'écran Équipe pour le désigner", () => {
+    // L'article « Accessibilité et situation de handicap » du contrat comme de
+    // la convention de démarrage porte cette balise. Elle se règle depuis
+    // /team (c'est une personne à désigner), pas depuis /profil — d'où le lien
+    // différent de celui des mentions légales.
+    const body = "…auprès du référent handicap, {{organization.referentHandicapName}}, joignable à …";
+    expect(describeMissingFields(findEmptyMergeFields(body, ctx()))).toEqual([
+      { key: "organization.referentHandicapName", label: "Référent handicap", fixHref: "/team" },
+    ]);
+    const designe = ctx({ organization: { name: "Nova", referentHandicapName: "Claire Martin" } });
+    expect(findEmptyMergeFields(body, designe)).toEqual([]);
+  });
+
   it("ne signale plus rien une fois le champ renseigné", () => {
     const filled = ctx({ organization: { name: "Nova", activityDeclarationNumber: "11 75 12345 75" } });
     const missing = findEmptyMergeFields("{{organization.activityDeclarationNumber}}", filled);

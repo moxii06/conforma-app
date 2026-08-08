@@ -160,11 +160,19 @@ export function PieceFinanciereTab({
   // de prestations au milieu d'un message ferait perdre le fil.
   async function enregistrer() {
     const cents = centsFinal;
-    if (!reference.trim() || !Number.isFinite(cents) || cents <= 0) {
+    // Deux contrôles séparés, et non un seul comme avant : la référence
+    // n'est obligatoire que pour un devis (voir `referenceObligatoire`), et
+    // les fondre dans une condition unique faisait afficher le message du
+    // détail des lignes à qui avait seulement oublié la référence.
+    if (mots.referenceObligatoire && !reference.trim()) {
+      onErreur(`Une référence est nécessaire pour ${mots.leLa}.`);
+      return;
+    }
+    if (!Number.isFinite(cents) || cents <= 0) {
       onErreur(
         montantPilotéParLesLignes
           ? "Complétez le détail : chaque ligne a besoin d'une désignation et d'un prix."
-          : "Référence et montant sont requis.",
+          : "Le montant est requis.",
       );
       return;
     }
@@ -175,7 +183,10 @@ export function PieceFinanciereTab({
     // le même — poser la pièce qu'on va envoyer.
     const enModification = Boolean(pieceAttachee);
     const commun = {
-      reference: reference.trim(),
+      // Omise plutôt qu'envoyée vide : à la création d'une facture, c'est
+      // l'absence de clé qui déclenche `nextInvoiceReference` côté serveur,
+      // et en modification la route refuse une chaîne vide (z.string().min(1)).
+      ...(reference.trim() ? { reference: reference.trim() } : {}),
       amountCents: cents,
       ...(mots.champEcheance ? { dueDate: echeance } : {}),
       ...(mots.champOrigineFinancement ? { fundingOrigin: origineFinancement } : {}),
@@ -292,9 +303,20 @@ export function PieceFinanciereTab({
               <input
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                placeholder={kind === "quote" ? "DEV-2026-001" : "FAC-2026-001"}
+                placeholder={mots.referenceObligatoire ? "DEV-2026-001" : "Automatique"}
                 className="border border-line rounded-md px-2.5 py-1.5 text-[12.5px] text-ink outline-none focus:border-seal bg-white"
               />
+              {/* Dit ici ce que dit déjà la Facturation (NewInvoiceForm,
+                  « vide = numéro suivant ») : sans cette phrase, l'écran
+                  laissait croire qu'il fallait inventer un numéro, et le
+                  numéro inventé ne fait pas avancer le compteur. La mention
+                  est sous le champ, pas dans son étiquette, pour ne pas
+                  décaler la colonne « Montant » d'à côté. */}
+              {!mots.referenceObligatoire && (
+                <span className="text-[10.5px] text-slate leading-snug">
+                  Laissée vide : Jalon attribue le numéro suivant de votre séquence.
+                </span>
+              )}
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11px] text-slate uppercase tracking-wide">

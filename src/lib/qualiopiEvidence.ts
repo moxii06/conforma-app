@@ -13,6 +13,21 @@ import { coursMisses } from "@/lib/courseCompleteness";
 // whose relevance stays for the OF and the auditor to judge.
 export type AutoEvidence = { label: string; count: number; href: string };
 
+/**
+ * Somme d'un groupBy de Complaint par catégorie.
+ *
+ * Une réclamation et une question au support sont le même modèle
+ * (Complaint.category, « complaint » | « question » | « other ») mais pas la
+ * même preuve : l'indicateur 31 demande le traitement des réclamations ET des
+ * difficultés rencontrées par les parties prenantes, donc les deux comptent —
+ * jamais sous le même libellé. « 2 réclamations traitées » dans un dossier
+ * d'audit alors que l'une était un « où est mon attestation ? » réglé en deux
+ * heures, c'est une phrase que le certificateur peut vérifier et démentir.
+ */
+function compterParCategorie(rows: { category: string; _count: number }[], garder: (category: string) => boolean): number {
+  return rows.reduce((total, row) => (garder(row.category) ? total + row._count : total), 0);
+}
+
 export async function getAutomaticEvidence(organizationId: string): Promise<Map<number, AutoEvidence[]>> {
   const [
     resultIndicators,
@@ -26,12 +41,12 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     moduleCount,
     attachmentCount,
     org,
-    accommodationRequests,
+    accommodationsHandled,
     watchByType,
     activeSubcontractors,
     satisfactionCompleted,
     positioningCompleted,
-    complaintsResolved,
+    supportResolvedByCategory,
     qualityRisks,
     auditFindingsHandled,
     intervenantEvaluations,
@@ -50,12 +65,17 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
     prisma.elearningModule.count({ where: { course: { organizationId } } }),
     prisma.elearningModuleAttachment.count({ where: { module: { course: { organizationId } } } }),
     prisma.organization.findUnique({ where: { id: organizationId }, select: { referentHandicapUserId: true } }),
-    prisma.accommodationRequest.count({ where: { organizationId } }),
+    // « Traitée » veut dire répondue, favorablement ou non : une demande
+    // encore en « pending » est exactement le contraire d'une preuve de
+    // traitement. Sans ce filtre, l'indicateur 26 annonçait au certificateur
+    // « 4 demandes traitées confidentiellement » pendant que le plan d'action
+    // affichait, deux lignes plus bas, « 4 demandes en attente de réponse ».
+    prisma.accommodationRequest.count({ where: { organizationId, status: { in: ["granted", "declined"] } } }),
     prisma.regulatoryWatch.groupBy({ by: ["watchType"], where: { organizationId }, _count: true }),
     prisma.subcontractor.count({ where: { organizationId, status: "active" } }),
     prisma.satisfactionSurveyResponse.count({ where: { organizationId, status: "completed", survey: { kind: { in: ["hot", "cold"] } } } }),
     prisma.satisfactionSurveyResponse.count({ where: { organizationId, status: "completed", survey: { kind: "positioning" } } }),
-    prisma.complaint.count({ where: { organizationId, status: "resolved" } }),
+    prisma.complaint.groupBy({ by: ["category"], where: { organizationId, status: "resolved" }, _count: true }),
     prisma.qualityRisk.count({ where: { organizationId } }),
     prisma.qualiopiAuditFinding.count({ where: { audit: { organizationId }, status: { in: ["levee", "soldee"] } } }),
     prisma.intervenantEvaluation.count({
@@ -70,6 +90,9 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
   ]);
 
   const watchCount = (type: string) => watchByType.find((w: { watchType: string }) => w.watchType === type)?._count ?? 0;
+
+  const reclamationsResolues = compterParCategorie(supportResolvedByCategory, (c) => c === "complaint");
+  const autresDemandesResolues = compterParCategorie(supportResolvedByCategory, (c) => c !== "complaint");
 
   const map = new Map<number, AutoEvidence[]>();
   const add = (indicator: number, label: string, count: number, href: string) => {
@@ -98,12 +121,16 @@ export async function getAutomaticEvidence(organizationId: string): Promise<Map<
   add(24, "élément(s) de veille emplois, métiers et compétences", watchCount("metiers_competences"), "/qualiopi?tab=veille");
   add(25, "élément(s) de veille pédagogique et technologique", watchCount("pedagogique_technologique"), "/qualiopi?tab=veille");
   add(26, "référent handicap désigné", org?.referentHandicapUserId ? 1 : 0, "/team");
-  add(26, "demande(s) d'aménagement handicap traitée(s) confidentiellement", accommodationRequests, "/team");
+  // Vers /dossiers et non /team : ces demandes ne s'affichent que sur la fiche
+  // du dossier concerné (la confidentialité de l'art. 9 RGPD interdit une
+  // liste d'équipe), et c'est déjà où pointe le trou symétrique plus bas.
+  add(26, "demande(s) d'aménagement handicap traitée(s) confidentiellement", accommodationsHandled, "/dossiers");
   add(27, "sous-traitant(s)/intervenant(s) référencé(s) avec contrats suivis", activeSubcontractors, "/team");
   add(27, "engagement(s) de conformité RNQ signé(s) par un sous-traitant", rnqEngagements, "/team?tab=prestataires");
   add(28, "élément(s) de veille réseaux et partenariats", watchCount("reseaux_partenariats"), "/qualiopi?tab=veille");
   add(30, "questionnaire(s) de satisfaction complété(s)", satisfactionCompleted, "/qualiopi?tab=resultats");
-  add(31, "réclamation(s) traitée(s) et résolue(s)", complaintsResolved, "/support");
+  add(31, "réclamation(s) traitée(s) et résolue(s)", reclamationsResolues, "/support");
+  add(31, "autre(s) demande(s) au support traitée(s) et résolue(s)", autresDemandesResolues, "/support");
   add(32, "risque(s)/action(s) au registre d'amélioration continue", qualityRisks, "/qualiopi?tab=amelioration-continue");
   add(32, "non-conformité(s) d'audit avec action corrective acceptée", auditFindingsHandled, "/qualiopi?tab=audits");
 
@@ -171,7 +198,7 @@ export async function getEvidenceGaps(organizationId: string): Promise<Map<numbe
     evaluationsRecent,
     watchByTypeAndStatus,
     accommodationsByStatus,
-    openComplaints,
+    openSupportByCategory,
     openFindings,
   ] = await Promise.all([
     prisma.organization.findUnique({ where: { id: organizationId }, select: { referentHandicapUserId: true } }),
@@ -235,8 +262,10 @@ export async function getEvidenceGaps(organizationId: string): Promise<Map<numbe
     prisma.intervenantEvaluation.count({ where: { organizationId, evaluatedAt: { gte: freshnessFloor } } }),
     prisma.regulatoryWatch.groupBy({ by: ["watchType", "status"], where: { organizationId }, _count: true }),
     prisma.accommodationRequest.groupBy({ by: ["status"], where: { organizationId }, _count: true }),
-    prisma.complaint.count({
+    prisma.complaint.groupBy({
+      by: ["category"],
       where: { organizationId, status: { in: ["open", "investigating"] }, archivedAt: null },
+      _count: true,
     }),
     // Un écart de certification non soldé est le seul « trou » que
     // l'organisme n'a pas déduit lui-même : quelqu'un l'a écrit sur un
@@ -419,11 +448,24 @@ export async function getEvidenceGaps(organizationId: string): Promise<Map<numbe
       actionLabel: "Relancer les apprenants →",
     });
   }
+  // Deux trous plutôt qu'un : le nombre total ne change pas, mais une question
+  // au support laissée sans réponse n'est pas « une réclamation sans
+  // résolution tracée ». Nommer les deux populations séparément est ce qui
+  // permet à l'organisme de voir laquelle il doit traiter en premier.
+  const openComplaints = compterParCategorie(openSupportByCategory, (c) => c === "complaint");
+  const openOtherRequests = compterParCategorie(openSupportByCategory, (c) => c !== "complaint");
   if (openComplaints > 0) {
     add(31, {
       label: `${openComplaints} réclamation(s) en cours, sans résolution tracée`,
       href: "/support",
       actionLabel: "Traiter la réclamation →",
+    });
+  }
+  if (openOtherRequests > 0) {
+    add(31, {
+      label: `${openOtherRequests} autre(s) demande(s) au support en cours, sans réponse tracée`,
+      href: "/support",
+      actionLabel: "Répondre à la demande →",
     });
   }
 

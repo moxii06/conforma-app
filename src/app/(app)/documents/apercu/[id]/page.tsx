@@ -6,6 +6,7 @@ import { INCLUDE_ACCES_DOCUMENT, peutLireDocument } from "@/lib/documentAccess";
 import { ensureHtml } from "@/lib/plainTextToHtml";
 import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { aUnEnTete, lignesEnTete, mentionPiedDePage, type IdentiteOrganisme } from "@/lib/documentLayout";
+import { documentBucket, type DocumentBucket } from "@/lib/documentLifecycle";
 import { Button } from "@/components/ui";
 
 // La consultation d'un document.
@@ -82,13 +83,20 @@ export default async function ApercuDocumentPage(props: { params: Promise<{ id: 
       : (document.subcontractor?.name ?? null);
   const formation = document.dossier?.session.course.title ?? null;
 
-  const ETATS: Record<string, { texte: string; classe: string }> = {
+  // L'état affiché vient de documentBucket, jamais de `document.status` :
+  // ce champ ne prend que "draft" ou "final" (voir son commentaire dans le
+  // schéma), « envoyé » et « signé » se déduisant de sentByUserId et de
+  // signatureStatus/signedAt. Indexer sur status affichait donc « Finalisé —
+  // pas encore envoyé » sur un contrat que l'espace Documents rangeait déjà
+  // dans « Mes documents signés ». Même source pour les deux écrans, sans
+  // requête supplémentaire : le findFirst ci-dessus charge tous les scalaires.
+  const ETATS: Record<DocumentBucket, { texte: string; classe: string }> = {
     draft: { texte: "Brouillon", classe: "bg-pebble text-slate" },
     final: { texte: "Finalisé — pas encore envoyé", classe: "bg-[#EDDFC6] text-seal-dark" },
     sent: { texte: "Envoyé", classe: "bg-[#DEE5E0] text-sage" },
     signed: { texte: "Signé", classe: "bg-[#DEE5E0] text-sage" },
   };
-  const etat = ETATS[document.status] ?? ETATS.final;
+  const etat = ETATS[documentBucket(document)];
   const mention = mentionPiedDePage(identite);
 
   return (

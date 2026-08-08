@@ -111,6 +111,11 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
   const gate = await loadWithdrawalGate(dossier.id);
   const allModules = dossier.session.course.elearningModules;
   const modules = gate.active ? allModules.filter((m) => moduleAccessibleUnderGate(gate, m)) : allModules;
+  // Combien de modules le portail retient encore. La progression, elle, se
+  // compte sur le parcours entier (voir plus bas) : sans cette phrase,
+  // l'apprenant lirait « 1/8 » en ne voyant qu'une seule ligne, sans savoir
+  // où sont passées les sept autres.
+  const modulesRetenus = allModules.length - modules.length;
 
   // Self-heal on load: if staff reordered modules (or dragged a new one
   // above the learner's position) after this learner started, the moved
@@ -122,7 +127,14 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
     progressRows = await prisma.elearningProgress.findMany({ where: { dossierId: dossier.id } });
   }
 
-  const progress = buildCourseProgress(modules, progressRows, dossier.quizAttempts);
+  // Le dénominateur est le PARCOURS ENTIER, jamais la liste filtrée par le
+  // portail de rétractation. Calculé sur `modules`, un unique module ouvert
+  // et terminé donnait « 1/1 modules terminés », barre pleine, et le bouton
+  // d'attestation — que /api/lms/dossiers/[id]/certificate refuse ensuite,
+  // puisque buildCertificate raisonne sur tous les modules de la formation.
+  // Trois écrans doivent compter pareil : ici, le catalogue apprenant
+  // (/formations) et la route d'attestation.
+  const progress = buildCourseProgress(allModules, progressRows, dossier.quizAttempts);
   const progressByModule = new Map(progressRows.map((p) => [p.moduleId, p]));
 
   // Le « Passer cette vidéo » se règle désormais aussi au niveau de la
@@ -196,6 +208,12 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
       skippedAt: Boolean(progressByModule.get(m.id)?.skippedAt),
     };
   });
+
+  // Le module déplié d'office se choisit parmi les lignes RENDUES.
+  // `progress.currentModuleId` porte maintenant sur le parcours entier : sous
+  // portail partiel il peut désigner un module que cette page n'affiche pas,
+  // et rien ne s'ouvrirait.
+  const moduleADeplier = rows.find((r) => r.state === "in_progress" || r.state === "unlocked_not_started")?.id ?? null;
 
   return (
     <>
@@ -299,8 +317,22 @@ export default async function LearnerCourseDetailPage(props: { params: Promise<{
                 <div className="h-full bg-sage" style={{ width: `${progress.totalPercent}%` }} />
               </div>
               <div className="bg-linen border border-line rounded-md">
-                <CourseModulesList rows={rows} defaultExpandedId={progress.currentModuleId} />
+                <CourseModulesList rows={rows} defaultExpandedId={moduleADeplier} />
               </div>
+              {modulesRetenus > 0 && (
+                <div className="text-[11.5px] text-slate mt-2.5">
+                  {modulesRetenus === 1
+                    ? "1 autre module de cette formation ouvrira à la fin de votre délai de rétractation."
+                    : `${modulesRetenus} autres modules de cette formation ouvriront à la fin de votre délai de rétractation.`}
+                </div>
+              )}
+              {/* Aucune condition de portail ici, volontairement : depuis que
+                  le dénominateur est le parcours entier, `allCompleted` ne
+                  peut être vrai que si TOUS les modules sont réellement
+                  terminés — soit exactement ce qu'exige issueCertificate. Y
+                  ajouter `!gate.active` masquerait un bouton qui, lui,
+                  fonctionne, et le catalogue (/formations) le proposerait
+                  quand même : on rouvrirait l'écart qu'on vient de fermer. */}
               {progress.allCompleted && (
                 <div className="mt-3.5">
                   <CourseCertificateButton dossierId={dossier.id} />

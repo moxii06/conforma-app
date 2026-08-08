@@ -27,19 +27,39 @@ type SessionSummary = { mode: string; status: string; capacity: number; startsAt
 // /formations/[id] for that. A course's status/secondary line summarizes
 // across its sessions rather than assuming there's exactly one: several
 // real sessions is the common case once a course has been running a while.
-function summarizeSessions(sessions: SessionSummary[]): { pillLabel: string | null; pillTone: "good" | "warn" | "danger"; secondary: string } {
-  if (sessions.length === 0) return { pillLabel: null, pillTone: "warn", secondary: "Aucune session" };
-  const anyFull = sessions.some((s) => s._count.dossiers >= s.capacity);
+//
+// « Complet » ne s'écrit jamais tout court dans Jalon : il désigne deux murs
+// différents. Ici c'est Session.capacity qui sature — une cohorte pleine,
+// donc « Session complète ». Sur la fiche formation, c'est Course.maxLearners
+// qui plafonne la formation entière, donc « Formation complète ». Le même mot
+// nu portait les deux, en trois couleurs selon l'écran.
+//
+// La saturation sort du statut plutôt que de le remplacer : « Complet »
+// écrasait « Brouillon », si bien qu'une session pleine ET non validée ne
+// disait plus qu'elle n'était pas validée.
+function summarizeSessions(sessions: SessionSummary[]): {
+  statutLabel: string | null;
+  statutTone: "good" | "warn";
+  sessionComplete: boolean;
+  secondary: string;
+} {
+  if (sessions.length === 0) {
+    return { statutLabel: null, statutTone: "warn", sessionComplete: false, secondary: "Aucune session" };
+  }
+  const sessionComplete = sessions.some((s) => s._count.dossiers >= s.capacity);
   const anyDraft = sessions.some((s) => s.status === "DRAFT");
-  const pillLabel = anyFull ? "Complet" : anyDraft ? "Brouillon" : "Confirmée";
-  const pillTone = anyFull ? "danger" : anyDraft ? "warn" : "good";
   const secondary =
     sessions.length === 1
       ? sessions[0].mode === "ROLLING"
         ? "En continu"
         : format(sessions[0].startsAt, "d MMM", { locale: fr })
       : `${sessions.length} sess.`;
-  return { pillLabel, pillTone, secondary };
+  return {
+    statutLabel: anyDraft ? "Brouillon" : "Confirmée",
+    statutTone: anyDraft ? "warn" : "good",
+    sessionComplete,
+    secondary,
+  };
 }
 
 export default async function FormationsPage(props: { searchParams: Promise<{ tab?: string; q?: string }> }) {
@@ -158,7 +178,7 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
             </div>
             <div className="flex flex-col gap-2.5">
               {courses.map((course) => {
-                const { pillLabel, pillTone, secondary } = summarizeSessions(course.sessions);
+                const { statutLabel, statutTone, sessionComplete, secondary } = summarizeSessions(course.sessions);
                 const learnerCount = course.sessions.reduce((sum, s) => sum + s._count.dossiers, 0);
                 return (
                   <Link
@@ -174,7 +194,12 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5 shrink-0">
-                      {pillLabel && <Pill tone={pillTone}>{pillLabel}</Pill>}
+                      {/* Gris, comme la même pastille sur /planning et sur la
+                          fiche session : une cohorte pleine est un fait, pas
+                          une alerte. Le rouge d'avant disait ici une urgence
+                          que les deux autres écrans ne disaient pas. */}
+                      {sessionComplete && <Pill tone="neutral">Session complète</Pill>}
+                      {statutLabel && <Pill tone={statutTone}>{statutLabel}</Pill>}
                       <div className="text-[12px] text-slate whitespace-nowrap">{secondary}</div>
                     </div>
                   </Link>

@@ -16,10 +16,23 @@ export function MailboxActions({
   provider,
   connectionId,
   syncEnabled,
+  canManage,
 }: {
   provider: "gmail" | "imap";
   connectionId: string;
   syncEnabled: boolean;
+  /**
+   * Droit de mettre en pause et de déconnecter la boîte — pas le même que
+   * celui de la relever.
+   *
+   * « Synchroniser maintenant » ne demande que le droit `inbox` (voir les
+   * deux routes /sync), ce qu'ont le gestionnaire et le commercial. Pause et
+   * déconnexion, elles, passent par /integrations/mailbox/toggle et
+   * /integrations/*\/disconnect, réservés au titulaire du compte. Sans cette
+   * distinction, /inbox affichait à un gestionnaire deux contrôles qui ne
+   * pouvaient que lui répondre 403.
+   */
+  canManage: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -46,14 +59,29 @@ export function MailboxActions({
     router.refresh();
   }
 
+  // La seule action DESTRUCTRICE du lot : la route supprime, dans une même
+  // transaction, la connexion ET tous les EmailMessage qui en viennent. D'où
+  // la confirmation — et surtout la lecture de `res.ok` : sans elle, un refus
+  // (403) ou une panne se soldait par un simple rafraîchissement, la boîte
+  // toujours là et pas un mot d'explication.
   async function handleDisconnect() {
+    const confirme = window.confirm(
+      "Déconnecter cette boîte supprimera aussi tous les emails déjà importés depuis cette adresse. Continuer ?"
+    );
+    if (!confirme) return;
     setLoading("disconnect");
-    await fetch(`/api/integrations/${apiPath}/disconnect`, {
+    const res = await fetch(`/api/integrations/${apiPath}/disconnect`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ connectionId }),
     });
+    const body = await res.json().catch(() => ({}));
     setLoading(null);
+    if (!res.ok) {
+      toast.error(body.error ?? "Impossible de déconnecter cette boîte.");
+      return;
+    }
+    toast.success("Boîte déconnectée.");
     router.refresh();
   }
 
@@ -79,28 +107,38 @@ export function MailboxActions({
       {/* Interrupteur et non case à cocher : ceci enregistre immédiatement,
           il n'y a aucun bouton « Valider » derrière. Une case dit « je
           remplis un formulaire », un interrupteur dit « c'est fait ». */}
-      <div className="flex items-center gap-1.5 text-[12px] text-slate">
-        <Switch
-          checked={syncEnabled}
-          onChange={handleToggle}
-          disabled={loading !== null}
-          label="Synchroniser cette boîte"
-        />
-        <span title="Désactiver arrête la synchronisation sans supprimer les emails déjà importés.">
-          {loading === "toggle" ? "…" : "Synchroniser cette boîte"}
-        </span>
-      </div>
+      {canManage && (
+        <div className="flex items-center gap-1.5 text-[12px] text-slate">
+          <Switch
+            checked={syncEnabled}
+            onChange={handleToggle}
+            disabled={loading !== null}
+            label="Synchroniser cette boîte"
+          />
+          <span title="Désactiver arrête la synchronisation sans supprimer les emails déjà importés.">
+            {loading === "toggle" ? "…" : "Synchroniser cette boîte"}
+          </span>
+        </div>
+      )}
       <button
         onClick={handleSync}
         disabled={loading !== null || !syncEnabled}
-        title={syncEnabled ? undefined : "Cochez « Synchroniser cette boîte » pour relancer les imports."}
+        title={
+          syncEnabled
+            ? undefined
+            : canManage
+              ? "Cochez « Synchroniser cette boîte » pour relancer les imports."
+              : "Cette boîte est en pause — seul le titulaire du compte peut la réactiver."
+        }
         className="text-[12px] font-medium text-ink underline decoration-line hover:decoration-ink disabled:opacity-60"
       >
         {loading === "sync" ? "…" : "Synchroniser maintenant"}
       </button>
-      <button onClick={handleDisconnect} disabled={loading !== null} className="text-[12px] text-rust hover:underline disabled:opacity-60">
-        {loading === "disconnect" ? "…" : "Déconnecter"}
-      </button>
+      {canManage && (
+        <button onClick={handleDisconnect} disabled={loading !== null} className="text-[12px] text-rust hover:underline disabled:opacity-60">
+          {loading === "disconnect" ? "…" : "Déconnecter"}
+        </button>
+      )}
     </div>
   );
 }

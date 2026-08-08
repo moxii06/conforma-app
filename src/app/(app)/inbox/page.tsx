@@ -14,6 +14,7 @@ import { RgpdSuggestionActions } from "@/components/RgpdSuggestionActions";
 import { InboxDossierSuggestionActions } from "@/components/InboxDossierSuggestionActions";
 import { InboxRestoreButton } from "@/components/InboxArchiveActions";
 import { Pagination } from "@/components/Pagination";
+import { SearchInput } from "@/components/SearchInput";
 import { Role } from "@prisma/client";
 
 const RGPD_REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -33,11 +34,51 @@ const PAGE_SIZE = 30;
 // ne doit pas disparaître sans qu'on le dise.
 const RGPD_APERCU = 20;
 
-export default async function InboxPage(props: { searchParams: Promise<{ mailbox?: string; tab?: string; page?: string }> }) {
+// Le filtre texte des trois onglets. Renvoie {} quand la recherche est vide,
+// pour ne rien ajouter au `where`.
+//
+// Enfermé dans un `AND` plutôt que posé à plat : les where d'onglet portent
+// déjà leurs propres conditions (contactId, ignoredAt, direction, boîte), et
+// un second `OR` ajouté un jour à plat écraserait celui-ci sans bruit — le
+// piège documenté dans CLAUDE.md, déjà rencontré sur InvoicesTab.
+//
+// `body` est inclus volontairement : sur un écran où le message n'existe
+// encore nulle part ailleurs, se souvenir d'un mot du corps est souvent le
+// seul point d'entrée. Le nom du contact aussi, pour les onglets
+// Rattachements et Archivés qui affichent ce nom en tête de ligne (sur « À
+// trier », où contactId est nul par construction, ces clauses ne matchent
+// simplement jamais).
+function filtreRecherche(q: string | undefined) {
+  if (!q) return {};
+  const contient = { contains: q, mode: "insensitive" as const };
+  return {
+    AND: [
+      {
+        OR: [
+          { subject: contient },
+          { fromAddress: contient },
+          { fromName: contient },
+          { body: contient },
+          { contact: { firstName: contient } },
+          { contact: { lastName: contient } },
+        ],
+      },
+    ],
+  };
+}
+
+export default async function InboxPage(props: {
+  searchParams: Promise<{ mailbox?: string; tab?: string; page?: string; q?: string }>;
+}) {
   const searchParams = await props.searchParams;
   const { organizationId, roles, userId } = await requireSessionContext();
   if (can(roles, "inbox") === "none") redirect("/dashboard");
   const canWrite = can(roles, "inbox") !== "none";
+  // Trier et répondre (droit « inbox ») n'est pas gérer la connexion elle-même
+  // (droit « integrations », réservé au titulaire du compte) : mettre en pause
+  // et déconnecter une boîte étaient proposés au gestionnaire et au
+  // commercial, à qui les routes répondent 403.
+  const peutGererLesBoites = can(roles, "integrations") === "full";
   const canHandleRgpd = canWriteRgpd(roles);
   // L'onglet « RGPD » a été fusionné dans le triage (audit P1 : « est-ce que
   // l'onglet RGPD est vraiment nécessaire ? »). Un lien ou un signet qui
@@ -47,6 +88,8 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
     searchParams.tab === "rattachements" ? "rattachements" : searchParams.tab === "archives" ? "archives" : "a-trier";
 
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
+  const q = searchParams.q?.trim() || undefined;
+  const rechercheWhere = filtreRecherche(q);
 
   // Plus de chargement de tous les contacts : « rattacher à un contact
   // existant » passe par la recherche serveur (ContactSearchInput), comme
@@ -84,13 +127,18 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
     // staff's own sent message.
     direction: { not: "out" },
     ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
+    ...rechercheWhere,
   };
   const suggestedWhere = {
     organizationId,
     contactId: { not: null },
     suggestedDossierId: { not: null },
     ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
+    ...rechercheWhere,
   };
+  // Le bandeau RGPD reste hors recherche : c'est une alerte à délai légal,
+  // pas une portion de la liste. La masquer parce qu'on cherche autre chose
+  // serait le meilleur moyen de rater le mois qui court.
   const rgpdWhere = { organizationId, rgpdSuggestedType: { not: null } };
   // Ce que « Archiver » (ex-Ignorer) a mis de côté — consultable et
   // réversible, plutôt qu'un aller sans retour dont l'écran ne montrait
@@ -99,6 +147,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
     organizationId,
     ignoredAt: { not: null },
     ...(mailboxFilter ? { mailboxConnectionId: mailboxFilter } : {}),
+    ...rechercheWhere,
   };
 
   // Les compteurs d'onglets viennent d'un `count`, plus de la longueur de la
@@ -173,8 +222,13 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   // ci-dessous » qu'un organisme réel n'a jamais eus. On explique plutôt ce
   // que la connexion apporte, une fois. Le jeu de démo, lui, a des emails
   // sans connexion : il continue de montrer le triage, ce qui est le but.
-  if (connections.length === 0 && unsortedCount + suggestedCount + archivedCount + rgpdCount === 0) {
-    const peutConnecter = can(roles, "integrations") === "full";
+  //
+  // `!q` en tête : sous recherche, les trois compteurs peuvent tomber à zéro
+  // alors que la boîte est pleine. Sans cette condition, une recherche
+  // infructueuse sur un jeu de démo (des emails, aucune connexion) renverrait
+  // l'écran d'accueil « connectez une boîte » — sans champ de recherche pour
+  // revenir en arrière.
+  if (!q && connections.length === 0 && unsortedCount + suggestedCount + archivedCount + rgpdCount === 0) {
     return (
       <>
         <PageHeader title="Boîte mail" subtitle="Triage des emails entrants" />
@@ -203,7 +257,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
                 Gmail, ou n&apos;importe quelle adresse en IMAP/SMTP — y compris celle de votre nom de domaine.
               </li>
             </ul>
-            {peutConnecter ? (
+            {peutGererLesBoites ? (
               <Button href="/integrations" className="self-start">
                 Connecter une boîte mail
               </Button>
@@ -243,12 +297,29 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
                     {c.provider} — {c.accountEmail}
                   </span>
                   {(c.provider === "gmail" || c.provider === "imap") && canWrite && (
-                    <MailboxActions provider={c.provider} connectionId={c.id} syncEnabled={c.syncEnabled} />
+                    <MailboxActions
+                      provider={c.provider}
+                      connectionId={c.id}
+                      syncEnabled={c.syncEnabled}
+                      canManage={peutGererLesBoites}
+                    />
                   )}
                 </div>
               ))}
             </div>
           )}
+        </div>
+
+        {/* Recherche et filtre de boîte au-dessus des trois onglets : leurs
+            trois `where` portent les deux, il n'y a aucune raison que l'un
+            n'apparaisse que sur « À trier ». Sans champ de recherche, un
+            message non encore rattaché n'existait sur aucun autre écran de
+            l'application : le retrouver, c'était feuilleter les pages. */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <SearchInput placeholder="Rechercher un expéditeur, un objet, un mot du message…" />
+          <MailboxFilterSelect
+            connections={connections.map((c) => ({ id: c.id, provider: c.provider, accountEmail: c.accountEmail }))}
+          />
         </div>
 
         {activeTab === "rattachements" ? (

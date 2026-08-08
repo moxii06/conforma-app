@@ -325,6 +325,12 @@ function ResumeTab({
             {course.sessions.map((s) => {
               const isCancelled = s.status === "CANCELLED";
               const isRolling = s.mode === "ROLLING";
+              // Le plafond qui bloque réellement une inscription
+              // (resolveEnrollmentSession, lib/enrollment.ts) — y compris sur
+              // une session en continu, dont la capacité est simplement
+              // généreuse et non absente. La fiche formation était le seul
+              // écran à gérer des inscriptions sans jamais montrer ce mur.
+              const sessionComplete = s.dossiers.length >= s.capacity;
               return (
                 <Link
                   key={s.id}

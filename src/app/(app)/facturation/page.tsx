@@ -56,6 +56,36 @@ function parseDateParam(value: string | undefined, endOfDay: boolean): Date | un
   return isNaN(date.getTime()) ? undefined : date;
 }
 
+/**
+ * Les deux définitions financières de l'écran, écrites UNE fois.
+ *
+ * La carte du bandeau et la liste sur laquelle elle envoie doivent désigner
+ * exactement les mêmes factures. Elles ne le faisaient pas : la carte « En
+ * attente de paiement » retirait déjà les factures échues (pour ne pas
+ * compter deux fois ce que la carte « En retard » annonce à côté), mais son
+ * lien `?status=SENT` retombait sur un `status = SENT` brut. Résultat, sur
+ * 5 factures envoyées dont 2 échues : la carte annonçait « 3 factures », le
+ * clic en affichait 5, et les 2 échues y portaient la pastille rouge « En
+ * retard » tout en étant déjà comptées par la carte voisine.
+ *
+ * Les deux ensembles sont donc disjoints par construction, et c'est ce qui
+ * rend le couple de filtres lisible : « Envoyé » = ce qu'on attend encore,
+ * « En retard » = ce qu'on aurait dû recevoir. Ni l'un ni l'autre n'est un
+ * simple `status =` : une facture dont l'échéance est passée est en retard
+ * même si personne n'a pensé à basculer son statut à la main (même
+ * détection que dashboardTasks.ts).
+ */
+function factureEnRetard(maintenant: Date): Prisma.InvoiceWhereInput {
+  return {
+    status: { notIn: ["PAID", "DRAFT"] },
+    OR: [{ status: "OVERDUE" }, { dueDate: { lt: maintenant } }],
+  };
+}
+
+function factureEnAttente(maintenant: Date): Prisma.InvoiceWhereInput {
+  return { status: "SENT", OR: [{ dueDate: null }, { dueDate: { gte: maintenant } }] };
+}
+
 // Trente lignes par page, comme /dossiers. Le nombre importe moins que le
 // fait qu'il y en ait un : l'écran chargeait les 8 000 factures de
 // l'organisme d'un coup — 22 Mo et treize secondes (audit S7, P1 n°5).

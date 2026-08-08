@@ -12,6 +12,7 @@ import { DocumentGroupList, type Group, type ListSection } from "@/components/Do
 import { Pagination } from "@/components/Pagination";
 import Link from "next/link";
 import { scopeOfCategory, scopeLabel } from "@/lib/documentScope";
+import { isYousignConfigured } from "@/lib/yousign";
 import {
   DOCUMENT_BUCKETS,
   documentBucket,
@@ -108,6 +109,11 @@ export default async function DocumentsPage(props: {
     organizationId,
     archivedAt: null,
     ...ownerFilter,
+    // La recherche porte sur les QUATRE rattachements possibles d'un
+    // document (dossier, prospect, sous-traitant, membre d'équipe), pas
+    // seulement sur les deux premiers : le nom du sous-traitant est affiché
+    // dans la liste par recipientOf, donc le chercher est le réflexe — et il
+    // ne rendait rien.
     ...(q
       ? {
           OR: [
@@ -116,6 +122,8 @@ export default async function DocumentsPage(props: {
             { dossier: { contact: { lastName: { contains: q, mode: "insensitive" } } } },
             { contact: { firstName: { contains: q, mode: "insensitive" } } },
             { contact: { lastName: { contains: q, mode: "insensitive" } } },
+            { subcontractor: { name: { contains: q, mode: "insensitive" } } },
+            { user: { name: { contains: q, mode: "insensitive" } } },
           ],
         }
       : {}),
@@ -243,6 +251,10 @@ export default async function DocumentsPage(props: {
           dossier: { select: { contact: { select: { firstName: true, lastName: true } }, session: { select: { course: { select: { title: true } } } } } },
           contact: { select: { firstName: true, lastName: true } },
           subcontractor: { select: { name: true } },
+          // Le quatrième propriétaire possible : un document rattaché à un
+          // membre de l'équipe (CV, diplôme). Sans lui, la ligne s'affichait
+          // sans aucun destinataire.
+          user: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" },
       })
@@ -251,7 +263,13 @@ export default async function DocumentsPage(props: {
   const canMarkSigned = can(roles, "dossiers") !== "none";
   // La signature électronique n'est proposée que si elle est réellement
   // branchée — cocher une case qui ne fait rien serait pire que son absence.
-  const signatureAvailable = Boolean(process.env.YOUSIGN_API_KEY);
+  //
+  // Par isYousignConfigured et non par process.env : la clé de l'organisme
+  // (saisie sur /integrations) suffit à elle seule, la clé plateforme n'est
+  // qu'un repli. Lire l'environnement seul faisait disparaître la case ici
+  // alors que le CRM et la fiche sous-traitant la proposaient — même
+  // organisme, même document, deux réponses.
+  const signatureAvailable = await isYousignConfigured(organizationId);
   // La signature de mail de l'expéditeur (réglée sur /profil) — résolue ici,
   // côté serveur, jamais reconstruite depuis des données transmises par le
   // client. Même contrainte que partout ailleurs où elle s'insère.
@@ -449,13 +467,23 @@ type Row = {
   dossier: { contact: { firstName: string; lastName: string }; session: { course: { title: string } } } | null;
   contact: { firstName: string; lastName: string } | null;
   subcontractor: { name: string } | null;
+  user: { name: string } | null;
 };
 
-/** À qui ce document se rapporte, quel que soit le rattachement utilisé. */
+/**
+ * À qui ce document se rapporte, quel que soit le rattachement utilisé.
+ *
+ * Les quatre propriétaires possibles d'un Document, dans le même ordre que le
+ * schéma : apprenant (par son dossier), prospect, sous-traitant, membre de
+ * l'équipe. Les clauses de recherche du `where` ci-dessus doivent couvrir
+ * exactement ces quatre-là — un nom affiché ici mais absent de la recherche
+ * fait disparaître la ligne dès qu'on le tape.
+ */
 function recipientOf(r: Row): string | null {
   if (r.dossier) return `${r.dossier.contact.firstName} ${r.dossier.contact.lastName}`;
   if (r.contact) return `${r.contact.firstName} ${r.contact.lastName}`;
   if (r.subcontractor) return r.subcontractor.name;
+  if (r.user) return r.user.name;
   return null;
 }
 

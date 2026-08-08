@@ -326,8 +326,17 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                     }}
                   />
                   <ValidateSessionButton sessionId={session.id} isValidated={isValidated} />
-                  <CancelSessionButton sessionId={session.id} />
                 </>
+              )}
+              {/* Hors du bloc ci-dessus, à dessein : une session annulée EST
+                  en lecture seule, donc l'y laisser supprimait le seul chemin
+                  de retour — « Annuler » n'avait aucun inverse, contrairement
+                  à « Valider ». Le contrôle reste proposé sur une session
+                  annulée déjà passée : c'est précisément le cas où une
+                  annulation par erreur doit encore pouvoir être corrigée,
+                  pour le BPF comme pour le dossier d'audit. */}
+              {(isCancelled || !isReadOnly) && (
+                <CancelSessionButton sessionId={session.id} isCancelled={isCancelled} />
               )}
               {/* Émarger n'a de sens que pour une cohorte datée : en
                   formation continue, chacun se connecte quand il veut, il
@@ -359,7 +368,16 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
                   )}
                 </>
               )}
-              <ArchiveSessionButton sessionId={session.id} archived={isManuallyArchived} />
+              {/* Même garde-fou que le bouton du bloc de clôture plus bas :
+                  sans `missingProofs`, cet exemplaire-ci archivait en un clic
+                  et sans un mot, alors qu'il retire la session des vues
+                  actives ET du tableau de bord. Deux boutons pour le même
+                  geste ne peuvent pas avoir deux prudences différentes. */}
+              <ArchiveSessionButton
+                sessionId={session.id}
+                archived={isManuallyArchived}
+                missingProofs={closing.missingDue}
+              />
             </div>
           )}
         </div>

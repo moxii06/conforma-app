@@ -229,6 +229,12 @@ export const MERGE_FIELD_HINTS: Record<string, { label: string; fixHref: string 
   "organization.activityDeclarationNumber": { label: "Numéro de déclaration d'activité", fixHref: "/profil" },
   "organization.publicContactEmail": { label: "Email de contact public", fixHref: "/profil" },
   "organization.publicContactPhone": { label: "Téléphone de contact public", fixHref: "/profil" },
+  // Le seul champ de la liste qui ne se règle pas depuis /profil : le référent
+  // handicap est une personne de l'équipe qu'on désigne depuis /team, pas une
+  // mention légale qu'on saisit. Il est signalé comme les autres parce qu'un
+  // contrat qui invite l'apprenant à « se manifester auprès du référent
+  // handicap, , joignable à … » est un article vide dans un document signé.
+  "organization.referentHandicapName": { label: "Référent handicap", fixHref: "/team" },
   "organization.regionPrefecture": { label: "Préfecture de région compétente", fixHref: "/documents?tab=reglages" },
   "organization.mediatorName": { label: "Médiateur de la consommation", fixHref: "/documents?tab=reglages" },
   "organization.mediatorContact": { label: "Coordonnées du médiateur", fixHref: "/documents?tab=reglages" },
