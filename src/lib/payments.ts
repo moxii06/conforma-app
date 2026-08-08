@@ -1,5 +1,6 @@
 import { PipelineStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { METHODE_SOLDE_AUTOMATIQUE } from "@/lib/invoiceEncaissement";
 import { advanceOpportunityStage } from "@/lib/pipeline";
 import { STAGES_BEFORE_COMPLETION } from "@/lib/pipelineStages";
 import { emitWebhook } from "@/lib/webhooks";
@@ -24,7 +25,31 @@ export async function recordInvoicePayment(params: {
   });
   if (!invoice) return null;
 
-  const alreadyPaid = invoice.payments.reduce((sum, p) => sum + p.amountCents, 0);
+  // Un règlement RÉEL chasse le solde automatique.
+  //
+  // Depuis que « marquer payé » écrit lui-même un règlement du solde (voir
+  // lib/invoiceStatus.ts), une facture peut être intégralement couverte AVANT
+  // qu'un paiement réel n'arrive : un lien Stripe créé puis réglé après coup,
+  // un virement rapproché en retard. Ce règlement-là n'est pas une ligne du
+  // grand livre, c'est un bouche-trou posé faute de mieux — sa seule raison
+  // d'être est qu'aucun encaissement réel n'était enregistré. Dès qu'il en
+  // arrive un, il disparaît.
+  //
+  // Les trois canaux qui passent ici constatent tous de l'argent réellement
+  // reçu — saisie manuelle, webhook Stripe, virement rapproché au relevé.
+  // Refuser l'un d'eux perdrait la trace d'un encaissement qui a bien eu
+  // lieu ; l'ajouter au bouche-trou ferait afficher le double. Le remplacer
+  // est la seule réponse juste des trois.
+  const soldeAutomatique = invoice.payments.filter((p) => p.method === METHODE_SOLDE_AUTOMATIQUE);
+  if (soldeAutomatique.length > 0) {
+    await prisma.payment.deleteMany({
+      where: { invoiceId: invoice.id, organizationId: params.organizationId, method: METHODE_SOLDE_AUTOMATIQUE },
+    });
+  }
+
+  const alreadyPaid = invoice.payments
+    .filter((p) => p.method !== METHODE_SOLDE_AUTOMATIQUE)
+    .reduce((sum, p) => sum + p.amountCents, 0);
   const newTotal = alreadyPaid + params.amountCents;
   const justCompleted = newTotal >= invoice.amountCents && invoice.status !== "PAID";
 
@@ -72,5 +97,12 @@ export async function recordInvoicePayment(params: {
     });
   }
 
-  return { payment, totalPaidCents: newTotal, fullyPaid: newTotal >= invoice.amountCents, justCompleted };
+  return {
+    payment,
+    totalPaidCents: newTotal,
+    fullyPaid: newTotal >= invoice.amountCents,
+    justCompleted,
+    /** Un bouche-trou « marquée payée » a été remplacé par ce règlement réel. */
+    soldeAutomatiqueRemplace: soldeAutomatique.length > 0,
+  };
 }

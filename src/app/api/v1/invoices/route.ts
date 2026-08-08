@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateApiRequest, parsePaging } from "@/lib/apiAuth";
+import { encaissementFacture } from "@/lib/invoiceEncaissement";
 
 // GET /api/v1/invoices — invoices, with how much has actually been received.
 export async function GET(request: Request) {
@@ -17,14 +18,20 @@ export async function GET(request: Request) {
       skip,
       include: {
         contact: { select: { id: true, firstName: true, lastName: true } },
-        payments: { select: { amountCents: true } },
+        // `method` sert au repli d'encaissementFacture() : sans lui, une
+        // facture marquée payée sans règlement sortirait à paid_cents: 0.
+        payments: { select: { amountCents: true, method: true } },
       },
     }),
   ]);
 
   return NextResponse.json({
     data: invoices.map((i) => {
-      const paid = i.payments.reduce((sum, p) => sum + p.amountCents, 0);
+      // Le helper partagé, pas un reduce local : une facture marquée payée
+      // avant que « marquer payé » n'écrive son règlement ne porte aucun
+      // Payment, et une intégration la lirait à paid_cents: 0 — sur le canal
+      // le plus difficile à corriger après coup.
+      const { encaisseCents: paid, resteDuCents } = encaissementFacture(i);
       return {
         id: i.id,
         reference: i.reference,
@@ -34,7 +41,7 @@ export async function GET(request: Request) {
         // re-summing payments itself would drift from what the app shows the
         // moment partial-payment rules change.
         paid_cents: paid,
-        remaining_cents: Math.max(0, i.amountCents - paid),
+        remaining_cents: resteDuCents,
         due_date: i.dueDate ? i.dueDate.toISOString() : null,
         funding_origin: i.fundingOrigin,
         created_at: i.createdAt.toISOString(),

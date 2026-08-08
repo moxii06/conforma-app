@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { type DocStatus } from "@prisma/client";
 import { generateInvoicePdf, invoicePdfFileName, type InvoicePdfData } from "@/lib/invoicePdf";
 
 // Assemble les données d'un devis ou d'une facture pour le PDF. Partagé par
@@ -12,7 +13,15 @@ export async function buildFacturationPdf(
   kind: FacturationKind,
   id: string,
   organizationId: string,
-): Promise<{ pdf: Buffer; fileName: string; reference: string; contactEmail: string | null; contactName: string } | null> {
+): Promise<{
+  pdf: Buffer;
+  fileName: string;
+  reference: string;
+  contactEmail: string | null;
+  contactName: string;
+  /** Le statut AVANT l'envoi : l'appelant doit savoir s'il a le droit de le faire avancer. */
+  status: DocStatus;
+} | null> {
   const commun = {
     where: { id, organizationId },
     include: {
@@ -81,5 +90,6 @@ export async function buildFacturationPdf(
     reference: doc.reference,
     contactEmail: doc.contact.email,
     contactName: `${doc.contact.firstName} ${doc.contact.lastName}`,
+    status: doc.status,
   };
 }

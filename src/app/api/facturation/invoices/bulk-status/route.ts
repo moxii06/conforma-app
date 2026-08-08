@@ -17,8 +17,13 @@ import { MAX_FACTURES_PAR_LOT } from "@/lib/bulkLimits";
  *    dépasser le temps d'exécution alloué et laisser le travail à moitié
  *    fait, sans que personne ne sache où ;
  *  - chaque facture est traitée par appliquerStatutFacture, donc avec le
- *    MÊME effet que le menu déroulant unitaire — y compris l'avancement de
- *    l'affaire commerciale quand la facture passe à « payée » ;
+ *    MÊME effet que le menu déroulant unitaire — l'avancement de l'affaire
+ *    commerciale quand la facture passe à « payée », ET l'écriture du
+ *    règlement du solde restant (voir lib/invoiceStatus.ts). C'est ce qui
+ *    fait qu'un virement d'OPCO soldant trente dossiers d'un coup produit
+ *    exactement la même donnée que trente encaissements saisis un par un.
+ *    Le geste inverse — repasser le lot en « Envoyé » — défait ces
+ *    règlements automatiques, et eux seuls ;
  *  - la réponse dit combien ont abouti et nomme les références restées de
  *    côté. Un lot qui répondrait « c'est fait » sans distinguer serait pire
  *    que l'action une par une qu'il remplace.
@@ -32,7 +37,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "invoicing") === "none") {
+  if (can(session.roles, "invoicing") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

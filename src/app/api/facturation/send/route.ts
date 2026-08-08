@@ -22,7 +22,7 @@ const schema = z.object({ kind: z.enum(["invoice", "quote"]), id: z.string().min
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "invoicing") === "none") {
+  if (can(session.roles, "invoicing") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -71,7 +71,17 @@ export async function POST(request: Request) {
   if (kind === "invoice") {
     // Audit P1 : envoyer une facture ne déplace plus l'affaire dans le CRM
     // — le suivi « facturé / payé » vit en Facturation.
-    await prisma.invoice.update({ where: { id }, data: { status: DocStatus.SENT } });
+    //
+    // Le statut ne recule JAMAIS. Renvoyer le PDF d'une facture déjà payée
+    // est un geste courant (le client a perdu son mail) et ne doit rien
+    // défaire : la repasser à SENT laisserait derrière elle le règlement
+    // automatique écrit par « marquer payé » — un encaissement fantôme que
+    // plus aucun écran ne signale, et qui rendrait la facture à nouveau
+    // candidate au rapprochement bancaire pour une somme déjà comptée.
+    // Seule une facture encore en brouillon prend donc la trace de l'envoi.
+    if (built.status === DocStatus.DRAFT) {
+      await prisma.invoice.update({ where: { id }, data: { status: DocStatus.SENT } });
+    }
   } else {
     await prisma.quote.update({ where: { id }, data: { status: DocStatus.SENT } });
     await advanceOpportunityStage(session.organizationId, contactId, [PipelineStage.PROSPECT], PipelineStage.QUOTE_SENT);

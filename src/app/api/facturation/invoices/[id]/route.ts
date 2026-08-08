@@ -41,7 +41,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "invoicing") === "none") {
+  if (can(session.roles, "invoicing") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -56,7 +56,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
   if (parsed.data.status) {
     // La transition vit dans lib/invoiceStatus.ts : le changement en masse
-    // fait le même geste, et deux copies auraient fini par diverger.
+    // fait le même geste, et deux copies auraient fini par diverger. C'est
+    // aussi elle qui écrit le règlement du solde quand on marque « Payé »,
+    // et qui le défait quand on en sort — le sélecteur de statut ne se
+    // contente donc plus de déclarer un état, il tient le grand livre à
+    // jour, sans quoi la facture s'afficherait payée et intégralement due.
     const ok = await appliquerStatutFacture(session.organizationId, invoice.id, parsed.data.status);
     if (!ok) return NextResponse.json({ error: "Facture introuvable." }, { status: 404 });
   }

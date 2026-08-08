@@ -20,6 +20,7 @@ import { LEARNER_CATEGORY_LABELS, LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCat
 import { SendDocumentDialog } from "@/components/SendDocumentDialog";
 import { SendProspectDocumentDialog } from "@/components/SendProspectDocumentDialog";
 import { DOC_STATUS_TONE } from "@/components/DocStatusSelect";
+import { encaissementFacture, totalEncaisseCents } from "@/lib/invoiceEncaissement";
 import { isYousignConfigured } from "@/lib/yousign";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -58,8 +59,8 @@ export default async function ContactRecordPage(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "crm") === "none") redirect("/dashboard");
+  const { organizationId, roles, userId } = await requireSessionContext();
+  if (can(roles, "crm") === "none") redirect("/dashboard");
   const activeTab = searchParams.tab ?? "info";
 
   const contact = await prisma.contact.findFirst({
@@ -77,14 +78,14 @@ export default async function ContactRecordPage(
     },
   });
   if (!contact) notFound();
-  if (!canAccessContact(role, userId, contact.opportunities)) redirect("/crm");
+  if (!canAccessContact(roles, userId, contact.opportunities)) redirect("/crm");
 
-  const canManageEmail = can(role, "inbox") !== "none";
-  const canSeePayments = can(role, "invoicing") !== "none";
+  const canManageEmail = can(roles, "inbox") !== "none";
+  const canSeePayments = can(roles, "invoicing") !== "none";
   // Emettre un devis engage un prix au nom de l organisme : reserve aux
   // roles qui ont la Facturation. Un commercial joint un devis existant.
-  const peutCreerDevis = can(role, "invoicing") !== "none";
-  const canWrite = can(role, "crm") !== "none";
+  const peutCreerDevis = can(roles, "invoicing") !== "none";
+  const canWrite = can(roles, "crm") !== "none";
   const members = canManageEmail
     ? await prisma.user.findMany({
         where: { organizationId, status: "active", role: { not: Role.LEARNER } },
@@ -122,19 +123,20 @@ export default async function ContactRecordPage(
 
   const hasUnpaidInvoice = contact.invoices.some((i) => i.status === "SENT" || i.status === "OVERDUE");
   const hasQuote = contact.quotes.length > 0;
-  // Comme sur /facturation (BankValidationTab, InvoicesTab) : dérivé des
-  // paiements réellement enregistrés (relation Invoice.payments), jamais du
-  // seul statut. Un règlement partiel confirmé par rapprochement bancaire
-  // crée un Payment sans faire passer la facture en PAID (voir
-  // recordInvoicePayment) — se fier au statut sous-comptait "Total payé" et
-  // affichait le montant TOTAL de la facture en "En attente" au lieu du solde.
-  const totalPaid = contact.invoices.reduce(
-    (sum, i) => sum + i.payments.reduce((s, p) => s + p.amountCents, 0),
-    0,
-  );
+  // Le MÊME calcul que /facturation, importé et non recopié : lib/
+  // invoiceEncaissement.ts est la seule définition du mot « encaissé » de
+  // l'application. Cet écran a porté successivement les deux mauvaises
+  // réponses — d'abord le seul STATUT de la facture (un règlement partiel
+  // confirmé au relevé bancaire crée un Payment sans faire passer la facture
+  // en PAID, donc « Total payé » sous-comptait et « En attente » affichait le
+  // montant entier au lieu du solde), puis la seule somme des Payment (une
+  // facture marquée payée à la main n'en a aucun, et affichait 0,00 €
+  // encaissé). Le helper tranche les deux : les règlements font foi, avec un
+  // repli sur le montant quand la facture est payée sans aucun règlement.
+  const totalPaid = totalEncaisseCents(contact.invoices);
   const totalDue = contact.invoices
     .filter((i) => i.status === "SENT" || i.status === "OVERDUE")
-    .reduce((sum, i) => sum + (i.amountCents - i.payments.reduce((s, p) => s + p.amountCents, 0)), 0);
+    .reduce((sum, i) => sum + encaissementFacture(i).resteDuCents, 0);
 
   const initials = `${contact.firstName[0] ?? ""}${contact.lastName[0] ?? ""}`.toUpperCase();
   const latestOpportunity = contact.opportunities[0] ?? null;
@@ -280,12 +282,25 @@ export default async function ContactRecordPage(
                     <Pill tone={DOC_STATUS_TONE[q.status]}>{q.status}</Pill>
                   </div>
                 ))}
-                {contact.invoices.map((i) => (
-                  <div key={i.id} className="flex items-center justify-between gap-3 py-1.5 border-t border-line first:border-t-0 text-[12.5px]">
-                    <div className="text-ink">Facture {i.reference} — {formatAmount(i.amountCents)}</div>
-                    <Pill tone={DOC_STATUS_TONE[i.status]}>{i.status}</Pill>
-                  </div>
-                ))}
+                {contact.invoices.map((i) => {
+                  // Sans cette mention, une facture marquée payée à 400 € sur
+                  // 1 000 € se lirait « 1 000,00 € — Payé » au-dessus d'un
+                  // « Total payé » de 400 € : deux chiffres justes qui se
+                  // contredisent à l'œil. La même information qu'en
+                  // Facturation, au même endroit que le montant.
+                  const encaissement = encaissementFacture(i);
+                  return (
+                    <div key={i.id} className="flex items-center justify-between gap-3 py-1.5 border-t border-line first:border-t-0 text-[12.5px]">
+                      <div className="text-ink">
+                        Facture {i.reference} — {formatAmount(i.amountCents)}
+                        {encaissement.resteDuMalgrePaye && (
+                          <span className="text-rust"> · {formatAmount(encaissement.resteDuCents)} jamais encaissés</span>
+                        )}
+                      </div>
+                      <Pill tone={DOC_STATUS_TONE[i.status]}>{i.status}</Pill>
+                    </div>
+                  );
+                })}
                 {contact.quotes.length === 0 && contact.invoices.length === 0 && (
                   <div className="text-[12.5px] text-slate">Aucun devis ni facture.</div>
                 )}
@@ -308,7 +323,7 @@ export default async function ContactRecordPage(
               </div>
             )}
 
-            {can(role, "crm") !== "none" && (
+            {can(roles, "crm") !== "none" && (
               <div className="bg-white border border-line rounded-card p-5">
                 <div className="text-[13.5px] font-semibold text-ink mb-3">Envoyer un message</div>
                 <IntentEmailComposer contactId={contact.id} hasUnpaidInvoice={hasUnpaidInvoice} hasQuote={hasQuote} />

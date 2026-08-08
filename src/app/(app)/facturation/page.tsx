@@ -24,6 +24,7 @@ import { SendFacturationButton } from "@/components/SendFacturationButton";
 import { BulkInvoiceStatusButton } from "@/components/BulkInvoiceStatusButton";
 import { MAX_FACTURES_PAR_LOT } from "@/lib/bulkLimits";
 import { AWAITING_FUNDER, FUNDER_SILENCE_DAYS, AGREEMENT_EXPIRY_WARNING_DAYS } from "@/lib/funding";
+import { encaissementFacture, montantEncaisseCents, type Encaissement } from "@/lib/invoiceEncaissement";
 import { DocStatus, Prisma } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -60,15 +61,22 @@ function parseDateParam(value: string | undefined, endOfDay: boolean): Date | un
 // l'organisme d'un coup — 22 Mo et treize secondes (audit S7, P1 n°5).
 const PAGE_SIZE = 30;
 
+// Le plafond de la liste des transactions « Ignorées ». Elle n'en avait
+// aucun, alors qu'une transaction ignorée n'est jamais supprimée : au bout
+// d'un an de relevés, l'onglet chargeait tout. Comme le journal d'envois
+// d'/automatisations, la liste est bornée ET le dit ; le compteur de
+// l'onglet, lui, vient d'un count() et reste exact quel que soit ce plafond.
+const MAX_TRANSACTIONS_IGNOREES = 50;
+
 export default async function FacturationPage(
   props: {
     searchParams: Promise<{ tab?: string; status?: string; sort?: string; from?: string; to?: string; ref?: string; q?: string; page?: string; banque?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "invoicing") === "none") redirect("/dashboard");
-  const canWrite = can(role, "invoicing") !== "none";
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "invoicing") === "none") redirect("/dashboard");
+  const canWrite = can(roles, "invoicing") !== "none";
   const activeTab = searchParams.tab ?? "devis";
   // Sous-vue de l'onglet « À valider » : par défaut les transactions en
   // attente, ou — sur le même modèle que les emails archivés de la boîte
@@ -371,7 +379,7 @@ async function BankValidationTab({
       </div>
 
       {view === "ignorees" ? (
-        <IgnoredBankTransactions organizationId={organizationId} />
+        <IgnoredBankTransactions organizationId={organizationId} ignoredCount={ignoredCount} />
       ) : (
         <PendingBankTransactions organizationId={organizationId} />
       )}
@@ -393,11 +401,15 @@ async function PendingBankTransactions({ organizationId }: { organizationId: str
     }),
   ]);
 
+  // Même helper que partout ailleurs (lib/invoiceEncaissement.ts). Ces
+  // factures-là sont ouvertes, donc le repli ne joue jamais et le montant est
+  // celui d'avant — mais un quatrième `reduce` sur les paiements dans ce
+  // fichier, c'est un quatrième endroit où la définition peut dériver.
   const invoiceCandidates = openInvoices.map((inv) => ({
     id: inv.id,
     reference: inv.reference,
     amountCents: inv.amountCents,
-    paidCents: inv.payments.reduce((sum, p) => sum + p.amountCents, 0),
+    paidCents: montantEncaisseCents(inv),
     createdAt: inv.createdAt,
     contact: { firstName: inv.contact.firstName, lastName: inv.contact.lastName, company: inv.contact.company },
     funder: inv.funder,
@@ -413,12 +425,11 @@ async function PendingBankTransactions({ organizationId }: { organizationId: str
         );
         const suggestions = ranked.map((m) => {
           const inv = invoiceById.get(m.invoiceId)!;
-          const paidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
           return {
             id: inv.id,
             reference: inv.reference,
             contactName: `${inv.contact.firstName} ${inv.contact.lastName}`,
-            remainingCents: inv.amountCents - paidCents,
+            remainingCents: encaissementFacture(inv).resteDuCents,
             score: m.score,
             reasons: m.reasons,
           };
@@ -446,14 +457,27 @@ async function PendingBankTransactions({ organizationId }: { organizationId: str
 // que l'onglet Archivés de la boîte mail — consultable (qui, quand) et
 // réversible, plutôt qu'un aller sans retour dont l'écran ne montrait même
 // pas le résultat.
-async function IgnoredBankTransactions({ organizationId }: { organizationId: string }) {
+async function IgnoredBankTransactions({
+  organizationId,
+  ignoredCount,
+}: {
+  organizationId: string;
+  ignoredCount: number;
+}) {
   const dismissed = await prisma.bankTransaction.findMany({
     where: { organizationId, status: "dismissed" },
     orderBy: { reviewedAt: "desc" },
+    take: MAX_TRANSACTIONS_IGNOREES,
   });
+  const tronquee = ignoredCount > dismissed.length;
 
   return (
     <div className="flex flex-col gap-2">
+      {tronquee && (
+        <div className="text-[12px] text-slate">
+          Les {MAX_TRANSACTIONS_IGNOREES} plus récentes sur {ignoredCount.toLocaleString("fr-FR")} transactions ignorées.
+        </div>
+      )}
       {dismissed.map((tx) => (
         <div key={tx.id} className="bg-white border border-line rounded-card px-5 py-3.5 flex items-center justify-between gap-4">
           <div className="min-w-0">
@@ -691,7 +715,10 @@ async function InvoicesTab({
       </div>
       <div className="flex flex-col gap-2">
         {invoices.map((inv) => {
-          const totalPaidCents = inv.payments.reduce((sum, p) => sum + p.amountCents, 0);
+          // La seule définition de « encaissé » de l'application (voir
+          // lib/invoiceEncaissement.ts) — la fiche contact lit la même, donc
+          // les deux écrans ne peuvent plus annoncer deux montants.
+          const encaissement = encaissementFacture(inv);
           // Computed live so a passed due date reads as overdue immediately,
           // without staff needing to remember to flip status to OVERDUE by
           // hand — see dashboardTasks.ts, which now detects the same thing.
@@ -731,18 +758,29 @@ async function InvoicesTab({
                   />
                   {/* Encaissement : seulement une fois la facture partie —
                       enregistrer un règlement sur un brouillon n'a pas de sens.
-                      Et plus du tout une fois PAID : « Marquer payé » déclare un
-                      état sans passer par recordInvoicePayment() (voir
-                      appliquerStatutFacture dans lib/invoiceStatus.ts), donc le
-                      formulaire pouvait rester actif sous un badge « Payé » avec
-                      0 € encaissé en dessous — deux affichages contradictoires
-                      sur le même document. Par définition, une facture PAID n'a
-                      plus rien à encaisser. */}
-                  {inv.status !== "DRAFT" && inv.status !== "PAID" && (
-                    <>
-                      <RecordPaymentForm invoiceId={inv.id} amountCents={inv.amountCents} totalPaidCents={totalPaidCents} />
-                      {stripeConfigured && <CreatePaymentLinkButton invoiceId={inv.id} />}
-                    </>
+                      Une fois PAID, le bloc reste AFFICHÉ mais en lecture
+                      seule. Le masquer entièrement avait deux effets non
+                      voulus : une facture soldée normalement n'indiquait plus
+                      du tout ce qu'elle avait encaissé, et une facture marquée
+                      payée à la main alors qu'il restait 400 € sur 1 000 €
+                      masquait ce solde au lieu de le signaler — exactement
+                      l'information qu'un comptable vient chercher ici. Ce qui
+                      disparaît, et à raison : « Enregistrer un paiement » et le
+                      lien Stripe, puisqu'une facture déclarée payée n'attend
+                      plus d'argent. */}
+                  {inv.status === "PAID" ? (
+                    <EncaissementLectureSeule amountCents={inv.amountCents} encaissement={encaissement} />
+                  ) : (
+                    inv.status !== "DRAFT" && (
+                      <>
+                        <RecordPaymentForm
+                          invoiceId={inv.id}
+                          amountCents={inv.amountCents}
+                          totalPaidCents={encaissement.encaisseCents}
+                        />
+                        {stripeConfigured && <CreatePaymentLinkButton invoiceId={inv.id} />}
+                      </>
+                    )
                   )}
                 </div>
               )}
@@ -764,6 +802,61 @@ async function InvoicesTab({
           ))}
       </div>
       <Pagination basePath="/facturation" searchParams={searchParams} page={page} totalPages={totalPages} />
+    </div>
+  );
+}
+
+/**
+ * L'encaissement d'une facture déjà marquée « Payé », en lecture seule.
+ *
+ * Même barre et même phrase « X / Y payés » que RecordPaymentForm, privées
+ * du bouton et du lien Stripe : ce qu'on vient vérifier sur une facture
+ * soldée, c'est le montant, pas un moyen d'en saisir un de plus.
+ *
+ * Les trois mentions ne se ressemblent pas par hasard :
+ *  - « soldée en la marquant payée » nomme le règlement qu'a écrit le
+ *    sélecteur de statut, donc celui qui se défera si la facture repasse en
+ *    « Envoyé ». La marque posée par lib/invoiceEncaissement.ts n'a d'intérêt
+ *    que si elle se lit ailleurs que dans la base ;
+ *  - « aucun règlement enregistré » dit franchement que le montant est déduit
+ *    du statut : c'est une facture d'avant le suivi des règlements, pas une
+ *    ligne du grand livre ;
+ *  - l'écart, lui, est écrit en toutes lettres. Une facture marquée payée
+ *    avec 400 € encaissés sur 1 000 € n'en disait rien du tout ; c'est
+ *    précisément ce qu'un comptable vient chercher.
+ */
+function EncaissementLectureSeule({
+  amountCents,
+  encaissement,
+}: {
+  amountCents: number;
+  encaissement: Encaissement;
+}) {
+  const pct = amountCents > 0 ? Math.min(100, Math.round((encaissement.encaisseCents / amountCents) * 100)) : 0;
+
+  return (
+    <div className="flex flex-col gap-1.5 mt-1.5">
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="h-1.5 flex-1 min-w-[80px] max-w-[160px] bg-pebble rounded-full overflow-hidden">
+          <div
+            className={`h-full ${encaissement.resteDuMalgrePaye ? "bg-rust" : "bg-sage"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="text-[11.5px] text-slate">
+          {formatAmount(encaissement.encaisseCents)} / {formatAmount(amountCents)} payés
+        </span>
+        {encaissement.soldeAutomatique && <span className="text-[11.5px] text-slate">· soldée en la marquant payée</span>}
+        {encaissement.deduitDuStatut && (
+          <span className="text-[11.5px] text-slate">· montant déduit du statut, aucun règlement enregistré</span>
+        )}
+      </div>
+      {encaissement.resteDuMalgrePaye && (
+        <div className="text-[11.5px] text-rust">
+          Marquée payée alors que {formatAmount(encaissement.resteDuCents)}{" "}
+          n&apos;ont jamais été encaissés. Repassez-la en « Envoyé » pour enregistrer le règlement manquant.
+        </div>
+      )}
     </div>
   );
 }
