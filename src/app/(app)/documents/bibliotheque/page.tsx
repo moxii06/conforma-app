@@ -345,7 +345,7 @@ function TemplateRowSummary({ template }: { template: { bodyText: string; blocks
     const n = template.blocks.length;
     return (
       <div className="text-[11.5px] text-slate">
-        {n} paragraphe{n > 1 ? "s" : ""} — le contenu s&apos;ajuste aux réponses (statut, modalité, financement…).
+        {n} paragraphe{n > 1 ? "s" : ""}{" "}— le contenu s&apos;ajuste aux réponses (statut, modalité, financement…).
         Aperçu complet et téléchargement via le bouton à droite.
       </div>
     );

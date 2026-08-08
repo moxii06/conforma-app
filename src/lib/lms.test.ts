@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCourseProgress, getCourseCompletion } from "./lms";
+import { buildCourseProgress, getCourseCompletion, resolveRegleParcours } from "./lms";
 
 // buildCourseProgress is the single place that turns a course's modules +
 // one dossier's progress into learner-facing state — it feeds the learner
@@ -88,5 +88,26 @@ describe("getCourseCompletion", () => {
     ];
     const completion = getCourseCompletion(modules, progress, []);
     expect(completion).toEqual({ completedCount: 2, total: 2, allCompleted: true });
+  });
+});
+
+describe("resolveRegleParcours", () => {
+  it("laisse la formation décider tant que la session ne dit rien", () => {
+    // L'invariant de la migration : les colonnes arrivent à null sur toutes
+    // les sessions existantes, et rien ne doit changer pour elles.
+    expect(resolveRegleParcours(null, true)).toBe(true);
+    expect(resolveRegleParcours(null, false)).toBe(false);
+    expect(resolveRegleParcours(undefined, true)).toBe(true);
+  });
+
+  it("laisse la session surcharger dans les deux sens", () => {
+    expect(resolveRegleParcours(false, true)).toBe(false);
+    expect(resolveRegleParcours(true, false)).toBe(true);
+  });
+
+  it("distingue « false » de « pas d'avis »", () => {
+    // Le piège classique du `||` : `false || true` vaut true, et une
+    // session réglée en accès libre repasserait en séquentiel.
+    expect(resolveRegleParcours(false, true)).not.toBe(true);
   });
 });

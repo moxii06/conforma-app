@@ -3,7 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { indemniteApplicable, lireIndemniteParam } from "@/lib/cancellationFee";
 import { getSessionContext, can } from "@/lib/tenant";
 import { mergeTemplate, findEmptyMergeFields, describeMissingFields } from "@/lib/mergeTemplate";
-import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
+import {
+  resolveAnswers,
+  resolveSubrogatedFunderName,
+  proposerReportsFormation,
+  QUESTION_BY_KEY,
+  type QuestionKey,
+} from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
 import { Role } from "@prisma/client";
@@ -50,7 +56,14 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       where: { id: params.id, organizationId: auth.organizationId },
       include: {
         contact: { include: { company: true } },
-        session: { include: { course: true } },
+        session: {
+          include: {
+            course: true,
+            // Les ateliers non annulés répondent à la question des temps
+            // collectifs — quelques lignes par session au plus.
+            ateliers: { where: { annuleeAt: null }, select: { id: true } },
+          },
+        },
         fundingCommitments: { include: { funder: { select: { name: true } } } },
       },
     }),
@@ -83,8 +96,18 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     const { answers, unresolved } = resolveAnswers(
       {
         dossier: { learnerCategory: dossier.learnerCategory, agreedPriceCents: dossier.agreedPriceCents },
-        session: { format: dossier.session.format },
-        course: { priceCents: dossier.session.course.priceCents, certificationCode: dossier.session.course.certificationCode },
+        session: {
+          format: dossier.session.format,
+          withdrawalAccessPolicy: dossier.session.withdrawalAccessPolicy,
+          contractSigningMode: dossier.session.contractSigningMode,
+          ateliersCount: dossier.session.ateliers.length,
+        },
+        course: {
+          priceCents: dossier.session.course.priceCents,
+          certificationCode: dossier.session.course.certificationCode,
+          withdrawalAccessPolicy: dossier.session.course.withdrawalAccessPolicy,
+        },
+        contact: { birthDate: dossier.contact.birthDate },
         fundingCommitments: dossier.fundingCommitments,
         organization: {
           withdrawalAccessPolicy: organization.withdrawalAccessPolicy,
@@ -140,5 +163,18 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     // from the text — this tells the sender exactly what's missing and
     // where to fix it, without blocking the send (see mergeTemplate.ts).
     missingFields: describeMissingFields(findEmptyMergeFields(bodyTextSource, mergeContext)),
+    // Ce que la saisie du questionnaire apprendrait à la fiche formation.
+    // Calculé ici et pas au moment de l'envoi parce que la route d'envoi ne
+    // voit pas les réponses : l'écran les garde, et propose le report une
+    // fois le document parti. Vide pour un rôle qui ne peut pas modifier
+    // une formation — proposer une action qui échouerait au clic serait pire
+    // que ne rien proposer.
+    reportsFormation:
+      can(auth.role, "courses") === "full"
+        ? proposerReportsFormation(manualAnswers ?? {}, {
+            withdrawalAccessPolicy: dossier.session.course.withdrawalAccessPolicy,
+          })
+        : [],
+    courseTitle: dossier.session.course.title,
   });
 }

@@ -25,6 +25,66 @@ import { prisma } from "@/lib/prisma";
 
 export const WITHDRAWAL_DAYS = 14;
 
+/* ------------------------------------------------------------------ *
+ * CE QUI DÉCLENCHE LE DÉLAI : LA FAÇON DONT LE CONTRAT A ÉTÉ CONCLU
+ *
+ * Beaucoup d'organismes croient que « présentiel = pas de rétractation ».
+ * C'est faux, et l'erreur coûte cher : le délai de quatorze jours dépend
+ * du MODE DE CONCLUSION du contrat (art. L.221-1 et L.221-18 C. consom.),
+ * pas du lieu où la formation se déroule ensuite.
+ *
+ *   — signé à distance (e-mail, signature électronique, téléphone) : les
+ *     quatorze jours courent, même si la formation se tient en salle ;
+ *   — signé en présence, dans les locaux de l'organisme : contrat conclu
+ *     hors du champ de la vente à distance et du démarchage, aucun délai
+ *     de rétractation consumériste.
+ *
+ * Et la formation professionnelle ne figure dans AUCUNE des treize
+ * exceptions de l'art. L.221-28 — l'exception « loisirs à date
+ * déterminée » (12°) vise le spectacle et l'hôtellerie, pas une action de
+ * formation. Il n'y a donc pas de porte de sortie par la nature du
+ * service : seul le mode de conclusion tranche.
+ *
+ * Le champ vit sur la SESSION (Session.contractSigningMode) parce que la
+ * même formation se vend en agence un mois et par e-mail le suivant.
+ * ------------------------------------------------------------------ */
+
+export const SIGNING_MODES = ["remote", "in_person"] as const;
+export type SigningMode = (typeof SIGNING_MODES)[number];
+
+export const SIGNING_MODE_LABELS: Record<SigningMode, string> = {
+  remote: "Signé à distance",
+  in_person: "Signé en présence",
+};
+
+/** Le détail qui rend le choix évident — repris tel quel à l'écran. */
+export const SIGNING_MODE_HINTS: Record<SigningMode, string> = {
+  remote: "E-mail, signature électronique, courrier ou téléphone. Le délai de 14 jours s'applique.",
+  in_person: "Contrat signé sur place, dans vos locaux. Aucun délai de rétractation.",
+};
+
+/**
+ * La phrase à afficher partout où ce réglage se présente. Une seule
+ * formulation, pour que l'écran de la session, celui de la formation et un
+ * futur écran d'aide ne racontent pas trois versions du même droit.
+ */
+export const CRITERE_RETRACTATION_PHRASE =
+  "Ce n'est pas le lieu de la formation qui compte, mais la façon dont le contrat a été signé : " +
+  "à distance (e-mail, signature électronique), l'apprenant a 14 jours pour se rétracter même si la " +
+  "formation se déroule ensuite en salle ; signé en présence dans vos locaux, il n'y a pas de délai.";
+
+/**
+ * Y a-t-il un délai de rétractation à respecter ?
+ *
+ * `null` (non renseigné) répond OUI. C'est délibérément le comportement
+ * prudent : se tromper en appliquant un délai qui n'existait pas ne coûte
+ * que quelques jours d'attente, alors que se tromper dans l'autre sens
+ * expose l'organisme à un remboursement intégral.
+ */
+export function delaiRetractationApplicable(contractSigningMode: string | null | undefined): boolean {
+  return contractSigningMode !== "in_person";
+}
+
 /**
  * Sur quel fondement l'apprenant renonce — et ce n'est pas le même selon ce
  * qu'on lui vend.
@@ -112,6 +172,18 @@ export type WithdrawalGate = {
   waiverBasis: WaiverBasis | null;
   /** Le texte exact soumis à l'apprenant, ou null s'il n'y a rien à signer. */
   waiverText: string | null;
+  /**
+   * Le mode de conclusion retenu pour cette session, tel qu'il est en base.
+   * Exposé pour que l'écran puisse dire POURQUOI il n'y a pas de délai,
+   * plutôt que de laisser croire à un oubli.
+   */
+  signingMode: SigningMode | null;
+  /**
+   * Faux uniquement quand le contrat a été signé en présence : il n'y a
+   * alors aucun délai à faire courir, donc rien à bloquer et rien à faire
+   * renoncer. Non renseigné vaut vrai (voir delaiRetractationApplicable).
+   */
+  delaiApplicable: boolean;
 };
 
 const OPEN: WithdrawalGate = {
@@ -121,23 +193,42 @@ const OPEN: WithdrawalGate = {
   waived: false,
   waiverBasis: null,
   waiverText: null,
+  signingMode: null,
+  delaiApplicable: true,
 };
 
 /**
- * Quelle politique s'applique : celle de la formation si elle a tranché,
- * celle de l'organisme sinon.
+ * Quelle politique s'applique : celle de la SESSION si elle a tranché,
+ * celle de la formation sinon, celle de l'organisme en dernier ressort.
  *
  * Extrait en fonction pure parce que c'est une règle d'héritage, et qu'une
- * règle d'héritage se lit mal au milieu d'une requête. `null` côté formation
+ * règle d'héritage se lit mal au milieu d'une requête. `null` à un échelon
  * signifie « je n'ai pas d'avis » et non « ouvert » — l'inverse ouvrirait
  * l'accès pendant la rétractation sur toutes les formations existantes, qui
  * ont toutes ce champ à null.
+ *
+ * L'échelon session est arrivé après coup et se glisse DEVANT les deux
+ * autres : une même formation vendue en inter puis en intra n'a pas les
+ * mêmes contraintes, et c'est la session qui porte la vente.
  */
 export function resolveWithdrawalPolicy(
+  sessionPolicy: string | null | undefined,
   coursePolicy: string | null | undefined,
   organizationPolicy: string,
 ): string {
-  return coursePolicy ?? organizationPolicy;
+  return sessionPolicy ?? coursePolicy ?? organizationPolicy;
+}
+
+/** D'où vient la valeur effective — ce que l'écran doit pouvoir nommer. */
+export type OrigineReglage = "session" | "formation" | "organisme";
+
+export function originePolitiqueAcces(
+  sessionPolicy: string | null | undefined,
+  coursePolicy: string | null | undefined,
+): OrigineReglage {
+  if (sessionPolicy != null) return "session";
+  if (coursePolicy != null) return "formation";
+  return "organisme";
 }
 
 /**
@@ -164,6 +255,11 @@ export async function loadWithdrawalGate(dossierId: string): Promise<WithdrawalG
             // La fin PRÉVUE de la formation : c'est elle qui dit si le
             // service sera pleinement exécuté dans le délai (L.221-28, 1°).
             endsAt: true,
+            // Les deux réglages portés par la session : sa surcharge de la
+            // politique d'accès, et surtout le mode de conclusion du
+            // contrat, qui décide s'il y a un délai tout court.
+            withdrawalAccessPolicy: true,
+            contractSigningMode: true,
             course: {
               select: {
                 withdrawalAccessPolicy: true,
@@ -180,8 +276,14 @@ export async function loadWithdrawalGate(dossierId: string): Promise<WithdrawalG
 
   if (!contract?.signedAt || !dossier) return OPEN;
 
+  const signingMode = (SIGNING_MODES as readonly string[]).includes(dossier.session.contractSigningMode ?? "")
+    ? (dossier.session.contractSigningMode as SigningMode)
+    : null;
+  const delaiApplicable = delaiRetractationApplicable(signingMode);
+
   const endsAt = addDays(contract.signedAt, WITHDRAWAL_DAYS);
   const policy = resolveWithdrawalPolicy(
+    dossier.session.withdrawalAccessPolicy,
     dossier.session.course.withdrawalAccessPolicy,
     dossier.organization.withdrawalAccessPolicy,
   );
@@ -192,6 +294,14 @@ export async function loadWithdrawalGate(dossierId: string): Promise<WithdrawalG
     signeLe: contract.signedAt,
   });
 
+  // Contrat signé en présence : aucun délai ne court, donc rien à bloquer
+  // et rien à faire renoncer. On sort avec un portail ouvert plutôt qu'avec
+  // une date de fin fictive — `endsAt` renseigné ferait afficher « jusqu'au
+  // 21 août » à un apprenant qui n'a jamais eu ce droit.
+  if (!delaiApplicable) {
+    return { ...OPEN, policy, waived, signingMode, delaiApplicable: false };
+  }
+
   return {
     active: !waived && new Date() < endsAt,
     endsAt,
@@ -199,6 +309,8 @@ export async function loadWithdrawalGate(dossierId: string): Promise<WithdrawalG
     waived,
     waiverBasis,
     waiverText: waiverBasis ? WAIVER_TEXTS[waiverBasis] : null,
+    signingMode,
+    delaiApplicable: true,
   };
 }
 

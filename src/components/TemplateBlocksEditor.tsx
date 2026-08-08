@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, ChevronUp, ChevronDown } from "lucide-react";
 import { QUESTIONS, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { CLAUSES_PALETTE, CLAUSE_PALETTE_BY_ID, clausePaletteDuBloc } from "@/lib/documentAssembly";
 import { Button } from "@/components/ui";
 import { useToast } from "@/components/ToastProvider";
 
@@ -12,6 +13,64 @@ export type BlockRow = { bodyText: string; conditions: BlockCondition[] | null }
 
 function emptyBlock(): BlockRow {
   return { bodyText: "", conditions: null };
+}
+
+function blockDeClause(id: string): BlockRow | null {
+  const clause = CLAUSE_PALETTE_BY_ID[id];
+  if (!clause) return null;
+  return { bodyText: clause.bodyText, conditions: clause.conditions.map((c) => ({ ...c, in: [...c.in] })) };
+}
+
+/**
+ * Les clauses prêtes à l'emploi, en pastilles à cocher.
+ *
+ * Purement présentationnel, pour que les deux points d'entrée — un modèle
+ * déjà découpé en paragraphes, et un modèle importé qui n'est encore qu'un
+ * bloc de texte — présentent exactement la même liste avec les mêmes mots.
+ * Bordure pointillée : ce sont des propositions à prendre, pas des éléments
+ * du modèle tant qu'on ne les a pas cochées.
+ */
+export function ClausePalette({
+  cocheesIds,
+  onToggle,
+  disabled,
+}: {
+  cocheesIds: string[];
+  onToggle: (id: string, coche: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-[10.5px] font-semibold text-slate uppercase tracking-wide">Clauses prêtes à l&apos;emploi</div>
+      <div className="text-[11px] text-slate leading-relaxed">
+        Cochez une clause pour l&apos;ajouter à ce modèle : elle arrive avec sa condition. À la génération, elle
+        s&apos;insère ou se retire toute seule selon les réponses au questionnaire — vous n&apos;avez rien à réécrire.
+        Comme les modèles fournis par Jalon, ces textes sont des points de départ génériques, à faire relire par un
+        juriste.
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {CLAUSES_PALETTE.map((clause) => {
+          const cochee = cocheesIds.includes(clause.id);
+          return (
+            <button
+              key={clause.id}
+              type="button"
+              disabled={disabled}
+              onClick={() => onToggle(clause.id, !cochee)}
+              title={clause.description}
+              aria-pressed={cochee}
+              className={`text-[11px] rounded-md px-2 py-1 border border-dashed transition-colors disabled:opacity-60 ${
+                cochee ? "border-sage bg-linen text-sage font-semibold" : "border-ash text-slate hover:text-ink hover:border-slate"
+              }`}
+            >
+              {cochee ? "✓ " : "+ "}
+              {clause.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // Renders a template's conditional paragraphs — either editable (an org's
@@ -70,6 +129,24 @@ export function TemplateBlocksEditor({
 
   function addBlock() {
     setBlocks((prev) => [...prev, emptyBlock()]);
+  }
+
+  // Cocher ajoute la clause en fin de liste (elle se remonte ensuite comme
+  // n'importe quel paragraphe) ; décocher la retire. Reconnaissance par
+  // l'intitulé d'article — voir clausePaletteDuBloc pour pourquoi le corps du
+  // texte ne sert pas de clé.
+  const clausesCochees = blocks
+    .map((b) => clausePaletteDuBloc(b.bodyText))
+    .filter((id): id is string => id !== null);
+
+  function toggleClause(id: string, coche: boolean) {
+    setBlocks((prev) => {
+      if (!coche) return prev.filter((b) => clausePaletteDuBloc(b.bodyText) !== id);
+      if (prev.some((b) => clausePaletteDuBloc(b.bodyText) === id)) return prev;
+      const bloc = blockDeClause(id);
+      if (!bloc) return prev;
+      return [...prev, bloc];
+    });
   }
 
   function setConditional(index: number, conditional: boolean) {
@@ -137,6 +214,12 @@ export function TemplateBlocksEditor({
         correspondent aux conditions choisies. À la génération, seuls les blocs dont les conditions sont remplies
         sont assemblés — l&apos;ordre ci-dessous est celui du document final.
       </div>
+
+      {canEdit && (
+        <div className="border border-line rounded-md p-3 bg-linen">
+          <ClausePalette cocheesIds={clausesCochees} onToggle={toggleClause} disabled={saving} />
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         {blocks.map((block, i) => (
@@ -255,6 +338,75 @@ export function TemplateBlocksEditor({
             {saving ? "…" : "Enregistrer"}
           </Button>
         </div>
+      )}
+      {error && <div className="text-[11.5px] text-rust">{error}</div>}
+    </div>
+  );
+}
+
+/**
+ * La même palette, sur un modèle qui n'est encore qu'un bloc de texte —
+ * typiquement celui qu'un organisme a importé ou écrit lui-même.
+ *
+ * C'était le trou : le moteur conditionnel n'était accessible qu'aux modèles
+ * DÉJÀ découpés en paragraphes, c'est-à-dire, en pratique, à ceux de Jalon.
+ * L'enregistrement fait la conversion, sans rien perdre : le texte actuel
+ * devient le premier paragraphe, toujours inclus (même geste que
+ * ActivateBlocksButton), et les clauses cochées se placent à sa suite avec
+ * leurs conditions.
+ */
+export function ClausePaletteModelePlat({ templateId, bodyText }: { templateId: string; bodyText: string }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [cochees, setCochees] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggle(id: string, coche: boolean) {
+    setCochees((prev) => (coche ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((c) => c !== id)));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    // Un modèle encore vide n'a pas de premier paragraphe à conserver — et la
+    // route refuse un bloc sans texte.
+    const blocs = [
+      ...(bodyText.trim() !== "" ? [{ bodyText, conditions: null }] : []),
+      ...cochees.flatMap((id) => {
+        const bloc = blockDeClause(id);
+        return bloc ? [bloc] : [];
+      }),
+    ];
+    const res = await fetch(`/api/documents/templates/${templateId}/blocks`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ blocks: blocs }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? "L'ajout des clauses a échoué.");
+      return;
+    }
+    toast.success(cochees.length > 1 ? "Clauses ajoutées au modèle." : "Clause ajoutée au modèle.");
+    router.refresh();
+  }
+
+  return (
+    <div className="border border-line rounded-md p-3 bg-linen flex flex-col gap-2.5">
+      <ClausePalette cocheesIds={cochees} onToggle={toggle} disabled={saving} />
+      {cochees.length > 0 && (
+        <>
+          <div className="text-[11px] text-slate">
+            À l&apos;enregistrement, votre texte actuel devient le premier paragraphe du modèle, toujours inclus — rien
+            n&apos;est perdu ni réécrit. Les clauses cochées viennent ensuite, et vous pourrez les déplacer ou les
+            modifier comme n&apos;importe quel paragraphe.
+          </div>
+          <Button type="button" size="sm" className="self-start" onClick={handleSave} disabled={saving}>
+            {saving ? "…" : `Ajouter ${cochees.length} clause${cochees.length > 1 ? "s" : ""} au modèle`}
+          </Button>
+        </>
       )}
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
     </div>

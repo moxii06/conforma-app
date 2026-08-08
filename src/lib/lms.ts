@@ -1,5 +1,26 @@
 import { prisma } from "@/lib/prisma";
 
+/**
+ * L'héritage des règles du parcours : la SESSION d'abord, la formation
+ * ensuite.
+ *
+ * `null` côté session veut dire « je n'ai pas d'avis », jamais « désactivé ».
+ * C'est ce qui rend la migration inoffensive : les colonnes arrivent à null
+ * sur toutes les sessions existantes, et chacune continue donc de suivre
+ * exactement le réglage de sa formation.
+ *
+ * Pourquoi ce cran supplémentaire : une même formation se vend en parcours
+ * certifiant à une promotion (l'ordre des modules porte la progression) et
+ * en bibliothèque de ressources à une autre. Jusqu'ici il fallait
+ * dupliquer la formation pour exprimer ça.
+ *
+ * Fonction pure et exportée pour que la route API, l'écran de réglage et
+ * ce fichier tombent tous les trois sur la même réponse.
+ */
+export function resolveRegleParcours(valeurSession: boolean | null | undefined, valeurFormation: boolean): boolean {
+  return valeurSession ?? valeurFormation;
+}
+
 // Shared by the video/document progress route, the quiz-attempt route, and
 // the learner course page. Unlocks "the first not-yet-completed module in
 // the course's CURRENT order" rather than "the module whose order follows
@@ -14,8 +35,16 @@ import { prisma } from "@/lib/prisma";
 // whose e-learning was never started must stay fully locked until the
 // explicit assignment flow runs.
 export async function unlockNextModuleIfNeeded(params: { dossierId: string; courseId: string }) {
-  const [course, modules, progressList, quizAttempts] = await Promise.all([
-    prisma.course.findUnique({ where: { id: params.courseId }, select: { sequentialUnlock: true } }),
+  const [regles, modules, progressList, quizAttempts] = await Promise.all([
+    // La règle se lit sur le dossier plutôt que sur la formation seule : le
+    // dossier porte sa session, et c'est elle qui peut surcharger. Passer
+    // par le dossier évite d'ajouter un `sessionId` à la signature — les
+    // quatre appelants (progression vidéo, tentative de quiz, page
+    // apprenant, auto-réparation) n'ont pas tous la session sous la main.
+    prisma.dossier.findUnique({
+      where: { id: params.dossierId },
+      select: { session: { select: { sequentialUnlock: true, course: { select: { sequentialUnlock: true } } } } },
+    }),
     prisma.elearningModule.findMany({
       where: { courseId: params.courseId },
       include: { quiz: { select: { id: true } } },
@@ -28,14 +57,17 @@ export async function unlockNextModuleIfNeeded(params: { dossierId: string; cour
 
   const progressByModule = new Map(progressList.map((p) => [p.moduleId, p]));
 
-  // Formation en accès libre (Course.sequentialUnlock à false) : il n'y a
+  // Accès libre (la session, ou à défaut la formation, à false) : il n'y a
   // pas de « suivant », tout s'ouvre. On crée d'un coup les lignes de
   // progression manquantes plutôt que de traiter le déverrouillage comme un
   // cas particulier partout en aval — getModuleState, le calcul
   // d'avancement et l'attestation continuent de lire exactement la même
   // chose. Le garde-fou du dessus reste : sans aucune ligne, le dossier
   // n'a jamais eu d'accès, et l'assignation explicite doit passer d'abord.
-  if (course && !course.sequentialUnlock) {
+  const sequentiel = regles
+    ? resolveRegleParcours(regles.session.sequentialUnlock, regles.session.course.sequentialUnlock)
+    : true;
+  if (!sequentiel) {
     const àOuvrir = modules.filter((m) => !progressByModule.has(m.id));
     if (àOuvrir.length === 0) return false;
     await prisma.elearningProgress.createMany({

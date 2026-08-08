@@ -48,6 +48,16 @@ export const CATEGORY_LABELS: Record<string, string> = {
   diploma: "Diplôme",
   nda: "NDA / confidentialité",
   rnq_engagement: "Engagement de conformité RNQ",
+  // Les deux attestations que tout donneur d'ordre doit détenir de son
+  // sous-traitant : la RC pro couvre le dommage causé pendant la
+  // prestation, l'attestation de vigilance URSSAF protège l'organisme de
+  // la solidarité financière de l'art. L.8222-1 du code du travail. Elles
+  // tombaient toutes deux dans « Autre », donc indistinguables l'une de
+  // l'autre — et la checklist des pièces attendues ne peut rien cocher
+  // qu'elle ne sait pas nommer.
+  rc_pro: "Attestation RC professionnelle",
+  urssaf_vigilance: "Attestation de vigilance URSSAF",
+  competence_questionnaire: "Questionnaire de compétence à l'entrée",
 };
 
 // Client feedback: a row titled "Convention de formation professionnelle"
@@ -89,6 +99,9 @@ export const SUBCONTRACTOR_DOCUMENT_CATEGORIES = [
   "diploma",
   "nda",
   "rnq_engagement",
+  "rc_pro",
+  "urssaf_vigilance",
+  "competence_questionnaire",
   "other",
 ] as const;
 

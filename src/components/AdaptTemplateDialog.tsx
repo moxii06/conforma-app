@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, FileText, FileDown } from "lucide-react";
 import { SHORT_OPTION_LABELS, type QuestionDefinition, type QuestionKey } from "@/lib/documentQuestionnaire";
-import { TemplateBlocksEditor, type BlockRow } from "@/components/TemplateBlocksEditor";
+import { TemplateBlocksEditor, ClausePaletteModelePlat, type BlockRow } from "@/components/TemplateBlocksEditor";
 import { TemplateEditor } from "@/components/TemplateEditor";
 import { ActivateBlocksButton } from "@/components/ActivateBlocksButton";
 import { Button } from "@/components/ui";
@@ -273,6 +273,13 @@ export function AdaptTemplateDialog({
             ) : (
               <div className="flex flex-col gap-2.5">
                 <TemplateEditor templateId={editTarget.id} title={title} bodyText={editTarget.bodyText} />
+                {/* Le moteur conditionnel s'ouvre ici à un modèle qui n'en a
+                    jamais eu — importé, ou écrit à la main par l'organisme.
+                    Cocher une clause suffit : la conversion en paragraphes se
+                    fait à l'enregistrement, sans réécriture. Le lien ci-dessous
+                    reste pour qui veut découper son texte sans ajouter aucune
+                    clause. */}
+                <ClausePaletteModelePlat templateId={editTarget.id} bodyText={editTarget.bodyText} />
                 <ActivateBlocksButton templateId={editTarget.id} bodyText={editTarget.bodyText} />
               </div>
             )}

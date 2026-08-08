@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { PageHeader, Pill, Avatar, InfoRow, ContextBanner } from "@/components/ui";
+import { PageHeader, Pill, Avatar, InfoRow, ContextBanner, initialsOf } from "@/components/ui";
 import { CheckCircle2, Circle } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
@@ -29,6 +29,10 @@ import { CATEGORY_LABELS } from "@/lib/documentCategories";
 import { templateCourseFilter, sortTemplatesForCourse } from "@/lib/templateScope";
 import { CATEGORIES_FOURNISSEUR } from "@/lib/documentAudience";
 import { DossierFundingPanel } from "@/components/DossierFundingPanel";
+import { RgpdAccesMasqueBanner } from "@/components/RgpdAccesMasqueBanner";
+import { coordonneesMasquees, donneesSanteMasquees, finDeFormation } from "@/lib/rgpdMasking";
+import { LearnerThreadPanel } from "@/components/LearnerThreadPanel";
+import { peutSuivreFilApprenant, calculerFermeture, estFerme } from "@/lib/messagerieApprenant";
 import { resolveDossierPriceCents, computeFundingReadiness, computeFundingSummary, formatCents } from "@/lib/funding";
 import { LEARNER_CATEGORY_SINGULAR } from "@/lib/bpfCategories";
 import { format } from "date-fns";
@@ -97,9 +101,37 @@ export default async function DossierPage(
   }));
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
-  const sender = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } });
+  // Rôles relus EN BASE, et tous : User.additionalRoles porte les casquettes
+  // cumulées, sans lesquelles un responsable pédagogique qui anime aussi une
+  // session serait traité comme un simple formateur.
+  const sender = await prisma.user.findFirstOrThrow({
+    where: { id: userId, organizationId },
+    select: { name: true, emailSignature: true, role: true, additionalRoles: true },
+  });
   const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
-  const canAccessAccomm = canAccessAccommodations(role, userId, organization);
+
+  // Minimisation des données (art. 5(1)(c)) : une habilitation de formateur
+  // n'a pas à courir trois ans après la session. La règle vit dans
+  // lib/rgpdMasking.ts — testée, écrite une seule fois — et ne fait que
+  // RETIRER : chaque porte reste celle de lib/tenant.ts.
+  const maintenant = new Date();
+  const contexteMasquage = {
+    roles: [sender.role, ...sender.additionalRoles],
+    finFormation: finDeFormation({
+      mode: dossier.session.mode,
+      sessionEndsAt: dossier.session.endsAt,
+      firstAccessedAt: dossier.firstAccessedAt,
+      accessDurationDays: dossier.accessDurationDays,
+      dossierArchiveLe: dossier.archivedAt,
+    }),
+    maintenant,
+  };
+  const masquerCoordonnees = coordonneesMasquees(contexteMasquage);
+  // L'article 9 se referme plus tôt que le reste : le référent handicap garde
+  // sa porte (canAccessAccommodations en décide seul), mais elle se ferme pour
+  // un formateur dès la fin de la formation, sans mois de grâce.
+  const canAccessAccomm =
+    canAccessAccommodations(role, userId, organization) && !donneesSanteMasquees(contexteMasquage);
   // Funding is money data: same audience as /facturation, not the wider set
   // of roles that can open a dossier. A trainer seeing who funds a learner
   // is a confidentiality question, not just a permissions one.
@@ -131,13 +163,41 @@ export default async function DossierPage(
     startsAtLabel: format(dossier.session.startsAt, "d MMMM yyyy", { locale: fr }),
     canSchedule: can(role, "planning") === "full",
   };
+  // Le fil apprenant : les deux rôles administratifs et le formateur DE CETTE
+  // session, jamais SALES — voir peutSuivreFilApprenant pour le pourquoi.
+  // Onglet distinct d'« Emails », qui est le courrier externe : ici rien ne
+  // sort de Jalon, et les deux n'ont ni le même public ni la même trace.
+  const canFollowLearnerThread = peutSuivreFilApprenant(role, userId, dossier.session);
+  // Le compte de questions en attente, dans le libellé de l'onglet. Sans lui,
+  // un apprenant pourrait écrire et attendre une semaine : personne n'ouvre un
+  // onglet pour vérifier s'il est vide. Ne comptent que les messages de
+  // l'apprenant — ceux d'un collègue ne sont pas une sollicitation.
+  const messagesApprenantNonLus =
+    canFollowLearnerThread && dossier.learnerUserId
+      ? await prisma.learnerMessage.count({
+          where: {
+            thread: { dossierId: dossier.id, organizationId },
+            authorId: dossier.learnerUserId,
+            luAt: null,
+          },
+        })
+      : 0;
   const TABS = [
     ...BASE_TABS,
+    ...(canFollowLearnerThread
+      ? [
+          {
+            key: "echanges",
+            label: messagesApprenantNonLus > 0 ? `Échanges apprenant (${messagesApprenantNonLus})` : "Échanges apprenant",
+          },
+        ]
+      : []),
     ...(canSeeFunding ? [{ key: "financement", label: "Financement" }] : []),
     ...(canAccessAccomm ? [{ key: "accessibilite", label: "Accessibilité" }] : []),
   ];
   if (activeTab === "accessibilite" && !canAccessAccomm) redirect(`/dossiers/${dossier.id}`);
   if (activeTab === "financement" && !canSeeFunding) redirect(`/dossiers/${dossier.id}`);
+  if (activeTab === "echanges" && !canFollowLearnerThread) redirect(`/dossiers/${dossier.id}`);
 
   const [fundingCommitments, funders] = canSeeFunding
     ? await Promise.all([
@@ -239,7 +299,7 @@ export default async function DossierPage(
       {dossier.archivedAt && (
         <div className="mx-8 mt-3.5 border border-line bg-mist rounded-md px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
           <div className="text-[12.5px] text-ink">
-            <span className="font-medium">Dossier clôturé.</span> Il n&apos;apparaît plus dans les listes de travail et
+            <span className="font-medium">Dossier clôturé.</span>{" "}Il n&apos;apparaît plus dans les listes de travail et
             ne déclenche plus de relance. Le bilan pédagogique et l&apos;accès de l&apos;apprenant sont inchangés.
           </div>
           {canEditCategory && <RouvrirDossierButton dossierId={dossier.id} />}
@@ -259,6 +319,18 @@ export default async function DossierPage(
         </Link>
       </div>
       <Tabs basePath={`/dossiers/${dossier.id}`} tabs={TABS} active={activeTab} />
+      {/* Des coordonnées qui disparaissent sans un mot passent pour une
+          panne, et une panne se contourne par un carnet d'adresses
+          personnel — c'est-à-dire par une copie hors de tout registre. Le
+          bandeau dit ce qui est masqué et par où passer. */}
+      {masquerCoordonnees && (
+        <RgpdAccesMasqueBanner
+          dossierId={dossier.id}
+          prenom={dossier.contact.firstName}
+          lienMessagerie={canFollowLearnerThread ? `/dossiers/${dossier.id}?tab=echanges` : null}
+          filOuvert={!estFerme(calculerFermeture(dossier.session, dossier), maintenant)}
+        />
+      )}
       {dossier.contractSigned && (
         <ContextBanner
           tone="good"
@@ -285,6 +357,7 @@ export default async function DossierPage(
             funding={identityFunding}
             scheduleContext={scheduleContext}
             sessionInfo={sessionInfo}
+            masquerCoordonnees={masquerCoordonnees}
           />
         ) : activeTab === "emails" ? (
           <EmailsTab
@@ -308,6 +381,14 @@ export default async function DossierPage(
           <PersonalDataTab dossier={dossier} canWrite={canWriteRgpd(role)} />
         ) : activeTab === "preuves-qualiopi" ? (
           <QualiopiEvidenceTab dossierId={dossier.id} />
+        ) : activeTab === "echanges" ? (
+          <LearnerThreadSection
+            dossierId={dossier.id}
+            moiId={userId}
+            learnerName={`${dossier.contact.firstName} ${dossier.contact.lastName}`}
+            courseTitle={dossier.session.course.title}
+            hasLearnerAccount={dossier.learnerUserId !== null}
+          />
         ) : activeTab === "accessibilite" ? (
           <AccessibilityTab dossierId={dossier.id} />
         ) : activeTab === "financement" ? (
@@ -340,7 +421,7 @@ export default async function DossierPage(
             />
           </div>
         ) : (
-          <InfoTab dossier={dossier} canEditCategory={canEditCategory} />
+          <InfoTab dossier={dossier} canEditCategory={canEditCategory} masquerCoordonnees={masquerCoordonnees} />
         )}
       </div>
     </>
@@ -357,6 +438,7 @@ export default async function DossierPage(
 function InfoTab({
   dossier,
   canEditCategory,
+  masquerCoordonnees,
 }: {
   dossier: {
     id: string;
@@ -364,7 +446,58 @@ function InfoTab({
     contact: { id: string; firstName: string; lastName: string; email: string; phone: string | null; address: string | null; company: { id: string; name: string; siret: string | null; address: string | null; responsableFirstName: string | null; responsableLastName: string | null; responsableEmail: string | null; responsablePhone: string | null; legalRepresentativeName: string | null } | null };
   };
   canEditCategory: boolean;
+  masquerCoordonnees: boolean;
 }) {
+  const categorieBpf = canEditCategory && (
+    <div className="bg-white border border-line rounded-card p-5">
+      <div className="text-[12.5px] text-slate mb-2">Catégorie légale de l&apos;apprenant (pour le BPF)</div>
+      <DossierCategorySelect dossierId={dossier.id} learnerCategory={dossier.learnerCategory} />
+    </div>
+  );
+
+  // Masquer veut dire NE PAS ENVOYER. EditContactForm est un composant
+  // client : lui passer le contact pour n'en cacher que trois champs à
+  // l'affichage expédierait quand même l'email et le téléphone dans le HTML
+  // sérialisé, où n'importe qui les relit. Cette branche est rendue côté
+  // serveur et ne contient littéralement pas la donnée.
+  if (masquerCoordonnees) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="bg-white border border-line rounded-card p-5">
+          <div className="text-[13.5px] font-semibold text-ink mb-3">Coordonnées</div>
+          <div className="flex flex-col gap-1.5">
+            <div>
+              <div className="text-[11px] text-slate uppercase tracking-wide">Prénom</div>
+              <div className="text-[13px] text-ink">{dossier.contact.firstName}</div>
+            </div>
+            <div>
+              <div className="text-[11px] text-slate uppercase tracking-wide">Nom</div>
+              <div className="text-[13px] text-ink">{dossier.contact.lastName}</div>
+            </div>
+          </div>
+          <div className="text-[12.5px] text-slate leading-relaxed border-t border-line pt-2.5 mt-2.5">
+            Email, téléphone et adresse ne sont plus affichés : la formation est terminée depuis plus d&apos;un mois.
+            Passez par les échanges apprenant, ou par le DPO si ces coordonnées vous sont nécessaires.
+          </div>
+        </div>
+        {dossier.contact.company && (
+          <div className="bg-white border border-line rounded-card p-5">
+            <div className="text-[13.5px] font-semibold text-ink mb-2">Société</div>
+            <div className="text-[13px] text-ink">{dossier.contact.company.name}</div>
+            {/* Le nom de l'employeur reste un fait utile ; son adresse et son
+                responsable sont une seconde route vers l'apprenant, donc
+                masqués avec les siennes — sinon la règle se contourne en un
+                clic. */}
+            <div className="text-[12px] text-slate mt-1.5">
+              Adresse et contact de la société masqués pour la même raison.
+            </div>
+          </div>
+        )}
+        {categorieBpf}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-white border border-line rounded-card p-5">
@@ -375,12 +508,7 @@ function InfoTab({
           <EditCompanyForm company={dossier.contact.company} title="Société" />
         </div>
       )}
-      {canEditCategory && (
-        <div className="bg-white border border-line rounded-card p-5">
-          <div className="text-[12.5px] text-slate mb-2">Catégorie légale de l&apos;apprenant (pour le BPF)</div>
-          <DossierCategorySelect dossierId={dossier.id} learnerCategory={dossier.learnerCategory} />
-        </div>
-      )}
+      {categorieBpf}
     </div>
   );
 }
@@ -405,6 +533,7 @@ async function FormationsTab({
   funding,
   scheduleContext,
   sessionInfo,
+  masquerCoordonnees,
 }: {
   contactId: string;
   organizationId: string;
@@ -416,6 +545,11 @@ async function FormationsTab({
   funding: { totalCents: number; remainderCents: number; funderTypes: string[] } | null;
   scheduleContext?: ScheduleContext;
   sessionInfo?: SessionInfo;
+  /**
+   * La carte d'identité de cet onglet affiche l'email : sans cette prop, le
+   * masquage de l'onglet Info se contournerait en cliquant l'onglet d'à côté.
+   */
+  masquerCoordonnees: boolean;
 }) {
   const dossiers = await prisma.dossier.findMany({
     where: { contactId, organizationId },
@@ -498,9 +632,15 @@ async function FormationsTab({
                 ? "Formation en continu"
                 : `${format(current.session.startsAt, "d MMM yyyy", { locale: fr })} · ${FORMAT_LABELS[current.session.format] ?? current.session.format}`}
             </InfoRow>
-            <InfoRow label="Email">
-              <span className="break-all">{contact.email}</span>
-            </InfoRow>
+            {masquerCoordonnees ? (
+              <InfoRow label="Email">
+                <span className="text-slate">Masqué</span>
+              </InfoRow>
+            ) : (
+              <InfoRow label="Email">
+                <span className="break-all">{contact.email}</span>
+              </InfoRow>
+            )}
           </div>
         </div>
       )}
@@ -911,6 +1051,59 @@ async function AccessibilityTab({ dossierId }: { dossierId: string }) {
       <div className="mt-3.5 pt-3.5 border-t border-line">
         <AccommodationForm dossierId={dossierId} />
       </div>
+    </div>
+  );
+}
+
+// Le fil apprenant ↔ formateurs, vu du côté de l'organisme.
+//
+// Rien à charger ici : le panneau interroge lui-même la route, qui refait de
+// son côté le contrôle d'accès. Ce composant n'existe que pour poser le cadre
+// et dire ce que ce canal N'EST PAS — sans quoi, à deux onglets de « Emails »,
+// il se ferait prendre pour une boîte mail et quelqu'un y écrirait en croyant
+// envoyer un courrier.
+function LearnerThreadSection({
+  dossierId,
+  moiId,
+  learnerName,
+  courseTitle,
+  hasLearnerAccount,
+}: {
+  dossierId: string;
+  moiId: string;
+  learnerName: string;
+  courseTitle: string;
+  hasLearnerAccount: boolean;
+}) {
+  return (
+    <div className="bg-white border border-line rounded-card overflow-hidden">
+      <div className="px-5 pt-5 pb-3">
+        <div className="text-[13.5px] font-semibold text-ink">Échanges avec l&apos;apprenant</div>
+        <div className="text-[11.5px] text-slate mt-0.5 leading-relaxed">
+          Le fil de ce dossier, partagé avec l&apos;apprenant, le formateur de la session et l&apos;équipe
+          administrative. Aucun e-mail n&apos;est envoyé : tout se lit dans son espace.
+        </div>
+      </div>
+      {hasLearnerAccount ? (
+        <div className="border-t border-line">
+          <LearnerThreadPanel
+            dossierId={dossierId}
+            moiId={moiId}
+            titre={learnerName}
+            sousTitre={courseTitle}
+            initiales={initialsOf(learnerName)}
+            cote="organisme"
+          />
+        </div>
+      ) : (
+        // Le fil s'appuie sur le compte apprenant pour départager les deux
+        // camps : sans accès envoyé, il ne peut pas exister. Le dire ici plutôt
+        // que de laisser l'envoi échouer après la frappe du premier message.
+        <div className="border-t border-line px-5 py-4 text-[12.5px] text-slate leading-relaxed">
+          {learnerName}{" "}n&apos;a pas encore accès à son espace. Envoyez-lui ses accès depuis l&apos;onglet
+          Formations : le fil s&apos;ouvrira dès le premier message.
+        </div>
+      )}
     </div>
   );
 }

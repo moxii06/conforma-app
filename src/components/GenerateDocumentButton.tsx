@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { QuestionKey } from "@/lib/documentQuestionnaire";
 import { SearchableDossierSelect } from "@/components/SearchableDossierSelect";
 import { DossierSearchSelect } from "@/components/DossierSearchSelect";
+import { ReporterSurFormationDialog, type ReportFormationPropose } from "@/components/ReporterSurFormationDialog";
 import { Button } from "@/components/ui";
 
 type Dossier = { id: string; label: string };
@@ -28,15 +29,20 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
   // /api/documents/generate's 409 response.
   const [pending, setPending] = useState<PendingQuestion[] | null>(null);
   const [answers, setAnswers] = useState<Partial<Record<QuestionKey, string>>>({});
+  // Ce que la saisie apprend à la fiche formation — proposé une fois le
+  // document créé, pas avant : la génération ne doit dépendre d'aucune
+  // décision sur la formation.
+  const [report, setReport] = useState<{ reports: ReportFormationPropose[]; courseTitle: string; answers: Partial<Record<QuestionKey, string>> } | null>(null);
 
   async function submit(withAnswers?: Partial<Record<QuestionKey, string>>) {
     if (!dossierId) return;
+    const envoyees = withAnswers ?? answers;
     setLoading(true);
     setError(null);
     const res = await fetch("/api/documents/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ templateId, dossierId, answers: withAnswers ?? answers }),
+      body: JSON.stringify({ templateId, dossierId, answers: envoyees }),
     });
     setLoading(false);
     if (res.status === 409) {
@@ -52,12 +58,15 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
     const doc = await res.json();
     setResult({ id: doc.id, title: doc.title, missingFields: doc.missingFields ?? [] });
     setPending(null);
+    const reports: ReportFormationPropose[] = doc.reportsFormation ?? [];
+    setReport(reports.length > 0 ? { reports, courseTitle: doc.courseTitle ?? "", answers: envoyees } : null);
   }
 
   function handleGenerate(e: React.MouseEvent) {
     e.preventDefault();
     setPending(null);
     setAnswers({});
+    setReport(null);
     submit({});
   }
 
@@ -151,6 +160,16 @@ export function GenerateDocumentButton({ templateId, dossiers }: { templateId: s
         </div>
       )}
       {error && <div className="text-[11.5px] text-rust">{error}</div>}
+
+      {report && (
+        <ReporterSurFormationDialog
+          dossierId={dossierId}
+          courseTitle={report.courseTitle}
+          reports={report.reports}
+          answers={report.answers}
+          onClose={() => setReport(null)}
+        />
+      )}
     </div>
   );
 }

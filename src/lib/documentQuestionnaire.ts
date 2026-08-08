@@ -21,7 +21,10 @@ export type QuestionKey =
   | "missionFormateur"
   | "enregistrementSessions"
   | "stagiairesApparaissent"
-  | "contenuRevente";
+  | "contenuRevente"
+  | "ateliers"
+  | "autorisationImage"
+  | "retractation";
 
 export type QuestionOption = { value: string; label: string };
 
@@ -78,10 +81,14 @@ export const QUESTIONS: QuestionDefinition[] = [
   },
   {
     key: "paiement",
-    label: "Le règlement s'effectue-t-il en une fois ou selon un échéancier ?",
+    label: "Comment le prix de la formation est-il réglé ?",
+    hint:
+      "« Financement direct » : le financeur règle l'organisme par subrogation et le bénéficiaire n'a aucune somme à verser — " +
+      "un article d'échéancier y décrirait un versement qui n'aura pas lieu.",
     options: [
-      { value: "comptant", label: "En une fois" },
+      { value: "comptant", label: "En une fois, par le bénéficiaire" },
       { value: "echelonne", label: "Selon un échéancier" },
+      { value: "opco_direct", label: "Financement direct par l'OPCO (aucun versement du bénéficiaire)" },
     ],
   },
   {
@@ -144,6 +151,36 @@ export const QUESTIONS: QuestionDefinition[] = [
       { value: "non", label: "Non" },
     ],
   },
+  {
+    key: "ateliers",
+    label: "La formation comporte-t-elle des ateliers ou des temps collectifs ?",
+    hint: "Résolu tout seul dès qu'un atelier est programmé sur la session (Planning).",
+    options: [
+      { value: "oui", label: "Oui" },
+      { value: "non", label: "Non" },
+    ],
+  },
+  {
+    key: "autorisationImage",
+    label: "Le bénéficiaire autorise-t-il l'utilisation de son image et de sa voix ?",
+    hint: "Le cas du mineur est déduit de la date de naissance du contact quand elle est renseignée.",
+    options: [
+      { value: "accordee", label: "Oui, autorisation accordée" },
+      { value: "refusee", label: "Non, autorisation refusée" },
+      { value: "mineur", label: "Bénéficiaire mineur — autorisation du représentant légal" },
+    ],
+  },
+  {
+    key: "retractation",
+    label: "Quel régime de rétractation s'applique, et l'accès aux contenus est-il ouvert pendant le délai ?",
+    hint:
+      "Déduit du mode de conclusion du contrat de la session, puis de la politique d'accès de la formation ou de l'organisme.",
+    options: [
+      { value: "avec_blocage", label: "Délai applicable, accès aux contenus fermé pendant le délai" },
+      { value: "sans_blocage", label: "Délai applicable, accès ouvert dès la signature (renonciation expresse)" },
+      { value: "sans_delai", label: "Pas de délai de rétractation — contrat signé en présence, dans les locaux" },
+    ],
+  },
 ];
 
 export const QUESTION_BY_KEY: Record<QuestionKey, QuestionDefinition> = Object.fromEntries(
@@ -160,7 +197,7 @@ export const SHORT_OPTION_LABELS: Record<string, Record<string, string>> = {
   subrogation: { oui: "Subrogation financeur", non: "Sans subrogation" },
   resteACharge: { oui: "Reste à charge inclus", non: "Sans reste à charge" },
   certificationVisee: { oui: "Certification visée", non: "Sans certification" },
-  paiement: { comptant: "Paiement comptant", echelonne: "Paiement échelonné" },
+  paiement: { comptant: "Paiement comptant", echelonne: "Paiement échelonné", opco_direct: "Financement direct OPCO" },
   accesImmediat: { oui: "Accès anticipé possible", non: "Accès fermé pendant le délai" },
   droitImage: { oui: "Autorisation image jointe", non: "Sans autorisation image" },
   indemniteAnnulation: { oui: "Indemnité d'annulation", non: "Sans indemnité d'annulation" },
@@ -168,6 +205,13 @@ export const SHORT_OPTION_LABELS: Record<string, Record<string, string>> = {
   enregistrementSessions: { oui: "Sessions enregistrées", non: "Sessions non enregistrées" },
   stagiairesApparaissent: { oui: "Apprenants filmés", non: "Apprenants non filmés" },
   contenuRevente: { oui: "Formation commercialisée", non: "Contenu complémentaire" },
+  ateliers: { oui: "Ateliers collectifs", non: "Sans atelier collectif" },
+  autorisationImage: { accordee: "Image autorisée", refusee: "Image refusée", mineur: "Mineur — représentant légal" },
+  retractation: {
+    avec_blocage: "Rétractation, accès fermé",
+    sans_blocage: "Rétractation, accès ouvert",
+    sans_delai: "Sans délai de rétractation",
+  },
 };
 
 export type ResolveContext = {
@@ -175,11 +219,42 @@ export type ResolveContext = {
   // null = pas encore de session (envoi depuis une opportunité CRM, avant
   // toute inscription) — la question « modalité » est alors posée au lieu
   // d'être auto-résolue.
-  session: { format: SessionFormat | null };
-  course: { priceCents: number | null; certificationCode?: string | null };
+  session: {
+    format: SessionFormat | null;
+    // Surcharges portées par la session (null = hérite de la formation, qui
+    // hérite de l'organisme) — voir les commentaires de schéma de Session.
+    // Toutes optionnelles : les appelants qui n'ont pas de session réelle
+    // (CRM, sous-traitant) n'ont rien à en dire, et la question est posée.
+    withdrawalAccessPolicy?: string | null;
+    /** "remote" | "in_person" — le VRAI critère du droit de rétractation. */
+    contractSigningMode?: string | null;
+    /** Ateliers/temps collectifs programmés et non annulés sur la session. */
+    ateliersCount?: number;
+  };
+  course: { priceCents: number | null; certificationCode?: string | null; withdrawalAccessPolicy?: string | null };
+  /** Le bénéficiaire lui-même. Seule sa date de naissance sert ici : elle
+   *  décide du cas « mineur » de l'autorisation d'image. */
+  contact?: { birthDate: Date | null };
   fundingCommitments: FundingCommitmentInput[];
   organization: { withdrawalAccessPolicy: string; cancellationFeePercent: number | null };
 };
+
+// La cascade session → formation → organisme, écrite une fois : deux
+// questions s'appuient dessus et une divergence entre elles ferait dire à un
+// même contrat que l'accès est ouvert dans un article et fermé dans l'autre.
+function politiqueAccesEffective(ctx: ResolveContext): string {
+  return ctx.session.withdrawalAccessPolicy ?? ctx.course.withdrawalAccessPolicy ?? ctx.organization.withdrawalAccessPolicy;
+}
+
+/** Âge révolu à la date de référence — pas une division par 365,25 : un
+ *  anniversaire pas encore passé dans l'année change la réponse, et c'est
+ *  exactement la frontière qui compte ici. */
+function ageRevolu(naissance: Date, reference: Date): number {
+  let age = reference.getFullYear() - naissance.getFullYear();
+  const moisEcoule = reference.getMonth() - naissance.getMonth();
+  if (moisEcoule < 0 || (moisEcoule === 0 && reference.getDate() < naissance.getDate())) age--;
+  return age;
+}
 
 // Each resolver returns an answer already implied by real data, or null to
 // mean "ask" — never a guess. A resolver only ever returns one of its own
@@ -209,14 +284,25 @@ const RESOLVERS: Record<QuestionKey, (ctx: ResolveContext) => string | null> = {
   // to a registered certification or it doesn't, there's nothing per-dossier
   // to ask.
   certificationVisee: (ctx) => (ctx.course.certificationCode ? "oui" : "non"),
-  // No signal exists at generation time: the actual due dates/amounts are
-  // captured afterward, on the generated Document itself (paymentSchedule —
-  // see lib/paymentSchedule.ts), which doesn't exist yet while this
-  // question is being resolved. Always asked.
-  paiement: () => null,
-  // Driven by the organisation's own withdrawal-access setting (Mon profil /
-  // Bibliothèque) — never per-dossier.
-  accesImmediat: (ctx) => (ctx.organization.withdrawalAccessPolicy === "partial" ? "oui" : "non"),
+  // Une seule des trois branches est déductible. « Comptant » ou
+  // « échéancier » n'ont aucun signal en base : les échéances réelles sont
+  // saisies APRÈS, sur le Document généré (voir lib/paymentSchedule.ts), qui
+  // n'existe pas encore ici. En revanche, quand le prix est intégralement
+  // couvert par une prise en charge subrogée, le bénéficiaire ne verse rien :
+  // écrire « le prix est réglé en une échéance unique par le Bénéficiaire »
+  // serait faux, et c'est le seul cas où la donnée tranche vraiment.
+  paiement: (ctx) => {
+    const total = resolveDossierPriceCents(ctx.dossier, ctx.course);
+    if (total <= 0) return null;
+    const summary = computeFundingSummary(total, ctx.fundingCommitments);
+    if (summary.remainderCents === 0 && summary.subrogatedCents > 0) return "opco_direct";
+    return null;
+  },
+  // Politique d'accès pendant le délai : session, sinon formation, sinon
+  // organisme. La cascade a été ajoutée avec les surcharges par session et
+  // par formation — auparavant seul le réglage de l'organisme était lu, ce
+  // qui faisait mentir le contrat d'une formation qui s'en écartait.
+  accesImmediat: (ctx) => (politiqueAccesEffective(ctx) === "partial" ? "oui" : "non"),
   // Whether a given beneficiary's image/voice gets used (testimonial, filmed
   // session...) is a per-contract fact with no underlying record. Always asked.
   droitImage: () => null,
@@ -231,6 +317,34 @@ const RESOLVERS: Record<QuestionKey, (ctx: ResolveContext) => string | null> = {
   enregistrementSessions: () => null,
   stagiairesApparaissent: () => null,
   contenuRevente: () => null,
+  // Un atelier programmé sur la session prouve qu'il y a des temps
+  // collectifs. Zéro atelier ne prouve pas l'inverse : sur une session en
+  // continu ils se posent au fil de l'eau alors que le contrat, lui, se
+  // signe avant. On demande plutôt que d'écrire « non » dans un contrat.
+  ateliers: (ctx) => ((ctx.session.ateliersCount ?? 0) > 0 ? "oui" : null),
+  // La minorité est un fait d'état civil, déductible dès que la date de
+  // naissance du contact est renseignée — et c'est elle qui impose la
+  // signature du représentant légal. Accorder ou refuser, en revanche, est
+  // une décision de la personne qu'aucune table ne porte : toujours demandé.
+  autorisationImage: (ctx) => {
+    const naissance = ctx.contact?.birthDate;
+    if (naissance && ageRevolu(naissance, new Date()) < 18) return "mineur";
+    return null;
+  },
+  // L'ordre est juridique, pas pratique. Le droit de rétractation de
+  // quatorze jours dépend du MODE DE CONCLUSION du contrat, pas du format de
+  // la formation (art. L.221-18 C. consom.) — d'où Session.contractSigningMode.
+  // Tant qu'il n'est pas renseigné, on ne sait même pas si un délai existe :
+  // la politique d'accès de l'organisme répond à une autre question (ce qui
+  // se passe PENDANT le délai) et ne peut pas tenir lieu de réponse. La
+  // question est alors posée — et c'est cette saisie que l'écran propose
+  // ensuite de reporter sur la formation (voir REPORTS_PAR_REPONSE).
+  retractation: (ctx) => {
+    const mode = ctx.session.contractSigningMode ?? null;
+    if (mode === "in_person") return "sans_delai";
+    if (mode !== "remote") return null;
+    return politiqueAccesEffective(ctx) === "closed" ? "avec_blocage" : "sans_blocage";
+  },
 };
 
 /**
@@ -275,4 +389,106 @@ export function resolveSubrogatedFunderName(
 ): string | null {
   const active = fundingCommitments.find((c) => c.status !== "refused" && c.subrogation);
   return active?.funder.name ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Retour d'écriture vers la formation — l'inverse des résolveurs ci-dessus.
+//
+// Un résolveur qui rend `null` dit « la fiche formation ne porte pas cette
+// information ». L'organisme la saisit alors dans le questionnaire, pour CE
+// document — et jusqu'ici elle mourait là : le document suivant reposait la
+// même question, et la fiche formation restait vide. Ce qui suit dit, pour
+// chaque réponse saisie à la main, quel champ de Course elle renseignerait.
+//
+// Deux garde-fous portés par la fonction plus bas : on ne propose le report
+// que d'une réponse SAISIE (jamais d'une réponse déduite, qui vient déjà de
+// la base), et jamais par-dessus un champ déjà renseigné — un document ne
+// doit pas pouvoir écraser silencieusement un réglage de la formation.
+// ---------------------------------------------------------------------------
+
+/** Les champs de Course qu'une réponse au questionnaire sait renseigner. */
+export const CHAMPS_FORMATION_REPORTABLES = ["withdrawalAccessPolicy"] as const;
+export type ChampFormation = (typeof CHAMPS_FORMATION_REPORTABLES)[number];
+
+export type ReportFormation = {
+  questionKey: QuestionKey;
+  champ: ChampFormation;
+  valeur: string;
+  /** Ce qui suit « Vous avez renseigné : » à l'écran. Une phrase, pas un
+   *  nom de colonne — l'organisme n'a pas à connaître le schéma. */
+  libelle: string;
+};
+
+const REPORTS_PAR_REPONSE: Partial<Record<QuestionKey, Record<string, Omit<ReportFormation, "questionKey">>>> = {
+  retractation: {
+    avec_blocage: {
+      champ: "withdrawalAccessPolicy",
+      valeur: "closed",
+      libelle: "l'accès aux contenus est fermé pendant le délai de rétractation",
+    },
+    sans_blocage: {
+      champ: "withdrawalAccessPolicy",
+      valeur: "partial",
+      libelle: "l'accès aux contenus est ouvert pendant le délai de rétractation",
+    },
+    // « sans_delai » n'a volontairement pas de report : l'absence de délai
+    // tient au mode de conclusion du CONTRAT (signé dans les locaux), qui se
+    // décide dossier par dossier. Aucun champ de la formation ne le porte, et
+    // en inventer un ici ferait dire à la formation quelque chose qu'elle ne
+    // sait pas.
+  },
+  accesImmediat: {
+    oui: {
+      champ: "withdrawalAccessPolicy",
+      valeur: "partial",
+      libelle: "l'accès aux contenus est ouvert pendant le délai de rétractation",
+    },
+    non: {
+      champ: "withdrawalAccessPolicy",
+      valeur: "closed",
+      libelle: "l'accès aux contenus est fermé pendant le délai de rétractation",
+    },
+  },
+};
+
+/**
+ * Ce qu'il y aurait à reporter sur la fiche formation, après une génération.
+ *
+ * `reponsesManuelles` est exactement ce que l'utilisateur a tapé dans le
+ * questionnaire — pas le résultat de resolveAnswers, qui mêle saisie et
+ * déduction. Une réponse déduite vient déjà de la base : la reporter serait
+ * réécrire ce qu'on vient d'y lire.
+ *
+ * Pure et sans Prisma pour que l'écran (qui l'affiche) et la route (qui
+ * l'applique, en recalculant plutôt qu'en croyant le navigateur) tombent sur
+ * la même liste.
+ */
+export function proposerReportsFormation(
+  reponsesManuelles: Partial<Record<QuestionKey, string>>,
+  formation: Partial<Record<ChampFormation, string | null>>,
+): ReportFormation[] {
+  const proposes: ReportFormation[] = [];
+  const champsDejaProposes = new Set<ChampFormation>();
+
+  for (const q of QUESTIONS) {
+    const saisie = reponsesManuelles[q.key];
+    if (!saisie) continue;
+    // Une valeur qui ne nomme aucune option du catalogue est ignorée ici pour
+    // la même raison que dans resolveAnswers : elle n'est pas une réponse.
+    if (!q.options.some((o) => o.value === saisie)) continue;
+
+    const report = REPORTS_PAR_REPONSE[q.key]?.[saisie];
+    if (!report) continue;
+    const actuel = formation[report.champ];
+    if (actuel != null && actuel !== "") continue;
+    // Deux questions peuvent viser le même champ (rétractation et accès
+    // pendant le délai) : on n'en propose qu'un report, sans quoi l'écran
+    // demanderait deux fois d'écrire la même colonne — avec le risque de deux
+    // valeurs contradictoires.
+    if (champsDejaProposes.has(report.champ)) continue;
+    champsDejaProposes.add(report.champ);
+    proposes.push({ questionKey: q.key, ...report });
+  }
+
+  return proposes;
 }

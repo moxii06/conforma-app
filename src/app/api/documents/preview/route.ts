@@ -71,6 +71,9 @@ export async function GET(request: Request) {
         where: { id: sessionId, organizationId: auth.organizationId },
         include: {
           course: true,
+          // Ateliers non annulés : la question des temps collectifs se
+          // résout dessus, comme sur les routes dossier.
+          ateliers: { where: { annuleeAt: null }, select: { id: true } },
           dossiers: {
             include: {
               contact: { include: { company: true } },
@@ -109,8 +112,21 @@ export async function GET(request: Request) {
               learnerCategory: exemple?.learnerCategory ?? null,
               agreedPriceCents: exemple?.agreedPriceCents ?? null,
             },
-            session: { format: session.format },
-            course: { priceCents: session.course.priceCents, certificationCode: session.course.certificationCode },
+            session: {
+              format: session.format,
+              withdrawalAccessPolicy: session.withdrawalAccessPolicy,
+              contractSigningMode: session.contractSigningMode,
+              ateliersCount: session.ateliers.length,
+            },
+            course: {
+              priceCents: session.course.priceCents,
+              certificationCode: session.course.certificationCode,
+              withdrawalAccessPolicy: session.course.withdrawalAccessPolicy,
+            },
+            // Sur un document par apprenant, le « premier inscrit » n'est
+            // qu'un exemple : sa date de naissance ne doit pas décider du cas
+            // « mineur » pour toute la promotion. La question est alors posée.
+            contact: scope === "per_learner" ? undefined : { birthDate: exemple?.contact.birthDate ?? null },
             fundingCommitments: exemple?.fundingCommitments ?? [],
             organization: {
               withdrawalAccessPolicy: organization.withdrawalAccessPolicy,

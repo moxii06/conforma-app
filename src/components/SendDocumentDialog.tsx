@@ -14,6 +14,7 @@ import { PaymentScheduleBuilder } from "@/components/PaymentScheduleBuilder";
 // pose la même question et doit y répondre pareil.
 import { SCHEDULED_CATEGORIES, type Instalment } from "@/lib/paymentSchedule";
 import { SHORT_OPTION_LABELS, type QuestionKey } from "@/lib/documentQuestionnaire";
+import { ReporterSurFormationDialog, type ReportFormationPropose } from "@/components/ReporterSurFormationDialog";
 import { ResultLink } from "@/components/ResultLink";
 import { Button } from "@/components/ui";
 import { grouperModeles, libelleEntree, type ModeleChoisissable } from "@/lib/templatePicker";
@@ -226,6 +227,12 @@ export function SendDocumentDialog({
   // blocks: staff can still send, e.g. if the gap doesn't matter for this
   // particular client.
   const [missingFields, setMissingFields] = useState<{ key: string; label: string; fixHref: string }[]>([]);
+  // Ce que les réponses saisies apprendraient à la fiche formation. Renvoyé
+  // par l'aperçu (la route d'envoi, elle, ne voit pas le questionnaire) et
+  // proposé seulement une fois le document réellement parti.
+  const [reportsFormation, setReportsFormation] = useState<ReportFormationPropose[]>([]);
+  const [courseTitle, setCourseTitle] = useState("");
+  const [reportOuvert, setReportOuvert] = useState(false);
   const [schedule, setSchedule] = useState<Instalment[]>([]);
   const [capAcknowledged, setCapAcknowledged] = useState(scheduleContext?.capAcknowledged ?? false);
   // `undefined` = « on suit la proposition de l’organisme ». Toute autre
@@ -265,6 +272,8 @@ export function SendDocumentDialog({
     setCategory(data.category);
     setApplied(data.applied ?? []);
     setMissingFields(data.missingFields ?? []);
+    setReportsFormation(data.reportsFormation ?? []);
+    setCourseTitle(data.courseTitle ?? "");
   }
 
   async function handlePickTemplate(id: string) {
@@ -274,6 +283,7 @@ export function SendDocumentDialog({
     setPendingAnswers({});
     setApplied([]);
     setMissingFields([]);
+    setReportsFormation([]);
     if (!id) {
       setTitle("");
       setBodyHtml("");
@@ -303,6 +313,9 @@ export function SendDocumentDialog({
     setPendingAnswers({});
     setApplied([]);
     setMissingFields([]);
+    setReportsFormation([]);
+    setCourseTitle("");
+    setReportOuvert(false);
     setResult(null);
     setError(null);
   }
@@ -337,6 +350,10 @@ export function SendDocumentDialog({
       return;
     }
     setResult({ emailSent: body.emailSent, documentUrl: body.documentUrl });
+    // Le document est parti : c'est le moment de proposer de garder ce qui
+    // vient d'être saisi. Jamais avant — une question sur la formation ne
+    // doit pas s'intercaler dans un envoi au client.
+    if (mode === "template" && reportsFormation.length > 0) setReportOuvert(true);
     router.refresh();
   }
 
@@ -684,6 +701,16 @@ export function SendDocumentDialog({
             )}
             {error && <div className="text-[11.5px] text-rust">{error}</div>}
           </form>
+        )}
+
+        {reportOuvert && (
+          <ReporterSurFormationDialog
+            dossierId={dossierId}
+            courseTitle={courseTitle}
+            reports={reportsFormation}
+            answers={pendingAnswers}
+            onClose={() => setReportOuvert(false)}
+          />
         )}
     </DialogShell>
   );

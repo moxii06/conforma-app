@@ -3,7 +3,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { mergeTemplate, findEmptyMergeFields, describeMissingFields } from "@/lib/mergeTemplate";
-import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type QuestionKey } from "@/lib/documentQuestionnaire";
+import {
+  resolveAnswers,
+  resolveSubrogatedFunderName,
+  proposerReportsFormation,
+  QUESTION_BY_KEY,
+  type QuestionKey,
+} from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
 import { templateAppliesToCourse, TEMPLATE_WRONG_COURSE } from "@/lib/templateScope";
@@ -39,7 +45,15 @@ export async function POST(request: Request) {
       where: { id: parsed.data.dossierId, organizationId: session.organizationId },
       include: {
         contact: { include: { company: true } },
-        session: { include: { course: true } },
+        session: {
+          include: {
+            course: true,
+            // Les ateliers non annulés : c'est ce qui répond « oui » à la
+            // question des temps collectifs. Chargés en lignes plutôt qu'en
+            // _count filtré, quelques-uns par session au plus.
+            ateliers: { where: { annuleeAt: null }, select: { id: true } },
+          },
+        },
         fundingCommitments: { include: { funder: { select: { name: true } } } },
       },
     }),
@@ -72,8 +86,18 @@ export async function POST(request: Request) {
     const { answers, unresolved } = resolveAnswers(
       {
         dossier: { learnerCategory: dossier.learnerCategory, agreedPriceCents: dossier.agreedPriceCents },
-        session: { format: dossier.session.format },
-        course: { priceCents: dossier.session.course.priceCents, certificationCode: dossier.session.course.certificationCode },
+        session: {
+          format: dossier.session.format,
+          withdrawalAccessPolicy: dossier.session.withdrawalAccessPolicy,
+          contractSigningMode: dossier.session.contractSigningMode,
+          ateliersCount: dossier.session.ateliers.length,
+        },
+        course: {
+          priceCents: dossier.session.course.priceCents,
+          certificationCode: dossier.session.course.certificationCode,
+          withdrawalAccessPolicy: dossier.session.course.withdrawalAccessPolicy,
+        },
+        contact: { birthDate: dossier.contact.birthDate },
         fundingCommitments: dossier.fundingCommitments,
         organization: { withdrawalAccessPolicy: organization.withdrawalAccessPolicy, cancellationFeePercent: organization.cancellationFeePercent },
       },
@@ -128,5 +152,89 @@ export async function POST(request: Request) {
   // whether to surface it.
   const missingFields = describeMissingFields(findEmptyMergeFields(bodyTextSource, mergeContext));
 
-  return NextResponse.json({ ...document, missingFields }, { status: 201 });
+  // Ce que la saisie du questionnaire apprend à la fiche formation. Proposé
+  // seulement à qui peut réellement modifier une formation : montrer la
+  // question à un rôle dont le PATCH plus bas refuserait l'écriture
+  // reviendrait à lui promettre une action qui échouerait au clic.
+  const reportsFormation =
+    can(session.role, "courses") === "full"
+      ? proposerReportsFormation((parsed.data.answers ?? {}) as Partial<Record<QuestionKey, string>>, {
+          withdrawalAccessPolicy: dossier.session.course.withdrawalAccessPolicy,
+        })
+      : [];
+
+  return NextResponse.json(
+    { ...document, missingFields, reportsFormation, courseTitle: dossier.session.course.title },
+    { status: 201 },
+  );
+}
+
+const reportSchema = z.object({
+  dossierId: z.string().min(1),
+  /** Les réponses SAISIES au questionnaire, telles qu'envoyées au POST. */
+  answers: z.record(z.string()),
+});
+
+/**
+ * Reporte sur la fiche formation ce que le questionnaire vient d'apprendre.
+ *
+ * Pourquoi ici plutôt que sur une route /api/formations : ce report n'a de
+ * sens qu'en suite immédiate d'une génération, et il partage exactement son
+ * entrée (un dossier, des réponses). L'y coller garde la règle « ce qu'une
+ * réponse renseigne » dans un seul fichier de bout en bout.
+ *
+ * Rien de ce que le navigateur envoie n'est écrit tel quel : il fournit le
+ * dossier et les réponses, le serveur relit la formation en base et
+ * RECALCULE ce qui est reportable avec la même fonction pure que l'écran.
+ * Un champ et une valeur envoyés par le client écriraient n'importe quoi sur
+ * une formation partagée par tous ses dossiers.
+ */
+export async function PATCH(request: Request) {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+  // Modifier une formation, pas générer un document : c'est la permission
+  // « courses » à son niveau plein qui décide, comme partout ailleurs.
+  if (can(session.role, "courses") !== "full") {
+    return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const parsed = reportSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });
+
+  const dossier = await prisma.dossier.findFirst({
+    where: { id: parsed.data.dossierId, organizationId: session.organizationId },
+    select: {
+      session: {
+        select: { course: { select: { id: true, title: true, withdrawalAccessPolicy: true } } },
+      },
+    },
+  });
+  if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+
+  const course = dossier.session.course;
+  const reports = proposerReportsFormation(parsed.data.answers as Partial<Record<QuestionKey, string>>, {
+    withdrawalAccessPolicy: course.withdrawalAccessPolicy,
+  });
+  if (reports.length === 0) {
+    // Rien à faire : la formation a été renseignée entre-temps, ou la réponse
+    // ne correspond à aucun champ. Ce n'est pas une erreur — l'écran a juste
+    // proposé un report devenu sans objet.
+    return NextResponse.json({ updated: [], courseTitle: course.title });
+  }
+
+  // Écriture champ par champ et non par une boucle sur une clé dynamique :
+  // Prisma doit voir des colonnes nommées, et un `data[champ] = valeur`
+  // laisserait passer demain un champ ajouté au catalogue sans qu'on ait
+  // vérifié qu'il est bien écrivable depuis un document.
+  const data: { withdrawalAccessPolicy?: string } = {};
+  for (const report of reports) {
+    if (report.champ === "withdrawalAccessPolicy") data.withdrawalAccessPolicy = report.valeur;
+  }
+
+  // course.id vient de la base, via un dossier déjà filtré par
+  // organizationId — jamais d'un identifiant fourni par l'appelant.
+  await prisma.course.update({ where: { id: course.id }, data });
+
+  return NextResponse.json({ updated: reports.map((r) => r.libelle), courseTitle: course.title });
 }

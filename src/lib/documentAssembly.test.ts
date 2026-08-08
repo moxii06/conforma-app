@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { blockMatches, collectQuestionKeys, assembleBlocks, parseConditions, type TemplateBlock } from "./documentAssembly";
+import {
+  blockMatches,
+  collectQuestionKeys,
+  assembleBlocks,
+  parseConditions,
+  CLAUSES_PALETTE,
+  CLAUSE_PALETTE_BY_ID,
+  clausePaletteDuBloc,
+  type TemplateBlock,
+} from "./documentAssembly";
+import { QUESTION_BY_KEY } from "./documentQuestionnaire";
 
 describe("parseConditions", () => {
   it("parses a well-formed conditions array", () => {
@@ -75,5 +85,41 @@ describe("assembleBlocks", () => {
   it("produces an empty string when nothing matches and there is no fixed content", () => {
     const blocks: TemplateBlock[] = [{ order: 0, bodyText: "x", conditions: [{ questionKey: "modalite", in: ["HYBRID"] }] }];
     expect(assembleBlocks(blocks, { modalite: "REMOTE" })).toBe("");
+  });
+});
+
+describe("palette de clauses", () => {
+  it("ne branche que sur des questions et des options qui existent vraiment", () => {
+    for (const clause of CLAUSES_PALETTE) {
+      for (const condition of clause.conditions) {
+        const question = QUESTION_BY_KEY[condition.questionKey];
+        expect(question, `question inconnue pour la clause ${clause.id}`).toBeDefined();
+        for (const value of condition.in) {
+          expect(
+            question.options.some((o) => o.value === value),
+            `option « ${value} » inconnue de la question ${condition.questionKey} (clause ${clause.id})`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("porte des identifiants et des intitulés d'article uniques", () => {
+    const ids = CLAUSES_PALETTE.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const titres = CLAUSES_PALETTE.map((c) => c.bodyText.split("\n", 1)[0]);
+    expect(new Set(titres).size).toBe(titres.length);
+  });
+
+  it("reconnaît une clause de palette dans un bloc, y compris après réécriture du corps", () => {
+    const clause = CLAUSE_PALETTE_BY_ID.echeancier;
+    expect(clausePaletteDuBloc(clause.bodyText)).toBe("echeancier");
+    const corpsReecrit = `${clause.bodyText.split("\n", 1)[0]}\n\nNotre propre rédaction.`;
+    expect(clausePaletteDuBloc(corpsReecrit)).toBe("echeancier");
+  });
+
+  it("ne revendique pas un paragraphe dont l'intitulé a été changé, ni un bloc vide", () => {
+    expect(clausePaletteDuBloc("Article 15 — Notre échéancier\n\nTexte.")).toBeNull();
+    expect(clausePaletteDuBloc("")).toBeNull();
   });
 });

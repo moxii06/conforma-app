@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveWithdrawalPolicy,
+  originePolitiqueAcces,
+  delaiRetractationApplicable,
   moduleAccessibleUnderGate,
   resolveWaiverBasis,
   WAIVER_TEXTS,
@@ -15,21 +17,56 @@ describe("WITHDRAWAL_DAYS", () => {
 });
 
 describe("resolveWithdrawalPolicy", () => {
-  it("hérite de l'organisme quand la formation n'a pas tranché", () => {
-    expect(resolveWithdrawalPolicy(null, "closed")).toBe("closed");
-    expect(resolveWithdrawalPolicy(null, "partial")).toBe("partial");
-    expect(resolveWithdrawalPolicy(undefined, "partial")).toBe("partial");
+  it("hérite de l'organisme quand ni la session ni la formation n'ont tranché", () => {
+    expect(resolveWithdrawalPolicy(null, null, "closed")).toBe("closed");
+    expect(resolveWithdrawalPolicy(null, null, "partial")).toBe("partial");
+    expect(resolveWithdrawalPolicy(undefined, undefined, "partial")).toBe("partial");
   });
 
-  it("la formation prime quand elle a tranché", () => {
-    expect(resolveWithdrawalPolicy("partial", "closed")).toBe("partial");
-    expect(resolveWithdrawalPolicy("closed", "partial")).toBe("closed");
+  it("la formation prime sur l'organisme", () => {
+    expect(resolveWithdrawalPolicy(null, "partial", "closed")).toBe("partial");
+    expect(resolveWithdrawalPolicy(null, "closed", "partial")).toBe("closed");
   });
 
-  it("null n'ouvre rien : toutes les formations existantes héritent, sans changer de comportement", () => {
-    // C'est le point qui compte pour la migration : le champ arrive à null
-    // partout, et rien ne doit bouger pour l'existant.
-    expect(resolveWithdrawalPolicy(null, "closed")).toBe("closed");
+  it("la session prime sur tout le reste", () => {
+    // Le point du chantier : la même formation vendue en inter puis en
+    // intra n'a pas les mêmes contraintes, et c'est la session qui vend.
+    expect(resolveWithdrawalPolicy("partial", "closed", "closed")).toBe("partial");
+    expect(resolveWithdrawalPolicy("closed", "partial", "partial")).toBe("closed");
+  });
+
+  it("null n'ouvre rien : toutes les sessions existantes héritent, sans changer de comportement", () => {
+    // C'est le point qui compte pour la migration : les champs arrivent à
+    // null partout, et rien ne doit bouger pour l'existant.
+    expect(resolveWithdrawalPolicy(null, null, "closed")).toBe("closed");
+  });
+});
+
+describe("originePolitiqueAcces", () => {
+  it("nomme l'échelon qui a réellement tranché", () => {
+    expect(originePolitiqueAcces("closed", "partial")).toBe("session");
+    expect(originePolitiqueAcces(null, "partial")).toBe("formation");
+    expect(originePolitiqueAcces(null, null)).toBe("organisme");
+  });
+});
+
+describe("delaiRetractationApplicable", () => {
+  it("supprime le délai uniquement pour un contrat signé en présence", () => {
+    expect(delaiRetractationApplicable("in_person")).toBe(false);
+  });
+
+  it("maintient le délai pour un contrat conclu à distance", () => {
+    // Même si la formation se déroule ensuite en salle : c'est le mode de
+    // conclusion qui compte, pas le lieu de la prestation.
+    expect(delaiRetractationApplicable("remote")).toBe(true);
+  });
+
+  it("maintient le délai quand rien n'est renseigné — le choix prudent", () => {
+    // Se tromper en appliquant un délai inexistant coûte quelques jours ;
+    // se tromper dans l'autre sens coûte un remboursement intégral.
+    expect(delaiRetractationApplicable(null)).toBe(true);
+    expect(delaiRetractationApplicable(undefined)).toBe(true);
+    expect(delaiRetractationApplicable("")).toBe(true);
   });
 });
 
@@ -40,6 +77,8 @@ const gate = (over: Partial<WithdrawalGate> = {}): WithdrawalGate => ({
   waived: false,
   waiverBasis: "digital_content",
   waiverText: WAIVER_TEXTS.digital_content,
+  signingMode: "remote",
+  delaiApplicable: true,
   ...over,
 });
 

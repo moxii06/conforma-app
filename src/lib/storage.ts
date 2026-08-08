@@ -91,6 +91,21 @@ export async function uploadUserDocument(params: {
   return uploadPrivate(`team-members/${params.organizationId}/${params.userId}/${params.file.name}`, params.file);
 }
 
+// La preuve de traitement d'une réclamation ou d'un signalement confidentiel
+// (Complaint/SecureReport.proofFileUrl). Même magasin privé que le reste, et
+// pour la même raison en plus forte : un compte rendu de traitement de
+// signalement nomme des personnes et raconte des faits qui les concernent.
+// `kind` sépare les deux familles dans le chemin, comme dossiers/ et
+// subcontractors/ le font déjà pour les leurs.
+export async function uploadSupportProof(params: {
+  organizationId: string;
+  kind: string;
+  itemId: string;
+  file: File;
+}): Promise<{ url: string; fileName: string; sizeBytes: number }> {
+  return uploadPrivate(`support/${params.organizationId}/${params.kind}/${params.itemId}/${params.file.name}`, params.file);
+}
+
 // An attachment pulled off a synced inbound email (see mailboxMatching.ts's
 // persistEmailAttachments) — namespaced by message rather than by contact
 // since at sync time the message is often still unmatched (contactId null).

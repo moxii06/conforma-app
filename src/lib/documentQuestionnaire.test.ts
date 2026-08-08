@@ -1,14 +1,33 @@
 import { describe, expect, it } from "vitest";
 import { SessionFormat } from "@prisma/client";
-import { resolveAnswers } from "./documentQuestionnaire";
+import { proposerReportsFormation, resolveAnswers } from "./documentQuestionnaire";
 
 const baseCtx = {
   dossier: { learnerCategory: null as string | null, agreedPriceCents: null as number | null },
-  session: { format: SessionFormat.IN_PERSON },
-  course: { priceCents: 100000, certificationCode: null as string | null },
+  session: {
+    format: SessionFormat.IN_PERSON as SessionFormat | null,
+    withdrawalAccessPolicy: null as string | null,
+    contractSigningMode: null as string | null,
+    ateliersCount: 0,
+  },
+  course: {
+    priceCents: 100000 as number | null,
+    certificationCode: null as string | null,
+    withdrawalAccessPolicy: null as string | null,
+  },
+  contact: { birthDate: null as Date | null },
   fundingCommitments: [] as { amountCents: number; status: string; subrogation: boolean; validUntil?: Date | null }[],
   organization: { withdrawalAccessPolicy: "closed", cancellationFeePercent: null as number | null },
 };
+
+/** Une date de naissance donnant l'âge voulu aujourd'hui, à un jour près —
+ *  écrite en relatif parce qu'une date fixe ferait vieillir le test. */
+function neIlYA(ans: number): Date {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - ans);
+  d.setDate(d.getDate() - 1);
+  return d;
+}
 
 describe("resolveAnswers — statutApprenant", () => {
   it("resolves individual/jobseeker to 'individual'", () => {
@@ -87,13 +106,38 @@ describe("resolveAnswers — certificationVisee", () => {
 });
 
 describe("resolveAnswers — paiement", () => {
-  it("always stays unresolved — no signal exists before the document itself is created", () => {
+  it("stays unresolved when the beneficiary still owes something — the schedule is captured after the document", () => {
     const { unresolved } = resolveAnswers(baseCtx);
     expect(unresolved).toContain("paiement");
   });
 
   it("accepts a manual answer", () => {
     expect(resolveAnswers(baseCtx, { paiement: "echelonne" }).answers.paiement).toBe("echelonne");
+  });
+
+  it("is 'opco_direct' once a subrogated commitment covers the whole price", () => {
+    const ctx = { ...baseCtx, fundingCommitments: [{ amountCents: 100000, status: "granted", subrogation: true }] };
+    expect(resolveAnswers(ctx).answers.paiement).toBe("opco_direct");
+  });
+
+  it("stays unresolved when the funder covers everything WITHOUT subrogation — the client still pays", () => {
+    const ctx = { ...baseCtx, fundingCommitments: [{ amountCents: 100000, status: "granted", subrogation: false }] };
+    expect(resolveAnswers(ctx).unresolved).toContain("paiement");
+  });
+
+  it("stays unresolved on a partial subrogation — a remainder is still due", () => {
+    const ctx = { ...baseCtx, fundingCommitments: [{ amountCents: 40000, status: "granted", subrogation: true }] };
+    expect(resolveAnswers(ctx).unresolved).toContain("paiement");
+  });
+
+  it("stays unresolved on a free course — a zero price says nothing about how it is paid", () => {
+    const ctx = { ...baseCtx, course: { ...baseCtx.course, priceCents: 0 } };
+    expect(resolveAnswers(ctx).unresolved).toContain("paiement");
+  });
+
+  it("lets a manual answer override the auto-resolved OPCO branch", () => {
+    const ctx = { ...baseCtx, fundingCommitments: [{ amountCents: 100000, status: "granted", subrogation: true }] };
+    expect(resolveAnswers(ctx, { paiement: "echelonne" }).answers.paiement).toBe("echelonne");
   });
 });
 
@@ -105,6 +149,91 @@ describe("resolveAnswers — accesImmediat", () => {
   it("is 'oui' when the organisation allows partial early access", () => {
     const ctx = { ...baseCtx, organization: { ...baseCtx.organization, withdrawalAccessPolicy: "partial" } };
     expect(resolveAnswers(ctx).answers.accesImmediat).toBe("oui");
+  });
+
+  it("lets the course override the organisation", () => {
+    const ctx = { ...baseCtx, course: { ...baseCtx.course, withdrawalAccessPolicy: "partial" } };
+    expect(resolveAnswers(ctx).answers.accesImmediat).toBe("oui");
+  });
+
+  it("lets the session override the course", () => {
+    const ctx = {
+      ...baseCtx,
+      course: { ...baseCtx.course, withdrawalAccessPolicy: "partial" },
+      session: { ...baseCtx.session, withdrawalAccessPolicy: "closed" },
+    };
+    expect(resolveAnswers(ctx).answers.accesImmediat).toBe("non");
+  });
+});
+
+describe("resolveAnswers — ateliers", () => {
+  it("is 'oui' as soon as an atelier is scheduled on the session", () => {
+    const ctx = { ...baseCtx, session: { ...baseCtx.session, ateliersCount: 2 } };
+    expect(resolveAnswers(ctx).answers.ateliers).toBe("oui");
+  });
+
+  it("stays unresolved with no atelier scheduled — none today doesn't mean none ever", () => {
+    expect(resolveAnswers(baseCtx).unresolved).toContain("ateliers");
+  });
+
+  it("stays unresolved when the caller can't count ateliers at all (CRM, sous-traitant)", () => {
+    const ctx = { ...baseCtx, session: { format: SessionFormat.IN_PERSON as SessionFormat | null } };
+    expect(resolveAnswers(ctx).unresolved).toContain("ateliers");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { ateliers: "non" }).answers.ateliers).toBe("non");
+  });
+});
+
+describe("resolveAnswers — autorisationImage", () => {
+  it("is 'mineur' when the contact's birth date makes them under 18", () => {
+    const ctx = { ...baseCtx, contact: { birthDate: neIlYA(16) } };
+    expect(resolveAnswers(ctx).answers.autorisationImage).toBe("mineur");
+  });
+
+  it("stays unresolved for an adult — granting or refusing is a personal decision, not a record", () => {
+    const ctx = { ...baseCtx, contact: { birthDate: neIlYA(30) } };
+    expect(resolveAnswers(ctx).unresolved).toContain("autorisationImage");
+  });
+
+  it("stays unresolved when no birth date is on file", () => {
+    expect(resolveAnswers(baseCtx).unresolved).toContain("autorisationImage");
+  });
+
+  it("accepts a manual answer, including over the minor branch", () => {
+    const ctx = { ...baseCtx, contact: { birthDate: neIlYA(16) } };
+    expect(resolveAnswers(ctx, { autorisationImage: "refusee" }).answers.autorisationImage).toBe("refusee");
+  });
+});
+
+describe("resolveAnswers — retractation", () => {
+  it("is 'sans_delai' when the contract was signed in person", () => {
+    const ctx = { ...baseCtx, session: { ...baseCtx.session, contractSigningMode: "in_person" } };
+    expect(resolveAnswers(ctx).answers.retractation).toBe("sans_delai");
+  });
+
+  it("is 'avec_blocage' for a remote contract on a closed-access policy", () => {
+    const ctx = { ...baseCtx, session: { ...baseCtx.session, contractSigningMode: "remote" } };
+    expect(resolveAnswers(ctx).answers.retractation).toBe("avec_blocage");
+  });
+
+  it("is 'sans_blocage' for a remote contract once the course opens access during the delay", () => {
+    const ctx = {
+      ...baseCtx,
+      session: { ...baseCtx.session, contractSigningMode: "remote" },
+      course: { ...baseCtx.course, withdrawalAccessPolicy: "partial" },
+    };
+    expect(resolveAnswers(ctx).answers.retractation).toBe("sans_blocage");
+  });
+
+  it("stays unresolved while the signing mode is unknown — the access policy answers another question", () => {
+    const ctx = { ...baseCtx, course: { ...baseCtx.course, withdrawalAccessPolicy: "partial" } };
+    expect(resolveAnswers(ctx).unresolved).toContain("retractation");
+  });
+
+  it("accepts a manual answer", () => {
+    expect(resolveAnswers(baseCtx, { retractation: "sans_delai" }).answers.retractation).toBe("sans_delai");
   });
 });
 
@@ -186,7 +315,7 @@ describe("resolveAnswers — manual overrides", () => {
   });
 
   it("fills in exactly the unresolved questions, leaving auto-resolved ones untouched", () => {
-    const ctx = { ...baseCtx, session: { format: SessionFormat.REMOTE } };
+    const ctx = { ...baseCtx, session: { ...baseCtx.session, format: SessionFormat.REMOTE } };
     const { answers, unresolved } = resolveAnswers(ctx, {
       statutApprenant: "individual",
       paiement: "comptant",
@@ -195,6 +324,9 @@ describe("resolveAnswers — manual overrides", () => {
       enregistrementSessions: "non",
       stagiairesApparaissent: "non",
       contenuRevente: "non",
+      ateliers: "non",
+      autorisationImage: "accordee",
+      retractation: "avec_blocage",
     });
     expect(answers).toEqual({
       statutApprenant: "individual",
@@ -210,7 +342,51 @@ describe("resolveAnswers — manual overrides", () => {
       enregistrementSessions: "non",
       stagiairesApparaissent: "non",
       contenuRevente: "non",
+      ateliers: "non",
+      autorisationImage: "accordee",
+      retractation: "avec_blocage",
     });
     expect(unresolved).toEqual([]);
+  });
+});
+
+describe("proposerReportsFormation", () => {
+  it("proposes nothing when nothing was typed by hand", () => {
+    expect(proposerReportsFormation({}, { withdrawalAccessPolicy: null })).toEqual([]);
+  });
+
+  it("proposes the withdrawal-access policy from a hand-typed retractation answer", () => {
+    const reports = proposerReportsFormation({ retractation: "avec_blocage" }, { withdrawalAccessPolicy: null });
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({ questionKey: "retractation", champ: "withdrawalAccessPolicy", valeur: "closed" });
+  });
+
+  it("maps 'sans_blocage' to a course that opens access during the delay", () => {
+    const reports = proposerReportsFormation({ retractation: "sans_blocage" }, { withdrawalAccessPolicy: null });
+    expect(reports[0].valeur).toBe("partial");
+  });
+
+  it("proposes nothing for 'sans_delai' — no course field carries how a contract was signed", () => {
+    expect(proposerReportsFormation({ retractation: "sans_delai" }, { withdrawalAccessPolicy: null })).toEqual([]);
+  });
+
+  it("never proposes overwriting a course setting that already exists", () => {
+    expect(proposerReportsFormation({ retractation: "avec_blocage" }, { withdrawalAccessPolicy: "partial" })).toEqual([]);
+  });
+
+  it("proposes one write per field, even when two answers target the same one", () => {
+    const reports = proposerReportsFormation(
+      { accesImmediat: "oui", retractation: "avec_blocage" },
+      { withdrawalAccessPolicy: null },
+    );
+    expect(reports).toHaveLength(1);
+  });
+
+  it("ignores an answer that names no real option", () => {
+    expect(proposerReportsFormation({ retractation: "peut_etre" }, { withdrawalAccessPolicy: null })).toEqual([]);
+  });
+
+  it("ignores a question that has no course field behind it", () => {
+    expect(proposerReportsFormation({ droitImage: "oui" }, { withdrawalAccessPolicy: null })).toEqual([]);
   });
 });

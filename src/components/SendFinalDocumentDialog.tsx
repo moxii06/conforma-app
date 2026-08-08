@@ -220,7 +220,7 @@ export function SendFinalDocumentDialog({
               <div className="text-[11px] text-slate bg-linen border border-line rounded-md px-2.5 py-1.5 mb-2.5">
                 {horsÉcran} destinataire{horsÉcran > 1 ? "s" : ""} déjà sélectionné{horsÉcran > 1 ? "s" : ""} hors de cette recherche
                 {" — "}
-                {horsÉcran > 1 ? "ils restent" : "il reste"} dans l&apos;envoi.
+                {horsÉcran > 1 ? "ils restent" : "il reste"}{" "}dans l&apos;envoi.
               </div>
             )}
 
