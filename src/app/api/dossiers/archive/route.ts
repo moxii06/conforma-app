@@ -31,7 +31,7 @@ const schema = z
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "dossiers") !== "full") {
+  if (can(session.roles, "dossiers") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

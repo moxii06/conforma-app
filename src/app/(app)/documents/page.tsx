@@ -74,8 +74,8 @@ export default async function DocumentsPage(props: {
   }>;
 }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "dossiers") === "none" && can(role, "toolkit") === "none") redirect("/dashboard");
+  const { organizationId, role, roles, userId } = await requireSessionContext();
+  if (can(roles, "dossiers") === "none" && can(roles, "toolkit") === "none") redirect("/dashboard");
 
   const activeTab = (DOCUMENT_BUCKETS.find((b) => b.key === searchParams.tab)?.key ?? "draft") as DocumentBucket;
   const q = searchParams.q?.trim();
@@ -243,7 +243,7 @@ export default async function DocumentsPage(props: {
       })
     : [];
 
-  const canMarkSigned = can(role, "dossiers") !== "none";
+  const canMarkSigned = can(roles, "dossiers") !== "none";
   // La signature électronique n'est proposée que si elle est réellement
   // branchée — cocher une case qui ne fait rien serait pire que son absence.
   const signatureAvailable = Boolean(process.env.YOUSIGN_API_KEY);

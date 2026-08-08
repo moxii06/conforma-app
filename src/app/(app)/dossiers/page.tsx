@@ -26,8 +26,8 @@ export default async function DossiersPage(
   props: { searchParams: Promise<{ q?: string; page?: string; status?: string; vue?: string }> }
 ) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "dossiers") === "none") redirect("/dashboard");
+  const { organizationId, role, roles, userId } = await requireSessionContext();
+  if (can(roles, "dossiers") === "none") redirect("/dashboard");
   // Spec §2: "Trainer: their own sessions" extends to the dossiers enrolled
   // in those sessions — a trainer manages their own learners, not the
   // whole org's.

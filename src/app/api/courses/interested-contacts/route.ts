@@ -19,7 +19,7 @@ import { getSessionContext, can } from "@/lib/tenant";
 export async function GET(request: Request) {
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.role, "planning") !== "full") {
+  if (can(auth.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

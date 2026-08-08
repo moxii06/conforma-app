@@ -130,7 +130,23 @@ export type DashboardTasksResult = {
   tronquee: boolean;
 };
 
-export async function getDashboardTasks(organizationId: string, role: Role, userId: string): Promise<DashboardTasksResult> {
+/**
+ * @param role   Le rôle PRINCIPAL. Reste un `Role` simple et non une liste :
+ *               c'est aussi lui qui répond à « est-ce le propriétaire de
+ *               l'organisme ? » (voir le rappel médiation, tout en bas).
+ * @param roles  Les rôles EFFECTIFS (`SessionContext.roles`), cumul compris.
+ *               Facultatif : sans lui, on retombe sur `[role]`, c'est-à-dire
+ *               exactement le comportement d'avant le cumul. Les appelants qui
+ *               ne l'ont pas encore câblé continuent donc de fonctionner à
+ *               l'identique.
+ */
+export async function getDashboardTasks(
+  organizationId: string,
+  role: Role,
+  userId: string,
+  roles?: Role[],
+): Promise<DashboardTasksResult> {
+  const rolesEffectifs = roles ?? [role];
   const threshold = addDays(new Date(), -REMINDER_AFTER_DAYS);
   const results: DashboardTask[] = [];
   // Familles ayant ramené exactement leur plafond — voir le retour.
@@ -157,10 +173,29 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   const plancher = plancherTaches(organisation.tasksHiddenBefore);
   const dismissedKeys = new Set(dismissals.map((d) => `${d.kind}:${d.entityId}`));
 
-  const canSeeGeneral = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
-  const canSeeSales = canSeeGeneral || role === Role.SALES;
-  const canSeeTrainer = canSeeGeneral || role === Role.TRAINER;
-  const canSeeRgpd = canWriteRgpd(role);
+  // Ce que la personne VOIT, calculé sur ses rôles effectifs : un formateur
+  // qui est aussi commercial doit recevoir les deux jeux de tâches.
+  const canSeeGeneral = rolesEffectifs.some((r) => r === Role.ADMIN_OF || r === Role.ADMIN_MANAGER);
+  const canSeeSales = canSeeGeneral || rolesEffectifs.includes(Role.SALES);
+  const canSeeTrainer = canSeeGeneral || rolesEffectifs.includes(Role.TRAINER);
+  const canSeeRgpd = canWriteRgpd(rolesEffectifs);
+
+  // Et, en regard, CE QU'ELLE VOIT DE MOINS : les deux filtres de propriété.
+  //
+  // Ils ne peuvent pas rester écrits `role === Role.TRAINER`. Prenons un
+  // formateur-commercial : `canSeeSales` devient vrai grâce à sa casquette
+  // secondaire, mais son rôle PRINCIPAL n'est pas SALES — le filtre keyé sur
+  // le principal serait donc vide, et il verrait les prospects de tout
+  // l'organisme au lieu des siens. Le cumul aurait ouvert une porte en
+  // supprimant la serrure.
+  //
+  // La bonne question n'est pas « quel est son rôle principal ? » mais « d'où
+  // lui vient cette visibilité ? » : d'un rôle administratif, et elle est
+  // alors totale, ou de la casquette commerciale/formateur, et elle est alors
+  // bornée à ce qui lui appartient. Avec un seul rôle, les deux formulations
+  // coïncident exactement — aucune régression pour les comptes existants.
+  const restreindreAuxSiensCommercial = !canSeeGeneral && rolesEffectifs.includes(Role.SALES);
+  const restreindreAuxSiennesFormateur = !canSeeGeneral && rolesEffectifs.includes(Role.TRAINER);
 
   // Audit P1 : « quand j'assigne à quelqu'un, ça fait quoi ? » — rien, avant.
   // L'assignation est maintenant une vraie tâche pour la personne visée, et
@@ -282,7 +317,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   // notification sans issue apprendrait à son destinataire qu'un signalement
   // existe sans lui permettre de l'ouvrir — la route PATCH refuse d'ailleurs
   // déjà de désigner quelqu'un qui n'y a pas accès (lib/supportAssignment.ts).
-  if (canAccessSecureReports(role)) {
+  if (canAccessSecureReports(rolesEffectifs)) {
     const signalementsAdresses = await prisma.secureReport.findMany({
       where: {
         organizationId,
@@ -336,7 +371,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         status: "sent",
         sentAt: { lt: threshold },
-        ...(role === Role.SALES ? { opportunity: { ownerId: userId } } : {}),
+        ...(restreindreAuxSiensCommercial ? { opportunity: { ownerId: userId } } : {}),
       },
       include: { contact: true },
       orderBy: { sentAt: "asc" },
@@ -428,7 +463,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         convocationSent: false,
         session: {
           startsAt: { gte: new Date(), lte: soon },
-          ...(role === Role.TRAINER ? { trainerId: userId } : {}),
+          ...(restreindreAuxSiennesFormateur ? { trainerId: userId } : {}),
         },
       },
       include: { contact: true, session: true },
@@ -468,7 +503,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         ...DOSSIERS_ACTIFS,
         OR: [{ needsAssessmentDone: false }, { contractSigned: false }],
-        session: role === Role.TRAINER ? { trainerId: userId } : undefined,
+        session: restreindreAuxSiennesFormateur ? { trainerId: userId } : undefined,
         createdAt: { gte: plancher },
       },
       include: { contact: true, session: true },
@@ -540,7 +575,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         firstAccessedAt: { not: null, gte: plancher },
         session: {
           mode: "ROLLING",
-          ...(role === Role.TRAINER ? { trainerId: userId } : {}),
+          ...(restreindreAuxSiennesFormateur ? { trainerId: userId } : {}),
         },
       },
       include: {
@@ -601,7 +636,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         ...DOSSIERS_ACTIFS,
         firstAccessedAt: { not: null, gte: plancher },
-        session: role === Role.TRAINER ? { trainerId: userId } : undefined,
+        session: restreindreAuxSiennesFormateur ? { trainerId: userId } : undefined,
       },
       include: {
         contact: true,
@@ -654,7 +689,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         organizationId,
         ...DOSSIERS_ACTIFS,
         firstAccessedAt: { not: null, gte: plancher },
-        session: role === Role.TRAINER ? { trainerId: userId } : undefined,
+        session: restreindreAuxSiennesFormateur ? { trainerId: userId } : undefined,
         // Ce qui n'a pas encore été envoyé, et rien d'autre : une fois
         // l'attestation partie, la tâche disparaît d'elle-même.
         clientOutreaches: { none: { type: "certificate" } },
@@ -716,7 +751,7 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
             mode: "FIXED_DATE",
             courseId: { in: Array.from(satisfactionRules.keys()) },
             endsAt: { lt: now },
-            ...(role === Role.TRAINER ? { trainerId: userId } : {}),
+            ...(restreindreAuxSiennesFormateur ? { trainerId: userId } : {}),
           },
         },
         include: { contact: true, session: true },
@@ -1111,8 +1146,26 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
     // should have a written evaluation less than 12 months old.
     const evalThreshold = addDays(now, -366);
     const [activeTrainers, activeSubs, recentEvals] = await Promise.all([
+      // Un intervenant, c'est quiconque PORTE la casquette formateur — en
+      // rôle principal ou en rôle cumulé. La requête ne lisait que le rôle
+      // principal, alors que le panneau de preuves Qualiopi
+      // (lib/qualiopiEvidence.ts, indicateurs 21-22) compte déjà les deux avec
+      // exactement ce `OR`. Les deux écrans se contredisaient donc : les
+      // preuves annonçaient N intervenants à évaluer, le tableau de bord n'en
+      // réclamait que M < N.
+      //
+      // On aligne le tableau de bord SUR le panneau de preuves, et pas
+      // l'inverse : sous-compter une obligation Qualiopi laisse un organisme
+      // croire qu'il est couvert alors qu'il ne l'est pas — la réponse arrive
+      // le jour de l'audit. Oui, cela fait apparaître des tâches
+      // supplémentaires chez les organismes qui cumulent des casquettes ;
+      // c'est le comportement voulu, ces évaluations étaient dues.
       prisma.user.findMany({
-        where: { organizationId, role: Role.TRAINER, status: "active" },
+        where: {
+          organizationId,
+          status: "active",
+          OR: [{ role: Role.TRAINER }, { additionalRoles: { has: Role.TRAINER } }],
+        },
         select: { id: true, name: true, email: true },
       }),
       prisma.subcontractor.findMany({ where: { organizationId, status: "active" }, select: { id: true, name: true } }),
@@ -1157,6 +1210,11 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
   // tenu par l'art. L.612-1, et lui servir cette alerte tous les mois
   // décrédibiliserait toutes les autres. La règle complète, et le pourquoi
   // du report, sont dans lib/mediationConsommation.ts.
+  //
+  // Le rôle PRINCIPAL, et non les rôles effectifs : ADMIN_OF ne se cumule
+  // jamais (NON_CUMULABLE_ROLES), les deux formulations sont donc strictement
+  // équivalentes, et celle-ci dit ce qu'on veut vraiment dire — « le
+  // propriétaire de l'organisme », pas « quelqu'un qui a cette casquette ».
   if (role === Role.ADMIN_OF) {
     const etat = await chargerEtatMediation(organizationId);
     if (rappelMediationDu(etat, new Date())) {

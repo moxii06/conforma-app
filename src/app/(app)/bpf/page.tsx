@@ -16,8 +16,8 @@ const LIEN_DISCRET =
 
 export default async function BpfPage(props: { searchParams: Promise<{ year?: string }> }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "bpf") === "none") redirect("/dashboard");
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "bpf") === "none") redirect("/dashboard");
 
   const currentYear = new Date().getFullYear();
   const year = searchParams.year ? parseInt(searchParams.year, 10) : currentYear;
@@ -25,7 +25,7 @@ export default async function BpfPage(props: { searchParams: Promise<{ year?: st
   // La reprise écrit des sessions, des dossiers ET des factures payées —
   // mêmes droits que la route qui la reçoit (/api/import/history), pour ne
   // pas proposer un bouton qui répondra 403.
-  const peutReprendre = can(role, "invoicing") === "full" && can(role, "courses") === "full";
+  const peutReprendre = can(roles, "invoicing") === "full" && can(roles, "courses") === "full";
 
   return (
     <>

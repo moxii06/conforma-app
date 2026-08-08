@@ -9,8 +9,8 @@ import { SURVEY_KIND_LABELS, type SurveyKind } from "@/lib/satisfactionSurveys";
 
 export default async function SatisfactionResultsPage(props: { params: Promise<{ id: string; kind: string }> }) {
   const params = await props.params;
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "dossiers") === "none") redirect("/dashboard");
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "dossiers") === "none") redirect("/dashboard");
 
   const dossier = await prisma.dossier.findFirst({
     where: { id: params.id, organizationId },

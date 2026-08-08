@@ -17,7 +17,7 @@ const schema = z.object({ connectionId: z.string().min(1), enabled: z.boolean() 
 export async function PATCH(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "integrations") !== "full") {
+  if (can(session.roles, "integrations") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

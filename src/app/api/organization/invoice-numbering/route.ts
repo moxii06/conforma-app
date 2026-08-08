@@ -14,7 +14,7 @@ export async function PATCH(request: Request) {
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   // Même exigence que les autres réglages d'organisme : la numérotation
   // engage la comptabilité, ce n'est pas un réglage d'écran.
-  if (can(session.role, "invoicing") !== "full") {
+  if (can(session.roles, "invoicing") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

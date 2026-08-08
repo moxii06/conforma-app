@@ -39,7 +39,7 @@ function esc(s: string): string {
 export async function GET() {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "qualiopi") === "none") {
+  if (can(session.roles, "qualiopi") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

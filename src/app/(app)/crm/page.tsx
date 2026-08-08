@@ -61,12 +61,12 @@ export default async function CrmPage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "crm") === "none") redirect("/dashboard");
+  const { organizationId, role, roles, userId } = await requireSessionContext();
+  if (can(roles, "crm") === "none") redirect("/dashboard");
   // Emettre un devis engage un prix au nom de l organisme : reserve aux
   // roles qui ont la Facturation. Un commercial joint un devis existant.
-  const peutCreerDevis = can(role, "invoicing") !== "none";
-  const canWrite = can(role, "crm") !== "none";
+  const peutCreerDevis = can(roles, "invoicing") !== "none";
+  const canWrite = can(roles, "crm") !== "none";
   const sender = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { name: true, emailSignature: true } });
   const signatureHtml = sender.emailSignature ?? `Cordialement,<br>${sender.name}`;
   // Spec §2: "Sales / commercial: CRM and pipeline only, limited to their
@@ -310,7 +310,7 @@ export default async function CrmPage(
         {canWrite && view !== "archives" && (
           <div className="flex items-start gap-2.5">
             <NewOpportunityForm contacts={contacts} courses={courses} />
-            {can(role, "crm") === "full" && (
+            {can(roles, "crm") === "full" && (
               <ImportDataDialog
                 kind="contacts"
                 courses={courses}

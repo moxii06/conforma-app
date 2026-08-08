@@ -33,7 +33,7 @@ export default async function SessionActivityPage(props: {
   const params = await props.params;
   const searchParams = await props.searchParams;
   const auth = await requireSessionContext();
-  if (can(auth.role, "planning") === "none") redirect("/dashboard");
+  if (can(auth.roles, "planning") === "none") redirect("/dashboard");
 
   const session = await prisma.session.findFirst({
     where: { id: params.id, organizationId: auth.organizationId },

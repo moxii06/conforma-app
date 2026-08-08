@@ -39,7 +39,10 @@ export default async function ApercuDocumentPage(props: { params: Promise<{ id: 
     },
   });
   if (!document) notFound();
-  if (!peutLireDocument(document, { role: session.role, userId: session.userId })) notFound();
+  // `role` ET `roles` : le premier porte les règles de propriété, le second
+  // les `can()`. Voir le commentaire de LecteurDocument. L'aperçu et les deux
+  // routes qui servent les octets doivent poser exactement la même question.
+  if (!peutLireDocument(document, { role: session.role, roles: session.roles, userId: session.userId })) notFound();
 
   // Un document téléversé n'a pas de corps à afficher : on renvoie vers ses
   // octets plutôt que d'afficher une page vide.

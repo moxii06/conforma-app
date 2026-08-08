@@ -28,8 +28,16 @@ import { Role } from "@prisma/client";
  */
 export const ROLES_MESSAGERIE: Role[] = [Role.ADMIN_OF, Role.ADMIN_MANAGER, Role.SALES, Role.TRAINER];
 
-export function peutUtiliserMessagerie(role: Role): boolean {
-  return ROLES_MESSAGERIE.includes(role);
+/**
+ * Accepte un rôle seul ou la liste des rôles effectifs (cumul compris) : il
+ * suffit d'UNE casquette autorisée pour entrer, exactement comme `can()` rend
+ * le meilleur niveau de la liste. Un DPO externe qui serait aussi commercial
+ * accède donc à la messagerie — par sa casquette commerciale, pas par la
+ * sienne. Avec un rôle seul, le résultat est inchangé.
+ */
+export function peutUtiliserMessagerie(role: Role | Role[]): boolean {
+  const roles = Array.isArray(role) ? role : [role];
+  return roles.some((r) => ROLES_MESSAGERIE.includes(r));
 }
 
 export type MembreConversation = {

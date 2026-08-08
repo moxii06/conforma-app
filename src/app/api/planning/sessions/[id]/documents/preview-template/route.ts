@@ -21,7 +21,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     include: { course: true },
   });
   if (!session) return NextResponse.json({ error: "Session introuvable." }, { status: 404 });
-  if (!canManageSessionInvitations(auth.role, auth.userId, session)) {
+  if (!canManageSessionInvitations(auth.roles, auth.userId, session)) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

@@ -12,7 +12,7 @@ import { resolveAppOrigin } from "@/lib/appUrl";
 export async function GET(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.redirect(new URL("/login", request.url));
-  if (can(session.role, "integrations") === "none") {
+  if (can(session.roles, "integrations") === "none") {
     return NextResponse.redirect(new URL("/integrations?google_error=forbidden", request.url));
   }
 

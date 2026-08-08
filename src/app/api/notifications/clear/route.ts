@@ -19,9 +19,17 @@ import { prisma } from "@/lib/prisma";
 export async function POST() {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "dashboard") === "none") return NextResponse.json({ ok: true, cleared: 0 });
+  if (can(session.roles, "dashboard") === "none") return NextResponse.json({ ok: true, cleared: 0 });
 
-  const { tasks } = await getDashboardTasks(session.organizationId, session.role, session.userId);
+  // Rôles effectifs en 4e argument, comme GET /api/notifications : « tout
+  // effacer » doit masquer exactement la liste que la cloche a montrée. Une
+  // liste plus courte ici laisserait des notifications revenir juste après.
+  const { tasks } = await getDashboardTasks(
+    session.organizationId,
+    session.role,
+    session.userId,
+    session.roles,
+  );
 
   await prisma.notificationDismissal.createMany({
     data: tasks.map((t) => ({ userId: session.userId, kind: t.kind, entityId: t.id })),

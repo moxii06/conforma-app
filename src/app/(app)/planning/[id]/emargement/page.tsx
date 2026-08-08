@@ -15,7 +15,7 @@ import { SessionDaysForm } from "@/components/SessionDaysForm";
 export default async function EmargementPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await requireSessionContext();
-  if (can(auth.role, "planning") === "none") redirect("/dashboard");
+  if (can(auth.roles, "planning") === "none") redirect("/dashboard");
 
   const session = await prisma.session.findFirst({
     where: { id: params.id, organizationId: auth.organizationId },
@@ -39,7 +39,7 @@ export default async function EmargementPage(props: { params: Promise<{ id: stri
   // feuille vide qu'il croirait devoir remplir.
   if (session.mode === "ROLLING") redirect(`/planning/${params.id}/releve`);
 
-  const canEdit = can(auth.role, "planning") !== "none";
+  const canEdit = can(auth.roles, "planning") !== "none";
   const learners = session.dossiers
     .map((d) => ({ dossierId: d.id, name: `${d.contact.firstName} ${d.contact.lastName}` }))
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));

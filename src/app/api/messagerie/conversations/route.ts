@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getSessionContext } from "@/lib/tenant";
+import { effectiveRoles, getSessionContext } from "@/lib/tenant";
 import { peutUtiliserMessagerie, compterNonLus, titreConversation, cleTeteATete } from "@/lib/messagerie";
 
 // Mes conversations, et l'ouverture d'une nouvelle.
@@ -13,7 +13,10 @@ import { peutUtiliserMessagerie, compterNonLus, titreConversation, cleTeteATete 
 export async function GET() {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!peutUtiliserMessagerie(session.role)) {
+  // Les rôles EFFECTIFS : entrer dans la messagerie est une pure question de
+  // droit, pas de propriété — une seule casquette autorisée suffit. Un DPO
+  // externe à qui on ajoute la casquette formateur entre par celle-là.
+  if (!peutUtiliserMessagerie(session.roles)) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -78,7 +81,8 @@ const schema = z.object({
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!peutUtiliserMessagerie(session.role)) {
+  // Rôles effectifs, même raison que dans le GET ci-dessus.
+  if (!peutUtiliserMessagerie(session.roles)) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -93,11 +97,19 @@ export async function POST(request: Request) {
   // messagerie. Sans cette vérification, un identifiant deviné ouvrirait un
   // fil avec quelqu'un d'une autre structure — le scoping par organisation ne
   // tient ici qu'à ce contrôle explicite.
+  //
+  // `additionalRoles` fait partie de la question, pas du décor : le
+  // destinataire est jugé sur ses rôles EFFECTIFS, exactement comme
+  // l'expéditeur l'est sur les siens deux lignes plus haut. Sans cela, un
+  // collègue qui n'a la messagerie que par une casquette secondaire serait
+  // proposé par le sélecteur puis refusé ici.
   const membresValides = await prisma.user.findMany({
     where: { id: { in: autres }, organizationId: session.organizationId },
-    select: { id: true, role: true },
+    select: { id: true, role: true, additionalRoles: true },
   });
-  const retenus = membresValides.filter((u) => peutUtiliserMessagerie(u.role)).map((u) => u.id);
+  const retenus = membresValides
+    .filter((u) => peutUtiliserMessagerie(effectiveRoles(u.role, u.additionalRoles)))
+    .map((u) => u.id);
   if (retenus.length !== autres.length) {
     return NextResponse.json({ error: "Un destinataire est introuvable ou n'a pas accès à la messagerie." }, { status: 400 });
   }

@@ -6,7 +6,7 @@ import { LEARNER_CATEGORY_LABELS, FUNDING_ORIGIN_LABELS } from "@/lib/bpfCategor
 export async function GET(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "bpf") === "none") {
+  if (can(session.roles, "bpf") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

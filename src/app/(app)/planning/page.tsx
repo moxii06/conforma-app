@@ -37,9 +37,9 @@ export default async function PlanningPage(props: {
   searchParams: Promise<{ tab?: string; month?: string; trainer?: string; page?: string; continu?: string }>;
 }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "planning") === "none") redirect("/dashboard");
-  const canCreate = can(role, "planning") === "full";
+  const { organizationId, role, roles, userId } = await requireSessionContext();
+  if (can(roles, "planning") === "none") redirect("/dashboard");
+  const canCreate = can(roles, "planning") === "full";
   const activeTab = searchParams.tab ?? "liste";
   // Spec §2: "Trainer: their own sessions" — every other role with
   // planning access sees the whole org's schedule, optionally narrowed

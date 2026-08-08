@@ -19,7 +19,11 @@ export async function POST(request: Request) {
   if (kind !== "contacts" && kind !== "courses" && kind !== "bank_transactions" && kind !== "history") {
     return NextResponse.json({ error: "Type d'import inconnu." }, { status: 400 });
   }
-  const denied = importPermissionError(session.role, kind);
+  // `session.roles` et non `session.role` : l'import ne borne rien à ce qui
+  // appartient à la personne, c'est une pure question de droit — un
+  // responsable administratif qui cumule la casquette commerciale doit
+  // pouvoir analyser un fichier de contacts.
+  const denied = importPermissionError(session.roles, kind);
   if (denied) return denied;
 
   const table = await readImportFile(formData);

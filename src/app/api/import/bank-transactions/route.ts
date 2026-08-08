@@ -17,7 +17,8 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  const denied = importPermissionError(session.role, "bank_transactions");
+  // Rôles effectifs : cumul compris (voir importPermissionError).
+  const denied = importPermissionError(session.roles, "bank_transactions");
   if (denied) return denied;
   const { organizationId } = session;
 

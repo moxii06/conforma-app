@@ -12,7 +12,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.role, "planning") === "none") return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+  if (can(auth.roles, "planning") === "none") return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
 
   // Un formateur n'accède qu'à ses propres sessions — même règle que la
   // fiche session, appliquée ici aussi pour que l'export ne soit pas une

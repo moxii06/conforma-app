@@ -18,7 +18,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   // contrôle laisse passer « limited », donc un formateur arrive jusqu'à la
   // requête et il faut vérifier qu'il anime bien cette session. Ici « full »
   // exclut déjà TRAINER, et un tel filtre laisserait croire l'inverse.
-  if (can(auth.roles ?? auth.role, "planning") !== "full") {
+  if (can(auth.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

@@ -28,8 +28,8 @@ const ANCRE_MESSAGERIE = "echanges-editeur";
 export default async function AbonnementPage(props: {
   searchParams: Promise<{ souscription?: string }>;
 }) {
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "billing") !== "full") redirect("/dashboard");
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "billing") !== "full") redirect("/dashboard");
   const searchParams = await props.searchParams;
 
   // organizationId vient de la session, jamais de l'URL : Subscription est

@@ -25,7 +25,7 @@ const schema = z.object({
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "toolkit") === "none") {
+  if (can(session.roles, "toolkit") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
   // question à un rôle dont le PATCH plus bas refuserait l'écriture
   // reviendrait à lui promettre une action qui échouerait au clic.
   const reportsFormation =
-    can(session.role, "courses") === "full"
+    can(session.roles, "courses") === "full"
       ? proposerReportsFormation((parsed.data.answers ?? {}) as Partial<Record<QuestionKey, string>>, {
           withdrawalAccessPolicy: dossier.session.course.withdrawalAccessPolicy,
         })
@@ -194,7 +194,7 @@ export async function PATCH(request: Request) {
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   // Modifier une formation, pas générer un document : c'est la permission
   // « courses » à son niveau plein qui décide, comme partout ailleurs.
-  if (can(session.role, "courses") !== "full") {
+  if (can(session.roles, "courses") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

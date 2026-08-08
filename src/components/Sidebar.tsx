@@ -15,9 +15,14 @@ export async function Sidebar({
   user: SessionContext;
   organization?: { name: string; logoUrl: string | null; brandColor: string | null };
 }) {
+  // `user.roles` et non `user.role` : la navigation doit tenir compte du
+  // cumul, sinon un formateur-commercial verrait bien le CRM s'il tapait
+  // l'adresse à la main mais n'en aurait aucune entrée de menu. Les rôles
+  // effectifs valent `[role]` quand la personne n'a aucune casquette
+  // secondaire, donc rien ne bouge pour les comptes existants.
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => can(user.role, item.feature) !== "none"),
+    items: group.items.filter((item) => can(user.roles, item.feature) !== "none"),
   })).filter((group) => group.items.length > 0);
   // Le calcul de la liste « à faire » vivait ici — donc dans le layout
   // partagé, donc sur CHAQUE page, et une seconde fois sur le tableau de
@@ -31,6 +36,12 @@ export async function Sidebar({
   // portal in line. Staff keep the regular Jalon chrome unchanged, since
   // they ARE Jalon's customers and it's useful for them to know what tool
   // they're using.
+  //
+  // Volontairement `user.role` et non `user.roles` : LEARNER ne se cumule
+  // jamais (NON_CUMULABLE_ROLES), les deux formes sont donc équivalentes ici,
+  // et lire le rôle principal dit mieux ce qui est demandé — « est-ce le
+  // portail d'un apprenant ? », pas « détient-il quelque part cette
+  // casquette ? ».
   const isLearnerPortal = user.role === "LEARNER" && organization;
   const brandName = isLearnerPortal ? organization.name : "Jalon";
   const brandSubtitle = isLearnerPortal ? "Votre espace de formation" : "pour les organismes de formation";
@@ -55,11 +66,11 @@ export async function Sidebar({
             )}
             <div className="font-display text-lg tracking-wide truncate">{brandName}</div>
           </div>
-          {can(user.role, "dashboard") !== "none" && <NotificationBell userId={user.userId} />}
+          {can(user.roles, "dashboard") !== "none" && <NotificationBell userId={user.userId} />}
         </div>
         <div className="text-xs text-white/60 mt-1 pl-9">{brandSubtitle}</div>
       </div>
-      {can(user.role, "dashboard") !== "none" && (
+      {can(user.roles, "dashboard") !== "none" && (
         <div className="px-2.5 pt-2.5 shrink-0">
           <GlobalSearch />
         </div>

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   // Same gate as the rest of /integrations — connecting tools is an ADMIN_OF
   // decision, and so is asking for a new one.
-  if (can(session.role, "integrations") === "none") {
+  if (can(session.roles, "integrations") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

@@ -21,7 +21,7 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
 
   const isOwnDossier = session.role === "LEARNER" && dossier.learnerUserId === session.userId;
-  const isStaff = can(session.role, "dossiers") !== "none";
+  const isStaff = can(session.roles, "dossiers") !== "none";
   if (!isOwnDossier && !isStaff) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }

@@ -22,7 +22,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.role, "crm") === "none") {
+  if (can(auth.roles, "crm") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -31,7 +31,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     include: { opportunities: { select: { ownerId: true } } },
   });
   if (!contact) return NextResponse.json({ error: "Contact introuvable." }, { status: 404 });
-  if (!canAccessContact(auth.role, auth.userId, contact.opportunities)) {
+  if (!canAccessContact(auth.roles, auth.userId, contact.opportunities)) {
     return NextResponse.json({ error: "Ce contact appartient à un autre commercial." }, { status: 403 });
   }
 

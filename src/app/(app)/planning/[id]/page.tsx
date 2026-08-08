@@ -54,7 +54,7 @@ function mapLinkFor(location: string | null) {
 export default async function SessionDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const auth = await requireSessionContext();
-  if (can(auth.role, "planning") === "none") redirect("/dashboard");
+  if (can(auth.roles, "planning") === "none") redirect("/dashboard");
 
   const session = await prisma.session.findFirst({
     where: { id: params.id, organizationId: auth.organizationId },
@@ -92,12 +92,12 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   // this restriction is specifically the "own sessions" one from spec §2.
   if (auth.role === Role.TRAINER && session.trainerId !== auth.userId) redirect("/planning");
 
-  const canManage = canManageSessionInvitations(auth.role, auth.userId, session);
-  const canEdit = can(auth.role, "planning") === "full";
+  const canManage = canManageSessionInvitations(auth.roles, auth.userId, session);
+  const canEdit = can(auth.roles, "planning") === "full";
   // Même règle que l'émargement (où ce formulaire vivait jusqu'ici) : qui
   // mène la session en salle peut aussi en corriger les heures, pas
   // seulement qui peut éditer la fiche (canEdit, réservé au "full").
-  const canEditDays = can(auth.role, "planning") !== "none";
+  const canEditDays = can(auth.roles, "planning") !== "none";
   const isRemote = session.format === "REMOTE" || session.format === "HYBRID";
   const isInPerson = session.format === "IN_PERSON" || session.format === "HYBRID";
   const mapLink = isInPerson ? mapLinkFor(session.location) : null;
@@ -166,7 +166,7 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   // n'a pas à savoir ce que ses stagiaires suivent PAR AILLEURS chez le même
   // organisme — et un sous-traitant se connecte avec ce rôle. La requête
   // elle-même est sautée, pas seulement son affichage.
-  const canSeeOtherFormations = can(auth.role, "dossiers") === "full";
+  const canSeeOtherFormations = can(auth.roles, "dossiers") === "full";
   const contactIds = canSeeOtherFormations ? session.dossiers.map((d) => d.contactId) : [];
   const otherDossiersByContact = contactIds.length
     ? await prisma.dossier.findMany({

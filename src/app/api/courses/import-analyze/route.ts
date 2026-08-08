@@ -13,7 +13,7 @@ import { extractCourseInfoFromDocument } from "@/lib/ai";
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "planning") !== "full") {
+  if (can(session.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

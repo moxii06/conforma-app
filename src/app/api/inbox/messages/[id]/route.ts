@@ -49,7 +49,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "inbox") === "none") {
+  if (can(session.roles, "inbox") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -199,7 +199,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     // contact invisible côté CRM, à ressaisir. Rôle sans accès CRM : on
     // crée quand même le contact et on rattache l'email — le triage reste
     // son travail —, simplement sans opportunité.
-    if (can(session.role, "crm") !== "none") {
+    if (can(session.roles, "crm") !== "none") {
       await prisma.opportunity.create({
         data: {
           organizationId: session.organizationId,

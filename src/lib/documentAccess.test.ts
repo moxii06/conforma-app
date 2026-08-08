@@ -54,3 +54,69 @@ describe("peutLireDocument — équipe", () => {
     expect(peutLireDocument(dossierDe("appr1"), { role: Role.DPO_EXTERNAL, userId: "dpo" })).toBe(false);
   });
 });
+
+describe("peutLireDocument — cumul de rôles", () => {
+  it("une liste à un seul rôle rend exactement ce que rend ce rôle seul", () => {
+    // L'invariant de tout le chantier : `roles` absent (appelant pas encore
+    // câblé) et `roles: [role]` (le cas de tous les comptes sans casquette
+    // secondaire) doivent être indiscernables.
+    const document = dossierDe("appr1", "form2");
+    expect(peutLireDocument(document, { role: Role.TRAINER, userId: "form1" })).toBe(false);
+    expect(peutLireDocument(document, { role: Role.TRAINER, roles: [Role.TRAINER], userId: "form1" })).toBe(false);
+
+    const sienne = dossierDe("appr1", "form1");
+    expect(peutLireDocument(sienne, { role: Role.TRAINER, userId: "form1" })).toBe(true);
+    expect(peutLireDocument(sienne, { role: Role.TRAINER, roles: [Role.TRAINER], userId: "form1" })).toBe(true);
+  });
+
+  it("le DPO externe devenu aussi formateur lit SA session", () => {
+    expect(
+      peutLireDocument(dossierDe("appr1", "form1"), {
+        role: Role.DPO_EXTERNAL,
+        roles: [Role.DPO_EXTERNAL, Role.TRAINER],
+        userId: "form1",
+      }),
+    ).toBe(true);
+  });
+
+  it("le DPO externe devenu aussi formateur NE lit PAS la session d'un autre", () => {
+    // Le piège de ce chantier : la condition de propriété est attachée à la
+    // casquette formateur, pas au rôle principal. Testée sur le principal
+    // (DPO_EXTERNAL), elle ne se refermerait sur rien — et ce lecteur verrait
+    // TOUS les documents de l'organisme, plus qu'un vrai formateur.
+    expect(
+      peutLireDocument(dossierDe("appr1", "form2"), {
+        role: Role.DPO_EXTERNAL,
+        roles: [Role.DPO_EXTERNAL, Role.TRAINER],
+        userId: "form1",
+      }),
+    ).toBe(false);
+  });
+
+  it("la casquette secondaire n'ouvre pas la fiche équipe qu'elle n'ouvre pas non plus seule", () => {
+    // « team » est réservé à ADMIN_OF, qui ne se cumule pas : aucune addition
+    // de casquettes ne doit ouvrir cette porte.
+    expect(
+      peutLireDocument(DOC_EQUIPE, {
+        role: Role.DPO_EXTERNAL,
+        roles: [Role.DPO_EXTERNAL, Role.TRAINER, Role.SALES, Role.ADMIN_MANAGER],
+        userId: "dpo",
+      }),
+    ).toBe(false);
+  });
+
+  it("le formateur devenu aussi commercial obtient ce que la casquette commerciale donne déjà", () => {
+    // Le cumul ADDITIONNE des droits existants : un commercial lit les
+    // documents de dossier de l'organisme (PERMISSIONS.dossiers = limited,
+    // sans condition de propriété côté documents). Ajouter cette casquette à
+    // un formateur ne peut pas lui en retirer.
+    expect(peutLireDocument(dossierDe("appr1", "form2"), { role: Role.SALES, userId: "com1" })).toBe(true);
+    expect(
+      peutLireDocument(dossierDe("appr1", "form2"), {
+        role: Role.TRAINER,
+        roles: [Role.TRAINER, Role.SALES],
+        userId: "form1",
+      }),
+    ).toBe(true);
+  });
+});

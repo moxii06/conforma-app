@@ -32,7 +32,11 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   });
   if (!document || !document.bodyText) return NextResponse.json({ error: "Document introuvable." }, { status: 404 });
 
-  if (!peutLireDocument(document, { role: session.role, userId: session.userId })) {
+  // `roles` en plus de `role` : la lib s'en sert pour les seuls `can()`
+  // (« cette personne a-t-elle accès aux dossiers / à l'équipe ? »), tandis
+  // que `role` continue de porter les règles de propriété. Voir le commentaire
+  // de LecteurDocument, qui explique pourquoi les deux cohabitent.
+  if (!peutLireDocument(document, { role: session.role, roles: session.roles, userId: session.userId })) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 

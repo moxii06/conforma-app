@@ -67,7 +67,10 @@ async function resoudreAcces(dossierId: string, ctx: SessionContext): Promise<Ac
     if (dossier.learnerUserId !== ctx.userId) return null;
     cote = "apprenant";
   } else {
-    if (!peutSuivreFilApprenant(ctx.role, ctx.userId, dossier.session)) return null;
+    // Les rôles EFFECTIFS : la fonction tranche casquette par casquette, donc
+    // la condition « CETTE session-là » reste attachée à la seule casquette
+    // formateur — un formateur-commercial n'y gagne aucun fil de plus.
+    if (!peutSuivreFilApprenant(ctx.roles, ctx.userId, dossier.session)) return null;
     cote = "organisme";
   }
 

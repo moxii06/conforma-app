@@ -14,7 +14,8 @@ const optionsSchema = z.object({
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  const denied = importPermissionError(session.role, "courses");
+  // Rôles effectifs : cumul compris (voir importPermissionError).
+  const denied = importPermissionError(session.roles, "courses");
   if (denied) return denied;
   const { organizationId } = session;
 

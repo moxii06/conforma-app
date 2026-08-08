@@ -17,7 +17,7 @@ export async function PATCH(
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
 
   const organization = await prisma.organization.findUniqueOrThrow({ where: { id: session.organizationId } });
-  if (!canAccessAccommodations(session.role, session.userId, organization)) {
+  if (!canAccessAccommodations(session.roles, session.userId, organization)) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

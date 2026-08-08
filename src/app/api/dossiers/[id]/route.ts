@@ -43,13 +43,13 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   // a "dossiers" full write (BPF categorization), retentionUntil is an RGPD
   // write (purge scheduling), and the Parcours steps follow the same gate
   // as the Communications actions on this same page (canManageOutreach).
-  if (parsed.data.learnerCategory !== undefined && can(session.role, "dossiers") !== "full") {
+  if (parsed.data.learnerCategory !== undefined && can(session.roles, "dossiers") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
-  if (parsed.data.retentionUntil !== undefined && !canWriteRgpd(session.role)) {
+  if (parsed.data.retentionUntil !== undefined && !canWriteRgpd(session.roles)) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
-  if (touchesSteps && can(session.role, "dossiers") === "none") {
+  if (touchesSteps && can(session.roles, "dossiers") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -98,7 +98,7 @@ export async function DELETE(_request: Request, props: { params: Promise<{ id: s
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "planning") !== "full") {
+  if (can(session.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

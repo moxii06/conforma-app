@@ -43,15 +43,15 @@ function summarizeSessions(sessions: SessionSummary[]): { pillLabel: string | nu
 
 export default async function FormationsPage(props: { searchParams: Promise<{ tab?: string; q?: string }> }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "courses") === "none") redirect("/dashboard");
+  const { organizationId, role, roles, userId } = await requireSessionContext();
+  if (can(roles, "courses") === "none") redirect("/dashboard");
   // A learner gets a completely different page here, not just a read-only
   // version of the staff one — the staff view lists every course org-wide
   // with every enrolled learner's name (needed for staff to manage
   // rosters), which is exactly what a learner must never see about their
   // classmates. Scoped to their own dossiers only, see LearnerCatalog below.
   if (role === "LEARNER") return <LearnerCatalog userId={userId} organizationId={organizationId} />;
-  const canManage = can(role, "courses") === "full";
+  const canManage = can(roles, "courses") === "full";
   const activeTab = searchParams.tab === "archivees" ? "archivees" : "catalogue";
   const q = searchParams.q?.trim();
   // A trainer (staff or a subcontractor's linked account, see

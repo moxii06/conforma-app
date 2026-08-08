@@ -15,7 +15,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   // Le devis est une donnée commerciale : qui n'a pas accès au CRM n'a pas
   // à lister ceux d'un contact.
-  if (can(session.role, "crm") === "none") {
+  if (can(session.roles, "crm") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -26,7 +26,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   if (!contact) return NextResponse.json({ error: "Contact introuvable." }, { status: 404 });
   // Un commercial ne voit que ses propres prospects — même règle que
   // partout ailleurs, voir lib/tenant.ts.
-  if (!canAccessContact(session.role, session.userId, contact.opportunities)) {
+  if (!canAccessContact(session.roles, session.userId, contact.opportunities)) {
     return NextResponse.json({ error: "Ce contact appartient à un autre commercial." }, { status: 403 });
   }
 

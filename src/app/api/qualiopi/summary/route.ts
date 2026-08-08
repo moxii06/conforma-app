@@ -24,7 +24,7 @@ const CRITERION_LABELS: Record<number, string> = {
 export async function POST(request: Request) {
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.role, "qualiopi") === "none") {
+  if (can(auth.roles, "qualiopi") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

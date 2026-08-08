@@ -34,8 +34,8 @@ const AUTO_OUTREACH_LABELS: Record<string, string> = {
 const ACTIVITE_APERCU = 50;
 
 export default async function AutomationsPage() {
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "automations") === "none") redirect("/dashboard");
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "automations") === "none") redirect("/dashboard");
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

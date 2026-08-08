@@ -6,15 +6,15 @@ import { FaqBrowser } from "@/components/FaqBrowser";
 import { FAQ_CATEGORIES } from "@/lib/faqContent";
 
 export default async function FaqPage() {
-  const { role } = await requireSessionContext();
-  if (can(role, "faq") === "none") redirect("/dashboard");
+  const { role, roles } = await requireSessionContext();
+  if (can(roles, "faq") === "none") redirect("/dashboard");
 
   // Every role can open this page (see the "faq" row in PERMISSIONS), so
   // without this filter a learner would get a page made entirely of guides
   // for screens they get redirected away from. Gate each category on the
   // permission its screens actually use.
   const visibleKeys = FAQ_CATEGORIES.filter((category) => {
-    if (can(role, category.feature) === "none") return false;
+    if (can(roles, category.feature) === "none") return false;
     // "planning" is `limited` for LEARNER, which is what lets them reach
     // their own course list — but it would also hand them the staff guides
     // for the catalogue and the session planner. Excluded explicitly rather

@@ -19,7 +19,9 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!peutUtiliserMessagerie(session.role)) {
+  // Rôles effectifs : une seule casquette autorisée suffit à entrer dans la
+  // messagerie. Ce qu'on lit ensuite reste borné par l'appartenance au fil.
+  if (!peutUtiliserMessagerie(session.roles)) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -69,7 +71,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!peutUtiliserMessagerie(session.role)) {
+  // Rôles effectifs : une seule casquette autorisée suffit à entrer dans la
+  // messagerie. Ce qu'on lit ensuite reste borné par l'appartenance au fil.
+  if (!peutUtiliserMessagerie(session.roles)) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

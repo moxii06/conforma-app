@@ -79,12 +79,12 @@ function parseDashboardLayout(raw: unknown): { id: string; span: 1 | 2 }[] | nul
 
 export default async function DashboardPage(props: { searchParams: Promise<{ pile?: string }> }) {
   const { pile } = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
+  const { organizationId, role, roles, userId } = await requireSessionContext();
   // /dashboard shows org-wide CRM pipeline and cross-learner progress
   // data — it was never gated like every other page, and being the
   // hardcoded post-login landing page meant LEARNER/DPO_EXTERNAL accounts
   // saw it directly. Redirect to each role's real home instead.
-  if (can(role, "dashboard") === "none") redirect(role === "LEARNER" ? "/mon-espace" : "/rgpd");
+  if (can(roles, "dashboard") === "none") redirect(role === "LEARNER" ? "/mon-espace" : "/rgpd");
 
   // Le parcours de démarrage ne concerne que le rôle qui peut réellement le
   // franchir : chaque étape mène à un écran réservé à l'administrateur de
@@ -98,7 +98,10 @@ export default async function DashboardPage(props: { searchParams: Promise<{ pil
       ? await prisma.subscription.findUnique({ where: { organizationId } })
       : null;
 
-  const { tasks, tronquee: tachesTronquees } = await getDashboardTasks(organizationId, role, userId);
+  // Les rôles EFFECTIFS en 4e argument : c'est ce qui fait qu'un
+  // formateur-commercial reçoit les deux jeux de tâches. `role` reste passé
+  // en 3e — il porte encore les filtres de propriété (voir dashboardTasks).
+  const { tasks, tronquee: tachesTronquees } = await getDashboardTasks(organizationId, role, userId, roles);
   const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { dashboardLayout: true } });
   // Date de reprise du « à faire », si l'organisme en a choisi une.
   const orgReprise = await prisma.organization.findUniqueOrThrow({
@@ -114,14 +117,25 @@ export default async function DashboardPage(props: { searchParams: Promise<{ pil
   // (complaints: anyone with dossier access; signalements: ADMIN_OF only,
   // deliberately narrower) and conflating them risked burying the
   // confidential channel among routine relances.
-  const canManageComplaints = can(role, "dossiers") !== "none";
-  const canViewSecureReports = canAccessSecureReports(role);
-  const canSeeMoney = role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER;
+  const canManageComplaints = can(roles, "dossiers") !== "none";
+  const canViewSecureReports = canAccessSecureReports(roles);
+  // Le bloc « Argent » (montants facturés, encaissements, factures en retard)
+  // s'écrivait `role === ADMIN_OF || role === ADMIN_MANAGER` : un contrôle de
+  // PERMISSION déguisé en comparaison de rôles, avec deux conséquences. Un
+  // commercial à qui on ajoutait la casquette responsable administratif ne
+  // voyait toujours pas les montants, alors que /facturation, elle, s'ouvrait
+  // à lui. Et la politique vivait ici plutôt que dans la matrice.
+  //
+  // `invoicing` rend EXACTEMENT les mêmes deux rôles (ADMIN_OF « full »,
+  // ADMIN_MANAGER « limited », tous les autres « none ») : aucune nouvelle
+  // clé à créer, aucun élargissement, et c'est déjà la clé que la fiche
+  // dossier interroge pour son bloc Financement — l'argent a un seul public.
+  const canSeeMoney = can(roles, "invoicing") !== "none";
   // Lus dans la matrice plutôt que par comparaison de rôle : un rôle ajouté
   // plus tard hérite alors de la bonne visibilité sans qu'on ait à revenir
   // ici (CLAUDE.md — la matrice reste le seul endroit où l'accès se décide).
-  const canSeeCrm = can(role, "crm") !== "none";
-  const canSeeQualiopi = can(role, "qualiopi") !== "none";
+  const canSeeCrm = can(roles, "crm") !== "none";
+  const canSeeQualiopi = can(roles, "qualiopi") !== "none";
 
   const [
     sessionsInProgress,

@@ -16,7 +16,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!canWriteRgpd(session.role)) return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
+  if (!canWriteRgpd(session.roles)) return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
 
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);

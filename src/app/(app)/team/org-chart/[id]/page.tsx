@@ -12,7 +12,7 @@ import type { OrgChartGroups } from "@/lib/orgChart";
 export default async function OrgChartSnapshotPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await requireSessionContext();
-  if (can(session.role, "team") !== "full") redirect("/dashboard");
+  if (can(session.roles, "team") !== "full") redirect("/dashboard");
 
   const [snapshot, organization] = await Promise.all([
     prisma.orgChartSnapshot.findFirst({ where: { id: params.id, organizationId: session.organizationId } }),

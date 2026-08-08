@@ -12,8 +12,8 @@ import { MessagerieInterne } from "@/components/MessagerieInterne";
 // l'écran, parce que deux entrées voisines dans la navigation invitent
 // naturellement à les confondre.
 export default async function MessageriePage() {
-  const { userId, role } = await requireSessionContext();
-  if (can(role, "messagerie") === "none") redirect("/dashboard");
+  const { userId, roles } = await requireSessionContext();
+  if (can(roles, "messagerie") === "none") redirect("/dashboard");
 
   const moi = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, name: true } });
 

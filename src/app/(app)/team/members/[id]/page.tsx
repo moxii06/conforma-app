@@ -16,7 +16,7 @@ import { LibraryPanel } from "@/components/LibraryPanel";
 export default async function MemberRecordPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await requireSessionContext();
-  if (can(session.role, "team") !== "full") redirect("/dashboard");
+  if (can(session.roles, "team") !== "full") redirect("/dashboard");
 
   const member = await prisma.user.findFirst({
     where: { id: params.id, organizationId: session.organizationId },

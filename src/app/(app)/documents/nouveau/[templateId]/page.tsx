@@ -11,8 +11,8 @@ export default async function ComposerPage(props: {
 }) {
   const { templateId } = await props.params;
   const { doc } = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "dossiers") === "none" && can(role, "toolkit") === "none") redirect("/dashboard");
+  const { organizationId, role, roles, userId } = await requireSessionContext();
+  if (can(roles, "dossiers") === "none" && can(roles, "toolkit") === "none") redirect("/dashboard");
 
   const template = await prisma.documentTemplate.findFirst({
     where: { id: templateId, OR: [{ organizationId }, { organizationId: null }] },
@@ -54,7 +54,7 @@ export default async function ComposerPage(props: {
   // L'échéancier est une donnée d'argent : même audience que /facturation,
   // pas l'ensemble plus large des rôles qui peuvent rédiger un document. Un
   // formateur apprendrait sinon le prix par ce biais.
-  const peutVoirArgent = can(role, "invoicing") !== "none";
+  const peutVoirArgent = can(roles, "invoicing") !== "none";
   const organization = peutVoirArgent
     ? await prisma.organization.findUnique({ where: { id: organizationId }, select: { paymentCapAckAt: true } })
     : null;

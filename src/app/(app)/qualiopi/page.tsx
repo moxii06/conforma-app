@@ -70,9 +70,9 @@ const CRITERION_LABELS: Record<number, string> = {
 export default async function QualiopiPage(props: { searchParams: Promise<{ tab?: string }> }) {
   const searchParams = await props.searchParams;
   const session = await requireSessionContext();
-  if (can(session.role, "qualiopi") === "none") redirect("/dashboard");
+  if (can(session.roles, "qualiopi") === "none") redirect("/dashboard");
   const activeTab = searchParams.tab ?? "indicateurs";
-  const canEdit = can(session.role, "qualiopi") === "full";
+  const canEdit = can(session.roles, "qualiopi") === "full";
 
   return (
     <>

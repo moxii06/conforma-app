@@ -53,7 +53,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const origin = resolveAppOrigin(request);
 
   if (parsed.data.type === "convocation") {
-    if (!canManageSessionInvitations(auth.role, auth.userId, dossier.session)) {
+    if (!canManageSessionInvitations(auth.roles, auth.userId, dossier.session)) {
       return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
     }
     try {
@@ -69,7 +69,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
   }
 
-  if (can(auth.role, "dossiers") === "none") {
+  if (can(auth.roles, "dossiers") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

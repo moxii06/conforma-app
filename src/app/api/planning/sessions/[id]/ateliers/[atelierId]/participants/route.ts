@@ -47,7 +47,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.roles ?? auth.role, "planning") !== "full") {
+  if (can(auth.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -89,7 +89,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.roles ?? auth.role, "planning") !== "full") {
+  if (can(auth.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -124,7 +124,7 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
   const params = await props.params;
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.roles ?? auth.role, "planning") !== "full") {
+  if (can(auth.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

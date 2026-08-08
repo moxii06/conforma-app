@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { can } from "@/lib/tenant";
+import { can, effectiveRoles } from "@/lib/tenant";
 import { getDashboardTasks } from "@/lib/dashboardTasks";
 import { sendTransactionalEmail } from "@/lib/brevo";
 
@@ -19,14 +19,22 @@ function escapeHtml(s: string): string {
 export async function sendDailyDigests(origin: string): Promise<{ sent: number }> {
   const users = await prisma.user.findMany({
     where: { status: "active" },
-    select: { id: true, organizationId: true, email: true, name: true, role: true },
+    // `additionalRoles` fait partie de la sélection parce que le digest est
+    // l'un des rares endroits où le cumul de rôles doit agir HORS session :
+    // il n'y a personne de connecté, donc pas de SessionContext à lire, et
+    // sans ce champ un formateur-commercial recevrait par mail une liste
+    // amputée de tout son volet commercial — alors que l'écran, lui, la lui
+    // montre. Deux listes qui divergent selon le canal seraient pires que
+    // pas de mail du tout. Même requête, même index : c'est gratuit.
+    select: { id: true, organizationId: true, email: true, name: true, role: true, additionalRoles: true },
   });
 
   let sent = 0;
   for (const user of users) {
-    if (can(user.role, "dashboard") === "none") continue;
+    const rolesEffectifs = effectiveRoles(user.role, user.additionalRoles);
+    if (can(rolesEffectifs, "dashboard") === "none") continue;
 
-    const { tasks } = await getDashboardTasks(user.organizationId, user.role, user.id);
+    const { tasks } = await getDashboardTasks(user.organizationId, user.role, user.id, rolesEffectifs);
     if (tasks.length === 0) continue;
 
     const shown = tasks.slice(0, MAX_ITEMS_IN_EMAIL);

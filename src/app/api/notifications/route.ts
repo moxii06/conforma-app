@@ -25,12 +25,15 @@ const TACHES_AFFICHEES = 8;
 export async function GET() {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "dashboard") === "none") {
+  if (can(session.roles, "dashboard") === "none") {
     return NextResponse.json({ tasks: [], count: 0, overdueCount: 0 });
   }
 
   const [{ tasks, tronquee }, dismissals] = await Promise.all([
-    getDashboardTasks(session.organizationId, session.role, session.userId),
+    // Le 4e argument, ce sont les rôles EFFECTIFS. Sans lui, la cloche
+    // compterait moins de tâches que le tableau de bord n'en affiche pour un
+    // formateur-commercial — deux chiffres pour la même liste.
+    getDashboardTasks(session.organizationId, session.role, session.userId, session.roles),
     prisma.notificationDismissal.findMany({
       where: { userId: session.userId },
       select: { kind: true, entityId: true },

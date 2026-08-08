@@ -31,7 +31,7 @@ type LearnerTabKey = "parcours" | "documents" | "echanges";
 export default async function MonEspacePage(props: { searchParams: Promise<{ tab?: string }> }) {
   const searchParams = await props.searchParams;
   const session = await requireSessionContext();
-  if (can(session.role, "portal") === "none") redirect("/dashboard");
+  if (can(session.roles, "portal") === "none") redirect("/dashboard");
   const isLearner = session.role === "LEARNER";
   const activeTab: LearnerTabKey =
     searchParams.tab === "documents" || searchParams.tab === "echanges" ? searchParams.tab : "parcours";

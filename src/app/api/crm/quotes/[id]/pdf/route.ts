@@ -18,7 +18,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "crm") === "none") {
+  if (can(session.roles, "crm") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -27,7 +27,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     select: { id: true, contact: { select: { opportunities: { select: { ownerId: true } } } } },
   });
   if (!quote) return NextResponse.json({ error: "Devis introuvable." }, { status: 404 });
-  if (!canAccessContact(session.role, session.userId, quote.contact.opportunities)) {
+  if (!canAccessContact(session.roles, session.userId, quote.contact.opportunities)) {
     return NextResponse.json({ error: "Ce contact appartient à un autre commercial." }, { status: 403 });
   }
 

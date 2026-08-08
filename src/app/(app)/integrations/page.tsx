@@ -83,8 +83,8 @@ export default async function IntegrationsPage(props: {
   searchParams: Promise<{ tab?: string; google_error?: string; google_connected?: string }>;
 }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "integrations") === "none") redirect("/dashboard");
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "integrations") === "none") redirect("/dashboard");
 
   const activeTab = TABS.some((t) => t.key === searchParams.tab) ? searchParams.tab! : "messagerie";
 

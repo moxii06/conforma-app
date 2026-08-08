@@ -78,7 +78,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // drawer only ever receives feature keys that already passed the matrix —
   // it decides layout, never access.
   const allowedFeatures = NAV_GROUPS.flatMap((g) => g.items)
-    .filter((item) => can(session.role, item.feature) !== "none")
+    .filter((item) => can(session.roles, item.feature) !== "none")
     .map((item) => item.feature);
 
   return (

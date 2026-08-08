@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   }
 
   const session = await getSessionContext();
-  if (!session || can(session.role, "integrations") === "none") {
+  if (!session || can(session.roles, "integrations") === "none") {
     return clearStateCookie(NextResponse.redirect(new URL("/login", url.origin)));
   }
 

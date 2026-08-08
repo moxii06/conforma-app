@@ -29,7 +29,9 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   // La règle vit dans lib/documentAccess.ts, partagée avec
   // /api/documents/generated/[id] : le même document est servi par deux
   // chemins, il ne peut pas avoir deux règles de lecture.
-  if (!peutLireDocument(document, { role: session.role, userId: session.userId })) {
+  // `role` ET `roles` : le premier porte les règles de propriété, le second
+  // les `can()`. Voir le commentaire de LecteurDocument.
+  if (!peutLireDocument(document, { role: session.role, roles: session.roles, userId: session.userId })) {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 

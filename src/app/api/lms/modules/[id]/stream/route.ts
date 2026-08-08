@@ -34,7 +34,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   });
   if (!module_ || !module_.fileUrl) return NextResponse.json({ error: "Introuvable." }, { status: 404 });
 
-  const isStaff = can(session.role, "dossiers") !== "none";
+  const isStaff = can(session.roles, "dossiers") !== "none";
   if (!isStaff) {
     const progress = await prisma.elearningProgress.findFirst({
       where: { moduleId: module_.id, dossier: { organizationId: session.organizationId, learnerUserId: session.userId } },

@@ -80,13 +80,13 @@ const DPIA_STATUS_LABELS: Record<string, string> = {
 export default async function RgpdPage(props: { searchParams: Promise<{ tab?: string; q?: string; page?: string }> }) {
   const searchParams = await props.searchParams;
   const session = await requireSessionContext();
-  if (can(session.role, "rgpd") === "none") redirect("/dashboard");
+  if (can(session.roles, "rgpd") === "none") redirect("/dashboard");
   const activeTab = searchParams.tab ?? "registre";
-  const canWrite = canWriteRgpd(session.role);
+  const canWrite = canWriteRgpd(session.roles);
   // Clôturer un dossier n'est PAS une permission RGPD : c'est la même que
   // partout ailleurs dans Jalon (voir /api/dossiers/archive), sinon le DPO
   // externe — lecteur du registre — pourrait fermer des dossiers.
-  const peutClore = can(session.role, "dossiers") === "full";
+  const peutClore = can(session.roles, "dossiers") === "full";
 
   // The one legally time-bound thing on this page: a rights request has a
   // hard RGPD deadline — surfaced as a number, not buried in a tab.

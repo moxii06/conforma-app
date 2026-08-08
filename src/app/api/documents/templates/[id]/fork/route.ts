@@ -7,7 +7,7 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "toolkit") === "none") {
+  if (can(session.roles, "toolkit") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

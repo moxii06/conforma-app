@@ -11,7 +11,7 @@ const schema = z.object({ title: z.string().min(1), intention: z.string().min(1)
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "planning") !== "full") {
+  if (can(session.roles, "planning") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

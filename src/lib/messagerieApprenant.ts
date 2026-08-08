@@ -92,15 +92,26 @@ export function estFerme(closesAt: Date | string | null, maintenant: Date = new 
  * formation, parfois sur des difficultés personnelles, qui ne le regardent
  * pas. DPO_EXTERNAL est dehors pour la raison habituelle : prestataire borné
  * au registre RGPD.
+ *
+ * Accepte un rôle seul ou la liste des rôles effectifs (cumul compris), et
+ * tranche casquette par casquette — le même `some` par rôle que
+ * `canManageSessionInvitations` dans lib/tenant.ts, et pour la même raison :
+ * la condition de propriété (« CETTE session-là ») ne vaut que pour la
+ * casquette formateur, et l'écraser en la calculant sur le niveau cumulé
+ * ouvrirait tous les fils à un formateur-commercial. Avec un rôle seul, le
+ * résultat est inchangé.
  */
 export function peutSuivreFilApprenant(
-  role: Role,
+  role: Role | Role[],
   userId: string,
   session: { trainerId: string | null },
 ): boolean {
-  if (role === Role.ADMIN_OF || role === Role.ADMIN_MANAGER) return true;
-  if (role === Role.TRAINER) return session.trainerId === userId;
-  return false;
+  const roles = Array.isArray(role) ? role : [role];
+  return roles.some((r) => {
+    if (r === Role.ADMIN_OF || r === Role.ADMIN_MANAGER) return true;
+    if (r === Role.TRAINER) return session.trainerId === userId;
+    return false;
+  });
 }
 
 /**

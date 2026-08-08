@@ -14,8 +14,8 @@ import { scopeOfCategory, scopeLabel } from "@/lib/documentScope";
 // l'envoi, quand il découvrirait que Jalon a produit huit PDF au lieu d'un.
 
 export default async function NouveauDocumentPage() {
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "dossiers") === "none" && can(role, "toolkit") === "none") redirect("/dashboard");
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "dossiers") === "none" && can(roles, "toolkit") === "none") redirect("/dashboard");
 
   // Le modèle adapté par l'organisme prime sur celui de Jalon, comme
   // partout ailleurs : deux entrées pour la même catégorie donneraient

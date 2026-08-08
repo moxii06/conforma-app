@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   // La reprise d'historique écrit des sessions, des dossiers ET des
   // factures payées : elle touche à la déclaration BPF. On exige le droit
   // le plus fort des trois, pas le plus faible.
-  if (can(session.role, "invoicing") !== "full" || can(session.role, "courses") !== "full") {
+  if (can(session.roles, "invoicing") !== "full" || can(session.roles, "courses") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
   const { organizationId } = session;

@@ -21,7 +21,7 @@ function statusLabel(s: Pick<SessionRow, "status" | "trainerId">): string {
 export async function GET(req: NextRequest) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "planning") === "none") return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+  if (can(session.roles, "planning") === "none") return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
   // Un formateur voit déjà tout son propre planning à l'écran ; cet export
   // sert à un rôle qui regarde le planning de quelqu'un d'autre.
   if (session.role === Role.TRAINER) return NextResponse.json({ error: "Accès refusé." }, { status: 403 });

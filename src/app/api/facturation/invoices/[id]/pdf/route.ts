@@ -6,7 +6,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
   const { id } = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "invoicing") === "none") return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+  if (can(session.roles, "invoicing") === "none") return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
 
   const built = await buildFacturationPdf("invoice", id, session.organizationId);
   if (!built) return NextResponse.json({ error: "Facture introuvable." }, { status: 404 });

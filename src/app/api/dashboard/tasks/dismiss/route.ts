@@ -8,7 +8,7 @@ const schema = z.object({ kind: z.string().min(1), id: z.string().min(1) });
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "dashboard") === "none") {
+  if (can(session.roles, "dashboard") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

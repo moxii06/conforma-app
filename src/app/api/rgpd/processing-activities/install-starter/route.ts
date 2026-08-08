@@ -18,7 +18,7 @@ const schema = z.object({ includeSubProcessors: z.boolean().default(true) });
 export async function POST(req: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!canWriteRgpd(session.role)) return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+  if (!canWriteRgpd(session.roles)) return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
 
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Champs invalides." }, { status: 400 });

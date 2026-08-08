@@ -25,7 +25,7 @@ import { Role } from "@prisma/client";
 export async function GET(request: Request) {
   const auth = await getSessionContext();
   if (!auth) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(auth.role, "dossiers") === "none" && can(auth.role, "toolkit") === "none") {
+  if (can(auth.roles, "dossiers") === "none" && can(auth.roles, "toolkit") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

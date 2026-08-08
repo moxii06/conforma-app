@@ -11,7 +11,7 @@ export async function GET(_request: Request, props: { params: Promise<{ versionI
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "courses") === "none") {
+  if (can(session.roles, "courses") === "none") {
     return NextResponse.json({ error: "Action non autorisée." }, { status: 403 });
   }
 

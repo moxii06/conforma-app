@@ -74,10 +74,10 @@ export default async function DossierPage(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "dossiers") === "none") redirect("/dashboard");
-  const canEditCategory = can(role, "dossiers") === "full";
-  const canManageEmail = can(role, "inbox") !== "none";
+  const { organizationId, role, roles, userId } = await requireSessionContext();
+  if (can(roles, "dossiers") === "none") redirect("/dashboard");
+  const canEditCategory = can(roles, "dossiers") === "full";
+  const canManageEmail = can(roles, "inbox") !== "none";
   const activeTab = searchParams.tab ?? "info";
 
   const dossier = await prisma.dossier.findFirst({
@@ -131,11 +131,11 @@ export default async function DossierPage(
   // sa porte (canAccessAccommodations en décide seul), mais elle se ferme pour
   // un formateur dès la fin de la formation, sans mois de grâce.
   const canAccessAccomm =
-    canAccessAccommodations(role, userId, organization) && !donneesSanteMasquees(contexteMasquage);
+    canAccessAccommodations(roles, userId, organization) && !donneesSanteMasquees(contexteMasquage);
   // Funding is money data: same audience as /facturation, not the wider set
   // of roles that can open a dossier. A trainer seeing who funds a learner
   // is a confidentiality question, not just a permissions one.
-  const canSeeFunding = can(role, "invoicing") !== "none";
+  const canSeeFunding = can(roles, "invoicing") !== "none";
   // Context for the payment-schedule section of SendDocumentDialog. Gated by
   // canSeeFunding for the same reason as the Financement tab: the schedule is
   // money data, and a role that cannot see invoicing must not learn the price
@@ -161,13 +161,17 @@ export default async function DossierPage(
     mode: dossier.session.mode,
     format: dossier.session.format,
     startsAtLabel: format(dossier.session.startsAt, "d MMMM yyyy", { locale: fr }),
-    canSchedule: can(role, "planning") === "full",
+    canSchedule: can(roles, "planning") === "full",
   };
   // Le fil apprenant : les deux rôles administratifs et le formateur DE CETTE
   // session, jamais SALES — voir peutSuivreFilApprenant pour le pourquoi.
   // Onglet distinct d'« Emails », qui est le courrier externe : ici rien ne
   // sort de Jalon, et les deux n'ont ni le même public ni la même trace.
-  const canFollowLearnerThread = peutSuivreFilApprenant(role, userId, dossier.session);
+  // Rôles EFFECTIFS, comme la route qui sert ce fil : la fonction tranche
+  // casquette par casquette, la condition « CETTE session-là » reste donc
+  // attachée à la seule casquette formateur. Passer le rôle principal aurait
+  // caché l'onglet à un commercial devenu aussi formateur de la session.
+  const canFollowLearnerThread = peutSuivreFilApprenant(roles, userId, dossier.session);
   // Le compte de questions en attente, dans le libellé de l'onglet. Sans lui,
   // un apprenant pourrait écrire et attendre une semaine : personne n'ouvre un
   // onglet pour vérifier s'il est vide. Ne comptent que les messages de
@@ -350,9 +354,9 @@ export default async function DossierPage(
             contactId={dossier.contactId}
             organizationId={organizationId}
             currentDossierId={dossier.id}
-            role={role}
+            role={roles}
             userId={userId}
-            canManageOutreach={can(role, "dossiers") !== "none"}
+            canManageOutreach={can(roles, "dossiers") !== "none"}
             signatureHtml={signatureHtml}
             funding={identityFunding}
             scheduleContext={scheduleContext}
@@ -371,14 +375,14 @@ export default async function DossierPage(
           <DocumentsTab
             dossierId={dossier.id}
             organizationId={organizationId}
-            canWrite={can(role, "dossiers") !== "none"}
+            canWrite={can(roles, "dossiers") !== "none"}
             contactFirstName={dossier.contact.firstName}
             signatureHtml={signatureHtml}
             scheduleContext={scheduleContext}
             sessionInfo={sessionInfo}
           />
         ) : activeTab === "donnees-personnelles" ? (
-          <PersonalDataTab dossier={dossier} canWrite={canWriteRgpd(role)} />
+          <PersonalDataTab dossier={dossier} canWrite={canWriteRgpd(roles)} />
         ) : activeTab === "preuves-qualiopi" ? (
           <QualiopiEvidenceTab dossierId={dossier.id} />
         ) : activeTab === "echanges" ? (
@@ -401,7 +405,7 @@ export default async function DossierPage(
               dossierId={dossier.id}
               totalCents={resolveDossierPriceCents(dossier, dossier.session.course)}
               usesCoursePrice={dossier.agreedPriceCents == null}
-              canEdit={can(role, "invoicing") !== "none"}
+              canEdit={can(roles, "invoicing") !== "none"}
               funders={funders}
               readiness={fundingReadiness}
               durationHours={dossier.session.course.durationHours}
@@ -538,7 +542,12 @@ async function FormationsTab({
   contactId: string;
   organizationId: string;
   currentDossierId: string;
-  role: Role;
+  /**
+   * Les rôles EFFECTIFS de qui regarde (cumul compris) : cette prop ne sert
+   * qu'à `canManageSessionInvitations` plus bas, jamais à afficher ni à
+   * comparer un rôle. Voir lib/tenant.ts.
+   */
+  role: Role | Role[];
   userId: string;
   canManageOutreach: boolean;
   signatureHtml: string;

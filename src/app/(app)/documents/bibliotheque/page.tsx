@@ -46,8 +46,8 @@ function questionDefsOf(t: { blocks: { bodyText: string; conditions: unknown; or
 
 export default async function BibliothequePage(props: { searchParams: Promise<{ tab?: string; q?: string }> }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role } = await requireSessionContext();
-  if (can(role, "toolkit") === "none") redirect("/documents");
+  const { organizationId, roles } = await requireSessionContext();
+  if (can(roles, "toolkit") === "none") redirect("/documents");
 
   // Un seul contenu : des modèles. L'onglet « Réglages des contrats » a
   // disparu — il rassemblait quatre choses de natures différentes, dont

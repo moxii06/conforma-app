@@ -32,7 +32,8 @@ type RowRecord = {
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  const denied = importPermissionError(session.role, "contacts");
+  // Rôles effectifs : cumul compris (voir importPermissionError).
+  const denied = importPermissionError(session.roles, "contacts");
   if (denied) return denied;
   const { organizationId } = session;
 

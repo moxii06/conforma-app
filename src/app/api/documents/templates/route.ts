@@ -22,7 +22,7 @@ const schema = z.object({
 export async function GET() {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "toolkit") === "none") {
+  if (can(session.roles, "toolkit") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -63,7 +63,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "toolkit") === "none") {
+  if (can(session.roles, "toolkit") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

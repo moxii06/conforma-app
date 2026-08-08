@@ -35,10 +35,10 @@ const RGPD_APERCU = 20;
 
 export default async function InboxPage(props: { searchParams: Promise<{ mailbox?: string; tab?: string; page?: string }> }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, userId } = await requireSessionContext();
-  if (can(role, "inbox") === "none") redirect("/dashboard");
-  const canWrite = can(role, "inbox") !== "none";
-  const canHandleRgpd = canWriteRgpd(role);
+  const { organizationId, roles, userId } = await requireSessionContext();
+  if (can(roles, "inbox") === "none") redirect("/dashboard");
+  const canWrite = can(roles, "inbox") !== "none";
+  const canHandleRgpd = canWriteRgpd(roles);
   // L'onglet « RGPD » a été fusionné dans le triage (audit P1 : « est-ce que
   // l'onglet RGPD est vraiment nécessaire ? »). Un lien ou un signet qui
   // pointe encore dessus retombe sur le triage, où le bandeau se trouve
@@ -174,7 +174,7 @@ export default async function InboxPage(props: { searchParams: Promise<{ mailbox
   // que la connexion apporte, une fois. Le jeu de démo, lui, a des emails
   // sans connexion : il continue de montrer le triage, ce qui est le but.
   if (connections.length === 0 && unsortedCount + suggestedCount + archivedCount + rgpdCount === 0) {
-    const peutConnecter = can(role, "integrations") === "full";
+    const peutConnecter = can(roles, "integrations") === "full";
     return (
       <>
         <PageHeader title="Boîte mail" subtitle="Triage des emails entrants" />

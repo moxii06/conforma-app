@@ -16,7 +16,10 @@ export async function GET() {
   // Pas d'erreur pour un rôle sans messagerie : la barre latérale ne montre
   // même pas l'entrée, un 403 dans la console de tous ses écrans serait du
   // bruit. Zéro non-lu est la réponse juste.
-  if (!peutUtiliserMessagerie(session.role)) return NextResponse.json({ total: 0 });
+  // Rôles effectifs : la même question que celle posée par la barre latérale
+  // pour afficher l'entrée « Messagerie ». Les deux doivent répondre pareil,
+  // sinon la pastille reste à zéro sur un menu pourtant visible.
+  if (!peutUtiliserMessagerie(session.roles)) return NextResponse.json({ total: 0 });
 
   const appartenances = await prisma.conversationMember.findMany({
     where: { userId: session.userId, conversation: { organizationId: session.organizationId } },

@@ -15,7 +15,13 @@ export const MAX_IMPORT_FILE_BYTES = 4 * 1024 * 1024;
 // facturation write. La reprise d'historique écrit des sessions, des
 // dossiers ET des factures payées : elle exige les deux droits, pas un
 // seul — voir /api/import/history, qui refait la vérification côté écriture.
-export function importPermissionError(role: Role, kind: ImportKind): NextResponse | null {
+//
+// `Role | Role[]` : `role` ne sert ici qu'à des `can()`, jamais à borner ce
+// que l'import touche, donc la liste des rôles effectifs peut être passée
+// telle quelle — un responsable administratif qui cumule la casquette
+// commerciale importe alors ses contacts. Un rôle seul reste accepté, et
+// donne exactement le même résultat qu'avant.
+export function importPermissionError(role: Role | Role[], kind: ImportKind): NextResponse | null {
   const refus = NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   if (kind === "history") {
     return can(role, "invoicing") === "full" && can(role, "courses") === "full" ? null : refus;

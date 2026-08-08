@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   // Le réglage vaut pour toute l'équipe : même exigence que les autres
   // réglages d'organisme.
-  if (can(session.role, "dashboard") !== "full") {
+  if (can(session.roles, "dashboard") !== "full") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

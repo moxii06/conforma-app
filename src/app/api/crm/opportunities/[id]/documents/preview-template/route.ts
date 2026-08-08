@@ -19,7 +19,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "crm") === "none") {
+  if (can(session.roles, "crm") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -41,7 +41,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     include: { contact: { include: { company: true } }, courseOfInterest: true },
   });
   if (!opportunity) return NextResponse.json({ error: "Opportunité introuvable." }, { status: 404 });
-  if (!canManageOpportunity(session.role, session.userId, opportunity)) {
+  if (!canManageOpportunity(session.roles, session.userId, opportunity)) {
     return NextResponse.json({ error: "Cette opportunité appartient à un autre commercial." }, { status: 403 });
   }
 
