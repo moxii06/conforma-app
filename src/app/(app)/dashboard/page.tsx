@@ -5,7 +5,14 @@ import { redirect } from "next/navigation";
 import { BarChart } from "@/components/charts/BarChart";
 import { AreaChart } from "@/components/charts/AreaChart";
 import { getDashboardTasks, type DashboardTask } from "@/lib/dashboardTasks";
-import { TASK_THEMES, themeOf, themeDemande, libelleTheme, type ThemeKey } from "@/lib/dashboardTaskThemes";
+import {
+  TASK_THEMES,
+  themeOf,
+  themeDemande,
+  libelleTheme,
+  tacheRejetable,
+  type ThemeKey,
+} from "@/lib/dashboardTaskThemes";
 import { groupTasksByKind, type TaskGroup } from "@/lib/dashboardTaskGroups";
 import { TASK_ACTIONS } from "@/lib/dashboardTaskActions";
 import { BulkTaskActionDialog } from "@/components/BulkTaskActionDialog";
@@ -22,6 +29,7 @@ import { CheckCircle2, Circle, HelpCircle } from "lucide-react";
 import { DismissTaskButton } from "@/components/DismissTaskButton";
 import { DashboardTaskAction } from "@/components/DashboardTaskAction";
 import { ShowMoreToggle } from "@/components/ShowMoreToggle";
+import { DashboardTaskDetails } from "@/components/DashboardTaskDetails";
 import { DashboardWidgetGrid } from "@/components/DashboardWidgetGrid";
 
 const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
@@ -101,7 +109,11 @@ export default async function DashboardPage(props: { searchParams: Promise<{ pil
   // Les rôles EFFECTIFS en 4e argument : c'est ce qui fait qu'un
   // formateur-commercial reçoit les deux jeux de tâches. `role` reste passé
   // en 3e — il porte encore les filtres de propriété (voir dashboardTasks).
-  const { tasks, tronquee: tachesTronquees } = await getDashboardTasks(organizationId, role, userId, roles);
+  const {
+    tasks,
+    tronquee: tachesTronquees,
+    kindsTronques,
+  } = await getDashboardTasks(organizationId, role, userId, roles);
   const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { dashboardLayout: true } });
   // Date de reprise du « à faire », si l'organisme en a choisi une.
   const orgReprise = await prisma.organization.findUniqueOrThrow({
@@ -251,6 +263,7 @@ export default async function DashboardPage(props: { searchParams: Promise<{ pil
             <TasksWidget
               tasks={tasks}
               tronquee={tachesTronquees}
+              kindsTronques={kindsTronques}
               repriseActuelleIso={repriseActuelleIso}
               pile={themeDemande(pile)}
             />
@@ -377,7 +390,12 @@ function TaskRow({ task }: { task: DashboardTask }) {
             depuis le serveur reviendrait à appeler une fonction client. */}
         <DashboardTaskAction kind={task.kind} id={task.id} contactName={task.contactName} />
         <span className="text-[11px] text-slate">{TASK_KIND_LABELS[task.kind]}</span>
-        <DismissTaskButton kind={task.kind} id={task.id} />
+        {/* Pas de croix sur une ligne agrégée : son `id` est une constante,
+            donc le rejet vaudrait pour toutes les occurrences futures de
+            l'alerte, à la portée de l'organisme et sans retour arrière — ce
+            que « ne réapparaîtra plus » ne laisse pas entendre. Voir
+            KINDS_AGREGES pour l'écran qui éteint chacune de ces alertes. */}
+        {tacheRejetable(task.kind) && <DismissTaskButton kind={task.kind} id={task.id} />}
       </div>
     </div>
   );
@@ -396,8 +414,12 @@ function TaskSummaryRow({ famille }: { famille: TaskGroup }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2 border-t border-line first:border-t-0 hover:bg-linen -mx-1 px-1 rounded">
       <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
+        {/* Le « + » dit que la requête de cette famille a été coupée au
+            plafond : « 100+ factures en retard », jamais « 100 » sec, qui se
+            lirait comme un total. */}
         <span className="text-[12.5px] text-ink font-medium">
-          {n.toLocaleString("fr-FR")} {famille.libelle}
+          {n.toLocaleString("fr-FR")}
+          {famille.tronquee ? "+" : ""} {famille.libelle}
         </span>
         {famille.overdue > 0 && <Pill tone="danger">{famille.overdue.toLocaleString("fr-FR")} en retard</Pill>}
       </div>
@@ -423,14 +445,20 @@ function TaskSummaryRow({ famille }: { famille: TaskGroup }) {
         // Aucun écran filtré ne couvre cette famille : on déplie sur place
         // plutôt que d'envoyer vers une page non filtrée où il faudrait
         // retrouver les lignes à la main.
+        //
+        // Volontairement pas ShowMoreToggle, qui annonce un RELIQUAT (« + N
+        // autres », ce qui reste sous les lignes déjà affichées) : ici la
+        // ligne de résumé n'affiche aucune ligne de détail, si bien que
+        // « 12 attestations à envoyer » suivi de « + 12 autres » se lisait
+        // comme vingt-quatre pour un dépliage qui n'en révèle que douze.
         <div className="shrink-0">
-          <ShowMoreToggle count={n}>
+          <DashboardTaskDetails>
             <div className="flex flex-col">
               {famille.items.map((t) => (
                 <TaskRow key={`${t.kind}-${t.id}`} task={t} />
               ))}
             </div>
-          </ShowMoreToggle>
+          </DashboardTaskDetails>
         </div>
       )}
     </div>
@@ -519,18 +547,29 @@ function OnboardingWidget({ steps, remaining }: { steps: OnboardingStep[]; remai
 // dashboardTasks.ts). Sans ce drapeau, le titre annoncerait un total qui
 // n'en est pas un — c'est précisément le défaut relevé par l'audit sur le
 // journal des automatisations, il ne faut pas le reproduire ici.
+//
+// `kindsTronques` en plus du booléen : celui-ci ne dit que « il en reste
+// quelque part », ce qui suffit au titre général et à rien d'autre. Le « + »
+// disparaissait donc dès qu'on isolait une pile, et « À faire — Argent
+// (100) » présentait un nombre plafonné comme exact. Les kinds permettent de
+// porter la marque jusqu'à la pastille et à la ligne de famille concernées.
 function TasksWidget({
   tasks,
   tronquee,
+  kindsTronques,
   repriseActuelleIso,
   pile,
 }: {
   tasks: DashboardTask[];
   tronquee: boolean;
+  kindsTronques: DashboardTask["kind"][];
   repriseActuelleIso: string | null;
   /** La pile isolée, ou null pour tout voir. */
   pile: ThemeKey | null;
 }) {
+  // Une pile est tronquée dès qu'une seule de ses familles l'est.
+  const pilesTronquees = new Set(kindsTronques.map((k) => themeOf(k)));
+
   // Les piles se comptent sur la LISTE ENTIÈRE, jamais sur ce qui reste
   // après filtrage : sinon isoler « Argent » ferait tomber les trois autres
   // compteurs à zéro et il n'y aurait plus de chemin de retour lisible.
@@ -556,7 +595,7 @@ function TasksWidget({
     <CollapsibleSection
       title={
         pile
-          ? `À faire — ${libelleTheme(pile)} (${affichees.length})`
+          ? `À faire — ${libelleTheme(pile)} (${affichees.length}${pilesTronquees.has(pile) ? "+" : ""})`
           : `À faire (${tasks.length}${tronquee ? "+" : ""})`
       }
       badge={overdueCount > 0 ? <Pill tone="danger">{overdueCount} en retard</Pill> : undefined}
@@ -574,13 +613,14 @@ function TasksWidget({
       header={
         parPile.length > 1 ? (
           <div className="flex items-center gap-1.5 flex-wrap">
-            <PilleFiltre href="/dashboard" label="Tout" count={tasks.length} actif={pile === null} />
+            <PilleFiltre href="/dashboard" label="Tout" count={tasks.length} tronquee={tronquee} actif={pile === null} />
             {parPile.map((g) => (
               <PilleFiltre
                 key={g.key}
                 href={`/dashboard?pile=${g.key}`}
                 label={g.label}
                 count={g.items.length}
+                tronquee={pilesTronquees.has(g.key)}
                 actif={pile === g.key}
                 alerte={g.items.filter((t) => t.overdue).length}
               />
@@ -598,7 +638,10 @@ function TasksWidget({
               <div key={group.key}>
                 <div className="flex items-center gap-2 pb-1">
                   <span className="text-[11px] font-semibold text-slate uppercase tracking-wide">{group.label}</span>
-                  <span className="text-[11px] text-slate">({group.items.length})</span>
+                  <span className="text-[11px] text-slate">
+                    ({group.items.length}
+                    {pilesTronquees.has(group.key) ? "+" : ""})
+                  </span>
                   {groupOverdue > 0 && <Pill tone="danger">{groupOverdue} en retard</Pill>}
                 </div>
                 <div className="flex flex-col">
@@ -607,7 +650,7 @@ function TasksWidget({
                       dizaines et disent toutes la même chose), soit listée
                       nominativement (quand il y en a peu, et que le nom de
                       l'apprenant est justement l'information utile). */}
-                  {groupTasksByKind(group.items).map((famille) =>
+                  {groupTasksByKind(group.items, kindsTronques).map((famille) =>
                     famille.resume ? (
                       <TaskSummaryRow key={famille.kind} famille={famille} />
                     ) : (
@@ -625,7 +668,7 @@ function TasksWidget({
               en une ligne : c'est la règle du widget, pas celle des
               intertitres, et vingt factures en retard n'ont pas à être lues
               une par une pour être relancées ensemble. */}
-          {groupTasksByKind(affichees).map((famille) =>
+          {groupTasksByKind(affichees, kindsTronques).map((famille) =>
             famille.resume ? (
               <TaskSummaryRow key={famille.kind} famille={famille} />
             ) : (
@@ -645,12 +688,15 @@ function PilleFiltre({
   count,
   actif,
   alerte = 0,
+  tronquee = false,
 }: {
   href: string;
   label: string;
   count: number;
   actif: boolean;
   alerte?: number;
+  /** Le compte est plafonné : la pastille l'écrit, comme le titre. */
+  tronquee?: boolean;
 }) {
   return (
     <Link
@@ -661,7 +707,10 @@ function PilleFiltre({
       }`}
     >
       <span className="font-medium">{label}</span>
-      <span className={actif ? "text-white/70" : "text-ash"}>{count}</span>
+      <span className={actif ? "text-white/70" : "text-ash"}>
+        {count}
+        {tronquee ? "+" : ""}
+      </span>
       {alerte > 0 && !actif && <span className="w-1.5 h-1.5 rounded-full bg-rust" aria-label={`${alerte} en retard`} />}
     </Link>
   );

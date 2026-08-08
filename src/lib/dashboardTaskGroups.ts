@@ -129,6 +129,12 @@ export type TaskGroup = {
   /** Écran traitant toute la famille, si un existe. */
   href: string | null;
   overdue: number;
+  /**
+   * La requête de cette famille a été coupée au plafond : `items.length`
+   * n'est pas un total. La ligne l'écrit (« 100+ »), sans quoi un nombre
+   * plafonné se lirait comme exact.
+   */
+  tronquee: boolean;
 };
 
 /**
@@ -137,7 +143,11 @@ export type TaskGroup = {
  * première tâche d'un groupe est la plus urgente, et l'ordre des groupes
  * suit l'urgence de leur tête de file.
  */
-export function groupTasksByKind(tasks: DashboardTask[]): TaskGroup[] {
+export function groupTasksByKind(
+  tasks: DashboardTask[],
+  /** Les familles plafonnées, telles que getDashboardTasks les remonte. */
+  kindsTronques: readonly DashboardTask["kind"][] = [],
+): TaskGroup[] {
   const parKind = new Map<DashboardTask["kind"], DashboardTask[]>();
   for (const t of tasks) {
     const existant = parKind.get(t.kind);
@@ -145,6 +155,7 @@ export function groupTasksByKind(tasks: DashboardTask[]): TaskGroup[] {
     else parKind.set(t.kind, [t]);
   }
 
+  const tronques = new Set(kindsTronques);
   return Array.from(parKind.entries()).map(([kind, items]) => ({
     kind,
     items,
@@ -152,5 +163,6 @@ export function groupTasksByKind(tasks: DashboardTask[]): TaskGroup[] {
     libelle: LIBELLES_COLLECTIFS[kind],
     href: DESTINATIONS_COLLECTIVES[kind],
     overdue: items.filter((t) => t.overdue).length,
+    tronquee: tronques.has(kind),
   }));
 }

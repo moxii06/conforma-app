@@ -10,7 +10,7 @@ import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } fro
 // mot « clôturer ». Voir dossierArchive.ts pour ce qui se tait et ce qui
 // ne se tait jamais.
 import { DOSSIERS_ACTIFS } from "@/lib/dossierArchive";
-import type { DashboardTaskKind } from "@/lib/dashboardTaskThemes";
+import { type DashboardTaskKind, tacheRejetable } from "@/lib/dashboardTaskThemes";
 import { chargerEtatMediation } from "@/lib/mediationServeur";
 import { rappelMediationDu } from "@/lib/mediationConsommation";
 import {
@@ -129,6 +129,22 @@ export type DashboardTasksResult = {
   tasks: DashboardTask[];
   /** Au moins une famille a atteint MAX_TACHES_PAR_FAMILLE : il en reste au-delà. */
   tronquee: boolean;
+  /**
+   * QUELLES familles ont atteint le plafond.
+   *
+   * Le booléen ci-dessus ne suffisait pas : il ne dit rien de l'endroit où il
+   * en reste, si bien que la marque « + » du titre disparaissait dès qu'on
+   * filtrait sur une pile — « À faire (214+) » devenait « À faire — Argent
+   * (100) », un nombre plafonné présenté comme exact. Avec les kinds, la
+   * page peut remonter la troncature jusqu'à la pastille et à la ligne de
+   * famille concernées.
+   *
+   * Ce que le drapeau dit exactement : la REQUÊTE de cette famille a été
+   * coupée au plafond. Plusieurs familles filtrent ensuite en mémoire (un
+   * dossier sans module e-learning, par exemple), donc le nombre affiché
+   * peut être bien inférieur à 100 tout en étant, lui aussi, incomplet.
+   */
+  kindsTronques: DashboardTaskKind[];
 };
 
 /**
@@ -151,9 +167,16 @@ export async function getDashboardTasks(
   const threshold = addDays(new Date(), -REMINDER_AFTER_DAYS);
   const results: DashboardTask[] = [];
   // Familles ayant ramené exactement leur plafond — voir le retour.
-  const famillesAuPlafond = new Set<string>();
-  function noterSiPlafond(famille: string, lot: unknown[]) {
-    if (lot.length >= MAX_TACHES_PAR_FAMILLE) famillesAuPlafond.add(famille);
+  //
+  // Des KINDS, et non des noms libres : c'est ce qui permet à la page de
+  // savoir dans quelle pile il en reste (themeOf) et sur quelle ligne de
+  // famille marquer le « + ». Une requête qui alimente deux kinds les note
+  // tous les deux — un seul suffirait à dire « il en reste », mais pas à
+  // dire lequel des deux compteurs est plafonné.
+  const kindsAuPlafond = new Set<DashboardTaskKind>();
+  function noterSiPlafond(kinds: DashboardTaskKind | DashboardTaskKind[], lot: unknown[]) {
+    if (lot.length < MAX_TACHES_PAR_FAMILLE) return;
+    for (const kind of Array.isArray(kinds) ? kinds : [kinds]) kindsAuPlafond.add(kind);
   }
 
   // Tasks are recomputed live from dossier/invoice/etc. state on every load
@@ -221,8 +244,9 @@ export async function getDashboardTasks(
     where: { organizationId, assignedToUserId: userId, contactId: null, ignoredAt: null },
     select: { id: true, subject: true, fromName: true, fromAddress: true, receivedAt: true },
     orderBy: { receivedAt: "asc" },
-    take: 50,
+    take: MAX_TACHES_PAR_FAMILLE,
   });
+  noterSiPlafond("email_assigned", assignedEmails);
   for (const m of assignedEmails) {
     results.push({
       id: m.id,
@@ -525,7 +549,8 @@ export async function getDashboardTasks(
       orderBy: { createdAt: "asc" },
       take: MAX_TACHES_PAR_FAMILLE,
     });
-    noterSiPlafond("dossier_prep", incompleteDossiers);
+    // Une seule requête, deux familles : le plafond les tronque toutes les deux.
+    noterSiPlafond(["dossier_prep_contract", "dossier_prep_needs_assessment"], incompleteDossiers);
     for (const d of incompleteDossiers) {
       const isRolling = d.session.mode === "ROLLING";
       const genericDeadline = isRolling
@@ -1254,7 +1279,14 @@ export async function getDashboardTasks(
   // en mémoire suffit et évite d'alourdir sept requêtes de plus.
   const reprise = organisation.tasksHiddenBefore;
   const tasks = results
-    .filter((t) => !dismissedKeys.has(`${t.kind}:${t.id}`))
+    // Un rejet ne vaut que pour une tâche qui désigne un enregistrement. Sur
+    // une ligne agrégée (voir KINDS_AGREGES), l'`id` est une constante : le
+    // rejet enregistré vaut alors pour TOUTES les occurrences futures de
+    // l'alerte, pour tout l'organisme et sans retour arrière. La croix n'est
+    // plus proposée sur ces lignes ; ce filtre ignore en plus les rejets
+    // déjà en base, sans quoi l'alerte resterait éteinte chez les organismes
+    // qui ont cliqué avant le correctif.
+    .filter((t) => !tacheRejetable(t.kind) || !dismissedKeys.has(`${t.kind}:${t.id}`))
     .filter((t) => !reprise || t.since >= reprise)
     .sort(compareDashboardTasks);
 
@@ -1266,7 +1298,11 @@ export async function getDashboardTasks(
   // tronquée). Compter précisément coûterait une requête de plus par
   // famille pour une information que personne n'actionne — savoir qu'il y
   // en a « plus que ça » suffit.
-  const tronquee = famillesAuPlafond.size > 0;
+  //
+  // La liste des familles concernées est remontée telle quelle : le booléen
+  // seul ne permettait de marquer que le total, jamais le compteur d'une
+  // pile ou d'une ligne de famille (voir DashboardTasksResult).
+  const kindsTronques = Array.from(kindsAuPlafond);
 
-  return { tasks, tronquee };
+  return { tasks, tronquee: kindsTronques.length > 0, kindsTronques };
 }

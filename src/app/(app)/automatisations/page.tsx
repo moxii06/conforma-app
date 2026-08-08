@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
 import { AutomationRulesPanel } from "@/components/AutomationRulesPanel";
+import { regleSansEffet } from "@/lib/automationRules";
 
 // Client feedback (audit UX) : le moteur d'automatisation tournait déjà
 // (règles par formation configurables depuis /formations/[id], cron
@@ -64,7 +65,13 @@ export default async function AutomationsPage() {
 
   const withRules = courses.filter((c) => c.automationRules.length > 0);
   const withoutRules = courses.filter((c) => c.automationRules.length === 0);
-  const totalActive = courses.reduce((n, c) => n + c.automationRules.filter((r) => r.active).length, 0);
+  const reglesActives = courses.flatMap((c) => c.automationRules.filter((r) => r.active));
+  const totalActive = reglesActives.length;
+  // « Active » ne veut pas dire « agissante ». Sur trois déclencheurs, une
+  // règle sans email ne déclenche ni envoi ni tâche (voir
+  // DECLENCHEURS_EMAIL_OBLIGATOIRE) : la compter sans le dire donnait à
+  // l'organisme un chiffre d'automatisations qui ne correspondait à rien.
+  const totalSansEffet = reglesActives.filter((r) => regleSansEffet(r.trigger, r.sendEmail)).length;
 
   return (
     <>
@@ -78,6 +85,12 @@ export default async function AutomationsPage() {
           <div className="bg-white border border-line rounded-card p-4">
             <div className="text-[22px] font-semibold text-ink">{totalActive}</div>
             <div className="text-[11.5px] text-slate">règle{totalActive !== 1 && "s"} active{totalActive !== 1 && "s"}, sur {courses.length} formation{courses.length !== 1 && "s"}</div>
+            {totalSansEffet > 0 && (
+              <div className="text-[11.5px] text-rust mt-1">
+                dont {totalSansEffet} sans effet — aucun email configuré sur un déclencheur qui n&apos;agit que par
+                email
+              </div>
+            )}
           </div>
           <div className="bg-white border border-line rounded-card p-4">
             <div className="text-[22px] font-semibold text-ink">{sentLast30Days}</div>

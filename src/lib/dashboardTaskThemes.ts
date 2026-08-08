@@ -97,6 +97,41 @@ export function themeOf(kind: DashboardTaskKind): ThemeKey {
   return (TASK_THEMES.find((t) => (t.kinds as readonly string[]).includes(kind))?.key ?? "admin") as ThemeKey;
 }
 
+/**
+ * Les familles dont l'`id` de tâche N'EST PAS celui d'un enregistrement.
+ *
+ * Ces quatre-là produisent une ligne agrégée dont l'identifiant est une
+ * constante (« pending », « qualiopi-certificate », « qualiopi-next-audit »,
+ * « mediation ») : il n'y a jamais qu'une telle ligne par organisme, et son
+ * contenu se recalcule à chaque affichage.
+ *
+ * Conséquence, et c'est tout l'enjeu : le rejet d'une tâche s'enregistre en
+ * couple (kind, entityId) à la portée de l'ORGANISME
+ * (DashboardTaskDismissal), sans aucun écran pour le défaire. Sur un id
+ * constant, « ignorer cette ligne » signifie donc en réalité « éteindre
+ * définitivement cette alerte pour tout le monde » — ce que la croix ne
+ * promet pas (« ne réapparaîtra plus dans À faire » se lit comme « cette
+ * ligne-ci ») et que personne ne veut : un clic sur les 3 transactions
+ * bancaires du jour faisait taire les 200 du relevé suivant.
+ *
+ * Aucune de ces alertes n'a besoin de la croix, parce que chacune s'éteint
+ * par son propre écran : valider les transactions sur /facturation, mettre à
+ * jour la date de certificat ou d'audit sur /qualiopi, renseigner un
+ * médiateur — ou le reporter de 30 jours, ce que /profil sait déjà faire
+ * (REPORT_MEDIATION_JOURS).
+ */
+export const KINDS_AGREGES: readonly DashboardTaskKind[] = [
+  "bank_transaction_pending",
+  "qualiopi_certificate_expiring",
+  "qualiopi_audit_upcoming",
+  "mediator_missing",
+];
+
+/** Une tâche peut-elle être rejetée à la croix ? Voir KINDS_AGREGES. */
+export function tacheRejetable(kind: DashboardTaskKind): boolean {
+  return !KINDS_AGREGES.includes(kind);
+}
+
 /** La pile demandée par l'URL, ou null pour « tout ». Jamais une erreur. */
 export function themeDemande(valeur: string | null | undefined): ThemeKey | null {
   const trouve = TASK_THEMES.find((t) => t.key === valeur);

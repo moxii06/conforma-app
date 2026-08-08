@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { TASK_THEMES, themeOf, themeDemande, libelleTheme, KINDS_CLASSES } from "./dashboardTaskThemes";
+import {
+  TASK_THEMES,
+  themeOf,
+  themeDemande,
+  libelleTheme,
+  tacheRejetable,
+  KINDS_AGREGES,
+  KINDS_CLASSES,
+} from "./dashboardTaskThemes";
 
 // L'exhaustivité n'est plus un test : DashboardTask["kind"] se DÉDUIT de
 // cette table, donc un type de tâche non rangé ne compile pas. Ce qui reste
@@ -47,5 +55,28 @@ describe("libelleTheme", () => {
   it("rend le libellé affiché", () => {
     expect(libelleTheme("argent")).toBe("Argent");
     expect(libelleTheme("conformite")).toBe("Conformité");
+  });
+});
+
+describe("tacheRejetable", () => {
+  it("refuse la croix aux lignes agrégées", () => {
+    // Leur `id` est une constante : le rejet vaudrait pour toutes les
+    // occurrences futures, à la portée de l'organisme et sans retour arrière.
+    expect(tacheRejetable("bank_transaction_pending")).toBe(false);
+    expect(tacheRejetable("qualiopi_certificate_expiring")).toBe(false);
+    expect(tacheRejetable("qualiopi_audit_upcoming")).toBe(false);
+    expect(tacheRejetable("mediator_missing")).toBe(false);
+  });
+
+  it("laisse la croix aux tâches qui désignent un enregistrement", () => {
+    expect(tacheRejetable("invoice_overdue")).toBe(true);
+    expect(tacheRejetable("dossier_prep_contract")).toBe(true);
+    expect(tacheRejetable("email_assigned")).toBe(true);
+  });
+
+  it("ne liste que des kinds réellement rangés dans une pile", () => {
+    // Une faute de frappe dans KINDS_AGREGES rendrait la croix à une ligne
+    // agrégée sans que rien ne le signale à l'écran.
+    for (const kind of KINDS_AGREGES) expect(KINDS_CLASSES).toContain(kind);
   });
 });

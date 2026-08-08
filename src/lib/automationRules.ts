@@ -27,6 +27,44 @@ export const AUTOMATION_TRIGGER_LABELS: Record<string, string> = {
 };
 
 /**
+ * Les déclencheurs dont l'email EST le seul effet.
+ *
+ * Le schéma promet qu'une règle sans email reste utile (« Task-only by
+ * default (shows up in the dashboard's "À faire") »). C'est vrai pour cinq
+ * déclencheurs : dashboardTasks.ts lit leur règle et en tire une tâche
+ * (convocation_missing, needs_assessment_incomplete, contract_not_signed,
+ * rolling_duration_expiring, satisfaction_not_collected).
+ *
+ * Ce n'est pas vrai pour les trois qui suivent. Le cron ne charge que
+ * `sendEmail: true` (cron/automation-rules/route.ts), et rien ne les
+ * rattrape côté tableau de bord :
+ *  - session_reminder : aucun type de tâche ne couvre le rappel de session ;
+ *  - certificate_expiring : Document.expiresAt n'est lu que par le cron —
+ *    la tâche `qualiopi_certificate_expiring` porte le certificat Qualiopi
+ *    DE L'ORGANISME, pas l'attestation d'un apprenant ;
+ *  - invoice_overdue : la tâche du même nom existe, mais elle se calcule sur
+ *    l'état des factures de tout l'organisme, sans lire ni la règle ni son
+ *    `afterDays` — la règle, elle, reste inerte.
+ *
+ * Une règle sans email sur l'un de ces trois est donc une ligne qui se
+ * compte parmi les « règles actives » et ne fait rien. D'où l'email exigé à
+ * la création, et la mention « sans effet » sur celles déjà en base.
+ *
+ * Le jour où l'un d'eux gagne sa tâche dans dashboardTasks.ts, il sort de
+ * cette liste — c'est le seul endroit à changer.
+ */
+export const DECLENCHEURS_EMAIL_OBLIGATOIRE: readonly string[] = [
+  "session_reminder",
+  "certificate_expiring",
+  "invoice_overdue",
+];
+
+/** Une règle qui ne produira ni email ni tâche : voir la liste ci-dessus. */
+export function regleSansEffet(trigger: string, sendEmail: boolean): boolean {
+  return !sendEmail && DECLENCHEURS_EMAIL_OBLIGATOIRE.includes(trigger);
+}
+
+/**
  * Comment se lit le délai d'une règle — et surtout À PARTIR DE QUOI il court.
  *
  * Retour client : « ce n'est pas très clair, cela ne dit pas 7 j après

@@ -77,4 +77,31 @@ describe("groupTasksByKind", () => {
       expect(g.libelle).not.toContain("undefined");
     }
   });
+
+  // Le plafond par famille (MAX_TACHES_PAR_FAMILLE) coupe la requête : sans
+  // ce drapeau, « 100 factures en retard » se lirait comme un total alors
+  // qu'il en reste au-delà.
+  describe("troncature", () => {
+    it("marque la famille dont la requête a été coupée, et elle seule", () => {
+      const groupes = groupTasksByKind(
+        [...lot("invoice_overdue", 100), ...lot("learner_inactive", 6)],
+        ["invoice_overdue"],
+      );
+      expect(groupes.find((g) => g.kind === "invoice_overdue")!.tronquee).toBe(true);
+      expect(groupes.find((g) => g.kind === "learner_inactive")!.tronquee).toBe(false);
+    });
+
+    it("ne marque rien quand l'appelant ne dit rien — le défaut est « complet »", () => {
+      expect(groupTasksByKind(lot("invoice_overdue", 100)).every((g) => !g.tronquee)).toBe(true);
+    });
+
+    it("marque une famille plafonnée même si le filtrage en mémoire l'a ramenée sous le plafond", () => {
+      // Plusieurs familles filtrent après la requête (un dossier sans module
+      // e-learning, par exemple) : le nombre affiché peut être petit tout en
+      // étant incomplet. C'est la REQUÊTE qui a été coupée, pas la liste.
+      const [g] = groupTasksByKind(lot("rolling_deadline_warning", 3), ["rolling_deadline_warning"]);
+      expect(g.items).toHaveLength(3);
+      expect(g.tronquee).toBe(true);
+    });
+  });
 });

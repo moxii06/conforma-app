@@ -6,6 +6,8 @@ import {
   AUTOMATION_TRIGGER_LABELS,
   AUTOMATION_TRIGGER_VALUES,
   AUTOMATION_DELAY_PHRASING,
+  DECLENCHEURS_EMAIL_OBLIGATOIRE,
+  regleSansEffet,
   resumerDelaiRegle,
 } from "@/lib/automationRules";
 import { SEUILS_PAR_DEFAUT_RESUME } from "@/lib/relanceDefaults";
@@ -49,6 +51,12 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const activeField = useRef<"subject" | "body">("body");
 
+  // Sur ces déclencheurs, décocher l'email revient à créer une règle qui ne
+  // fait rien (voir DECLENCHEURS_EMAIL_OBLIGATOIRE) : la case reste cochée
+  // et verrouillée plutôt que de laisser fabriquer une ligne inerte.
+  const emailObligatoire = DECLENCHEURS_EMAIL_OBLIGATOIRE.includes(trigger);
+  const emailAffiche = sendEmail || emailObligatoire;
+
   function insertTag(tag: string) {
     if (activeField.current === "subject" && subjectRef.current) {
       const el = subjectRef.current;
@@ -81,7 +89,7 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
   async function handleAdd() {
     const days = parseInt(afterDays, 10);
     if (!days || days < 1) return;
-    if (sendEmail && (!emailSubject.trim() || !emailBody.trim())) {
+    if (emailAffiche && (!emailSubject.trim() || !emailBody.trim())) {
       setError("L'objet et le corps de l'email sont requis pour une relance avec envoi automatique.");
       return;
     }
@@ -93,9 +101,9 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
       body: JSON.stringify({
         trigger,
         afterDays: days,
-        sendEmail,
-        emailSubject: sendEmail ? emailSubject : undefined,
-        emailBody: sendEmail ? emailBody : undefined,
+        sendEmail: emailAffiche,
+        emailSubject: emailAffiche ? emailSubject : undefined,
+        emailBody: emailAffiche ? emailBody : undefined,
       }),
     });
     setLoading(false);
@@ -151,6 +159,12 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
             <div className={rule.active ? "text-ink" : "text-slate line-through"}>
               {AUTOMATION_TRIGGER_LABELS[rule.trigger] ?? rule.trigger} — {resumerDelaiRegle(rule.trigger, rule.afterDays)}
               {rule.sendEmail && " · email automatique"}
+              {/* Les règles créées avant que l'email ne soit exigé sur ces
+                  déclencheurs : elles se comptent parmi les règles actives et
+                  ne font rien. Le dire ici, là où on peut les supprimer. */}
+              {rule.active && regleSansEffet(rule.trigger, rule.sendEmail) && (
+                <span className="text-rust"> · sans effet : aucun email configuré</span>
+              )}
             </div>
             <div className="flex items-center gap-2.5 shrink-0">
               <button type="button" onClick={() => toggleActive(rule)} className="text-slate hover:text-ink">
@@ -193,11 +207,26 @@ export function AutomationRulesPanel({ courseId, rules }: { courseId: string; ru
             {AUTOMATION_DELAY_PHRASING[trigger]?.apres ?? "jours"}
           </label>
           <label className="flex items-center gap-1.5 text-[11.5px] text-ink">
-            <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="accent-sage" />
+            <input
+              type="checkbox"
+              checked={emailAffiche}
+              disabled={emailObligatoire}
+              onChange={(e) => setSendEmail(e.target.checked)}
+              className="accent-sage"
+            />
             Envoyer aussi un email automatique à l&apos;apprenant
           </label>
+          {/* Dire pourquoi la case est verrouillée, sinon elle passe pour un
+              bug. Les cinq autres déclencheurs produisent bien une tâche dans
+              « À faire » sans email — ces trois-là, non. */}
+          {emailObligatoire && (
+            <div className="text-[11px] text-slate leading-relaxed">
+              Ce déclencheur n&apos;agit que par email. Sans lui, la règle ne produirait ni envoi ni ligne dans votre
+              liste à faire.
+            </div>
+          )}
 
-          {sendEmail && (
+          {emailAffiche && (
             <div className="flex flex-col gap-1.5 border border-line rounded-md p-2 bg-white">
               <MergeTagButtons onInsert={insertTag} />
               <input
