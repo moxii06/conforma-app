@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { MetricCard, PageHeader, Pill, Avatar, Button, initialsOf } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
-import { Role, type Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import { CreateCourseForm } from "@/components/CreateCourseForm";
 import { ArchiveCourseButton } from "@/components/ArchiveCourseButton";
 import { Tabs } from "@/components/Tabs";
@@ -61,16 +62,18 @@ export default async function FormationsPage(props: { searchParams: Promise<{ ta
   // mirrors how a course can reference a person: delivering one of its
   // sessions, listed as an external subcontractor on it, or a named
   // internal responsable.
-  const ownerFilter: Prisma.CourseWhereInput =
-    role === Role.TRAINER
-      ? {
-          OR: [
-            { sessions: { some: { trainerId: userId } } },
-            { subcontractors: { some: { linkedUserId: userId } } },
-            { responsibleUsers: { some: { id: userId } } },
-          ],
-        }
-      : {};
+  // Sur les rôles effectifs (lib/proprieteRoles.ts) : la casquette formateur
+  // porte la borne d'où qu'elle vienne — un prestataire invité avec un rôle
+  // secondaire restait sinon sans filtre, donc avec le catalogue entier.
+  const ownerFilter: Prisma.CourseWhereInput = borneAuxSiennesDuFormateur(roles)
+    ? {
+        OR: [
+          { sessions: { some: { trainerId: userId } } },
+          { subcontractors: { some: { linkedUserId: userId } } },
+          { responsibleUsers: { some: { id: userId } } },
+        ],
+      }
+    : {};
 
   const [courses, members, subcontractors, sessionsInProgress, activeLearnerCount] = await Promise.all([
     prisma.course.findMany({

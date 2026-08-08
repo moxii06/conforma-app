@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Button } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
-import { Role, type Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import { CATEGORY_LABELS, categoryLabelIsRedundant } from "@/lib/documentCategories";
 import { Tabs } from "@/components/Tabs";
 import { SearchInput } from "@/components/SearchInput";
@@ -74,7 +75,7 @@ export default async function DocumentsPage(props: {
   }>;
 }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, roles, userId } = await requireSessionContext();
+  const { organizationId, roles, userId } = await requireSessionContext();
   if (can(roles, "dossiers") === "none" && can(roles, "toolkit") === "none") redirect("/dashboard");
 
   const activeTab = (DOCUMENT_BUCKETS.find((b) => b.key === searchParams.tab)?.key ?? "draft") as DocumentBucket;
@@ -90,8 +91,12 @@ export default async function DocumentsPage(props: {
   // Un formateur ne voit que les documents des dossiers de SES sessions —
   // le filtre imbriqué exclut aussi, au passage, les documents sans dossier
   // (prospect, sous-traitant), ce qui est le comportement voulu.
-  const ownerFilter: Prisma.DocumentWhereInput =
-    role === Role.TRAINER ? { dossier: { session: { trainerId: userId } } } : {};
+  //
+  // Sur les rôles effectifs, pas sur le rôle principal : voir
+  // lib/proprieteRoles.ts.
+  const ownerFilter: Prisma.DocumentWhereInput = borneAuxSiennesDuFormateur(roles)
+    ? { dossier: { session: { trainerId: userId } } }
+    : {};
 
   // Les trois filtres (type, formation, année) ne sont PAS dans le SQL :
   // ils s'appliquent en mémoire sur la première passe. C'est ce qui permet

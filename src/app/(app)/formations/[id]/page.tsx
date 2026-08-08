@@ -5,6 +5,7 @@ import { CourseCompletenessBanner } from "@/components/CourseCompletenessBanner"
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
 import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import { ArrowLeft, BookOpen, ExternalLink, FileText, HelpCircle, Paperclip, Video, type LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -128,8 +129,9 @@ export default async function CourseDetailPage(props: { params: Promise<{ id: st
   // without it, a trainer could still reach any course's full roster and
   // per-learner progress by guessing/following a link, even once the list
   // itself stopped showing it to them.
+  // Borne calculée sur les rôles effectifs, comme la liste (lib/proprieteRoles.ts).
   if (
-    role === Role.TRAINER &&
+    borneAuxSiennesDuFormateur(roles) &&
     !course.sessions.some((s) => s.trainerId === userId) &&
     !course.subcontractors.some((s) => s.linkedUserId === userId) &&
     !course.responsibleUsers.some((u) => u.id === userId)

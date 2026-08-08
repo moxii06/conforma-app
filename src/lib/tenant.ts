@@ -24,12 +24,18 @@ export type SessionContext = {
   /**
    * Le rôle PRINCIPAL, inchangé depuis toujours.
    *
-   * Reste un `Role` simple et non un tableau parce que ce n'est pas
-   * seulement une clé de permission : c'est aussi ce qui décide du filtre
-   * de propriété au niveau des requêtes (`role === Role.TRAINER ? { session:
-   * { trainerId: userId } } : {}`, répété dans /dossiers, /planning,
-   * /formations…). En faire une liste ferait tomber ces filtres en silence,
-   * et un formateur verrait alors les dossiers de tout l'organisme.
+   * Ce qu'il n'est PLUS : la clé des filtres de propriété au niveau des
+   * requêtes. Ceux-ci s'écrivaient `role === Role.TRAINER ? { session: {
+   * trainerId: userId } } : {}` dans /dossiers, /planning, /formations… —
+   * une formulation aveugle au cumul dans les deux sens, et une fuite dans
+   * l'un d'eux : le rôle qui restreint arrivant en casquette secondaire, le
+   * filtre ne se déclenchait plus du tout. Ils se calculent désormais sur
+   * `roles`, via lib/proprieteRoles.ts, qui porte la règle et son pourquoi.
+   *
+   * Ce qu'il reste : les questions auxquelles une casquette secondaire ne
+   * peut rien changer, parce que le rôle en cause ne se cumule pas — « est-ce
+   * un apprenant ? », « est-ce le propriétaire de l'organisme ? » (voir
+   * NON_CUMULABLE_ROLES).
    */
   role: Role;
   /**

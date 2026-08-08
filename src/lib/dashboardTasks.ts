@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { addDays } from "date-fns";
 import { canWriteRgpd, canAccessSecureReports } from "@/lib/tenant";
+import { borneAuxSiens, ROLES_VUE_ORGANISME, SANS_BORNE_COMMERCIAL } from "@/lib/proprieteRoles";
 import { normaliserUrgence } from "@/lib/supportRequests";
 import { getCourseCompletion } from "@/lib/lms";
 import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } from "@/lib/funding";
@@ -194,8 +195,22 @@ export async function getDashboardTasks(
   // alors totale, ou de la casquette commerciale/formateur, et elle est alors
   // bornée à ce qui lui appartient. Avec un seul rôle, les deux formulations
   // coïncident exactement — aucune régression pour les comptes existants.
-  const restreindreAuxSiensCommercial = !canSeeGeneral && rolesEffectifs.includes(Role.SALES);
-  const restreindreAuxSiennesFormateur = !canSeeGeneral && rolesEffectifs.includes(Role.TRAINER);
+  //
+  // La règle est celle de lib/proprieteRoles.ts, appelée ici plutôt que
+  // recopiée : ce fichier et lib/rgpdMasking.ts semblaient se contredire sur
+  // « la casquette commerciale lève-t-elle la borne du formateur ? » (non
+  // ici, oui là-bas). Une seule règle les explique tous les deux — ne lève la
+  // borne que le rôle qui, SEUL, verrait déjà tout sur cet écran-là.
+  //
+  // D'où la liste passée ici : ROLES_VUE_ORGANISME, et surtout PAS
+  // SANS_BORNE_FORMATEUR (qui contient SALES et sert aux écrans de gestion).
+  // Un commercial seul ne reçoit aucune tâche de formateur — les familles
+  // ci-dessous sont toutes gardées par `canSeeTrainer` — donc sa casquette
+  // n'a rien à ajouter ici et ne lève rien. Élargir cette liste ferait voir à
+  // un formateur-commercial les tâches des sessions de ses collègues, que
+  // NI l'une NI l'autre de ses casquettes ne lui donne.
+  const restreindreAuxSiensCommercial = borneAuxSiens(rolesEffectifs, Role.SALES, SANS_BORNE_COMMERCIAL);
+  const restreindreAuxSiennesFormateur = borneAuxSiens(rolesEffectifs, Role.TRAINER, ROLES_VUE_ORGANISME);
 
   // Audit P1 : « quand j'assigne à quelqu'un, ça fait quoi ? » — rien, avant.
   // L'assignation est maintenant une vraie tâche pour la personne visée, et

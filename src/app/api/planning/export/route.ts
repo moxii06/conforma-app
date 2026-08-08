@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { Role, type Session as SessionRow } from "@prisma/client";
 import { generatePlanningPdf } from "@/lib/planningPdf";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 const FORMAT_LABELS: Record<string, string> = {
   IN_PERSON: "Présentiel",
@@ -23,8 +24,12 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (can(session.roles, "planning") === "none") return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
   // Un formateur voit déjà tout son propre planning à l'écran ; cet export
-  // sert à un rôle qui regarde le planning de quelqu'un d'autre.
-  if (session.role === Role.TRAINER) return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
+  // sert à un rôle qui regarde le planning de quelqu'un d'autre. La question
+  // posée est donc exactement « cette personne est-elle bornée à ses propres
+  // sessions ? », et elle se calcule sur les rôles effectifs : une casquette
+  // qui donne déjà la vue complète du planning rouvre l'export
+  // (lib/proprieteRoles.ts).
+  if (borneAuxSiennesDuFormateur(session.roles)) return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
 
   const trainerId = req.nextUrl.searchParams.get("trainer");
   if (!trainerId) return NextResponse.json({ error: "Choisissez un intervenant." }, { status: 400 });

@@ -7,7 +7,7 @@ import { resolveAnswers, resolveSubrogatedFunderName, QUESTION_BY_KEY, type Ques
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
 import { scopeOfCategory, unresolvedTags } from "@/lib/documentScope";
-import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 // La prévisualisation de l'écran de création. Un seul chemin, quel que
 // soit le contexte : sans formation, avec une formation, ou centré sur un
@@ -85,7 +85,8 @@ export async function GET(request: Request) {
       })
     : null;
   if (sessionId && !session) return NextResponse.json({ error: "Formation introuvable." }, { status: 404 });
-  if (session && auth.role === Role.TRAINER && session.trainerId !== auth.userId) {
+  // Borne calculée sur les rôles effectifs — voir lib/proprieteRoles.ts.
+  if (session && borneAuxSiennesDuFormateur(auth.roles) && session.trainerId !== auth.userId) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

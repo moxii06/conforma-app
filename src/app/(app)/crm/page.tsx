@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, MetricCard } from "@/components/ui";
 import { PipelineStage, Prisma } from "@prisma/client";
 import { requireSessionContext, can } from "@/lib/tenant";
+import { borneAuxSiensDuCommercial } from "@/lib/proprieteRoles";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { NewOpportunityForm } from "@/components/NewOpportunityForm";
@@ -61,7 +62,7 @@ export default async function CrmPage(
   }
 ) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, roles, userId } = await requireSessionContext();
+  const { organizationId, roles, userId } = await requireSessionContext();
   if (can(roles, "crm") === "none") redirect("/dashboard");
   // Emettre un devis engage un prix au nom de l organisme : reserve aux
   // roles qui ont la Facturation. Un commercial joint un devis existant.
@@ -72,7 +73,14 @@ export default async function CrmPage(
   // Spec §2: "Sales / commercial: CRM and pipeline only, limited to their
   // own prospects" — every other role with crm access sees the whole org's
   // pipeline.
-  const ownerFilter = role === "SALES" ? { ownerId: userId } : {};
+  //
+  // Calculé sur les rôles EFFECTIFS et non sur le rôle principal : c'est ici
+  // que le cumul faisait le plus de dégâts. Un formateur à qui on ajoutait la
+  // casquette commerciale obtenait l'écran par `can()`, mais `role === "SALES"`
+  // était faux — le filtre disparaissait, et il lisait tout le pipeline de
+  // l'organisme. Voir lib/proprieteRoles.ts.
+  const borneCommercial = borneAuxSiensDuCommercial(roles);
+  const ownerFilter = borneCommercial ? { ownerId: userId } : {};
   // Table is the default — a stacked list stays readable with a large
   // number of prospects in a way the Kanban board doesn't (client feedback:
   // "1 ligne = 1 prospect" should be the primary view, Pipeline a secondary
@@ -135,7 +143,7 @@ export default async function CrmPage(
   // ce qui est cohérent avec son rôle.
   const whereContacts: Prisma.ContactWhereInput = {
     organizationId,
-    ...(role === "SALES" ? { opportunities: { some: { ownerId: userId } } } : {}),
+    ...(borneCommercial ? { opportunities: { some: { ownerId: userId } } } : {}),
     ...(q
       ? {
           OR: [

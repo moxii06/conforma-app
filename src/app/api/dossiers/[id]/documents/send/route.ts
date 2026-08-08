@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Prisma, Role } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
@@ -9,6 +9,7 @@ import { sendTransactionalEmail } from "@/lib/brevo";
 import { fillMergeTags } from "@/lib/mergeTags";
 import { isYousignConfigured, sendDocumentForSignature } from "@/lib/yousign";
 import { recordActivationEvent } from "@/lib/activation";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 // A payment schedule rides along when the document is a contract or a
 // convention (see PaymentScheduleBuilder). Stored on the Document row, NOT
@@ -45,7 +46,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     include: { contact: true, session: { include: { course: true } } },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
-  if (auth.role === Role.TRAINER && dossier.session.trainerId !== auth.userId) {
+  // Borne calculée sur les rôles effectifs — voir lib/proprieteRoles.ts.
+  if (borneAuxSiennesDuFormateur(auth.roles) && dossier.session.trainerId !== auth.userId) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

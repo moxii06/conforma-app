@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { HalfDay, Role } from "@prisma/client";
+import { HalfDay } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 const bodySchema = z.object({
   sessionDayId: z.string().min(1),
@@ -34,7 +35,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   // fiche session et le relevé d'activité, appliquée ici pour que
   // l'émargement ne soit pas une porte dérobée vers les apprenants d'un
   // autre formateur.
-  if (auth.role === Role.TRAINER) {
+  if (borneAuxSiennesDuFormateur(auth.roles)) {
     const owns = await prisma.session.findFirst({
       where: { id: params.id, organizationId: auth.organizationId, trainerId: auth.userId },
       select: { id: true },

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { Role } from "@prisma/client";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { prisma } from "@/lib/prisma";
 import { requireSessionContext, can } from "@/lib/tenant";
+import { borneAuxSiennesDuFormateur, borneAuxSiensDuCommercial } from "@/lib/proprieteRoles";
 import { parseDateQuery } from "@/lib/searchQuery";
 
 // Recherche globale (Ctrl/Cmd+K).
@@ -19,6 +19,13 @@ import { parseDateQuery } from "@/lib/searchQuery";
 // Chaque groupe reprend le filtre d'appartenance de SA page : un rôle ne
 // voit jamais ici plus que ce qu'il verrait sur l'écran correspondant. Le
 // gate de groupe est le premier filtre, la clause ownership le second.
+//
+// « Reprendre le filtre de sa page » veut dire reprendre le MÊME calcul, pas
+// une transcription : les clauses ci-dessous appellent lib/proprieteRoles.ts,
+// comme /crm, /dossiers, /planning et /documents. Écrites ici à la main sur
+// le rôle principal, elles ouvraient toute l'organisation à qui portait le
+// rôle restrictif en casquette secondaire — la recherche globale étant
+// précisément l'endroit où une telle fuite se voit le moins.
 
 export type SearchResult = { id: string; label: string; sub?: string; href: string };
 export type SearchGroup = { key: string; label: string; results: SearchResult[] };
@@ -26,7 +33,7 @@ export type SearchGroup = { key: string; label: string; results: SearchResult[] 
 const PAR_GROUPE = 5;
 
 export async function GET(req: Request) {
-  const { organizationId, role, userId } = await requireSessionContext();
+  const { organizationId, role, roles, userId } = await requireSessionContext();
   const q = new URL(req.url).searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ groups: [] });
 
@@ -36,7 +43,10 @@ export async function GET(req: Request) {
   // les deux ferait huit requêtes pour rien à chaque frappe.
   const cherchTexte = dateRange === null;
 
-  const trainerSessionFilter = role === Role.TRAINER ? { session: { trainerId: userId } } : {};
+  // Les deux bornes de propriété, calculées une fois pour tous les groupes.
+  const borneFormateur = borneAuxSiennesDuFormateur(roles);
+  const borneCommercial = borneAuxSiensDuCommercial(roles);
+  const trainerSessionFilter = borneFormateur ? { session: { trainerId: userId } } : {};
 
   const [contacts, dossiers, sessions, courses, invoices, quotes, documents, subcontractors] = await Promise.all([
     // Contacts — vers la fiche CRM, plus vers le dossier. Les deux existent
@@ -44,11 +54,11 @@ export async function GET(req: Request) {
     // emails et les documents d'envoi, que la fiche dossier n'a pas.
     // Rediriger la première vers la seconde la rendait inatteignable dès la
     // première inscription.
-    cherchTexte && can(role, "crm") !== "none"
+    cherchTexte && can(roles, "crm") !== "none"
       ? prisma.contact.findMany({
           where: {
             organizationId,
-            ...(role === Role.SALES ? { opportunities: { some: { ownerId: userId } } } : {}),
+            ...(borneCommercial ? { opportunities: { some: { ownerId: userId } } } : {}),
             OR: [{ firstName: texte }, { lastName: texte }, { email: texte }, { phone: texte }],
           },
           select: { id: true, firstName: true, lastName: true, email: true },
@@ -58,7 +68,7 @@ export async function GET(req: Request) {
 
     // Dossiers — par le nom de l'apprenant ET par le titre de la formation,
     // ce que la liste /dossiers elle-même ne sait pas faire.
-    cherchTexte && can(role, "dossiers") !== "none"
+    cherchTexte && can(roles, "dossiers") !== "none"
       ? prisma.dossier.findMany({
           where: {
             organizationId,
@@ -80,11 +90,11 @@ export async function GET(req: Request) {
 
     // Sessions — par date quand la requête en est une, par titre de
     // formation ou par lieu sinon.
-    can(role, "planning") !== "none"
+    can(roles, "planning") !== "none"
       ? prisma.session.findMany({
           where: {
             organizationId,
-            ...(role === Role.TRAINER ? { trainerId: userId } : {}),
+            ...(borneFormateur ? { trainerId: userId } : {}),
             ...(dateRange
               ? { startsAt: { gte: dateRange.from, lte: dateRange.to } }
               : { OR: [{ course: { title: texte } }, { location: texte }] }),
@@ -97,11 +107,11 @@ export async function GET(req: Request) {
 
     // Gate sur "planning" et non "courses" : les liens pointent vers
     // /formations/[id], l'écran de gestion, qui redirige un apprenant.
-    cherchTexte && can(role, "planning") !== "none"
+    cherchTexte && can(roles, "planning") !== "none"
       ? prisma.course.findMany({
           where: {
             organizationId,
-            ...(role === Role.TRAINER
+            ...(borneFormateur
               ? {
                   OR: [
                     { sessions: { some: { trainerId: userId } } },
@@ -128,7 +138,7 @@ export async function GET(req: Request) {
         })
       : [],
 
-    cherchTexte && can(role, "invoicing") !== "none"
+    cherchTexte && can(roles, "invoicing") !== "none"
       ? prisma.invoice.findMany({
           where: { organizationId, reference: texte },
           select: {
@@ -142,7 +152,7 @@ export async function GET(req: Request) {
         })
       : [],
 
-    cherchTexte && can(role, "invoicing") !== "none"
+    cherchTexte && can(roles, "invoicing") !== "none"
       ? prisma.quote.findMany({
           where: { organizationId, reference: texte },
           select: {
@@ -160,13 +170,13 @@ export async function GET(req: Request) {
     // complet des documents générés : y chercher remonterait un contrat de
     // vingt pages parce qu'il contient le mot tapé, ce qui noierait le
     // résultat réellement cherché.
-    cherchTexte && can(role, "toolkit") !== "none"
+    cherchTexte && can(roles, "toolkit") !== "none"
       ? prisma.document.findMany({
           where: {
             organizationId,
             archivedAt: null,
             title: texte,
-            ...(role === Role.TRAINER ? { OR: [{ dossier: trainerSessionFilter }, { userId }] } : {}),
+            ...(borneFormateur ? { OR: [{ dossier: trainerSessionFilter }, { userId }] } : {}),
           },
           select: {
             id: true,
@@ -184,7 +194,7 @@ export async function GET(req: Request) {
       : [],
 
     // Prestataires — ADMIN_OF seul, comme /team.
-    cherchTexte && can(role, "team") === "full"
+    cherchTexte && can(roles, "team") === "full"
       ? prisma.subcontractor.findMany({
           where: { organizationId, OR: [{ name: texte }, { contactEmail: texte }, { siret: texte }] },
           select: { id: true, name: true, contactEmail: true, type: true },

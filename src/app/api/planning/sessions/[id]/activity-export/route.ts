@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { Role } from "@prisma/client";
 import { loadSessionActivity, activityPeriodLabel } from "@/lib/sessionActivity";
 import { generateActivityPdf } from "@/lib/activityPdf";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 // Le relevé d'activité en PDF — ce qu'on joint à un financeur, ou qu'on
 // range dans le dossier d'audit, à la place de la feuille d'émargement
@@ -17,7 +17,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   // Un formateur n'accède qu'à ses propres sessions — même règle que la
   // fiche session, appliquée ici aussi pour que l'export ne soit pas une
   // porte dérobée vers les apprenants des autres.
-  if (auth.role === Role.TRAINER) {
+  if (borneAuxSiennesDuFormateur(auth.roles)) {
     const own = await prisma.session.findFirst({
       where: { id: params.id, organizationId: auth.organizationId, trainerId: auth.userId },
       select: { id: true },

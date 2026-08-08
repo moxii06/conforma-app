@@ -7,6 +7,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { PenLine, Activity } from "lucide-react";
 import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { InviteComposer } from "@/components/InviteComposer";
@@ -90,7 +91,8 @@ export default async function SessionDetailPage(props: { params: Promise<{ id: s
   // Trainers only see their own sessions' detail page — SALES/ADMIN_MANAGER
   // "limited" access still means the whole org's schedule (see /planning),
   // this restriction is specifically the "own sessions" one from spec §2.
-  if (auth.role === Role.TRAINER && session.trainerId !== auth.userId) redirect("/planning");
+  // Même borne que la liste /planning, par le même helper (lib/proprieteRoles.ts).
+  if (borneAuxSiennesDuFormateur(auth.roles) && session.trainerId !== auth.userId) redirect("/planning");
 
   const canManage = canManageSessionInvitations(auth.roles, auth.userId, session);
   const canEdit = can(auth.roles, "planning") === "full";

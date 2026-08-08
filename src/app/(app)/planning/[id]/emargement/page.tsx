@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { notFound, redirect } from "next/navigation";
-import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import Link from "next/link";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -31,7 +31,7 @@ export default async function EmargementPage(props: { params: Promise<{ id: stri
   // c'était le seul écran lié à une session à laisser un formateur voir la
   // liste nominative des apprenants d'une session d'un autre, et y signer
   // en son nom.
-  if (auth.role === Role.TRAINER && session.trainerId !== auth.userId) redirect("/planning");
+  if (borneAuxSiennesDuFormateur(auth.roles) && session.trainerId !== auth.userId) redirect("/planning");
   // Une formation en continu n'a pas de demi-journées à faire signer :
   // sa réalisation se justifie par le relevé d'activité. La fiche session
   // n'y mène plus, mais un signet ou un lien ancien peut encore arriver

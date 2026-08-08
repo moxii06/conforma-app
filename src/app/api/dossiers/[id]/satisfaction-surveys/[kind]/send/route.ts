@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { SURVEY_KIND_VALUES, sendSatisfactionSurvey } from "@/lib/satisfactionSurveys";
 import { resolveAppOrigin } from "@/lib/appUrl";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 // Manual counterpart to the automatic sends in the daily cron (hot at
 // session end, cold per the existing satisfaction_not_collected rule) —
@@ -25,7 +25,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     include: { contact: true, session: { include: { course: true } } },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
-  if (auth.role === Role.TRAINER && dossier.session.trainerId !== auth.userId) {
+  // Borne calculée sur les rôles effectifs — voir lib/proprieteRoles.ts.
+  if (borneAuxSiennesDuFormateur(auth.roles) && dossier.session.trainerId !== auth.userId) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

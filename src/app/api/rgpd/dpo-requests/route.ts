@@ -4,6 +4,7 @@ import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { TYPE_DEMANDE_ACCES_INTERNE } from "@/lib/rgpdMasking";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 /**
  * « Demander au DPO » — la porte de sortie du masquage des coordonnées.
@@ -53,9 +54,9 @@ export async function POST(request: Request) {
     },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
-  // Même règle de propriété que la fiche dossier : un formateur ne demande
-  // que pour SES apprenants.
-  if (session.role === Role.TRAINER && dossier.session.trainerId !== session.userId) {
+  // Même règle de propriété que la fiche dossier, et le même calcul : un
+  // formateur ne demande que pour SES apprenants (lib/proprieteRoles.ts).
+  if (borneAuxSiennesDuFormateur(session.roles) && dossier.session.trainerId !== session.userId) {
     return NextResponse.json({ error: "Action non autorisée sur ce dossier." }, { status: 403 });
   }
 

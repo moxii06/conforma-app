@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { DOSSIERS_ACTIFS } from "@/lib/dossierArchive";
-import { Role, type Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 // Le pendant de /api/contacts/search pour les dossiers de formation.
 //
@@ -35,10 +36,12 @@ export async function GET(request: Request) {
   // les bons et donnent l'illusion d'une liste.
   if (!contactId && q.length < 2) return NextResponse.json([]);
 
-  // Même règle que la liste des dossiers : un formateur ne voit que les
-  // apprenants de ses propres sessions.
-  const ownerFilter: Prisma.DossierWhereInput =
-    auth.role === Role.TRAINER ? { session: { trainerId: auth.userId } } : {};
+  // Même règle que la liste des dossiers, au sens strict : le MÊME calcul,
+  // sur les rôles effectifs (lib/proprieteRoles.ts). Un sélecteur qui
+  // proposerait ce que la liste ne montre pas serait une porte dérobée.
+  const ownerFilter: Prisma.DossierWhereInput = borneAuxSiennesDuFormateur(auth.roles)
+    ? { session: { trainerId: auth.userId } }
+    : {};
 
   const dossiers = await prisma.dossier.findMany({
     where: {

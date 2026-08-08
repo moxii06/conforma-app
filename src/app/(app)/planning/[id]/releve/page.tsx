@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader, Pill, Button, EmptyState } from "@/components/ui";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect, notFound } from "next/navigation";
-import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import Link from "next/link";
 import { loadSessionActivity, activityPeriodLabel } from "@/lib/sessionActivity";
 import { ACTIVITY_REPORT_NOTICE, ACTIVITY_STATUS_LABELS, type ActivityStatus } from "@/lib/activityReport";
@@ -40,7 +40,7 @@ export default async function SessionActivityPage(props: {
     select: { id: true, trainerId: true },
   });
   if (!session) notFound();
-  if (auth.role === Role.TRAINER && session.trainerId !== auth.userId) redirect("/planning");
+  if (borneAuxSiennesDuFormateur(auth.roles) && session.trainerId !== auth.userId) redirect("/planning");
 
   const activity = await loadSessionActivity(auth.organizationId, params.id);
   if (!activity) notFound();

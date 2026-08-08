@@ -9,6 +9,7 @@ import { createSessionInvitation } from "@/lib/sessionInvitations";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { resolveAppOrigin } from "@/lib/appUrl";
 import { issueCertificate } from "@/lib/certificateIssue";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 const schema = z.object({
   type: z.enum(["contract", "convocation", "platform_access", "certificate", "learner_nudge"]),
@@ -41,7 +42,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     include: { contact: true, session: { include: { course: true } } },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
-  if (auth.role === Role.TRAINER && dossier.session.trainerId !== auth.userId) {
+  // Borne calculée sur les rôles effectifs — voir lib/proprieteRoles.ts.
+  if (borneAuxSiennesDuFormateur(auth.roles) && dossier.session.trainerId !== auth.userId) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

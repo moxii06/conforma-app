@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { requireSessionContext, can, canWriteRgpd, canManageSessionInvitations, canAccessAccommodations } from "@/lib/tenant";
 import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import { Tabs } from "@/components/Tabs";
 import { DossierCategorySelect } from "@/components/DossierCategorySelect";
 import { AddDossierDocumentForm } from "@/components/AddDossierDocumentForm";
@@ -74,7 +75,7 @@ export default async function DossierPage(
 ) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const { organizationId, role, roles, userId } = await requireSessionContext();
+  const { organizationId, roles, userId } = await requireSessionContext();
   if (can(roles, "dossiers") === "none") redirect("/dashboard");
   const canEditCategory = can(roles, "dossiers") === "full";
   const canManageEmail = can(roles, "inbox") !== "none";
@@ -85,7 +86,10 @@ export default async function DossierPage(
     include: { contact: { include: { company: true } }, session: { include: { course: true } } },
   });
   if (!dossier) notFound();
-  if (role === Role.TRAINER && dossier.session.trainerId !== userId) redirect("/dossiers");
+  // Même borne que la liste /dossiers, et calculée par le même helper : une
+  // fiche atteignable par son URL alors que la liste la cache serait une
+  // porte dérobée. Voir lib/proprieteRoles.ts.
+  if (borneAuxSiennesDuFormateur(roles) && dossier.session.trainerId !== userId) redirect("/dossiers");
 
   // Client feedback (S4 UX audit): the header used to show only this
   // dossier's course title, implying it's the learner's one formation even

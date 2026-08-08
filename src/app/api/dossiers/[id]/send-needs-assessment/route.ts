@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
 import { sendTransactionalEmail } from "@/lib/brevo";
 import { resolveAppOrigin } from "@/lib/appUrl";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 // Envoyer le recueil des besoins depuis un dossier.
 //
@@ -29,8 +29,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   // Même filtre d'appartenance que le reste de /dossiers : un formateur ne
-  // touche qu'aux dossiers de ses propres sessions.
-  if (session.role === Role.TRAINER && dossier.session.trainerId !== session.userId) {
+  // touche qu'aux dossiers de ses propres sessions. Même calcul aussi, sur les
+  // rôles effectifs — voir lib/proprieteRoles.ts.
+  if (borneAuxSiennesDuFormateur(session.roles) && dossier.session.trainerId !== session.userId) {
     return NextResponse.json({ error: "Ce dossier appartient à une autre session." }, { status: 403 });
   }
 

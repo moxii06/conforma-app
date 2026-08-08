@@ -1,5 +1,6 @@
 import { Role, SessionMode } from "@prisma/client";
 import { addDays, addMonths } from "date-fns";
+import { borneAuxSiens } from "@/lib/proprieteRoles";
 
 /**
  * Minimisation des données sur la fiche dossier — art. 5(1)(c) du RGPD.
@@ -42,6 +43,16 @@ import { addDays, addMonths } from "date-fns";
  */
 export const DELAI_GRACE_COORDONNEES_MOIS = 1;
 
+/* ------------------------------------------------------------------ *
+ * Les deux listes ci-dessous sont des listes « SANS BORNE » au sens de
+ * lib/proprieteRoles.ts, dont ce fichier appelle la règle (`borneAuxSiens`)
+ * au lieu de la réécrire. Elles diffèrent l'une de l'autre, et diffèrent de
+ * celles du tableau de bord, et c'est correct : ce qui lève une borne, ce
+ * n'est jamais « être commercial » en soi, c'est le fait qu'un commercial
+ * SEUL verrait déjà la donnée en question. La réponse change donc avec la
+ * donnée, pas avec l'humeur de l'écran.
+ * ------------------------------------------------------------------ */
+
 // Les rôles pour qui les coordonnées d'un apprenant restent une donnée de
 // travail sans limite de durée.
 //
@@ -56,6 +67,11 @@ const ROLES_VOYANT_COORDONNEES: Role[] = [Role.ADMIN_OF, Role.ADMIN_MANAGER, Rol
 // Données de santé / handicap : cercle strictement plus étroit. Aligné sur
 // canAccessAccommodations (lib/tenant.ts), qui reste la porte d'entrée —
 // ce fichier ne fait que la refermer plus tôt pour le formateur.
+//
+// SALES n'y est pas, et c'est la même règle qui le dit : un commercial seul
+// ne voit aucune donnée de santé, sa casquette n'a donc rien à rouvrir. Un
+// formateur-commercial garde les coordonnées et perd le handicap — deux
+// réponses opposées, une seule règle.
 const ROLES_VOYANT_SANTE: Role[] = [Role.ADMIN_OF, Role.ADMIN_MANAGER];
 
 export type ContexteMasquage = {
@@ -71,10 +87,17 @@ export type ContexteMasquage = {
   maintenant: Date;
 };
 
-/** Cette personne n'a-t-elle que la casquette formateur, pour cette question ? */
+/**
+ * Cette personne n'a-t-elle que la casquette formateur, pour cette question ?
+ *
+ * Exactement la règle des filtres de propriété — même question, même calcul —
+ * d'où l'appel à `borneAuxSiens` plutôt qu'une seconde implémentation. Ici la
+ * borne ne restreint pas des LIGNES mais des CHAMPS, ce qui ne change rien au
+ * raisonnement : c'est toujours « le rôle restrictif est-il présent, et
+ * aucun rôle qui voit déjà tout ne l'accompagne-t-il ? ».
+ */
 function seulementFormateur(roles: Role[], rolesPrivilegies: Role[]): boolean {
-  if (!roles.includes(Role.TRAINER)) return false;
-  return !roles.some((r) => rolesPrivilegies.includes(r));
+  return borneAuxSiens(roles, Role.TRAINER, rolesPrivilegies);
 }
 
 /**

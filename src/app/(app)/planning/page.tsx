@@ -13,6 +13,7 @@ import { PlanningCalendar } from "@/components/PlanningCalendar";
 import { ArchiveSessionButton } from "@/components/ArchiveSessionButton";
 import { Pagination } from "@/components/Pagination";
 import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 const FORMAT_LABELS: Record<string, string> = {
   IN_PERSON: "Présentiel",
@@ -37,7 +38,7 @@ export default async function PlanningPage(props: {
   searchParams: Promise<{ tab?: string; month?: string; trainer?: string; page?: string; continu?: string }>;
 }) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, roles, userId } = await requireSessionContext();
+  const { organizationId, roles, userId } = await requireSessionContext();
   if (can(roles, "planning") === "none") redirect("/dashboard");
   const canCreate = can(roles, "planning") === "full";
   const activeTab = searchParams.tab ?? "liste";
@@ -45,9 +46,16 @@ export default async function PlanningPage(props: {
   // planning access sees the whole org's schedule, optionally narrowed
   // to one trainer via the filter below (moot for TRAINER, who is
   // already locked to themselves).
-  const canFilterByTrainer = role !== Role.TRAINER;
+  //
+  // Sur les rôles effectifs (lib/proprieteRoles.ts) : la borne suit la
+  // casquette formateur où qu'elle soit dans la liste, et se lève dès qu'une
+  // casquette qui voit déjà tout le planning l'accompagne. Le filtre par
+  // intervenant n'a de sens que pour qui n'est pas borné à lui-même — les
+  // deux se déduisent donc du même booléen, et ne peuvent plus diverger.
+  const borneFormateur = borneAuxSiennesDuFormateur(roles);
+  const canFilterByTrainer = !borneFormateur;
   const ownerFilter =
-    role === Role.TRAINER ? { trainerId: userId } : searchParams.trainer ? { trainerId: searchParams.trainer } : {};
+    borneFormateur ? { trainerId: userId } : searchParams.trainer ? { trainerId: searchParams.trainer } : {};
 
   const [courses, trainers] = await Promise.all([
     canCreate ? prisma.course.findMany({ where: { organizationId }, orderBy: { title: "asc" } }) : Promise.resolve([]),

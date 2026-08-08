@@ -69,26 +69,37 @@ all read from it directly — it should stay the only place that matrix is defin
 A person can hold several roles: `User.additionalRoles` (a formateur who is also
 commercial), edited from /team. `can()` therefore accepts `Role | Role[]` and returns the
 **best** level across the list (`full` > `limited` > `none`) — no composite role is ever
-invented. `SessionContext` carries both `role` (the primary one, still what the
-query-level ownership filters below key off) and `roles` (the effective list, always
-`[role, ...]`). **Passing `session.roles` instead of `session.role` is what makes a screen
-honour the cumul**; with an empty `additionalRoles` the two are indistinguishable, which is
-why the migration is safe to do screen by screen. `LEARNER` and `ADMIN_OF` cannot be
-cumulated (see `NON_CUMULABLE_ROLES`): the first is the OF's customer, the second would
-mint a second owner around the "Admin OF can't be reassigned" rule.
+invented. `SessionContext` carries both `role` (the primary one) and `roles` (the effective
+list, always `[role, ...]`). **Everything that grants or restricts reads `roles`** — the
+permission matrix and the ownership filters below alike; `role` survives only for the two
+questions that are about the *primary* role by definition, i.e. `=== LEARNER` and
+`!== ADMIN_OF`, neither of which can be a secondary hat. With an empty `additionalRoles` the
+two are indistinguishable, which is what made the migration safe to do screen by screen —
+and also what hid, for one commit, a filter that had been left on `role`. `LEARNER` and
+`ADMIN_OF` cannot be cumulated (see `NON_CUMULABLE_ROLES`): the first is the OF's customer,
+the second would mint a second owner around the "Admin OF can't be reassigned" rule.
 
 That flat matrix can only express "does this role see this section at all," not "their
 own records only." Several pages layer a second, query-level ownership filter on top —
-the repeated pattern:
+and `src/lib/proprieteRoles.ts` is the single place that decides *when* that filter
+applies:
 
 ```ts
-const ownerFilter = role === Role.TRAINER ? { session: { trainerId: userId } } : {};
+const ownerFilter = borneAuxSiennesDuFormateur(roles) ? { session: { trainerId: userId } } : {};
 ```
 
-appears in `/dossiers`, `/planning`, `/formations` and elsewhere for TRAINER (own
-sessions/dossiers) and SALES (own CRM opportunities, via `canManageOpportunity`/
-`canAccessContact` also in `tenant.ts`). Adding a new role or feature means checking
-both layers. A `Subcontractor` can be given a real login (`Subcontractor.linkedUserId`)
+It used to read `role === Role.TRAINER`, i.e. the **primary** role, which cumul broke in
+both directions — and one of them was a leak: when the restricting role arrived as a
+*secondary* hat, `can()` opened the screen but the filter never fired, so a trainer given
+the commercial hat read the whole org's CRM pipeline. The rule now, everywhere: a filter
+fires as soon as the restricting role is in the **effective** list, and lifts only if a
+role that would already see that screen unbounded is in it too. Read that file's header
+before touching any of these — in particular why the "lifts the bound" list legitimately
+differs between `/dossiers`, the dashboard and the GDPR masking rules. The filter appears
+in `/dossiers`, `/planning`, `/formations`, `/documents`, `/api/search` and elsewhere for
+TRAINER (own sessions/dossiers) and SALES (own CRM opportunities — record-level, that one
+goes through `canManageOpportunity`/`canAccessContact` in `tenant.ts`). Adding a new role
+or feature means checking both layers. A `Subcontractor` can be given a real login (`Subcontractor.linkedUserId`)
 via the invite flow in `/api/subcontractors/[id]/invite` — it creates a normal `User`
 with role `TRAINER`, so it inherits this same scoping automatically; no separate
 "or a subcontractor" branch exists elsewhere in the codebase by design.

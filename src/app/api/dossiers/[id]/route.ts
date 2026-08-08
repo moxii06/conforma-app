@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can, canWriteRgpd } from "@/lib/tenant";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 const schema = z.object({
   learnerCategory: z.enum(["employee", "jobseeker", "individual", "apprentice"]).optional(),
@@ -58,7 +58,8 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     include: { session: true },
   });
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
-  if (touchesSteps && session.role === Role.TRAINER && dossier.session.trainerId !== session.userId) {
+  // Borne calculée sur les rôles effectifs — voir lib/proprieteRoles.ts.
+  if (touchesSteps && borneAuxSiennesDuFormateur(session.roles) && dossier.session.trainerId !== session.userId) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 

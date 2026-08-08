@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { notFound, redirect } from "next/navigation";
-import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import { DocumentComposer } from "@/components/DocumentComposer";
 import { AVAILABLE_MERGE_FIELDS } from "@/lib/mergeTemplate";
 
@@ -11,7 +11,7 @@ export default async function ComposerPage(props: {
 }) {
   const { templateId } = await props.params;
   const { doc } = await props.searchParams;
-  const { organizationId, role, roles, userId } = await requireSessionContext();
+  const { organizationId, roles, userId } = await requireSessionContext();
   if (can(roles, "dossiers") === "none" && can(roles, "toolkit") === "none") redirect("/dashboard");
 
   const template = await prisma.documentTemplate.findFirst({
@@ -21,12 +21,13 @@ export default async function ComposerPage(props: {
   if (!template) notFound();
 
   // Les sessions proposées : celles que ce rôle a le droit de voir. Un
-  // formateur ne pilote que les siennes.
+  // formateur ne pilote que les siennes — borne calculée sur les rôles
+  // effectifs, comme sur /planning (lib/proprieteRoles.ts).
   const sessions = await prisma.session.findMany({
     where: {
       organizationId,
       archivedAt: null,
-      ...(role === Role.TRAINER ? { trainerId: userId } : {}),
+      ...(borneAuxSiennesDuFormateur(roles) ? { trainerId: userId } : {}),
     },
     select: {
       id: true,

@@ -12,7 +12,7 @@ import {
 } from "@/lib/documentQuestionnaire";
 import { assembleBlocks, collectQuestionKeys } from "@/lib/documentAssembly";
 import { computeFundingSummary, resolveDossierPriceCents } from "@/lib/funding";
-import { Role } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 
 // Merges a template against this dossier's contact/session WITHOUT
 // persisting anything — backs the "Envoyer un document" dialog's live
@@ -77,7 +77,8 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     }),
   ]);
   if (!dossier) return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
-  if (auth.role === Role.TRAINER && dossier.session.trainerId !== auth.userId) {
+  // Borne calculée sur les rôles effectifs — voir lib/proprieteRoles.ts.
+  if (borneAuxSiennesDuFormateur(auth.roles) && dossier.session.trainerId !== auth.userId) {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
   if (!template) return NextResponse.json({ error: "Modèle introuvable." }, { status: 404 });

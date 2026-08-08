@@ -3,7 +3,8 @@ import { PageHeader, Pill, Avatar, EmptyState, Button } from "@/components/ui";
 import Link from "next/link";
 import { requireSessionContext, can } from "@/lib/tenant";
 import { redirect } from "next/navigation";
-import { Role, type Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
+import { borneAuxSiennesDuFormateur } from "@/lib/proprieteRoles";
 import { SearchInput } from "@/components/SearchInput";
 import { DossierStatusFilter } from "@/components/DossierStatusFilter";
 import { filtreCloture } from "@/lib/dossierArchive";
@@ -26,12 +27,25 @@ export default async function DossiersPage(
   props: { searchParams: Promise<{ q?: string; page?: string; status?: string; vue?: string }> }
 ) {
   const searchParams = await props.searchParams;
-  const { organizationId, role, roles, userId } = await requireSessionContext();
+  const { organizationId, roles, userId } = await requireSessionContext();
   if (can(roles, "dossiers") === "none") redirect("/dashboard");
   // Spec §2: "Trainer: their own sessions" extends to the dossiers enrolled
   // in those sessions — a trainer manages their own learners, not the
   // whole org's.
-  const ownerFilter: Prisma.DossierWhereInput = role === Role.TRAINER ? { session: { trainerId: userId } } : {};
+  //
+  // Sur les rôles EFFECTIFS, pas sur le rôle principal. Deux corrections en
+  // une, dont l'écart que l'audit reprochait à cet écran :
+  //   — un DPO externe (ou n'importe quel rôle non administratif) à qui on
+  //     ajoute la casquette formateur reste borné à SES sessions, alors que
+  //     `role === Role.TRAINER` ne se déclenchait pas et lui ouvrait tout ;
+  //   — un formateur-commercial n'est plus borné à ses apprenants ici alors
+  //     qu'un commercial pur lit déjà tous les dossiers de l'organisme.
+  //     L'écran répondait l'inverse de /crm sur la même personne ; la règle
+  //     est maintenant la même partout (lib/proprieteRoles.ts) : le cumul
+  //     additionne ce que chaque casquette montre, il ne soustrait jamais.
+  const ownerFilter: Prisma.DossierWhereInput = borneAuxSiennesDuFormateur(roles)
+    ? { session: { trainerId: userId } }
+    : {};
   const q = searchParams.q?.trim();
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const statusFilter = searchParams.status && STATUS_FILTER_WHERE[searchParams.status] ? STATUS_FILTER_WHERE[searchParams.status] : {};
@@ -86,6 +100,14 @@ export default async function DossiersPage(
         where: {
           organizationId,
           contactId: { in: contactIds },
+          // La borne de propriété doit filtrer les DEUX passes, pour la même
+          // raison que la clôture juste en dessous. La première décide quels
+          // APPRENANTS apparaissent ; sans celle-ci, la carte d'un apprenant
+          // retenu par une de mes sessions listait aussi ses formations chez
+          // les autres formateurs — titre, date, pastilles de retard,
+          // progression, et le compteur « N formations » avec. Le lien vers
+          // la fiche était bien gardé, mais la liste avait déjà tout montré.
+          ...ownerFilter,
           // La clôture doit filtrer les DEUX passes. Le premier filtre
           // choisit quels apprenants apparaissent ; sans celui-ci, une
           // personne retenue par un dossier clos voyait aussi ses
