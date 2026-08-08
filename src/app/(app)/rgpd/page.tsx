@@ -222,11 +222,29 @@ async function RegisterTab({ organizationId, canWrite }: { organizationId: strin
             </div>
           </div>
           {a.purpose && <div className="text-[12px] text-slate mt-1">{a.purpose}</div>}
-          {(a.dataSubjects || a.dataCategories) && (
+          {(a.dataSubjects || a.dataCategories || a.recipients) && (
             <div className="text-[11.5px] text-slate mt-0.5">
               {[a.dataSubjects, a.dataCategories, a.recipients].filter(Boolean).join(" · ")}
-              {a.transferOutsideEu && <span className="text-rust"> · transfert hors UE</span>}
             </div>
+          )}
+          {/* La garantie encadrant le transfert est affichée AVEC la mention,
+              jamais la mention seule : « transfert hors UE » tout court se lit
+              comme un constat de non-conformité, alors que la ligne du registre
+              est justement l'endroit où la garantie invoquée (clauses types,
+              décision d'adéquation…) fait la preuve inverse. Article 30(1)(e). */}
+          {a.transferOutsideEu && (
+            <div className="text-[11.5px] text-rust mt-0.5">
+              Transfert hors UE
+              {a.transferDetails
+                ? ` : ${a.transferDetails}`
+                : " — garantie invoquée non renseignée (mention exigée par l'article 30(1)(e))"}
+            </div>
+          )}
+          {/* Article 30(1)(g) : les mesures de sécurité sont une mention du
+              registre au même titre que la finalité. Elles étaient saisies au
+              formulaire et n'étaient relues nulle part. */}
+          {a.securityMeasures && (
+            <div className="text-[11.5px] text-slate mt-0.5">Sécurité : {a.securityMeasures}</div>
           )}
           {!a.purpose && (
             <div className="text-[11.5px] text-rust mt-1">

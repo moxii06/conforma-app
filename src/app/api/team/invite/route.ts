@@ -33,6 +33,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Champs invalides.", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  // Un apprenant ne s'invite pas depuis l'équipe : son compte naît de son
+  // inscription à une formation. Créé par ici, il serait aussitôt masqué de
+  // /team (qui filtre les LEARNER), donc sans fiche ni moyen de revenir en
+  // arrière — et non réinvitable, son email étant désormais pris. Le
+  // sélecteur ne le propose plus ; la garde est ici parce qu'une invitation
+  // peut aussi arriver hors de ce formulaire.
+  if (parsed.data.role === Role.LEARNER) {
+    return NextResponse.json(
+      {
+        error:
+          "Le rôle Apprenant ne s'attribue pas depuis l'équipe : un apprenant est créé par son inscription à une formation.",
+      },
+      { status: 400 }
+    );
+  }
+
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email.toLowerCase().trim() } });
   if (existing) {
     return NextResponse.json({ error: "Un compte existe déjà avec cet email." }, { status: 409 });

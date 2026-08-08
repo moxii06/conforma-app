@@ -33,6 +33,22 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     if (member.role === Role.ADMIN_OF || parsed.data.role === Role.ADMIN_OF) {
       return NextResponse.json({ error: "Le rôle Admin OF ne peut pas être modifié." }, { status: 400 });
     }
+    // Basculer un membre sur « Apprenant » était un aller sans retour : /team
+    // masque les LEARNER, or sa ligne y portait le seul lien vers sa fiche,
+    // donc vers le seul sélecteur de rôle de l'application. Le membre
+    // disparaissait, et le réinviter renvoyait « un compte existe déjà ».
+    // Un apprenant se crée par une inscription à une formation, pas par un
+    // changement de rôle — c'est déjà ce que dit NON_CUMULABLE_ROLES en
+    // excluant LEARNER des casquettes secondaires.
+    if (parsed.data.role === Role.LEARNER) {
+      return NextResponse.json(
+        {
+          error:
+            "Le rôle Apprenant ne s'attribue pas depuis l'équipe : un apprenant est créé par son inscription à une formation.",
+        },
+        { status: 400 }
+      );
+    }
   }
 
   if (parsed.data.email && parsed.data.email.toLowerCase() !== member.email) {

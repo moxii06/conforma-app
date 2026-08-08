@@ -6,7 +6,14 @@ import { Role } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/tenant";
 import { Button } from "@/components/ui";
 
-const INVITABLE_ROLES = Object.values(Role).filter((r) => r !== Role.ADMIN_OF);
+// Ni ADMIN_OF (un seul propriétaire, non réassignable) ni LEARNER : un
+// apprenant n'est pas un membre d'équipe, il naît de son inscription à une
+// formation. L'inviter ici créait un compte que /team masque aussitôt
+// (page.tsx filtre les LEARNER) — donc introuvable, et non réinvitable
+// puisque son email est déjà pris. Même logique que NON_CUMULABLE_ROLES,
+// qui exclut déjà LEARNER des casquettes secondaires. Les deux routes
+// (/api/team/invite et /api/team/members/[id]) refusent le rôle de leur côté.
+const INVITABLE_ROLES = Object.values(Role).filter((r) => r !== Role.ADMIN_OF && r !== Role.LEARNER);
 
 export function InviteMemberForm() {
   const router = useRouter();
