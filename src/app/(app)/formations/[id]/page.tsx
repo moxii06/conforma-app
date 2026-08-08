@@ -347,7 +347,14 @@ function ResumeTab({
                   <div className="text-[11.5px] text-slate shrink-0">
                     {isRolling ? `${s.dossiers.length} inscrit${s.dossiers.length > 1 ? "s" : ""}` : `${s.dossiers.length}/${s.capacity}`}
                   </div>
-                  <div className="shrink-0">
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    {/* Gris et jamais « Complet » tout court : c'est la
+                        cohorte qui sature, pas la formation. Même pastille,
+                        même ton et même libellé que le catalogue et le
+                        planning — un fait, pas une alerte. Masquée sur une
+                        session annulée, où le remplissage ne veut plus rien
+                        dire. */}
+                    {sessionComplete && !isCancelled && <Pill tone="neutral">Session complète</Pill>}
                     {isCancelled ? (
                       <Pill tone="danger">Annulée</Pill>
                     ) : (
