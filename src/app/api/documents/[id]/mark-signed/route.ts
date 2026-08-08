@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext, can } from "@/lib/tenant";
-import { notifyDocumentSigned, syncParcoursFromSignedDocument, materialiseScheduleFromSignedDocument } from "@/lib/documentSending";
+import { traiterDocumentSigne } from "@/lib/documentSending";
 
 // Déclarer manuellement qu'un document a été signé (retour papier).
 //
-// Le pendant humain du webhook Yousign. Il appelle DÉLIBÉRÉMENT les mêmes
-// trois helpers que la voie automatique : « ce qui se passe quand un
-// document est signé » doit exister à un seul endroit, sinon un contrat
+// Le pendant humain du webhook Yousign. Il appelle la MÊME fonction que les
+// deux voies automatiques : « ce qui se passe quand un document est signé »
+// n'existe qu'à un seul endroit (traiterDocumentSigne), sinon un contrat
 // signé sur papier n'avancerait pas le Parcours de l'apprenant, ni ne
-// matérialiserait son échéancier en factures, alors qu'un contrat signé
-// en ligne le ferait — et personne ne comprendrait pourquoi.
+// matérialiserait son échéancier en factures, alors qu'un contrat signé en
+// ligne le ferait — et personne ne comprendrait pourquoi. C'est exactement
+// ce qui était arrivé à l'échéancier, du temps où les trois routes
+// recopiaient la séquence.
 export async function POST(_request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (can(session.role, "dossiers") === "none") {
+  if (can(session.roles, "dossiers") === "none") {
     return NextResponse.json({ error: "Action non autorisée pour ce rôle." }, { status: 403 });
   }
 
@@ -30,7 +32,7 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
     return NextResponse.json({ ok: true, alreadySigned: true });
   }
 
-  await prisma.document.update({
+  const signe = await prisma.document.update({
     where: { id: doc.id },
     data: {
       signatureStatus: "signed",
@@ -42,9 +44,13 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
     },
   });
 
-  await notifyDocumentSigned(doc, session.organizationId);
-  await syncParcoursFromSignedDocument(doc);
-  await materialiseScheduleFromSignedDocument(doc);
+  const { echeancier } = await traiterDocumentSigne(signe);
 
-  return NextResponse.json({ ok: true });
+  // C'est cette voie-ci qui a un écran en face, et c'est elle que
+  // l'organisme habitué à saisir ses factures à la main va utiliser en
+  // premier après le déploiement : elle rend l'issue de l'échéancier telle
+  // quelle, avec l'avertissement rédigé quand la matérialisation a été
+  // écartée. Le bouton peut l'afficher ; ne rien renvoyer le condamnerait à
+  // dire « c'est fait » sans savoir ce qui a été fait.
+  return NextResponse.json({ ok: true, echeancier });
 }

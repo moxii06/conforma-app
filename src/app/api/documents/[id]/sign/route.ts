@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionContext } from "@/lib/tenant";
-import { notifyDocumentSigned, syncParcoursFromSignedDocument, materialiseScheduleFromSignedDocument } from "@/lib/documentSending";
+import { traiterDocumentSigne } from "@/lib/documentSending";
 
 // The learner's side of the signature workflow (mon-espace's "Mes
 // documents" tab) — a stub click-to-sign for organizations with no Yousign
@@ -37,9 +37,13 @@ export async function POST(_request: Request, props: { params: Promise<{ id: str
     data: { signatureStatus: "signed", signedAt: new Date() },
   });
 
-  await notifyDocumentSigned(signed, session.organizationId);
-  await syncParcoursFromSignedDocument(signed);
-  await materialiseScheduleFromSignedDocument(signed);
+  // Même séquence que les deux autres voies de signature, au même endroit —
+  // voir traiterDocumentSigne dans lib/documentSending.ts.
+  await traiterDocumentSigne(signed);
 
+  // La réponse ne porte volontairement PAS l'issue de l'échéancier : celui
+  // qui la reçoit est l'apprenant, et l'état de facturation de l'organisme
+  // ne le regarde pas. L'avertissement éventuel lui parvient par le seul
+  // canal légitime — le mail « Document signé » adressé à l'organisme.
   return NextResponse.json(signed);
 }

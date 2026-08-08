@@ -15,17 +15,25 @@ export function MarkSignedButton({ documentId }: { documentId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [avertissement, setAvertissement] = useState<string | null>(null);
 
   async function marquer() {
     if (!confirm("Confirmer que ce document a bien été signé ?\n\nLa date de signature sera celle d'aujourd'hui.")) return;
     setLoading(true);
     setErreur(null);
+    setAvertissement(null);
     const res = await fetch(`/api/documents/${documentId}/mark-signed`, { method: "POST" });
     setLoading(false);
+    const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
       setErreur(body.error ?? "Échec.");
       return;
+    }
+    // Des factures existaient déjà pour ce contrat : l'échéancier n'a pas été
+    // matérialisé, et c'est le seul endroit où quelqu'un peut l'apprendre.
+    // Le webhook Yousign n'a personne en face ; ici, si.
+    if (body?.echeancier?.statut === "doublon_evite" && body.echeancier.avertissement) {
+      setAvertissement(body.echeancier.avertissement as string);
     }
     router.refresh();
   }
@@ -33,6 +41,7 @@ export function MarkSignedButton({ documentId }: { documentId: string }) {
   return (
     <div className="shrink-0 flex items-center gap-2">
       {erreur && <span className="text-[11px] text-rust">{erreur}</span>}
+      {avertissement && <span className="text-[11px] text-seal-dark max-w-[26rem]">{avertissement}</span>}
       <button
         type="button"
         onClick={marquer}

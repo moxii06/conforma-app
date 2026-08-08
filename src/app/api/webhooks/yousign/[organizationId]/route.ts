@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyYousignWebhook } from "@/lib/yousign";
-import { notifyDocumentSigned, syncParcoursFromSignedDocument, materialiseScheduleFromSignedDocument } from "@/lib/documentSending";
+import { traiterDocumentSigne } from "@/lib/documentSending";
 
 // Receiver for the webhook subscription staff create themselves in the
 // Youtrust app (see /integrations — the exact URL to paste is shown there,
@@ -51,9 +51,15 @@ export async function POST(request: Request, props: { params: Promise<{ organiza
     data: { signatureStatus: "signed", signedAt: new Date() },
   });
 
-  await notifyDocumentSigned(signed, signed.organizationId);
-  await syncParcoursFromSignedDocument(signed);
-  await materialiseScheduleFromSignedDocument(signed);
+  // Même séquence que les deux voies humaines, au même endroit — voir
+  // traiterDocumentSigne dans lib/documentSending.ts. L'organisation se lit
+  // sur le document, jamais sur params.organizationId : ici, ce segment
+  // d'URL vaut parfois « platform ».
+  //
+  // Personne ne lit une réponse de webhook : quand la matérialisation de
+  // l'échéancier est écartée, l'organisme l'apprend par le mail « Document
+  // signé », et la trace reste dans les logs serveur.
+  await traiterDocumentSigne(signed);
 
   return NextResponse.json({ ok: true });
 }
