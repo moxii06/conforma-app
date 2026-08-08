@@ -97,7 +97,7 @@ export function OrganizationConsumerForm({
               gratuitement en cas de litige, avant d&apos;aller devant un tribunal.
             </p>
             <p className="mt-2">
-              <strong>Y adhérer est obligatoire</strong> dès lors que vous contractez avec des particuliers
+              <strong>Y adhérer est obligatoire</strong>{" "}dès lors que vous contractez avec des particuliers
               (art. L.612-1 du Code de la consommation), et ses coordonnées doivent figurer sur vos contrats,
               vos CGV et votre site. Un organisme qui ne vend qu&apos;à des entreprises n&apos;y est pas tenu.
             </p>
@@ -191,7 +191,7 @@ export function OrganizationConsumerForm({
               que l&apos;apprenant peut encore être remboursé intégralement.
             </p>
             <p className="mt-2">
-              Ce réglage n&apos;est que la <strong>valeur par défaut</strong> : chaque formation peut trancher
+              Ce réglage n&apos;est que la <strong>valeur par défaut</strong>{" "}: chaque formation peut trancher
               elle-même dans ses « Règles du parcours ». Une formation de trois jours et un parcours de six mois
               n&apos;appellent pas la même réponse.
             </p>

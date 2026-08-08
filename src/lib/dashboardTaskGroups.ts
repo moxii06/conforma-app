@@ -38,8 +38,11 @@ const LIBELLES_COLLECTIFS: Record<DashboardTask["kind"], string> = {
   invoice_overdue: "factures en retard",
   rgpd_suggestion: "emails à confirmer comme demandes RGPD",
   rgpd_deadline: "demandes RGPD à traiter",
+  rgpd_request_assigned: "demandes RGPD qui vous sont assignées",
+  support_request_assigned: "réclamations et signalements qui vous sont adressés",
   session_draft: "sessions à valider",
   subcontractor_expiry: "échéances de sous-traitants",
+  subcontractor_renewal_notice: "contrats à dénoncer avant reconduction",
   dossier_prep_needs_assessment: "recueils des besoins manquants",
   dossier_prep_contract: "conventions non signées",
   rolling_deadline_warning: "accès e-learning bientôt expirés",
@@ -89,9 +92,16 @@ const DESTINATIONS_COLLECTIVES: Record<DashboardTask["kind"], string | null> = {
 
   rgpd_suggestion: "/inbox",
   rgpd_deadline: "/rgpd?tab=droits",
+  rgpd_request_assigned: "/rgpd?tab=droits",
   email_assigned: "/inbox",
+  // Le tableau de suivi porte exactement cette famille : sujet, responsable,
+  // échéance, urgence, statut — cherchable et paginé.
+  support_request_assigned: "/support?tab=suivi",
 
   subcontractor_expiry: "/team",
+  // L'onglet prestataires porte la date de dénonciation à côté de chaque
+  // fin de contrat : c'est bien l'écran qui traite toute la famille.
+  subcontractor_renewal_notice: "/team?tab=prestataires",
   intervenant_evaluation_due: "/team?tab=evaluations",
   qualiopi_audit_upcoming: "/qualiopi?tab=preparation-audit",
   qualiopi_finding_open: "/qualiopi?tab=audits",

@@ -36,6 +36,7 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   rgpd_deadline: "RGPD",
   session_draft: "Session",
   subcontractor_expiry: "Sous-traitant",
+  subcontractor_renewal_notice: "Reconduction tacite",
   dossier_prep_needs_assessment: "Recueil des besoins",
   dossier_prep_contract: "Convention",
   rolling_deadline_warning: "Formation en continu",
@@ -52,6 +53,8 @@ const TASK_KIND_LABELS: Record<DashboardTask["kind"], string> = {
   intervenant_evaluation_due: "Évaluation intervenant",
   session_uninvoiced: "À facturer",
   email_assigned: "Email assigné",
+  rgpd_request_assigned: "Demande RGPD",
+  support_request_assigned: "Demande d'aide",
 };
 
 // Les piles vivent dans lib/dashboardTaskThemes.ts : le filtre en a besoin,

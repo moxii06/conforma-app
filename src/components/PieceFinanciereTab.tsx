@@ -402,7 +402,7 @@ export function PieceFinanciereTab({
           </div>
           <p className="text-[11px] text-slate leading-relaxed">
             Le détail ligne par ligne se complète ensuite depuis Facturation — ici on ne demande que ce qu&apos;il faut
-            pour émettre {mots.leLa} et l&apos;envoyer.
+            pour émettre {mots.leLa}{" "}et l&apos;envoyer.
           </p>
         </div>
       )}

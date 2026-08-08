@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { addDays } from "date-fns";
-import { canWriteRgpd } from "@/lib/tenant";
+import { canWriteRgpd, canAccessSecureReports } from "@/lib/tenant";
+import { normaliserUrgence } from "@/lib/supportRequests";
 import { getCourseCompletion } from "@/lib/lms";
 import { AWAITING_FUNDER, isAwaitingFunderTooLong, isAgreementExpiringSoon } from "@/lib/funding";
 // Un dossier clos ne doit plus rien réclamer : c'est la moitié du sens du
@@ -182,6 +183,137 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
       href: "/inbox",
       overdue: false,
     });
+  }
+
+  // Même principe que les emails assignés ci-dessus, et pour la même raison :
+  // assigner une demande RGPD à quelqu'un ne produisait rien chez cette
+  // personne. Elle restait visible dans un onglet du registre, c'est-à-dire
+  // nulle part — alors qu'une demande de droit a une échéance légale d'un
+  // mois (art. 12(3)) et que l'assignation est censée être le moment où
+  // quelqu'un devient responsable de la tenir.
+  //
+  // Filtrée sur l'UTILISATEUR et non sur son rôle, contrairement à presque
+  // tout le reste de cette fonction : un formateur peut se voir assigner une
+  // demande d'accès interne alors que `rgpd` lui est fermé. La tâche est à
+  // lui, pas à son rôle.
+  //
+  // `status: { not: "closed" }` et non `"open"` : une demande en cours de
+  // traitement reste due, et son échéance ne bouge pas.
+  const demandesRgpdAssignees = await prisma.rightsRequest.findMany({
+    where: {
+      organizationId,
+      assignedToUserId: userId,
+      status: { not: "closed" },
+      // Pas de plancher d'ancienneté ici, contrairement aux familles issues
+      // des dossiers. Le plancher existe pour les volumes que la reprise
+      // d'historique fait exploser ; une demande de droit ne s'importe pas,
+      // il y en a quelques-unes par an, et une demande ancienne encore
+      // ouverte n'est pas de l'archive — c'est un délai légal dépassé, la
+      // dernière chose à faire disparaître d'une liste.
+    },
+    orderBy: { deadline: "asc" },
+    take: MAX_TACHES_PAR_FAMILLE,
+  });
+  noterSiPlafond("rgpd_request_assigned", demandesRgpdAssignees);
+  const maintenantRgpd = new Date();
+  for (const r of demandesRgpdAssignees) {
+    results.push({
+      id: r.id,
+      kind: "rgpd_request_assigned",
+      label: `Demande RGPD qui vous est assignée — échéance ${r.deadline.toLocaleDateString("fr-FR")}`,
+      contactName: r.personLabel,
+      since: r.deadline,
+      dueAt: r.deadline,
+      href: "/rgpd?tab=droits",
+      overdue: r.deadline < maintenantRgpd,
+    });
+  }
+
+  // Réclamations et signalements confidentiels ADRESSÉS à cette personne.
+  //
+  // C'est ce qui donne un effet réel à l'assignation faite sur /support :
+  // sans cela, désigner un responsable et cocher des destinataires ne
+  // produisait rien nulle part, et la demande n'existait que pour qui pensait
+  // à rouvrir l'écran. Aucune table de notification n'est inventée pour
+  // autant — les notifications de Jalon sont calculées à la volée, ici, et la
+  // cloche du header lit cette même liste (voir /api/notifications).
+  //
+  // Filtré sur l'UTILISATEUR et non sur son rôle, comme les emails et les
+  // demandes RGPD ci-dessus. Deux façons d'être concerné, qui ne disent pas la
+  // même chose et que le libellé distingue : RESPONSABLE (assignedToUserId) ou
+  // simplement PRÉVENU (notifyUserIds).
+  //
+  // Une demande traitée ou archivée sort de la liste d'elle-même : il n'y a
+  // rien de plus à « marquer fait ».
+  const maintenantSupport = new Date();
+  const reclamationsAdressees = await prisma.complaint.findMany({
+    where: {
+      organizationId,
+      archivedAt: null,
+      status: { not: "resolved" },
+      OR: [{ assignedToUserId: userId }, { notifyUserIds: { has: userId } }],
+    },
+    select: { id: true, subject: true, submittedByName: true, assignedToUserId: true, assigneeDeadline: true, urgency: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+    take: MAX_TACHES_PAR_FAMILLE,
+  });
+  noterSiPlafond("support_request_assigned", reclamationsAdressees);
+  for (const c of reclamationsAdressees) {
+    const urgence = normaliserUrgence(c.urgency);
+    const responsable = c.assignedToUserId === userId;
+    results.push({
+      id: c.id,
+      kind: "support_request_assigned",
+      label: `${urgence === "urgent" ? "Urgent — " : ""}${
+        responsable ? "Réclamation à traiter" : "Réclamation à suivre (vous êtes prévenu)"
+      } : ${c.subject}`,
+      contactName: c.submittedByName,
+      // L'échéance de traitement quand il y en a une, sinon la date de
+      // réception : « en attente depuis le 3 avril » et « à faire avant le
+      // 3 avril » ne se trient pas pareil (voir DashboardTask.dueAt).
+      since: c.assigneeDeadline ?? c.createdAt,
+      ...(c.assigneeDeadline ? { dueAt: c.assigneeDeadline } : {}),
+      href: "/support",
+      overdue: c.assigneeDeadline != null && c.assigneeDeadline < maintenantSupport,
+    });
+  }
+
+  // Les signalements ne remontent QUE chez qui est habilité à les lire. Une
+  // notification sans issue apprendrait à son destinataire qu'un signalement
+  // existe sans lui permettre de l'ouvrir — la route PATCH refuse d'ailleurs
+  // déjà de désigner quelqu'un qui n'y a pas accès (lib/supportAssignment.ts).
+  if (canAccessSecureReports(role)) {
+    const signalementsAdresses = await prisma.secureReport.findMany({
+      where: {
+        organizationId,
+        archivedAt: null,
+        status: { not: "closed" },
+        OR: [{ assignedToUserId: userId }, { notifyUserIds: { has: userId } }],
+      },
+      select: { id: true, assignedToUserId: true, assigneeDeadline: true, urgency: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
+    });
+    noterSiPlafond("support_request_assigned", signalementsAdresses);
+    for (const r of signalementsAdresses) {
+      const urgence = normaliserUrgence(r.urgency);
+      const responsable = r.assignedToUserId === userId;
+      results.push({
+        id: r.id,
+        kind: "support_request_assigned",
+        // Jamais le contenu du signalement : cette ligne s'affiche dans la
+        // cloche du header, donc sur n'importe quel écran, à la vue de
+        // n'importe qui passe derrière.
+        label: `${urgence === "urgent" ? "Urgent — " : ""}${
+          responsable ? "Signalement confidentiel à traiter" : "Signalement confidentiel à suivre (vous êtes prévenu)"
+        }`,
+        contactName: `Reçu le ${r.createdAt.toLocaleDateString("fr-FR")}`,
+        since: r.assigneeDeadline ?? r.createdAt,
+        ...(r.assigneeDeadline ? { dueAt: r.assigneeDeadline } : {}),
+        href: "/support",
+        overdue: r.assigneeDeadline != null && r.assigneeDeadline < maintenantSupport,
+      });
+    }
   }
 
   // Client feedback: staff should be able to set a per-course "relance" rule
@@ -784,7 +916,21 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         orderBy: { receivedAt: "asc" },
       }),
       prisma.rightsRequest.findMany({
-        where: { organizationId, status: "open" },
+        // Ce qui m'est assigné sort d'ici : la famille personnelle
+        // ci-dessous le reprend avec un signal plus fort (« qui VOUS est
+        // assignée »). Sans cette exclusion, la même demande apparaîtrait
+        // deux fois à la même personne, sous deux libellés différents.
+        //
+        // Le OR explicite plutôt qu'un `not` : sur une colonne nullable, la
+        // façon dont Prisma traite les NULL dans une négation a changé d'une
+        // version à l'autre, et une demande non assignée qui disparaîtrait en
+        // silence de la liste serait exactement le genre de régression
+        // qu'aucun écran ne signale.
+        where: {
+          organizationId,
+          status: "open",
+          OR: [{ assignedToUserId: null }, { assignedToUserId: { not: userId } }],
+        },
         orderBy: { deadline: "asc" },
       }),
     ]);
@@ -837,6 +983,65 @@ export async function getDashboardTasks(organizationId: string, role: Role, user
         dueAt: soonest,
         href: "/team",
         overdue: soonest < now,
+      });
+    }
+  }
+
+  // Reconduction tacite d'un contrat de sous-traitance.
+  //
+  // Famille distincte de subcontractor_expiry juste au-dessus, et pour une
+  // raison de fond : ce n'est pas la même date. Un contrat qui se reconduit
+  // tout seul n'a pas d'échéance à surveiller — il a un PRÉAVIS. Passée la
+  // date limite de dénonciation (contractEndDate - renewalNoticeDays),
+  // l'organisme est engagé pour un tour de plus, qu'il l'ait voulu ou non ;
+  // apprendre la nouvelle trente jours avant la fin du contrat, comme le
+  // ferait l'autre famille, c'est l'apprendre trop tard.
+  //
+  // L'alerte s'ouvre donc UN MOIS AVANT LE PRÉAVIS, ce qui laisse le temps
+  // d'arbitrer et d'écrire la lettre. Elle reste ensuite affichée jusqu'à la
+  // fin du contrat, en retard : la reconduction acquise est un fait qui
+  // change les prochains mois de l'organisme (budget, plan de charge), et
+  // l'effacer au motif qu'il est trop tard reviendrait à masquer la
+  // conséquence de l'oubli. Un rejet ponctuel la fait taire comme n'importe
+  // quelle autre tâche (DashboardTaskDismissal).
+  if (canSeeGeneral) {
+    const now = new Date();
+    const candidats = await prisma.subcontractor.findMany({
+      where: {
+        organizationId,
+        status: "active",
+        tacitRenewal: true,
+        renewalNoticeDays: { not: null },
+        // Un contrat déjà terminé ne se dénonce plus : soit il a été
+        // reconduit et sa vraie date de fin n'est plus celle-ci (le schéma
+        // n'en garde qu'une), soit il est éteint. Dans les deux cas c'est la
+        // fiche qu'il faut corriger, et subcontractor_expiry le dit déjà.
+        contractEndDate: { gte: now },
+      },
+      select: { id: true, name: true, contractEndDate: true, renewalNoticeDays: true },
+      // Par échéance croissante : si le plafond mord, ce sont les préavis
+      // les plus proches qui survivent.
+      orderBy: { contractEndDate: "asc" },
+      take: MAX_TACHES_PAR_FAMILLE,
+    });
+    noterSiPlafond("subcontractor_renewal_notice", candidats);
+    for (const s of candidats) {
+      if (!s.contractEndDate || s.renewalNoticeDays == null) continue;
+      const dateDenonciation = addDays(s.contractEndDate, -s.renewalNoticeDays);
+      // Un mois avant le préavis : c'est la fenêtre demandée, et rien avant.
+      if (addDays(dateDenonciation, -30) > now) continue;
+      const depasse = dateDenonciation < now;
+      results.push({
+        id: s.id,
+        kind: "subcontractor_renewal_notice",
+        label: depasse
+          ? `Préavis de dénonciation dépassé — contrat reconduit jusqu'au ${s.contractEndDate.toLocaleDateString("fr-FR")}`
+          : `Reconduction tacite — dénoncer avant le ${dateDenonciation.toLocaleDateString("fr-FR")} ou le contrat repart`,
+        contactName: s.name,
+        since: dateDenonciation,
+        dueAt: dateDenonciation,
+        href: `/team/subcontractors/${s.id}`,
+        overdue: depasse,
       });
     }
   }

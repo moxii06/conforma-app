@@ -272,7 +272,7 @@ export function ImportDataDialog({
               {kind === "history" ? (
                 <>
                   Déposez l&apos;export de votre ancien outil — <span className="font-medium text-ink">une ligne par
-                  inscription passée</span> : qui, quelle formation, à quelles dates, combien d&apos;heures, facturé
+                  inscription passée</span>{" "}: qui, quelle formation, à quelles dates, combien d&apos;heures, facturé
                   combien et financé par qui. C&apos;est ce qui permet à votre bilan pédagogique et financier des années
                   antérieures d&apos;être exact.
                 </>

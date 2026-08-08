@@ -48,7 +48,14 @@ export const TASK_THEMES = [
       "qualiopi_finding_open",
       "rgpd_suggestion",
       "rgpd_deadline",
+      "rgpd_request_assigned",
+      // Réclamations et signalements confidentiels adressés à quelqu'un —
+      // rangés en conformité, pas en « dossiers à compléter » : c'est
+      // l'indicateur Qualiopi 31 d'un côté, le canal de signalement de
+      // l'autre, et les deux ont une échéance qu'un tiers surveille.
+      "support_request_assigned",
       "subcontractor_expiry",
+      "subcontractor_renewal_notice",
       "intervenant_evaluation_due",
       "mediator_missing",
     ],

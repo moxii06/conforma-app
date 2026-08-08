@@ -250,7 +250,7 @@ export default async function IntegrationsPage(props: {
                   même moteur, la clé et le webhook se configurent au même endroit dans votre compte.
                   <br />
                   <br />
-                  <strong>Sans clé, la signature fonctionne quand même</strong> : elle reste gérée en interne,
+                  <strong>Sans clé, la signature fonctionne quand même</strong>{" "}: elle reste gérée en interne,
                   l&apos;apprenant signe depuis son espace personnel.
                 </>
               }
