@@ -330,6 +330,22 @@ etc.), not what it is. Read the comment before "simplifying" a field that looks
 redundant; e.g. `EmailMessage.contactId` is nullable specifically so an unmatched email
 lands in the inbox-triage queue instead of being force-linked to the wrong contact.
 
+## JSX gotcha: an HTML entity eats the space before its text node
+
+In this Next/SWC version, a JSX text node that contains an HTML entity (`&apos;`,
+`&laquo;`, …) **loses the leading whitespace** that precedes it, gluing two words together
+on screen — `traitementqui`, `meilleurniveau`, `+ci-dessus`. Without an entity in the node
+the space survives, which is why this only bites some strings and looks random:
+
+```jsx
+{n} traitement{n > 1 ? "s" : ""} qui concernent l&apos;apprenant   // → "…traitementqui…"
+<strong>votre</strong> compte Stripe. Une fois configuré, un        // → fine, no entity
+```
+
+French copy hits this constantly (every apostrophe is `&apos;`). Write an explicit `{" "}`
+after the `}` or `</tag>` whenever the following prose contains an entity. Verified in the
+browser both ways before the fix, so this is the real rule, not a guess.
+
 ## Testing
 
 `vitest.config.ts` + `npm test` currently cover only `src/lib/tenant.ts` and
